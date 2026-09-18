@@ -190,28 +190,86 @@ func (s *Server) recordReused(
 	return nil, fmt.Errorf("could not allocate a unique id")
 }
 
-// deleteObjectsIfUnreferenced removes stored objects that no file row points at
-// any more.
+// releaseBlob removes content once nothing refers to it any more.
 //
-// This is what content-addressed storage makes necessary: identical uploads
-// share the same bytes, so deleting one file must not take the content out from
-// under another.
-func (s *Server) deleteObjectsIfUnreferenced(ctx context.Context, keys []string) {
-	for _, key := range keys {
-		if key == "" {
-			continue
-		}
+// Identical uploads share their bytes, so deleting one file must not take the
+// content out from under another. The reference count on the blob is what
+// answers that, and the deletion is conditional on it, so a blob that has just
+// been referenced again is left alone.
+//
+// Called after the file row is gone: the trigger on that delete has already
+// brought the count down.
+func (s *Server) releaseBlob(ctx context.Context, sha string) {
+	if sha == "" {
+		return
+	}
 
-		users, err := s.store.CountFilesUsingKey(ctx, key)
+	blob, err := s.store.DeleteBlobIfUnreferenced(ctx, sha)
+	if err != nil {
+		if !errors.Is(err, store.ErrNotFound) {
+			s.log.Error("release blob", "sha256", sha, "error", err)
+		}
+		return
+	}
+
+	s.deleteKeys(blob.Keys())
+}
+
+// discardFailedUpload removes objects written for an upload that then failed,
+// unless they belong to content somebody already has.
+//
+// That distinction matters: with content-addressed keys a repeat upload writes
+// nothing, so the objects on disk may be an existing file's. Deleting them
+// because this attempt failed would remove somebody else's image.
+func (s *Server) discardFailedUpload(ctx context.Context, sha string, keys []string) {
+	if blob, err := s.store.BlobBySHA(ctx, sha); err == nil {
+		if !blob.Orphaned() {
+			return // shared with an existing file; leave it alone
+		}
+		s.releaseBlob(ctx, sha)
+		return
+	}
+
+	// No blob record, so nothing else can be referring to these.
+	s.deleteKeys(keys)
+}
+
+// sweepOrphanedBlobs removes content that nothing refers to.
+//
+// It is the safety net for any path that removed file rows without releasing
+// their content, and it is why a reference count that somehow fell out of step
+// is recoverable rather than permanent.
+func (s *Server) sweepOrphanedBlobs(ctx context.Context) {
+	for round := 0; round < 20; round++ {
+		orphans, err := s.store.OrphanedBlobs(ctx, 100)
 		if err != nil {
-			s.log.Error("count files using object", "key", key, "error", err)
-			continue
+			s.log.Error("sweep orphaned blobs", "error", err)
+			return
 		}
-		if users > 0 {
-			continue
+		if len(orphans) == 0 {
+			return
 		}
 
-		s.deleteKeys([]string{key})
+		for _, blob := range orphans {
+			// Delete the row first: if that fails, the bytes are still
+			// accounted for and can be retried, whereas removing the bytes
+			// first would strand a row pointing at nothing.
+			removed, err := s.store.DeleteBlobIfUnreferenced(ctx, blob.SHA256)
+			if err != nil {
+				if !errors.Is(err, store.ErrNotFound) {
+					s.log.Error("sweep: delete blob", "sha256", blob.SHA256, "error", err)
+				}
+				continue
+			}
+			s.deleteKeys(removed.Keys())
+		}
+
+		if len(orphans) < 100 {
+			return
+		}
+		if ctx.Err() != nil {
+			return
+		}
 	}
 }
 

@@ -184,6 +184,7 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /admin/mail/{id}/retry", s.requireAdmin(s.handleAdminRetryMail))
 	mux.HandleFunc("POST /admin/mail/{id}/delete", s.requireAdmin(s.handleAdminDeleteMail))
 	mux.HandleFunc("POST /admin/maintenance/storage", s.requireAdmin(s.handleAdminRecomputeStorage))
+	mux.HandleFunc("POST /admin/maintenance/blobs", s.requireAdmin(s.handleAdminRecomputeBlobs))
 	mux.HandleFunc("GET /admin/files", s.requireAdmin(s.handleAdminFiles))
 	mux.HandleFunc("POST /admin/files/{id}/delete", s.requireAdmin(s.handleAdminDeleteFile))
 

@@ -1,0 +1,53 @@
+# imvault behind Caddy.
+#
+# Caddy obtains and renews a certificate on its own, so the only things needed
+# are a hostname pointed at this machine and that hostname in the site address
+# below. Nothing else here is required to get HTTPS.
+#
+#   sudo cp contrib/caddy/Caddyfile /etc/caddy/Caddyfile
+#   sudo systemctl reload caddy
+
+img.example.com {
+	# Caddy compresses by content type, so this helps the HTML, CSS, and JSON
+	# while leaving images, clips, and zip exports alone: they are already
+	# compressed and would only cost processor time.
+	encode zstd gzip
+
+	# Optional. imvault enforces its own per-file and per-account limits, so
+	# this is a second line rather than the only one. It stops an oversized
+	# upload from being received at all. Raise it to match
+	# IMVAULT_MAX_VIDEO_BYTES if you raise that.
+	request_body {
+		max_size 256MB
+	}
+
+	reverse_proxy 127.0.0.1:8080 {
+		# imvault streams: large uploads arrive over minutes, and a full-account
+		# export is a zip written straight to the connection. Flushing as data
+		# arrives keeps nothing waiting in a buffer for more.
+		flush_interval -1
+	}
+
+	# imvault sets its own security-relevant headers, and its pages use inline
+	# Alpine expressions, so a strict Content-Security-Policy would need
+	# 'unsafe-eval' and is deliberately left unset here. See
+	# docs/security.md before adding one.
+}
+
+# Caddy logs to the journal by default, which is where `journalctl -u caddy`
+# will find it. For a separate access log, create the directory first — Caddy
+# will not do it for you, and will refuse to start if it is missing:
+#
+#   sudo install -d -o caddy -g caddy /var/log/caddy
+#
+# then uncomment:
+#
+#	log {
+#		output file /var/log/caddy/imvault.log
+#	}
+
+# Anything else that resolves here goes to the canonical name, so there is one
+# origin and one set of cookies.
+www.img.example.com {
+	redir https://img.example.com{uri} permanent
+}

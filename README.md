@@ -112,7 +112,8 @@ sudo make install-systemd       # or: install-openrc
 ```
 
 Both init systems are supported, with an APKBUILD and a Gentoo ebuild alongside
-them. See [Deployment](docs/deployment.md).
+them. For TLS, `contrib/caddy/` has a Caddy configuration that obtains and
+renews certificates on its own. See [Deployment](docs/deployment.md).
 
 ## Before you run this
 

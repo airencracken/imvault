@@ -385,6 +385,103 @@ func TestAnonymousTagMigrationKeepsExistingTags(t *testing.T) {
 	}
 }
 
+func TestBlobMigrationBackfillsCountsAndMovesTheKeys(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "pre-blobs.db")
+	buildLegacyDatabase(t, path,
+		"001_init.sql", "002_media_and_api_keys.sql", "003_per_account_tags.sql",
+		"004_quotas_and_admin.sql", "005_auth_tokens.sql", "006_outbound_mail.sql",
+		"007_two_factor.sql", "008_content_addressed_storage.sql", "009_per_file_quota.sql",
+		"010_anonymous_tags.sql")
+
+	// Two files with the same content but their own objects, which is what an
+	// upload from before de-duplication looked like.
+	raw, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec(`
+		INSERT INTO files (id, user_id, original_name, ext, mime, size, width, height,
+			sha256, object_key, thumb_key, preview_key, is_public, kind, duration_ms,
+			frame_count, views, created_at)
+		VALUES ('dupe1', 1, 'x.png', 'png', 'image/png', 10, 4, 4, 'same', 'o/one', 't/one', '', 1, 'image', 0, 0, 0, 0),
+		       ('dupe2', 2, 'y.png', 'png', 'image/png', 10, 4, 4, 'same', 'o/two', 't/two', '', 1, 'image', 0, 0, 0, 0);
+	`); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	raw.Close()
+
+	ctx := context.Background()
+	database, err := Open(ctx, path)
+	if err != nil {
+		t.Fatalf("upgrade database: %v", err)
+	}
+	defer database.Close()
+
+	// One record for the shared content, counting both files.
+	var (
+		refcount int
+		object   string
+	)
+	if err := database.QueryRowContext(ctx,
+		`SELECT refcount, object_key FROM blobs WHERE sha256 = 'same'`).
+		Scan(&refcount, &object); err != nil {
+		t.Fatalf("read blob: %v", err)
+	}
+	if refcount != 2 {
+		t.Errorf("refcount = %d, want 2", refcount)
+	}
+	if object != "o/one" && object != "o/two" {
+		t.Errorf("object key = %q, want one of the two that were stored", object)
+	}
+
+	// Every distinct hash got a record, so nothing is left without one.
+	var orphans int
+	if err := database.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM files f
+		WHERE NOT EXISTS (SELECT 1 FROM blobs b WHERE b.sha256 = f.sha256)`).
+		Scan(&orphans); err != nil {
+		t.Fatal(err)
+	}
+	if orphans != 0 {
+		t.Errorf("%d files have no content record", orphans)
+	}
+
+	// The keys moved: the file rows no longer carry them, but reading a file
+	// still yields the keys, through the join.
+	var columns int
+	if err := database.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM pragma_table_info('files')
+		WHERE name IN ('object_key', 'thumb_key', 'preview_key')`).Scan(&columns); err != nil {
+		t.Fatal(err)
+	}
+	if columns != 0 {
+		t.Errorf("%d key columns are still on files", columns)
+	}
+
+	var joined string
+	if err := database.QueryRowContext(ctx, `
+		SELECT b.object_key FROM files f JOIN blobs b ON b.sha256 = f.sha256
+		WHERE f.id = 'dupe2'`).Scan(&joined); err != nil {
+		t.Fatalf("join: %v", err)
+	}
+	if joined != object {
+		t.Errorf("the file reads key %q but the blob holds %q", joined, object)
+	}
+
+	// And the triggers keep the count moving from here on.
+	if _, err := database.ExecContext(ctx, `DELETE FROM files WHERE id = 'dupe1'`); err != nil {
+		t.Fatal(err)
+	}
+	var after int
+	if err := database.QueryRowContext(ctx,
+		`SELECT refcount FROM blobs WHERE sha256 = 'same'`).Scan(&after); err != nil {
+		t.Fatal(err)
+	}
+	if after != 1 {
+		t.Errorf("refcount = %d after a delete, want 1", after)
+	}
+}
+
 func TestMigrationIsIdempotent(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "fresh.db")
 	ctx := context.Background()

@@ -70,6 +70,11 @@ func (s *Server) runCleanup(ctx context.Context) {
 		}
 	}
 
+	// Content nothing refers to any more. Deletions release their bytes as they
+	// go, so this normally finds nothing; it is the net under the cases that do
+	// not, such as rows removed by a cascade.
+	s.sweepOrphanedBlobs(ctx)
+
 	tags, err := s.store.PruneUnusedTags(ctx)
 	if err != nil {
 		s.log.Error("cleanup: prune tags", "error", err)

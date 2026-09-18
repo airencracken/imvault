@@ -71,6 +71,15 @@
     <h2>Maintenance</h2>
   </div>
   <div class="panel stack">
+    <p class="muted">
+      Uploads are stored once per distinct piece of content:
+      <strong>{{.Blobs.Blobs}}</strong> stored for <strong>{{.Blobs.Files}}</strong>
+      file{{if ne .Blobs.Files 1}}s{{end}},
+      {{if .Blobs.Shared}}{{.Blobs.Shared}} of them shared by more than one{{else}}none shared yet{{end}}.
+      {{if .Blobs.Orphaned}}
+      <span class="warn">{{.Blobs.Orphaned}} awaiting collection.</span>
+      {{end}}
+    </p>
     <div class="row">
       <form method="post" action="/admin/maintenance/storage"
             hx-post="/admin/maintenance/storage" hx-target="#admin-notice" hx-swap="innerHTML">
@@ -80,6 +89,17 @@
       <span class="muted">
         Recomputes every account's total from the files table. Only needed if a
         process was killed mid-upload.
+      </span>
+    </div>
+    <div class="row">
+      <form method="post" action="/admin/maintenance/blobs">
+        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+        <button class="btn" type="submit">Recalculate reference counts</button>
+      </form>
+      <span class="muted">
+        Recomputes how many files share each stored original, and collects any
+        content nothing refers to. Only needed if a process was killed
+        mid-delete.
       </span>
     </div>
   </div>

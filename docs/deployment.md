@@ -70,6 +70,69 @@ reads from its environment. The init script re-reads that file with `allexport`
 set, so any `IMVAULT_*` value written there reaches the daemon without the
 script having to know the option's name. Logs go to `/var/log/imvault.log`.
 
+## TLS with Caddy
+
+[Caddy](https://caddyserver.com) obtains and renews a certificate on its own, so
+the only things needed are a hostname pointed at the machine and that hostname
+in the site address. There is no certificate command to run and nothing to
+renew by hand.
+
+```bash
+sudo cp contrib/caddy/Caddyfile /etc/caddy/Caddyfile
+sudo editor /etc/caddy/Caddyfile      # put your hostname in the site address
+sudo systemctl reload caddy
+```
+
+For a machine on a trusted network, or for trying the proxy out before pointing
+a domain at it, `contrib/caddy/Caddyfile.local` does the same over plain HTTP on
+port 8081.
+
+`contrib/caddy/docker-compose.yml` runs Caddy and imvault together, with imvault
+publishing no ports of its own: an application port left open beside a TLS
+terminator is a way around it.
+
+### The three things that matter
+
+1. **Bind imvault to loopback.** `IMVAULT_ADDR=127.0.0.1:8080` means the only
+   way in is through the proxy. Publishing 8080 as well would let anyone reach
+   the plaintext origin and its non-Secure cookies.
+
+2. **Set `IMVAULT_TRUST_PROXY_HEADERS=true`.** Without it every request appears
+   to come from the proxy, so anonymous uploads and sign-in attempts all share
+   one rate-limit bucket.
+
+3. **You probably do not need `IMVAULT_SECURE_COOKIES`.** Caddy sets
+   `X-Forwarded-Proto`, and imvault marks cookies `Secure` when it sees `https`.
+   Set it anyway if you would rather not depend on the header.
+
+### What was checked
+
+The example config was run against a real instance, and the following were
+observed rather than assumed:
+
+- **Caddy discards a client-supplied `X-Forwarded-For`** and replaces it with
+  the peer it accepted the connection from, so the header imvault trusts is the
+  real one. The rate limiter was confirmed to key on the forwarded address
+  (`key=login:198.51.100.9:marcus`) when the proxy reported it.
+- **Range requests survive the proxy**, which matters for scrubbing a clip.
+- **Compression is applied by content type**: a JPEG came back with no
+  `Content-Encoding` while the stylesheet was gzipped, so images and zip exports
+  are not paying for a pointless deflate.
+- **A streaming export passes through intact** — the zip arrived complete, with
+  no CRC errors.
+
+### One thing to be careful of
+
+**Do not add a strict `Content-Security-Policy` without reading
+[Security](security.md) first.** imvault's admin pages use inline Alpine
+expressions, which are evaluated with `new Function`, so a policy without
+`unsafe-eval` will break the confirmation dialog and the table filter — silently,
+as a console error rather than a visible failure.
+
+If Caddy is itself behind another proxy or a CDN, add that proxy to Caddy's
+`trusted_proxies` so `X-Forwarded-For` reflects the original client rather than
+the last hop.
+
 ## Packages
 
 `contrib/` also carries the beginnings of distribution packaging:

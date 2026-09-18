@@ -302,8 +302,16 @@ func (s *Server) storeStill(
 
 	if !s.saveRenditions(keys, result) {
 		s.releaseStorage(ctx, owner, size)
-		s.deleteObjectsIfUnreferenced(ctx, keys.all())
+		s.discardFailedUpload(ctx, sha, keys.all())
 		return nil, fmt.Errorf("could not store the renditions")
+	}
+
+	// The blob has to exist before the file row: the trigger that counts
+	// references fires on that insert.
+	if err := s.store.EnsureBlob(ctx, sha, size, keys.object, keys.thumb, keys.preview); err != nil {
+		s.releaseStorage(ctx, owner, size)
+		s.discardFailedUpload(ctx, sha, keys.all())
+		return nil, fmt.Errorf("could not record the content")
 	}
 
 	file := &models.File{
@@ -328,7 +336,7 @@ func (s *Server) storeStill(
 
 	if err := s.store.CreateFile(ctx, file); err != nil {
 		s.releaseStorage(ctx, owner, size)
-		s.deleteObjectsIfUnreferenced(ctx, keys.all())
+		s.discardFailedUpload(ctx, sha, keys.all())
 		return nil, fmt.Errorf("could not record the file")
 	}
 
@@ -386,7 +394,7 @@ func (s *Server) storeVideo(
 	result, err := s.media.ProcessVideo(ctx, src, localPath, format)
 	if err != nil {
 		s.releaseStorage(ctx, owner, size)
-		s.deleteObjectsIfUnreferenced(ctx, []string{objectKey})
+		s.discardFailedUpload(ctx, sha, []string{objectKey})
 		return nil, err
 	}
 	s.logWarnings(result.Warnings, "")
@@ -399,8 +407,14 @@ func (s *Server) storeVideo(
 
 	if !s.saveRenditions(keys, result) {
 		s.releaseStorage(ctx, owner, size)
-		s.deleteObjectsIfUnreferenced(ctx, keys.all())
+		s.discardFailedUpload(ctx, sha, keys.all())
 		return nil, fmt.Errorf("could not store the poster frame")
+	}
+
+	if err := s.store.EnsureBlob(ctx, sha, size, keys.object, keys.thumb, ""); err != nil {
+		s.releaseStorage(ctx, owner, size)
+		s.discardFailedUpload(ctx, sha, keys.all())
+		return nil, fmt.Errorf("could not record the content")
 	}
 
 	file := &models.File{
@@ -425,7 +439,7 @@ func (s *Server) storeVideo(
 
 	if err := s.store.CreateFile(ctx, file); err != nil {
 		s.releaseStorage(ctx, owner, size)
-		s.deleteObjectsIfUnreferenced(ctx, keys.all())
+		s.discardFailedUpload(ctx, sha, keys.all())
 		return nil, fmt.Errorf("could not record the clip")
 	}
 	return file, nil
@@ -558,10 +572,12 @@ func sanitiseFilename(name string) string {
 	return name
 }
 
-// deleteFileObjects removes a file's stored object and renditions, unless
-// another upload shares them.
+// deleteFileObjects releases a file's content, unless another upload shares it.
+//
+// Called after the row is gone: the trigger on that delete has already brought
+// the reference count down, so a count of zero here means the bytes are free.
 func (s *Server) deleteFileObjects(ctx context.Context, f *models.File) {
-	s.deleteObjectsIfUnreferenced(ctx, []string{f.ObjectKey, f.ThumbKey, f.PreviewKey})
+	s.releaseBlob(ctx, f.SHA256)
 }
 
 // deleteFileAndRelease removes a file's row and bytes, giving its owner their

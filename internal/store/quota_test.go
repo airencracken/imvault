@@ -201,13 +201,14 @@ func TestDeletedUserLeavesNoFilesKeysOrTags(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// The keys must be collected before the rows cascade away.
-	keys, err := s.StoredKeysForUser(ctx, alice.ID)
+	// The content is recorded before the account goes, so the bytes can be
+	// attributed afterwards.
+	blob, err := s.BlobBySHA(ctx, "deadbeefpic")
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("blob for pic: %v", err)
 	}
-	if len(keys) != 1 || keys[0].Object == "" {
-		t.Fatalf("collected keys = %+v, want one file", keys)
+	if blob.Refcount != 1 {
+		t.Fatalf("refcount = %d, want 1 before the account is deleted", blob.Refcount)
 	}
 
 	if err := s.DeleteUser(ctx, alice.ID); err != nil {

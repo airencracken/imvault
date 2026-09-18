@@ -72,6 +72,11 @@ func (s *Server) handleAdminDashboard(w http.ResponseWriter, r *http.Request) {
 		s.log.Error("admin: mail backlog", "error", err)
 	}
 
+	blobs, err := s.store.BlobSummary(r.Context())
+	if err != nil {
+		s.log.Error("admin: blob summary", "error", err)
+	}
+
 	view := adminDashboardView{
 		Stats:       stats,
 		Users:       users,
@@ -79,6 +84,7 @@ func (s *Server) handleAdminDashboard(w http.ResponseWriter, r *http.Request) {
 		PendingMail: pendingMail,
 		FailedMail:  failedMail,
 		MailEnabled: s.mail.Enabled(),
+		Blobs:       blobs,
 		Notice:      noticeFromQuery(r),
 	}
 	view.base = s.base(r, "Admin")
@@ -459,6 +465,30 @@ func (s *Server) handleAdminRecomputeStorage(w http.ResponseWriter, r *http.Requ
 		message = fmt.Sprintf("Corrected the usage recorded for %d accounts.", corrected)
 	}
 
+	s.adminMaintenance(w, r, adminNotice{Text: message})
+}
+
+// handleAdminRecomputeBlobs recalculates the de-duplication reference counts.
+func (s *Server) handleAdminRecomputeBlobs(w http.ResponseWriter, r *http.Request) {
+	corrected, err := s.store.RecomputeBlobRefcounts(r.Context())
+	if err != nil {
+		s.log.Error("admin: recompute blob refcounts", "error", err)
+		s.adminMaintenance(w, r, adminNotice{Text: "Could not recalculate the reference counts.", Error: true})
+		return
+	}
+
+	// Anything the repair revealed as unreferenced is now collectable.
+	s.sweepOrphanedBlobs(r.Context())
+
+	s.log.Info("admin recalculated de-duplication counts",
+		"actor", currentUser(r.Context()).ID, "content_corrected", corrected)
+
+	message := "The reference counts were already accurate."
+	if corrected == 1 {
+		message = "Corrected the reference count for 1 piece of content."
+	} else if corrected > 1 {
+		message = fmt.Sprintf("Corrected the reference count for %d pieces of content.", corrected)
+	}
 	s.adminMaintenance(w, r, adminNotice{Text: message})
 }
 

@@ -1,0 +1,20 @@
+# imvault behind Caddy, over plain HTTP.
+#
+# For a machine on a trusted network, or for trying the proxy out before
+# pointing a domain at it. There is no TLS here, so a session cookie can be read
+# off the wire; use the other Caddyfile for anything reachable from outside.
+#
+#   caddy run --config contrib/caddy/Caddyfile.local
+
+{
+	# No certificate to obtain without a hostname.
+	auto_https off
+}
+
+:8081 {
+	encode zstd gzip
+
+	reverse_proxy 127.0.0.1:8080 {
+		flush_interval -1
+	}
+}

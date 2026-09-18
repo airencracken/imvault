@@ -131,6 +131,7 @@ type adminDashboardView struct {
 	PendingMail int
 	FailedMail  int
 	MailEnabled bool
+	Blobs       store.BlobStats
 	// Notice is reported either inline on a full page load or out of
 	// band when htmx swaps a row.
 	Notice adminNotice

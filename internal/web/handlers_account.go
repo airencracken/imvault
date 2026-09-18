@@ -98,11 +98,12 @@ func (s *Server) handleAccountDelete(w http.ResponseWriter, r *http.Request) {
 
 // deleteAccount removes an account and the bytes it stored.
 //
-// The storage keys are collected before the database rows cascade away: the
-// objects live outside the database, so a delete that only touched rows would
-// leave them orphaned on disk forever.
+// The file rows go with the account by cascade, and the triggers on those
+// deletes bring every blob's reference count down as they go. What is left is
+// content nothing refers to any more, which the sweep collects: another account
+// may share some of it, and its count says so.
 func (s *Server) deleteAccount(ctx context.Context, userID int64) (int, error) {
-	keys, err := s.store.StoredKeysForUser(ctx, userID)
+	count, err := s.store.CountFiles(ctx, store.FileQuery{OwnerID: &userID})
 	if err != nil {
 		return 0, err
 	}
@@ -111,10 +112,6 @@ func (s *Server) deleteAccount(ctx context.Context, userID int64) (int, error) {
 		return 0, err
 	}
 
-	// Another account may share some of these objects, so each is removed only
-	// once nothing points at it.
-	for _, k := range keys {
-		s.deleteObjectsIfUnreferenced(ctx, []string{k.Object, k.Thumb, k.Preview})
-	}
-	return len(keys), nil
+	s.sweepOrphanedBlobs(ctx)
+	return count, nil
 }

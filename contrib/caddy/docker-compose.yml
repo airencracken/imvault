@@ -1,0 +1,52 @@
+# imvault behind Caddy, both in containers.
+#
+# Caddy publishes 80 and 443 and handles certificates; imvault publishes
+# nothing, so the only way in is through the proxy. That is the point: an
+# application port left open beside a TLS terminator is a way around it.
+#
+#   docker compose -f contrib/caddy/docker-compose.yml up -d --build
+#
+# Edit the site address in Caddyfile before starting, or Caddy will try to get a
+# certificate for a name that does not resolve here.
+
+services:
+  imvault:
+    build: ../..
+    image: imvault
+    container_name: imvault
+    restart: unless-stopped
+    volumes:
+      - imvault-data:/data
+    environment:
+      # Only reachable from the compose network, so bind to everything inside
+      # it rather than to loopback.
+      IMVAULT_ADDR: ":8080"
+      # Caddy sets X-Forwarded-For to the peer it accepted the connection from,
+      # discarding anything the client claimed, so this is safe here.
+      IMVAULT_TRUST_PROXY_HEADERS: "true"
+      # Caddy also sets X-Forwarded-Proto, so imvault marks cookies Secure on a
+      # TLS site without being told. Set this anyway if you would rather be
+      # explicit.
+      IMVAULT_SECURE_COOKIES: "true"
+      IMVAULT_BASE_URL: "https://img.example.com"
+      IMVAULT_LOG_LEVEL: "info"
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: imvault-caddy
+    restart: unless-stopped
+    depends_on:
+      - imvault
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  imvault-data:
+  caddy-data:
+  caddy-config:

@@ -12,12 +12,18 @@ import (
 	"imvault/internal/models"
 )
 
+// The storage keys live on the blob rather than on the file, so they are read
+// through the content hash. COALESCE keeps a file whose blob is somehow missing
+// from breaking every listing that touches it.
 const fileColumns = `f.id, f.user_id, f.original_name, f.ext, f.mime, f.size,
-	f.width, f.height, f.sha256, f.object_key, f.thumb_key, f.preview_key,
+	f.width, f.height, f.sha256,
+	COALESCE(b.object_key, ''), COALESCE(b.thumb_key, ''), COALESCE(b.preview_key, ''),
 	f.is_public, f.kind, f.duration_ms, f.frame_count, f.views, f.created_at, f.expires_at,
 	COALESCE(u.username, '')`
 
-const fileFrom = `FROM files f LEFT JOIN users u ON u.id = f.user_id`
+const fileFrom = `FROM files f
+	LEFT JOIN users u ON u.id = f.user_id
+	LEFT JOIN blobs b ON b.sha256 = f.sha256`
 
 func scanFile(sc rowScanner) (*models.File, error) {
 	var (
@@ -53,14 +59,15 @@ func (s *Store) CreateFile(ctx context.Context, f *models.File) error {
 		kind = string(models.KindImage)
 	}
 
+	// The blob has to exist first: the trigger that counts references fires on
+	// this insert and has nothing to update otherwise.
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO files (
 			id, user_id, original_name, ext, mime, size, width, height, sha256,
-			object_key, thumb_key, preview_key, is_public, kind, duration_ms,
-			frame_count, views, created_at, expires_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			is_public, kind, duration_ms, frame_count, views, created_at, expires_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		f.ID, nullableInt64(f.UserID), f.OriginalName, f.Ext, f.Mime, f.Size,
-		f.Width, f.Height, f.SHA256, f.ObjectKey, f.ThumbKey, f.PreviewKey,
+		f.Width, f.Height, f.SHA256,
 		boolToInt(f.IsPublic), kind, f.DurationMS, f.FrameCount, f.Views,
 		ts(f.CreatedAt), nullableTime(f.ExpiresAt),
 	)
@@ -318,38 +325,6 @@ func (s *Store) ExpiredFiles(ctx context.Context, at time.Time, limit int) ([]*m
 	return files, nil
 }
 
-// FileKeys identifies the stored objects belonging to one file, so a caller can
-// remove the bytes without loading the whole row.
-type FileKeys struct {
-	ID      string
-	Object  string
-	Thumb   string
-	Preview string
-}
-
-// StoredKeysForUser returns the storage keys of every file an account owns.
-//
-// The admin "delete user" path needs these before the database rows cascade
-// away, since the objects live outside the database.
-func (s *Store) StoredKeysForUser(ctx context.Context, userID int64) ([]FileKeys, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, object_key, thumb_key, preview_key FROM files WHERE user_id = ?`, userID)
-	if err != nil {
-		return nil, fmt.Errorf("list file keys: %w", err)
-	}
-	defer rows.Close()
-
-	var keys []FileKeys
-	for rows.Next() {
-		var k FileKeys
-		if err := rows.Scan(&k.ID, &k.Object, &k.Thumb, &k.Preview); err != nil {
-			return nil, fmt.Errorf("scan file key: %w", err)
-		}
-		keys = append(keys, k)
-	}
-	return keys, rows.Err()
-}
-
 // escapeLike neutralises LIKE wildcards in user input.
 func escapeLike(s string) string {
 	r := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
@@ -369,26 +344,4 @@ func (s *Store) FileBySHA256(ctx context.Context, sha string) (*models.File, err
 		return nil, mapErr(err)
 	}
 	return f, nil
-}
-
-// CountFilesUsingKey counts the file rows referencing a stored object.
-//
-// It answers "would deleting these bytes strand somebody else's file?", which
-// is the question content-addressed storage makes necessary.
-func (s *Store) CountFilesUsingKey(ctx context.Context, key string) (int, error) {
-	if key == "" {
-		return 0, nil
-	}
-
-	var n int
-	err := s.db.QueryRowContext(ctx, `
-		SELECT
-			(SELECT COUNT(*) FROM files WHERE object_key = ?)
-		  + (SELECT COUNT(*) FROM files WHERE thumb_key = ?)
-		  + (SELECT COUNT(*) FROM files WHERE preview_key = ?)`,
-		key, key, key).Scan(&n)
-	if err != nil {
-		return 0, fmt.Errorf("count files using key: %w", err)
-	}
-	return n, nil
 }

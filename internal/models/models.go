@@ -199,6 +199,35 @@ func (f *File) Dimensions() string {
 	return fmt.Sprintf("%d×%d", f.Width, f.Height)
 }
 
+// Blob is one piece of stored content, shared by every file with the same hash.
+//
+// Refcount is maintained by database triggers rather than by callers, so it
+// stays right on every deletion path, including the cascade that removes an
+// account's files. When it reaches zero the bytes are no longer needed.
+type Blob struct {
+	SHA256     string
+	Size       int64
+	ObjectKey  string
+	ThumbKey   string
+	PreviewKey string
+	Refcount   int
+	CreatedAt  time.Time
+}
+
+// Orphaned reports whether nothing refers to the content any more.
+func (b *Blob) Orphaned() bool { return b.Refcount <= 0 }
+
+// Keys lists the stored objects belonging to the content.
+func (b *Blob) Keys() []string {
+	out := make([]string, 0, 3)
+	for _, key := range []string{b.ObjectKey, b.ThumbKey, b.PreviewKey} {
+		if key != "" {
+			out = append(out, key)
+		}
+	}
+	return out
+}
+
 // Album is a user-owned collection of files.
 type Album struct {
 	ID          int64
