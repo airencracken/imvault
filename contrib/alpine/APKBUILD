@@ -9,8 +9,8 @@
 #   cp contrib/alpine/APKBUILD ~/aports/testing/imvault/APKBUILD
 #   cd ~/aports/testing/imvault && abuild checksum && abuild -r
 #
-# Verify the checksums after the first fetch: abuild checksum rewrites the
-# source line with real values.
+# The checksum below is of the GitHub-generated tarball for v0.1.0, which is
+# what abuild fetches. Re-run `abuild checksum` if that tag is ever moved.
 #
 # The Go dependencies need Go 1.26, so this builds on Alpine 3.24 or later.
 # On an older release the toolchain is refused before compilation starts with
@@ -62,5 +62,5 @@ package() {
 }
 
 sha512sums="
-PLACEHOLDER_RUN_ABUILD_CHECKSUM
+429ec06cdc8bfc31708560018c064775ca792546f1379ddc00bb332327e9b48238481c1f0d32d203803885b749c3637fdd58651cebfab47e5d4a1f58dc2c236e  imvault-0.1.0.tar.gz
 "
