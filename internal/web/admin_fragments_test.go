@@ -64,6 +64,32 @@ func TestAdminActionsAnswerHTMXWithAFragment(t *testing.T) {
 	}
 }
 
+func TestAdminRowsAreWiredForClientSideFiltering(t *testing.T) {
+	h := newHarness(t)
+	h.registerForm("boss")
+	h.seedUser("alice")
+
+	_, page := h.get("/admin/users")
+
+	// The filter counts rows by their data-search text, so every row must carry
+	// it, and every row must bind the predicate that actually hides it. A row
+	// with one but not the other makes the summary disagree with the screen.
+	rows := strings.Split(page, "<tr ")
+	found := 0
+	for _, row := range rows {
+		if !strings.Contains(row, "data-search=") {
+			continue
+		}
+		found++
+		if !strings.Contains(row, "x-show=\"matches($el)\"") {
+			t.Errorf("a row carries data-search without the x-show binding:\n%.200s", row)
+		}
+	}
+	if found < 2 {
+		t.Fatalf("expected the table to have rows, found %d", found)
+	}
+}
+
 func TestAdminDeleteRemovesTheRow(t *testing.T) {
 	h := newHarness(t)
 	h.registerForm("boss")

@@ -22,7 +22,7 @@ DIST_FILES := cmd internal go.mod go.sum Makefile README.md LICENSE \
 .DEFAULT_GOAL := help
 .PHONY: help all build run demo test test-race test-js check check-js vet fmt tidy \
 	install install-systemd install-openrc dist clean clean-demo docker \
-	compose-up compose-down
+	compose-up compose-down test-browser
 
 help: ## Show the available targets
 	@printf '\nimvault\n\n'
@@ -47,6 +47,11 @@ test: ## Run the Go test suite
 
 test-race: ## Run the Go test suite under the race detector
 	go test $(GOFLAGS) -race ./...
+
+test-browser: ## Drive a real browser against a throwaway instance (needs node + chromium)
+	@command -v node >/dev/null 2>&1 \
+		&& node scripts/browser-check.mjs \
+		|| echo "node is not installed; skipping the browser checks"
 
 test-js: ## Run the JavaScript tests (needs node)
 	@command -v node >/dev/null 2>&1 \

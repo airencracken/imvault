@@ -3,7 +3,8 @@
   One queued message. The error, when there is one, is part of the same row so
   that swapping the row keeps the reason next to the status it explains.
 */}}
-<tr id="mail-{{.Message.ID}}" data-search="{{lower .Search}}">
+<tr id="mail-{{.Message.ID}}" data-search="{{lower .Search}}"
+    x-show="matches($el)">
   <td>{{.Message.Recipient}}</td>
   <td>
     {{.Message.Subject}}

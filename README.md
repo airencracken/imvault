@@ -539,10 +539,28 @@ script having to know the option's name. Logs go to `/var/log/imvault.log`.
 | `contrib/alpine/APKBUILD` | An Alpine package recipe, with a `pre-install` that creates the account |
 | `contrib/gentoo/imvault-0.1.0.ebuild` | A Gentoo ebuild with `EGO_SUM` filled in from `go.sum` |
 
-The APKBUILD needs `abuild checksum` run once against the release tarball, and
-**neither package recipe has been built on its target distribution**: treat them
-as a starting point rather than something known to work. The init scripts they
-install are the same ones documented above and are tested.
+The Alpine package has been built, installed and run on Alpine 3.24: `abuild`
+produces `imvault-0.1.0-r0.apk`, the pre-install creates the service account,
+and the packaged binary serves. Note that the Go dependencies need **Go 1.26**,
+so it builds on Alpine **3.24 or later**; older releases stop with "module
+requires go >= 1.26". The APKBUILD needs `abuild checksum` run once against the
+release tarball to fill in the checksum.
+
+**The Gentoo ebuild has not been built on Gentoo.** Its `EGO_SUM` matches
+`go.sum` line for line and it parses as shell, but the eclass usage is
+unverified: treat it as a starting point. The OpenRC script it installs is the
+same one Alpine uses and is tested.
+
+### Verifying a deployment
+
+```bash
+systemctl status imvault          # or: rc-service imvault status
+curl -fsS localhost:8080/healthz  # "ok"
+journalctl -u imvault -n 20       # or: tail /var/log/imvault.log
+```
+
+The service runs as an unprivileged account, keeps everything but its data
+directory read-only, and shares no temporary space with the rest of the system.
 
 ### Logs
 
@@ -633,8 +651,9 @@ are still access-checked rather than relying on that.
 ## Development
 
 ```bash
-make help         # list every target
-make test-js      # JavaScript unit tests (needs node)
+make help          # list every target
+make test-js       # JavaScript unit tests (needs node)
+make test-browser  # drives a real browser against a throwaway instance
 make check        # gofmt + go vet + go test, which is what CI should run
 make test-race
 make build
@@ -650,7 +669,22 @@ range requests, tagging, albums, the JSON and plain-text API, and CSRF
 enforcement, all against the real templates.
 
 Tests that need ffmpeg skip themselves when it is unavailable, so the suite runs
-anywhere.
+anywhere. The same goes for the JavaScript and browser checks: they skip when
+node or a Chromium-family browser is missing.
+
+Three layers, each catching what the one below cannot:
+
+| Layer | Catches |
+| --- | --- |
+| `go test ./...` | Server behaviour, including the exact HTML fragments htmx swaps in |
+| `node --test` | The client-side logic: the filter predicate, the dialog's state machine |
+| `make test-browser` | That Alpine actually initialises and drives the DOM: the dialog really opens, the filter really hides rows, and no native `confirm()` is used |
+
+That last layer is not ceremony. It caught a row that carried the filter's
+`data-search` attribute without the `x-show` binding that applies the predicate,
+so the "1 of 4 shown" summary was correct while all four rows stayed on screen —
+something no amount of inspecting the markup by eye, or asserting on it over
+HTTP, would have shown.
 
 ---
 

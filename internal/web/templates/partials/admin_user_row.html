@@ -7,7 +7,11 @@
   which means the usage bar, quota and status always reflect what the server
   actually stored.
 */}}
-<tr id="user-{{.User.ID}}" data-search="{{lower .Search}}">
+{{/* x-show is what actually hides a row; the summary alone would otherwise
+     report a count that did not match what is on screen. $el is the row, so
+     the predicate reads the same data-search text the summary counts. */}}
+<tr id="user-{{.User.ID}}" data-search="{{lower .Search}}"
+    x-show="matches($el)">
   <td>
     <strong>{{.User.Username}}</strong>
     {{if .User.IsAdmin}}<span class="badge">admin</span>{{end}}

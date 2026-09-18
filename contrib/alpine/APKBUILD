@@ -1,3 +1,5 @@
+# Maintainer: Marcus J. Hildum <airencracken@users.noreply.github.com>
+#
 # Alpine Linux package for imvault.
 #
 # Alpine's build system will not read this from the source tree: an APKBUILD
@@ -9,6 +11,10 @@
 #
 # Verify the checksums after the first fetch: abuild checksum rewrites the
 # source line with real values.
+#
+# The Go dependencies need Go 1.26, so this builds on Alpine 3.24 or later.
+# On an older release the toolchain is refused before compilation starts with
+# "module requires go >= 1.26".
 
 pkgname=imvault
 pkgver=0.1.0
@@ -19,6 +25,9 @@ arch="all"
 license="AGPL-3.0-or-later"
 depends="ffmpeg"
 makedepends="go"
+# Building a Go module fetches its dependencies from the module proxy, so this
+# package is not buildable with the network disabled.
+options="net"
 # The init script and its configuration live in the main package rather than a
 # -openrc subpackage, which keeps this APKBUILD valid as written. Split them
 # into $pkgname-openrc if you are submitting to aports.

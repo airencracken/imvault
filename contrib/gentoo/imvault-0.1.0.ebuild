@@ -37,7 +37,7 @@ RDEPEND="
 	openrc? ( sys-apps/openrc )
 	systemd? ( sys-apps/systemd )
 "
-BDEPEND=">=dev-lang/go-1.24"
+BDEPEND=">=dev-lang/go-1.26"
 
 # Module hashes for an offline build. go-module_set_globals turns these into
 # SRC_URI entries, so each dependency is fetched and verified individually
