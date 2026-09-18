@@ -71,10 +71,28 @@ Write endpoints accept **either JSON or ordinary form encoding**, so scripts and
 `curl` can both be comfortable. Albums can be addressed by **slug or numeric id**
 interchangeably.
 
+An album also has an `access` level, which is who may add their own files to it:
+
+| `access` | Who may add |
+| --- | --- |
+| `owner` | The creator, and administrators. The default |
+| `members` | Any signed-in account that can see the album |
+
+Contributing only ever means adding **your own** files. An album decides who may
+add, never whose files may be added, so sharing an album is not a way to shuffle
+somebody else's uploads around. A contributor may also take back their own file;
+removing anybody else's stays with the album's owner. A shared album has to be
+visible to members, since one only its owner can see is not shared with anybody.
+
 ```bash
 # Create an album
 curl -H "Authorization: Bearer $IMVAULT_KEY" -H 'Content-Type: application/json' \
-     -d '{"title":"Summer 2026","description":"Warm ones","public":true}' \
+     -d '{"title":"Summer 2026","description":"Warm ones","visibility":"public"}' \
+     https://img.example.com/api/v1/albums
+
+# One anybody on the instance may add their own images to
+curl -H "Authorization: Bearer $IMVAULT_KEY" -H 'Content-Type: application/json' \
+     -d '{"title":"Raid Night","visibility":"members","access":"members"}' \
      https://img.example.com/api/v1/albums
 
 # Add uploads to it (and seed it at creation time with a "files" array)
@@ -84,7 +102,7 @@ curl -H "Authorization: Bearer $IMVAULT_KEY" -H 'Content-Type: application/json'
 
 # PATCH only touches the fields you send
 curl -X PATCH -H "Authorization: Bearer $IMVAULT_KEY" \
-     -H 'Content-Type: application/json' -d '{"public":false}' \
+     -H 'Content-Type: application/json' -d '{"visibility":"private"}' \
      https://img.example.com/api/v1/albums/summer-2026
 
 # Tag a file; the response is the file's resulting tag list
@@ -122,7 +140,7 @@ which is what callers written against two levels meant by it.
 | `GET` | `/api/v1/albums` | List your albums |
 | `POST` | `/api/v1/albums` | Create an album (optionally seeding `files`) |
 | `GET` | `/api/v1/albums/{ref}` | Album with its files |
-| `PATCH` | `/api/v1/albums/{ref}` | Update title, description or visibility |
+| `PATCH` | `/api/v1/albums/{ref}` | Update title, description, visibility or `access` |
 | `DELETE` | `/api/v1/albums/{ref}` | Delete an album, keeping its files |
 | `POST` | `/api/v1/albums/{ref}/files` | Add files to an album |
 | `DELETE` | `/api/v1/albums/{ref}/files/{id}` | Remove a file from an album |

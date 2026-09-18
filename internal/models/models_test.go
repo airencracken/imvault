@@ -151,3 +151,39 @@ func TestVisibilityParsingClosesOnAnythingUnknown(t *testing.T) {
 		t.Errorf("%d levels, want 3", len(VisibilityLevels()))
 	}
 }
+
+func TestAlbumAccessDefaultsToTheOwner(t *testing.T) {
+	// Anything unrecognised is the closed level, because an album that quietly
+	// accepted anybody's files would be a surprise.
+	for _, raw := range []string{"", "  ", "everyone", "public", "true"} {
+		if got := ParseAlbumAccess(raw); got != AlbumAccessOwner {
+			t.Errorf("ParseAlbumAccess(%q) = %q, want owner", raw, got)
+		}
+	}
+
+	for raw, want := range map[string]AlbumAccess{
+		"members": AlbumAccessMembers,
+		"MEMBERS": AlbumAccessMembers,
+		" owner ": AlbumAccessOwner,
+	} {
+		if got := ParseAlbumAccess(raw); got != want {
+			t.Errorf("ParseAlbumAccess(%q) = %q, want %q", raw, got, want)
+		}
+	}
+
+	for _, level := range AlbumAccessLevels() {
+		if !level.Valid() {
+			t.Errorf("%q is offered but not valid", level)
+		}
+		if got := ParseAlbumAccess(string(level)); got != level {
+			t.Errorf("%q round-tripped to %q", level, got)
+		}
+	}
+
+	if AlbumAccess("anybody").Valid() {
+		t.Error("an invented access level was accepted")
+	}
+	if !AlbumAccessMembers.Shared() || AlbumAccessOwner.Shared() {
+		t.Error("Shared() disagrees with the levels")
+	}
+}

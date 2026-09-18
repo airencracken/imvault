@@ -347,11 +347,68 @@ type Album struct {
 	Slug        string
 	Description string
 	Visibility  Visibility
-	CreatedAt   time.Time
+	// Access is who may add their own files. It is what makes an album shared.
+	Access    AlbumAccess
+	CreatedAt time.Time
 
 	// Populated by list queries.
 	Username  string
 	FileCount int
+}
+
+// AlbumAccess is who may contribute to an album.
+type AlbumAccess string
+
+const (
+	// AlbumAccessOwner is the creator, and administrators. This is the default,
+	// because an album that quietly accepted anybody's files would be a
+	// surprise.
+	AlbumAccessOwner AlbumAccess = "owner"
+	// AlbumAccessMembers is any signed-in account. It is what a clan means by
+	// "put your screenshots in here", and what a family means by a holiday
+	// album; adding somebody else's file is never allowed either way.
+	AlbumAccessMembers AlbumAccess = "members"
+)
+
+// ParseAlbumAccess reads a stored or submitted value, defaulting to owner for
+// anything unrecognised. The safe direction to be wrong in is the closed one.
+func ParseAlbumAccess(raw string) AlbumAccess {
+	switch AlbumAccess(strings.ToLower(strings.TrimSpace(raw))) {
+	case AlbumAccessMembers:
+		return AlbumAccessMembers
+	default:
+		return AlbumAccessOwner
+	}
+}
+
+// Valid reports whether a is a known access level.
+func (a AlbumAccess) Valid() bool {
+	return a == AlbumAccessOwner || a == AlbumAccessMembers
+}
+
+// Shared reports whether accounts other than the owner may contribute.
+func (a AlbumAccess) Shared() bool { return a == AlbumAccessMembers }
+
+// Label is the name shown in the interface.
+func (a AlbumAccess) Label() string {
+	if a.Shared() {
+		return "Anyone here"
+	}
+	return "Only you"
+}
+
+// Explain describes the level in one sentence.
+func (a AlbumAccess) Explain() string {
+	if a.Shared() {
+		return "Any signed-in account can add its own files"
+	}
+	return "Only the album's owner can add files"
+}
+
+// AlbumAccessLevels lists the levels, closed first, which is the order they are
+// offered in.
+func AlbumAccessLevels() []AlbumAccess {
+	return []AlbumAccess{AlbumAccessOwner, AlbumAccessMembers}
 }
 
 // AnonymousTagOwner is the path segment standing for the shared namespace that

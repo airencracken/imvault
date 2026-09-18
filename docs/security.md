@@ -85,6 +85,12 @@ which is the thing that limits them instead.
 A members-level file is marked `Cache-Control: private`, so a shared cache
 cannot hold it and hand it to a stranger.
 
+Albums have their own visibility, and separately an `access` level saying who may
+add files: the owner, or anybody on the instance. That widens who may add, never
+whose files may be added — a contributor can only ever add their own uploads,
+which they can already see, and can only take their own back. Removing somebody
+else's file from an album is the owner's, and an administrator's, alone.
+
 Unknown ids, other people's private files, and files that never existed all
 produce the same `404`. The API does the same for other accounts' resources, so
 it cannot be used to discover what exists.

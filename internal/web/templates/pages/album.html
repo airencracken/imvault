@@ -4,7 +4,8 @@
     <h1>{{.Album.Title}}</h1>
     <p class="muted">
       {{.Album.FileCount}} image{{if ne .Album.FileCount 1}}s{{end}}
-      · {{.Album.Visibility.Label}}
+      · visible to {{.Album.Visibility.Label}}
+      · {{if .Album.Access.Shared}}anyone here can add their own{{else}}only its owner can add{{end}}
       · by {{default "unknown" .Album.Username}}
     </p>
     {{with .Album.Description}}<p>{{.}}</p>{{end}}
@@ -20,14 +21,16 @@
 
 {{template "file_grid" .Grid}}
 
-{{if .IsOwner}}
+{{if .CanContribute}}
 <section class="section">
   <h2>Add images</h2>
   {{if .Available.Files}}
   <form id="album-add" method="post" action="/a/{{.Album.Slug}}/files"
         hx-post="/a/{{.Album.Slug}}/files" hx-target="#album-add" hx-swap="outerHTML">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-    <p class="muted">Tick the images to add, then save.</p>
+    <p class="muted">
+      Tick the images to add, then save. Only your own images can be added.
+    </p>
     {{template "file_grid" .Available}}
     <button class="btn primary" type="submit">Add selected</button>
   </form>
@@ -35,5 +38,42 @@
   <p class="muted">Every image in your gallery is already in this album.</p>
   {{end}}
 </section>
+{{end}}
+
+{{if .IsOwner}}
+<details class="panel stack album-settings">
+  <summary>Album settings</summary>
+  <form method="post" action="/a/{{.Album.Slug}}/settings" class="stack">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <label>Title
+      <input name="title" value="{{.Album.Title}}" maxlength="120" required autocomplete="off">
+    </label>
+    <label>Description <span class="muted">(optional)</span>
+      <input name="description" value="{{.Album.Description}}" maxlength="500" autocomplete="off">
+    </label>
+    <label>Visible to
+      <select name="visibility">
+        {{$current := .Album.Visibility}}
+        {{range .Levels}}
+        <option value="{{.}}" {{if eq . $current}}selected{{end}}>{{.Label}} — {{.Explain}}</option>
+        {{end}}
+      </select>
+    </label>
+    <label>Who can add files
+      <select name="access">
+        {{$currentAccess := .Album.Access}}
+        {{range .Access}}
+        <option value="{{.}}" {{if eq . $currentAccess}}selected{{end}}>{{.Label}} — {{.Explain}}</option>
+        {{end}}
+      </select>
+    </label>
+    <p class="muted">
+      A shared album has to be visible to members. Contributors can add their own
+      images and take them back; only you can change the album itself, or remove
+      somebody else's image from it.
+    </p>
+    <button class="btn primary" type="submit">Save album</button>
+  </form>
+</details>
 {{end}}
 {{end}}

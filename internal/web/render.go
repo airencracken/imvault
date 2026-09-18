@@ -124,20 +124,29 @@ func templateFuncs() template.FuncMap {
 		"hasTag": hasTag,
 		"join":   strings.Join,
 		"lower":  strings.ToLower,
-		"card": func(csrf, removePattern string, removable, selectable, showOwner bool, f *models.File) fileCard {
+		"card": func(view fileCardsView, f *models.File) fileCard {
+			// A tile is removable if the whole grid is, or if this particular
+			// file belongs to the account being allowed to take its own back.
+			removable := view.Removable
+			if !removable && view.RemovableOwner != nil && f.UserID != nil &&
+				*f.UserID == *view.RemovableOwner {
+				removable = true
+			}
+
 			removeURL := ""
 			if removable {
-				if removePattern == "" {
-					removePattern = "/f/%s/delete"
+				pattern := view.RemovePattern
+				if pattern == "" {
+					pattern = "/f/%s/delete"
 				}
-				removeURL = strings.Replace(removePattern, "%s", f.ID, 1)
+				removeURL = strings.Replace(pattern, "%s", f.ID, 1)
 			}
 			return fileCard{
 				File:       f,
-				CSRFToken:  csrf,
+				CSRFToken:  view.CSRFToken,
 				Removable:  removable,
-				Selectable: selectable,
-				ShowOwner:  showOwner,
+				Selectable: view.Selectable,
+				ShowOwner:  view.ShowOwner,
 				RemoveURL:  removeURL,
 			}
 		},

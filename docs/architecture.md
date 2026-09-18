@@ -35,6 +35,13 @@ A few decisions worth knowing about:
   from what the routes serving the bytes will allow. Retention is folded into the
   same predicate: a lapsed upload disappears the moment it expires, not whenever
   the reaper next runs.
+- **An album decides who may add, never whose files may be added.** An album has
+  an `access` level: `owner`, or `members` for one anybody on the instance may
+  contribute to. Contributing always means adding your *own* files, so sharing
+  an album can never become a way to move somebody else's uploads around, and a
+  contributor can take their own file back but not anybody else's. The default
+  is the closed level, because an album that quietly accepted anybody's files
+  would be a surprise.
 - **Tags belong to accounts.** Two people can both use "beach" without sharing a
   label, a count or a lifetime, and a tag is addressed as
   `/tags/{username}/{slug}` because the slug alone is only unique within one

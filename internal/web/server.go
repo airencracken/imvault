@@ -153,6 +153,7 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /albums", s.requireUser(s.handleAlbumCreate))
 	mux.HandleFunc("GET /a/{slug}", s.handleAlbumPage)
 	mux.HandleFunc("POST /a/{slug}/delete", s.requireUser(s.handleAlbumDelete))
+	mux.HandleFunc("POST /a/{slug}/settings", s.requireUser(s.handleAlbumUpdate))
 	mux.HandleFunc("POST /a/{slug}/files", s.requireUser(s.handleAlbumAddFiles))
 	mux.HandleFunc("POST /a/{slug}/files/{fileID}/delete", s.requireUser(s.handleAlbumRemoveFile))
 

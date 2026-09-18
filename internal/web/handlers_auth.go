@@ -354,3 +354,16 @@ func canEditAlbum(user *models.User, a *models.Album) bool {
 func canViewAlbum(user *models.User, a *models.Album) bool {
 	return canViewVisibility(user, a.Visibility) || canEditAlbum(user, a)
 }
+
+// canContributeToAlbum reports whether user may add their own files to album.
+//
+// The owner and administrators always can. On a shared album, any account that
+// can see the album can as well. Either way only the contributor's *own* files
+// may be added, which is what keeps sharing from becoming a way to shuffle
+// somebody else's uploads around.
+func canContributeToAlbum(user *models.User, a *models.Album) bool {
+	if canEditAlbum(user, a) {
+		return true
+	}
+	return user != nil && a.Access.Shared() && canViewAlbum(user, a)
+}

@@ -4,6 +4,7 @@ package web
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -22,9 +23,11 @@ type apiAlbumJSON struct {
 	Public bool `json:"public"`
 	// Visibility is the level itself: public, members, or private.
 	Visibility string `json:"visibility"`
-	FileCount  int    `json:"file_count"`
-	CreatedAt  string `json:"created_at"`
-	PageURL    string `json:"page_url"`
+	// Access is who may add their own files: "owner" or "members".
+	Access    string `json:"access"`
+	FileCount int    `json:"file_count"`
+	CreatedAt string `json:"created_at"`
+	PageURL   string `json:"page_url"`
 }
 
 // apiAlbumDetailJSON adds the album's members.
@@ -41,6 +44,7 @@ func newAPIAlbum(r *http.Request, s *Server, a *models.Album) apiAlbumJSON {
 		Description: a.Description,
 		Public:      a.Visibility.IsPublic(),
 		Visibility:  string(a.Visibility),
+		Access:      string(a.Access),
 		FileCount:   a.FileCount,
 		CreatedAt:   a.CreatedAt.UTC().Format(time.RFC3339),
 		PageURL:     s.absoluteURL(r, "/a/"+a.Slug),
@@ -94,7 +98,21 @@ func (s *Server) apiCreateAlbum(w http.ResponseWriter, r *http.Request) {
 		visibility = level
 	}
 
-	album, err := s.store.CreateAlbum(r.Context(), user.ID, title, params.str("description"), visibility)
+	access := models.AlbumAccessOwner
+	if raw := params.str("access"); raw != "" {
+		access = models.AlbumAccess(strings.ToLower(strings.TrimSpace(raw)))
+		if !access.Valid() {
+			writeAPIError(w, http.StatusBadRequest,
+				fmt.Sprintf("%q is not an access level (use owner or members)", raw))
+			return
+		}
+	}
+	if message := albumVisibilityError(visibility, access); message != "" {
+		writeAPIError(w, http.StatusBadRequest, message)
+		return
+	}
+
+	album, err := s.store.CreateAlbum(r.Context(), user.ID, title, params.str("description"), visibility, access)
 	if err != nil {
 		s.log.Error("api: create album", "error", err)
 		writeAPIError(w, http.StatusInternalServerError, "could not create the album")
@@ -182,7 +200,21 @@ func (s *Server) apiPatchAlbum(w http.ResponseWriter, r *http.Request) {
 		visibility = level
 	}
 
-	if err := s.store.UpdateAlbum(r.Context(), album.ID, title, description, visibility); err != nil {
+	access := album.Access
+	if raw := params.str("access"); raw != "" {
+		access = models.AlbumAccess(strings.ToLower(strings.TrimSpace(raw)))
+		if !access.Valid() {
+			writeAPIError(w, http.StatusBadRequest,
+				fmt.Sprintf("%q is not an access level (use owner or members)", raw))
+			return
+		}
+	}
+	if message := albumVisibilityError(visibility, access); message != "" {
+		writeAPIError(w, http.StatusBadRequest, message)
+		return
+	}
+
+	if err := s.store.UpdateAlbum(r.Context(), album.ID, title, description, visibility, access); err != nil {
 		s.log.Error("api: update album", "album", album.ID, "error", err)
 		writeAPIError(w, http.StatusInternalServerError, "could not update the album")
 		return
@@ -227,7 +259,7 @@ func (s *Server) apiDeleteAlbum(w http.ResponseWriter, r *http.Request) {
 func (s *Server) apiAddAlbumFiles(w http.ResponseWriter, r *http.Request) {
 	user := currentUser(r.Context())
 
-	album, err := s.ownedAlbum(r.Context(), user, r.PathValue("ref"))
+	album, err := s.contributableAlbum(r.Context(), user, r.PathValue("ref"))
 	if err != nil {
 		s.writeAlbumLookupError(w, err)
 		return
@@ -263,13 +295,27 @@ func (s *Server) apiAddAlbumFiles(w http.ResponseWriter, r *http.Request) {
 func (s *Server) apiRemoveAlbumFile(w http.ResponseWriter, r *http.Request) {
 	user := currentUser(r.Context())
 
-	album, err := s.ownedAlbum(r.Context(), user, r.PathValue("ref"))
+	album, err := s.contributableAlbum(r.Context(), user, r.PathValue("ref"))
 	if err != nil {
 		s.writeAlbumLookupError(w, err)
 		return
 	}
 
 	fileID := r.PathValue("fileID")
+
+	// The owner may remove anything; a contributor may take back their own.
+	if !canEditAlbum(user, album) {
+		file, err := s.store.FileByID(r.Context(), fileID)
+		if err != nil {
+			writeAPIError(w, http.StatusNotFound, "no such file in the album")
+			return
+		}
+		if file.UserID == nil || *file.UserID != user.ID {
+			writeAPIError(w, http.StatusForbidden, "only the album's owner may remove that file")
+			return
+		}
+	}
+
 	if err := s.store.RemoveFileFromAlbum(r.Context(), album.ID, fileID); err != nil {
 		s.log.Error("api: remove file from album", "album", album.ID, "file", fileID, "error", err)
 		writeAPIError(w, http.StatusInternalServerError, "could not update the album")

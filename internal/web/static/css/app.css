@@ -397,6 +397,17 @@ fieldset.choices p.muted { margin: .4rem 0 0; font-size: .8rem; }
 }
 .album-card:hover { border-color: #3d4553; text-decoration: none; }
 
+/* The owner's settings live behind a disclosure, so an album page opens on its
+   images rather than on a form. */
+details.album-settings { margin-top: 2rem; }
+details.album-settings > summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: .9rem;
+  padding: .2rem 0;
+}
+details.album-settings[open] > summary { margin-bottom: .6rem; }
+
 /* ---------- API keys ---------- */
 
 table.keys {

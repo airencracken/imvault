@@ -32,8 +32,9 @@ clips get a placeholder poster rather than failing. See
 **Library.** Per-account galleries, albums, and tags, with tags scoped to the
 account that owns the file and a shared namespace for anonymous uploads. A
 members feed shows what everybody has shared, not only what you put there. Every
-file and album is public, members-only, or private. Anonymous uploads with a
-retention window enforced by a reaper.
+file and album is public, members-only, or private, and an album can be shared
+so that anybody on the instance may add their own images to it. Anonymous
+uploads with a retention window enforced by a reaper.
 
 **Accounts.** Multi-user signup, two-factor authentication with recovery codes,
 password reset by email or by an administrator-issued link, and self-service

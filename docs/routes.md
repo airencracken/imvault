@@ -28,8 +28,9 @@ Everything the server answers.
 | `POST` | `/f/{id}/visibility` | Set the level: public, members, or private |
 | `POST` | `/f/{id}/delete` | Delete the file |
 | `POST` | `/f/{id}/tags`, `/f/{id}/tags/{tagID}/delete` | Attach or detach a tag |
-| `GET` `POST` | `/albums` | List and create albums |
+| `GET` `POST` | `/albums` | List and create albums; lists the ones others shared too |
 | `GET` | `/a/{slug}` | Album page |
+| `POST` | `/a/{slug}/settings` | Rename, change visibility or sharing (owner only) |
 | `POST` | `/a/{slug}/delete` | Delete an album (keeps its files) |
 | `POST` | `/a/{slug}/files`, `/a/{slug}/files/{fileID}/delete` | Add or remove album members |
 | `GET` | `/tags` | Tag index |

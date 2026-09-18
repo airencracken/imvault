@@ -595,6 +595,75 @@ func TestVisibilityMigrationKeepsPublicPublic(t *testing.T) {
 	}
 }
 
+func TestSharedAlbumMigrationDefaultsToTheOwner(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "pre-shared-albums.db")
+	buildLegacyDatabase(t, path,
+		"001_init.sql", "002_media_and_api_keys.sql", "003_per_account_tags.sql",
+		"004_quotas_and_admin.sql", "005_auth_tokens.sql", "006_outbound_mail.sql",
+		"007_two_factor.sql", "008_content_addressed_storage.sql", "009_per_file_quota.sql",
+		"010_anonymous_tags.sql")
+
+	// Bring the database to the schema an instance would have when this
+	// migration arrives.
+	raw, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"011_blobs.sql", "012_settings.sql", "013_visibility.sql"} {
+		body, err := migrationsFS.ReadFile("migrations/" + name)
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		if _, err := raw.Exec(string(body)); err != nil {
+			t.Fatalf("apply %s: %v", name, err)
+		}
+		if _, err := raw.Exec(
+			`INSERT INTO schema_migrations (version, applied_at) VALUES (?, 0)`, name); err != nil {
+			t.Fatalf("record %s: %v", name, err)
+		}
+	}
+	if _, err := raw.Exec(`
+		INSERT INTO albums (user_id, title, slug, description, visibility, created_at)
+		VALUES (1, 'Old album', 'old-album', '', 'public', 0)`); err != nil {
+		t.Fatalf("seed album: %v", err)
+	}
+	raw.Close()
+
+	ctx := context.Background()
+	database, err := Open(ctx, path)
+	if err != nil {
+		t.Fatalf("upgrade database: %v", err)
+	}
+	defer database.Close()
+
+	// An album that predates sharing has exactly one person who could add to
+	// it, and that does not change. Widening it during an upgrade would turn
+	// every existing album into a place anybody could drop files.
+	var access string
+	if err := database.QueryRowContext(ctx,
+		`SELECT access FROM albums WHERE slug = 'old-album'`).Scan(&access); err != nil {
+		t.Fatal(err)
+	}
+	if access != "owner" {
+		t.Errorf("an existing album came through as %q, want owner", access)
+	}
+
+	// And a row inserted without naming the column gets the same answer, so the
+	// default in the schema agrees with the default in the code.
+	if _, err := database.ExecContext(ctx, `
+		INSERT INTO albums (user_id, title, slug, description, visibility, created_at)
+		VALUES (1, 'New album', 'new-album', '', 'members', 0)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.QueryRowContext(ctx,
+		`SELECT access FROM albums WHERE slug = 'new-album'`).Scan(&access); err != nil {
+		t.Fatal(err)
+	}
+	if access != "owner" {
+		t.Errorf("the schema default is %q, want owner", access)
+	}
+}
+
 func TestMigrationIsIdempotent(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "fresh.db")
 	ctx := context.Background()

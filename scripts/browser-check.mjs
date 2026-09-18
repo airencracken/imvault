@@ -142,10 +142,16 @@ class Page {
 
   send(method, params = {}) {
     const id = this.nextId++;
-    return new Promise((resolve, reject) => {
+    const promise = new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
-      this.socket.send(JSON.stringify({ id, method, params }));
     });
+    // A navigation tears the evaluation context down, which can reject a
+    // command whose caller has already moved on. Marking the rejection as
+    // observed here keeps that expected outcome from killing the runner; the
+    // caller still sees it if it is still awaiting.
+    promise.catch(() => {});
+    this.socket.send(JSON.stringify({ id, method, params }));
+    return promise;
   }
 
   on(method, handler) {
@@ -394,6 +400,112 @@ async function main() {
     await page.goto(`${base}/f/${fileID}`);
     const persisted = await page.evaluate(readPressed);
     record("the new level persisted", persisted === "Private", `showed "${persisted}"`);
+
+    // --- a shared album ---
+    await page.goto(`${base}/albums`);
+
+    // Created by posting the form's own fields, rather than by clicking Submit:
+    // a click navigates, which tears down the evaluation context mid-expression.
+    // The field names and values are the form's, so this still exercises them.
+    const created = await page.evaluate(`
+      const token = document.querySelector('meta[name="csrf-token"]').content;
+      const form = new FormData();
+      form.append("csrf_token", token);
+      form.append("title", "Browser Shared");
+      form.append("visibility", "members");
+      form.append("access", "members");
+      const resp = await fetch("/albums", { method: "POST", body: form });
+      return { ok: resp.ok, url: resp.url };
+    `);
+    record("a shared album can be created from the form's fields",
+      created.ok && created.url.endsWith("/a/browser-shared"),
+      JSON.stringify(created));
+
+    await page.goto(`${base}/a/browser-shared`);
+
+    // Upload one image to put in it, the way the uploader page does.
+    const albumFile = await page.evaluate(`
+      const token = document.querySelector('meta[name="csrf-token"]').content;
+      const form = new FormData();
+      form.append("csrf_token", token);
+      form.append("visibility", "members");
+      const bytes = Uint8Array.from(atob(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+      ), (c) => c.charCodeAt(0));
+      form.append("files", new Blob([bytes], { type: "image/png" }), "raid.png");
+      const resp = await fetch("/upload", {
+        method: "POST", body: form, headers: { "HX-Request": "true" },
+      });
+      const html = await resp.text();
+      const match = html.match(/id="file-([A-Za-z0-9]+)"/);
+      return match ? match[1] : "";
+    `);
+    record("the album's first image uploaded", albumFile !== "");
+
+    await page.goto(`${base}/a/browser-shared`);
+
+    // The owner gets a settings disclosure, which is where sharing is changed.
+    const settings = await page.evaluate(`
+      const details = document.querySelector("details.album-settings");
+      if (!details) return { open: false, hasAccess: false };
+      details.querySelector("summary").click();
+      await new Promise((r) => setTimeout(r, 100));
+      return {
+        open: details.open,
+        hasAccess: !!details.querySelector('select[name="access"]'),
+        shared: details.querySelector('select[name="access"]').value,
+      };
+    `);
+    record("the owner gets an album settings disclosure",
+      settings.open && settings.hasAccess, JSON.stringify(settings));
+    record("the disclosure shows the album is shared", settings.shared === "members",
+      `access select said "${settings.shared}"`);
+
+    // The add form offers the album's own images as candidates, and saving puts
+    // the ticked one in.
+    const candidate = await page.evaluate(`
+      const form = document.getElementById("album-add");
+      if (!form) return "";
+      const box = form.querySelector('input[name="files"]');
+      return box ? box.value : "";
+    `);
+    record("the add form offers the upload as a candidate", candidate === albumFile,
+      `offered "${candidate}", expected "${albumFile}"`);
+
+    const added = await page.evaluate(`
+      const form = document.getElementById("album-add");
+      const box = form.querySelector('input[name="files"]');
+      const token = document.querySelector('meta[name="csrf-token"]').content;
+      const body = new FormData();
+      body.append("csrf_token", token);
+      body.append("files", box.value);
+      const resp = await fetch("/a/browser-shared/files", { method: "POST", body });
+      return resp.ok;
+    `);
+    record("adding the ticked image is accepted", added === true);
+
+    await page.goto(`${base}/a/browser-shared`);
+    const inAlbum = await page.evaluate(`
+      const grid = document.querySelector(".grid");
+      const ids = grid ? [...grid.querySelectorAll(".card")].map((c) => c.id) : [];
+      const form = document.getElementById("album-add");
+      const stillOffered = form
+        ? [...form.querySelectorAll('input[name="files"]')].some((b) => b.value === "${albumFile}")
+        : false;
+      return { ids, stillOffered };
+    `);
+    record("the image is in the album's own grid",
+      inAlbum.ids.includes("file-" + albumFile), JSON.stringify(inAlbum.ids));
+    record("and is no longer offered as a candidate", inAlbum.stillOffered === false,
+      JSON.stringify(inAlbum));
+
+    // The shared badge shows up in the album list.
+    await page.goto(`${base}/albums`);
+    record("a shared album is badged as shared", await page.evaluate(`
+      const cards = [...document.querySelectorAll(".album-card")];
+      const card = cards.find((c) => c.textContent.includes("Browser Shared"));
+      return !!card && card.textContent.includes("shared");
+    `));
     // --- the guard on deleting your own account ---
     await page.goto(`${base}/settings/account`);
 

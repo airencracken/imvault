@@ -326,7 +326,7 @@ func TestAlbums(t *testing.T) {
 	alice := mustUser(t, s, ctx, "alice")
 	bob := mustUser(t, s, ctx, "bob")
 
-	a, err := s.CreateAlbum(ctx, alice.ID, "Summer 2026", "Warm ones", models.VisibilityPublic)
+	a, err := s.CreateAlbum(ctx, alice.ID, "Summer 2026", "Warm ones", models.VisibilityPublic, models.AlbumAccessOwner)
 	if err != nil {
 		t.Fatalf("create album: %v", err)
 	}
@@ -335,7 +335,7 @@ func TestAlbums(t *testing.T) {
 	}
 
 	// A colliding title gets a distinct slug rather than failing.
-	b, err := s.CreateAlbum(ctx, bob.ID, "Summer 2026", "", models.VisibilityPrivate)
+	b, err := s.CreateAlbum(ctx, bob.ID, "Summer 2026", "", models.VisibilityPrivate, models.AlbumAccessOwner)
 	if err != nil {
 		t.Fatalf("create colliding album: %v", err)
 	}
@@ -755,7 +755,7 @@ func TestDeleteFileCascadesJoinRows(t *testing.T) {
 	alice := mustUser(t, s, ctx, "alice")
 	mustFile(t, s, ctx, "pic", &alice.ID, models.VisibilityPrivate, nil)
 
-	album, err := s.CreateAlbum(ctx, alice.ID, "Trip", "", models.VisibilityPrivate)
+	album, err := s.CreateAlbum(ctx, alice.ID, "Trip", "", models.VisibilityPrivate, models.AlbumAccessOwner)
 	if err != nil {
 		t.Fatalf("create album: %v", err)
 	}

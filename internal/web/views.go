@@ -58,6 +58,10 @@ type fileCardsView struct {
 	Selectable bool
 	// ShowOwner attributes each tile to the account that uploaded it.
 	ShowOwner bool
+	// RemovableOwner makes a tile removable when it belongs to that account. It
+	// is how a contributor to a shared album may take back their own files
+	// without being able to remove anybody else's.
+	RemovableOwner *int64
 	// RemovePattern is a printf-style path where %s is the file id.
 	RemovePattern string
 	Empty         string
@@ -271,15 +275,27 @@ type tagPageView struct {
 
 type albumView struct {
 	base
-	Album     *models.Album
-	Grid      fileCardsView
-	IsOwner   bool
-	Available fileCardsView
+	Album *models.Album
+	Grid  fileCardsView
+	// IsOwner is the right to change or delete the album itself.
+	IsOwner bool
+	// CanContribute is the right to add one's own files, which a shared album
+	// grants to any account that can see it.
+	CanContribute bool
+	Available     fileCardsView
+	Levels        []models.Visibility
+	Access        []models.AlbumAccess
 }
 
 type albumsView struct {
 	base
+	// Albums is the viewer's own.
 	Albums []*models.Album
+	// Shared is everybody else's that the viewer can see, which is how a
+	// shared album is discovered.
+	Shared []*models.Album
+	Levels []models.Visibility
+	Access []models.AlbumAccess
 }
 
 // errorView backs the shared error page.

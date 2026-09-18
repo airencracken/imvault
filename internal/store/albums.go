@@ -11,26 +11,28 @@ import (
 	"imvault/internal/models"
 )
 
-const albumColumns = `a.id, a.user_id, a.title, a.slug, a.description, a.visibility, a.created_at,
+const albumColumns = `a.id, a.user_id, a.title, a.slug, a.description, a.visibility, a.access, a.created_at,
 	COALESCE(u.username, ''), (SELECT COUNT(*) FROM album_files WHERE album_id = a.id)`
 
 func scanAlbum(sc rowScanner) (*models.Album, error) {
 	var (
 		a          models.Album
 		visibility string
+		access     string
 		created    int64
 	)
 	if err := sc.Scan(&a.ID, &a.UserID, &a.Title, &a.Slug, &a.Description,
-		&visibility, &created, &a.Username, &a.FileCount); err != nil {
+		&visibility, &access, &created, &a.Username, &a.FileCount); err != nil {
 		return nil, err
 	}
 	a.Visibility = models.ParseVisibility(visibility)
+	a.Access = models.ParseAlbumAccess(access)
 	a.CreatedAt = toTime(created)
 	return &a, nil
 }
 
 // CreateAlbum inserts an album, deriving a unique slug from the title.
-func (s *Store) CreateAlbum(ctx context.Context, userID int64, title, description string, visibility models.Visibility) (*models.Album, error) {
+func (s *Store) CreateAlbum(ctx context.Context, userID int64, title, description string, visibility models.Visibility, access models.AlbumAccess) (*models.Album, error) {
 	title = strings.TrimSpace(title)
 	if title == "" {
 		return nil, fmt.Errorf("album title is empty")
@@ -40,6 +42,9 @@ func (s *Store) CreateAlbum(ctx context.Context, userID int64, title, descriptio
 	}
 	if !visibility.Valid() {
 		visibility = models.VisibilityPrivate
+	}
+	if !access.Valid() {
+		access = models.AlbumAccessOwner
 	}
 
 	base := ids.Slug(title)
@@ -53,9 +58,9 @@ func (s *Store) CreateAlbum(ctx context.Context, userID int64, title, descriptio
 		}
 
 		res, err := s.db.ExecContext(ctx, `
-			INSERT INTO albums (user_id, title, slug, description, visibility, created_at)
-			VALUES (?, ?, ?, ?, ?, ?)`,
-			userID, title, slug, description, string(visibility), created,
+			INSERT INTO albums (user_id, title, slug, description, visibility, access, created_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			userID, title, slug, description, string(visibility), string(access), created,
 		)
 		if err != nil {
 			if ok, col := isUniqueViolation(err); ok && strings.Contains(col, "slug") {
@@ -75,6 +80,7 @@ func (s *Store) CreateAlbum(ctx context.Context, userID int64, title, descriptio
 			Slug:        slug,
 			Description: description,
 			Visibility:  visibility,
+			Access:      access,
 			CreatedAt:   toTime(created),
 		}
 		return &album, nil
@@ -129,7 +135,7 @@ func (s *Store) AlbumsByUser(ctx context.Context, userID int64) ([]*models.Album
 }
 
 // UpdateAlbum changes an album's mutable fields.
-func (s *Store) UpdateAlbum(ctx context.Context, id int64, title, description string, visibility models.Visibility) error {
+func (s *Store) UpdateAlbum(ctx context.Context, id int64, title, description string, visibility models.Visibility, access models.AlbumAccess) error {
 	title = strings.TrimSpace(title)
 	if title == "" {
 		return fmt.Errorf("album title is empty")
@@ -140,9 +146,12 @@ func (s *Store) UpdateAlbum(ctx context.Context, id int64, title, description st
 	if !visibility.Valid() {
 		visibility = models.VisibilityPrivate
 	}
+	if !access.Valid() {
+		access = models.AlbumAccessOwner
+	}
 	if _, err := s.db.ExecContext(ctx, `
-		UPDATE albums SET title = ?, description = ?, visibility = ? WHERE id = ?`,
-		title, description, string(visibility), id); err != nil {
+		UPDATE albums SET title = ?, description = ?, visibility = ?, access = ? WHERE id = ?`,
+		title, description, string(visibility), string(access), id); err != nil {
 		return fmt.Errorf("update album: %w", err)
 	}
 	return nil
@@ -208,6 +217,37 @@ func (s *Store) AlbumsForFile(ctx context.Context, fileID string) ([]*models.Alb
 		 ORDER BY a.title COLLATE NOCASE`, fileID)
 	if err != nil {
 		return nil, fmt.Errorf("albums for file: %w", err)
+	}
+	defer rows.Close()
+
+	var albums []*models.Album
+	for rows.Next() {
+		a, err := scanAlbum(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan album: %w", err)
+		}
+		albums = append(albums, a)
+	}
+	return albums, rows.Err()
+}
+
+// AlbumsVisibleTo lists albums the viewer may see but does not own, newest
+// first.
+//
+// This is how a shared album is discovered. Without it the only way to reach
+// somebody else's album would be to be handed its link, which is not a
+// collection a group can actually use.
+func (s *Store) AlbumsVisibleTo(ctx context.Context, viewerID int64) ([]*models.Album, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT `+albumColumns+`
+		 FROM albums a
+		 LEFT JOIN users u ON u.id = a.user_id
+		 WHERE a.user_id <> ?
+		   AND a.visibility IN ('public', 'members')
+		 ORDER BY a.created_at DESC, a.id DESC
+		 LIMIT 100`, viewerID)
+	if err != nil {
+		return nil, fmt.Errorf("albums visible to: %w", err)
 	}
 	defer rows.Close()
 
