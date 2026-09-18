@@ -1,7 +1,6 @@
 # imvault
 
-A small, self-hosted image and clip host in the spirit of
-[Picsur](https://github.com/CaramelFur/Picsur),
+A small, self-hosted image and clip host in the spirit of MLKSHK, Picsur,
 [Chibisafe](https://github.com/chibisafe/chibisafe), and
 [Imgur](https://imgur.com) — a Go server with a server-rendered, htmx-driven
 front end. No build step, no JavaScript framework, no external services: one
