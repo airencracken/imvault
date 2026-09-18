@@ -1,0 +1,33 @@
+{{define "admin_notice_inner"}}
+{{/*
+  The body of the notice region. It is rendered in three places: inside the
+  out-of-band wrapper below, and directly by the admin pages when they are
+  served in full (a page load, or a request without JavaScript).
+*/}}
+{{if .Text}}
+<div class="flash {{if .Error}}err{{else}}ok{{end}}">
+  {{.Text}}
+  {{if .Link}}
+  <div class="notice-link" x-data="{ copied: false }">
+    <input class="key-reveal" readonly value="{{.Link}}" x-ref="link"
+           @click="$refs.link.select()" aria-label="{{default "One-time link" .LinkLabel}}">
+    <button class="btn small" type="button" x-ref="copy"
+            @click="navigator.clipboard.writeText($refs.link.value)
+                      .then(() => { copied = true; setTimeout(() => copied = false, 1500) })
+                      .catch(() => {})">
+      <span x-text="copied ? 'Copied' : 'Copy'">Copy</span>
+    </button>
+  </div>
+  {{end}}
+</div>
+{{end}}
+{{end}}
+
+{{define "admin_notice"}}
+{{/*
+  Shown out of band: an admin action swaps one table row and, in the same
+  response, updates this region elsewhere on the page. hx-swap-oob is what lets
+  a single request touch two places.
+*/}}
+<div id="admin-notice" hx-swap-oob="true">{{template "admin_notice_inner" .}}</div>
+{{end}}

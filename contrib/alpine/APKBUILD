@@ -1,0 +1,57 @@
+# Alpine Linux package for imvault.
+#
+# Alpine's build system will not read this from the source tree: an APKBUILD
+# lives in aports. This file is here so the package can be built and submitted
+# without starting from scratch:
+#
+#   cp contrib/alpine/APKBUILD ~/aports/testing/imvault/APKBUILD
+#   cd ~/aports/testing/imvault && abuild checksum && abuild -r
+#
+# Verify the checksums after the first fetch: abuild checksum rewrites the
+# source line with real values.
+
+pkgname=imvault
+pkgver=0.1.0
+pkgrel=0
+pkgdesc="Self-hosted image and short clip host with an htmx front end"
+url="https://github.com/airencracken/imvault"
+arch="all"
+license="AGPL-3.0-or-later"
+depends="ffmpeg"
+makedepends="go"
+# The init script and its configuration live in the main package rather than a
+# -openrc subpackage, which keeps this APKBUILD valid as written. Split them
+# into $pkgname-openrc if you are submitting to aports.
+install="$pkgname.pre-install"
+subpackages=""
+source="$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz"
+
+# The SQLite driver is pure Go, so no cgo and no cross-compilation trouble.
+export CGO_ENABLED=0
+export GOFLAGS="-trimpath -mod=mod"
+
+builddir="$srcdir/$pkgname-$pkgver"
+
+build() {
+	go build -trimpath -ldflags="-s -w" -o imvault ./cmd/imvault
+}
+
+check() {
+	go test ./...
+}
+
+package() {
+	install -Dm755 imvault "$pkgdir/usr/bin/imvault"
+	install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+	install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+
+	install -Dm755 contrib/openrc/imvault "$pkgdir/etc/init.d/imvault"
+	install -Dm644 contrib/openrc/imvault.confd "$pkgdir/etc/conf.d/imvault"
+
+	# The service runs as its own unprivileged account.
+	install -d -m755 "$pkgdir/var/lib/imvault"
+}
+
+sha512sums="
+PLACEHOLDER_RUN_ABUILD_CHECKSUM
+"

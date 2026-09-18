@@ -26,17 +26,21 @@
     count.title = names.join("\n");
   }
 
-  // Track which files the user has staged. Assigning to input.files requires a
-  // DataTransfer, which every browser that supports drag-and-drop provides.
-  var staged = [];
-  var transfer = new DataTransfer();
-
+  // Assigning to input.files requires a DataTransfer, which every browser that
+  // supports drag-and-drop provides. It is built on demand rather than at load,
+  // so an environment without it still gets the rest of this script.
   function stage(files) {
+    if (typeof DataTransfer === "undefined") return;
+
+    var transfer = new DataTransfer();
     for (var i = 0; i < files.length; i++) {
-      var f = files[i];
-      if (!f.type || f.type.indexOf("image/") !== 0) continue;
-      transfer.items.add(f);
+      var file = files[i];
+      // Only images here; the server validates properly, this is just to avoid
+      // staging something obviously wrong.
+      if (!file.type || file.type.indexOf("image/") !== 0) continue;
+      transfer.items.add(file);
     }
+
     input.files = transfer.files;
     render(input.files);
   }
@@ -97,8 +101,9 @@
   document.body.addEventListener("htmx:afterRequest", function (e) {
     if (!form || e.detail.elt !== form) return;
     if (e.detail.successful) {
-      transfer = new DataTransfer();
-      input.files = transfer.files;
+      // Clearing the value empties a file input, with no need for a
+      // DataTransfer of its own.
+      input.value = "";
       render(null);
     }
   });
@@ -121,3 +126,69 @@
     img.src = img.dataset.still;
   });
 })();
+
+/* ---------------------------------------------------------------------------
+ * Alpine.js components.
+ *
+ * Alpine is loaded only on the admin pages, where a little client-side state
+ * earns its keep: htmx owns every server round trip, and Alpine owns the state
+ * that never needs one.
+ * ------------------------------------------------------------------------- */
+
+document.addEventListener("alpine:init", function () {
+  // Confirmation for destructive actions. A trigger calls ask() with the form
+  // to submit; accepting re-submits it so htmx makes the request it would have
+  // made anyway, with the dialog only standing in the way.
+  Alpine.store("confirm", {
+    open: false,
+    message: "",
+    detail: "",
+    action: "Confirm",
+    form: null,
+
+    ask: function (form, options) {
+      this.form = form;
+      this.message = options.message;
+      this.detail = options.detail || "";
+      this.action = options.action || "Confirm";
+      this.open = true;
+    },
+
+    cancel: function () {
+      this.open = false;
+      this.form = null;
+    },
+
+    accept: function () {
+      var form = this.form;
+      this.open = false;
+      this.form = null;
+      if (!form) return;
+
+      // Marking the form is what tells the click interceptor to stand aside,
+      // so the resubmission reaches htmx instead of reopening the dialog.
+      form.dataset.confirmed = "1";
+      form.requestSubmit();
+    },
+  });
+
+  // Client-side filtering of a server-rendered table. Doing this with htmx
+  // would mean a request per keystroke to narrow a list that is already on the
+  // page.
+  Alpine.data("tableFilter", function () {
+    return {
+      q: "",
+      matches: function (row) {
+        var query = this.q.trim().toLowerCase();
+        return !query || (row.dataset.search || "").indexOf(query) !== -1;
+      },
+      summary: function (table) {
+        if (!table) return "";
+        var rows = Array.prototype.slice.call(table.querySelectorAll("tr[data-search]"));
+        if (!this.q.trim()) return rows.length + " total";
+        var shown = rows.filter(this.matches, this).length;
+        return shown + " of " + rows.length + " shown";
+      },
+    };
+  });
+});

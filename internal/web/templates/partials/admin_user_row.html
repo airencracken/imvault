@@ -1,0 +1,109 @@
+{{define "admin_user_row"}}
+{{/*
+  One row of the account table. It renders identically inside the full page and
+  as an htmx response to an action on that row, so the markup lives once.
+
+  Every action targets this row and swaps it for the freshly rendered version,
+  which means the usage bar, quota and status always reflect what the server
+  actually stored.
+*/}}
+<tr id="user-{{.User.ID}}" data-search="{{lower .Search}}">
+  <td>
+    <strong>{{.User.Username}}</strong>
+    {{if .User.IsAdmin}}<span class="badge">admin</span>{{end}}
+    {{if .User.Disabled}}<span class="badge private">disabled</span>{{end}}
+    {{if .Self}}<span class="badge">you</span>{{end}}
+    {{if .User.Email}}<br><span class="muted">{{.User.Email}}</span>{{end}}
+    <br><span class="muted">joined {{humanTime .User.CreatedAt}}</span>
+    {{/* Kept inside the row so a swap replaces it atomically: an error on its
+         own row would linger after the next successful action. */}}
+    {{if .Error}}<br><span class="row-error-text">{{.Error}}</span>{{end}}
+  </td>
+
+  <td>
+    <div class="usage">
+      <div class="usage-bar"><span style="width: {{.User.UsagePercent}}%"></span></div>
+      <span class="muted">{{.User.UsageLabel}}</span>
+    </div>
+  </td>
+
+  <td>
+    <form class="inline-form" method="post"
+          action="/admin/users/{{.User.ID}}/quota"
+          hx-post="/admin/users/{{.User.ID}}/quota"
+          hx-target="closest tr" hx-swap="outerHTML">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <input name="quota_mb" type="number" min="0" step="1"
+             value="{{if .User.Unlimited}}0{{else}}{{div .User.QuotaBytes 1048576}}{{end}}"
+             title="0 means unlimited" aria-label="Quota in MiB for {{.User.Username}}">
+      <button class="btn small" type="submit">Set</button>
+    </form>
+    {{if .User.OverQuota}}<span class="badge warn">over quota</span>{{end}}
+  </td>
+
+  <td>
+    {{if .User.Disabled}}<span class="badge private">disabled</span>
+    {{else}}<span class="badge">active</span>{{end}}
+  </td>
+
+  <td class="row-actions">
+    <form method="post" action="/admin/users/{{.User.ID}}/admin"
+          hx-post="/admin/users/{{.User.ID}}/admin"
+          hx-target="closest tr" hx-swap="outerHTML">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <input type="hidden" name="admin" value="{{if .User.IsAdmin}}0{{else}}1{{end}}">
+      <button class="btn small" type="submit">{{if .User.IsAdmin}}Demote{{else}}Promote{{end}}</button>
+    </form>
+
+    {{if .Self}}
+    <span class="muted" title="You cannot disable or delete your own account">—</span>
+    {{else}}
+    <form method="post" action="/admin/users/{{.User.ID}}/disabled"
+          hx-post="/admin/users/{{.User.ID}}/disabled"
+          hx-target="closest tr" hx-swap="outerHTML">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <input type="hidden" name="disabled" value="{{if .User.Disabled}}0{{else}}1{{end}}">
+      {{if .User.Disabled}}
+      <button class="btn small" type="submit">Enable</button>
+      {{else}}
+      {{/* Intercepting the click rather than the submit: htmx listens for
+           submit and would issue the request regardless of preventDefault, but
+           a cancelled click never produces a submit event at all. Without
+           JavaScript the button is simply a submit button. */}}
+      <button class="btn small" type="submit"
+              @click="if (!$el.form.dataset.confirmed) {
+                        $event.preventDefault();
+                        $store.confirm.ask($el.form, {
+                          message: 'Disable {{.User.Username}}?',
+                          detail: 'They will be signed out and their API keys revoked immediately.',
+                          action: 'Disable' });
+                      }">Disable</button>
+      {{end}}
+    </form>
+    {{end}}
+
+    <form method="post" action="/admin/users/{{.User.ID}}/reset"
+          hx-post="/admin/users/{{.User.ID}}/reset"
+          hx-target="closest tr" hx-swap="outerHTML">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <button class="btn small" type="submit">Reset link</button>
+    </form>
+
+    {{if not .Self}}
+    <form method="post" action="/admin/users/{{.User.ID}}/delete"
+          hx-post="/admin/users/{{.User.ID}}/delete"
+          hx-target="closest tr" hx-swap="outerHTML">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <button class="btn small danger" type="submit"
+              @click="if (!$el.form.dataset.confirmed) {
+                        $event.preventDefault();
+                        $store.confirm.ask($el.form, {
+                          message: 'Delete {{.User.Username}}?',
+                          detail: 'Every file they uploaded will be deleted too. This cannot be undone.',
+                          action: 'Delete account' });
+                      }">Delete</button>
+    </form>
+    {{end}}
+  </td>
+</tr>
+{{end}}

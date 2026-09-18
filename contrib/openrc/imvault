@@ -1,0 +1,78 @@
+#!/sbin/openrc-run
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# OpenRC service script for imvault, for Alpine Linux and Gentoo.
+#
+#   install -Dm755 contrib/openrc/imvault /etc/init.d/imvault
+#   install -Dm644 contrib/openrc/imvault.confd /etc/conf.d/imvault
+#   rc-update add imvault default
+#   rc-service imvault start
+#
+# Settings live in /etc/conf.d/imvault using the same IMVAULT_* names the
+# server reads from its environment.
+
+name="imvault"
+description="Self-hosted image and short clip host"
+
+# Defaults; anything set in /etc/conf.d/imvault overrides them and is exported
+# to the daemon in start_pre.
+: "${IMVAULT_USER:=imvault}"
+: "${IMVAULT_GROUP:=imvault}"
+: "${IMVAULT_DATA_DIR:=/var/lib/imvault}"
+: "${IMVAULT_BIN:=/usr/bin/imvault}"
+: "${IMVAULT_LOG_FILE:=/var/log/imvault.log}"
+
+command="${IMVAULT_BIN}"
+command_user="${IMVAULT_USER}:${IMVAULT_GROUP}"
+command_background="yes"
+pidfile="/run/${RC_SVCNAME}.pid"
+
+# Every record the server writes is a single logfmt line, so one file is enough
+# for both streams.
+output_log="${IMVAULT_LOG_FILE}"
+error_log="${IMVAULT_LOG_FILE}"
+
+depend() {
+	need net
+	after firewall
+	use dns logger
+}
+
+start_pre() {
+	# OpenRC sources /etc/conf.d/$RC_SVCNAME, but only *exported* variables
+	# reach a child process. Re-reading it with allexport set means any
+	# IMVAULT_* setting written there is passed on, without this script having
+	# to know the name of every option.
+	if [ -r "/etc/conf.d/${RC_SVCNAME}" ]; then
+		set -a
+		# shellcheck disable=SC1090 # path is built from the service name
+		. "/etc/conf.d/${RC_SVCNAME}"
+		set +a
+	fi
+
+	# The data directory holds the database and the uploaded bytes.
+	checkpath --directory --mode 0750 \
+		--owner "${IMVAULT_USER}:${IMVAULT_GROUP}" "${IMVAULT_DATA_DIR}" || return 1
+
+	# The log file has to exist and be writable before the daemon starts, or
+	# OpenRC's redirection fails. No `local` here: the script runs under
+	# busybox ash on Alpine and bash on Gentoo, and neither is required to be
+	# POSIX, but keeping to POSIX costs nothing.
+	log_dir=$(dirname "${IMVAULT_LOG_FILE}")
+	checkpath --directory --mode 0755 "${log_dir}" || return 1
+	checkpath --file --mode 0640 \
+		--owner "${IMVAULT_USER}:${IMVAULT_GROUP}" "${IMVAULT_LOG_FILE}" || return 1
+
+	# ffmpeg writes a temporary copy of each clip while extracting a poster, and
+	# falls back to the system temporary directory when the data directory is
+	# not writable by it.
+	case "${IMVAULT_DATA_DIR}" in
+	/*) ;;
+	*)
+		eerror "IMVAULT_DATA_DIR must be an absolute path (got '${IMVAULT_DATA_DIR}')"
+		return 1
+		;;
+	esac
+
+	return 0
+}

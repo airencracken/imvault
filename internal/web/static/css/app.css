@@ -434,6 +434,58 @@ table.users .inline-form input { width: 6rem; margin: 0; padding: .3rem .5rem; }
 .row-actions { display: flex; gap: .35rem; flex-wrap: wrap; }
 .row-actions form { margin: 0; }
 
+/* Alpine renders after the document is parsed; hide anything it controls until
+   then, so nothing flashes before it is initialised. */
+[x-cloak] { display: none !important; }
+
+/* ---------- modal ---------- */
+
+/* A native <dialog>, so focus trapping and Escape come from the platform. */
+dialog.modal {
+  width: min(28rem, calc(100vw - 2rem));
+  padding: 1.25rem;
+  background: var(--bg-elev);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+dialog.modal::backdrop {
+  background: rgba(8, 10, 14, .72);
+}
+.modal p { margin: 0 0 .5rem; }
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: .5rem;
+  margin-top: 1rem;
+}
+
+/* ---------- table filter ---------- */
+
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin-bottom: .85rem;
+}
+.filter-row input[type="search"] {
+  width: auto;
+  min-width: 16rem;
+  margin: 0;
+}
+.filter-row .muted { font-size: .82rem; }
+
+.notice-link { display: flex; gap: .5rem; align-items: center; margin-top: .6rem; }
+.notice-link input { flex: 1; min-width: 0; margin: 0; }
+
+/* Inline feedback for an admin action that failed, kept within its own row. */
+.row-error-text {
+  color: var(--danger);
+  font-size: .82rem;
+  overflow-wrap: anywhere;
+}
+
 .key-reveal {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: .85rem;

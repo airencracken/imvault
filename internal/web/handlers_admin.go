@@ -4,12 +4,15 @@ package web
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"imvault/internal/models"
 	"imvault/internal/store"
+	"imvault/internal/tokens"
 )
 
 // adminPageSize is how many rows the admin listings show.
@@ -28,6 +31,17 @@ func (s *Server) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 		}
 		next(w, r)
 	})
+}
+
+// adminTargetUser resolves the {id} path value, writing the error response
+// itself.
+func (s *Server) adminTargetUser(w http.ResponseWriter, r *http.Request) (int64, bool) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid account", http.StatusBadRequest)
+		return 0, false
+	}
+	return id, true
 }
 
 // handleAdminDashboard shows instance-wide totals and the heaviest accounts.
@@ -58,17 +72,19 @@ func (s *Server) handleAdminDashboard(w http.ResponseWriter, r *http.Request) {
 		s.log.Error("admin: mail backlog", "error", err)
 	}
 
-	s.renderPage(w, http.StatusOK, "admin", adminDashboardView{
-		base:        s.base(r, "Admin"),
+	view := adminDashboardView{
 		Stats:       stats,
 		Users:       users,
 		Grid:        s.grid(r, recent, true, false, "/admin/files/%s/delete", "Nothing has been uploaded yet."),
 		PendingMail: pendingMail,
 		FailedMail:  failedMail,
 		MailEnabled: s.mail.Enabled(),
-		Notice:      r.URL.Query().Get("notice"),
-		Error:       r.URL.Query().Get("error"),
-	})
+		Notice:      noticeFromQuery(r),
+	}
+	view.base = s.base(r, "Admin")
+	view.UseAlpine = true
+
+	s.renderPage(w, http.StatusOK, "admin", view)
 }
 
 // handleAdminUsers lists every account with its usage and controls.
@@ -76,6 +92,11 @@ func (s *Server) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 	page := queryInt(r, "page", 1)
 	if page < 1 {
 		page = 1
+	}
+
+	if page == 1 {
+		s.renderAdminUsersPage(w, r, http.StatusOK, noticeFromQuery(r))
+		return
 	}
 
 	users, total, err := s.store.ListUsers(r.Context(), adminPageSize, (page-1)*adminPageSize)
@@ -88,19 +109,27 @@ func (s *Server) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 	_, pg := pagination(r, total)
 	pg.Page = page
 
-	s.renderPage(w, http.StatusOK, "admin_users", adminUsersView{
-		base:       s.base(r, "Users"),
-		Users:      users,
+	view := adminUsersView{
+		Rows:       s.adminUserRows(r, users),
 		Pagination: pg,
-		Notice:     strings.TrimSpace(r.URL.Query().Get("notice")),
-		Error:      strings.TrimSpace(r.URL.Query().Get("error")),
-	})
+		Notice:     noticeFromQuery(r),
+	}
+	view.base = s.base(r, "Users")
+	view.UseAlpine = true
+
+	s.renderPage(w, http.StatusOK, "admin_users", view)
 }
 
 // handleAdminSetQuota changes an account's storage cap.
 func (s *Server) handleAdminSetQuota(w http.ResponseWriter, r *http.Request) {
 	userID, ok := s.adminTargetUser(w, r)
 	if !ok {
+		return
+	}
+
+	user, err := s.store.UserByID(r.Context(), userID)
+	if err != nil {
+		s.renderAdminRow(w, "admin_user_row", nil, adminNotice{Text: "No such account.", Error: true})
 		return
 	}
 
@@ -111,28 +140,33 @@ func (s *Server) handleAdminSetQuota(w http.ResponseWriter, r *http.Request) {
 
 	raw := strings.TrimSpace(r.FormValue("quota_mb"))
 	if raw == "" {
-		redirectNotice(w, r, "/admin/users", "error", "Enter a quota in MiB, or 0 for unlimited.")
+		s.adminRespond(w, r, user, adminNotice{},
+			"Enter a quota in MiB, or 0 for unlimited.", "/admin/users")
 		return
 	}
 
 	megabytes, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil || megabytes < 0 {
-		redirectNotice(w, r, "/admin/users", "error", "The quota must be a whole number of MiB.")
+		s.adminRespond(w, r, user, adminNotice{},
+			"The quota must be a whole number of MiB.", "/admin/users")
 		return
 	}
 
 	quotaBytes := megabytes * 1024 * 1024
 	if err := s.store.SetUserQuota(r.Context(), userID, quotaBytes); err != nil {
 		s.log.Error("admin: set quota", "user", userID, "error", err)
-		redirectNotice(w, r, "/admin/users", "error", "Could not update the quota.")
+		s.adminRespond(w, r, user, adminNotice{},
+			"Could not update the quota.", "/admin/users")
 		return
 	}
 
-	message := "Quota cleared; this account is now unlimited."
+	message := fmt.Sprintf("Quota cleared for %s; the account is now unlimited.", user.Username)
 	if quotaBytes > 0 {
-		message = "Quota set to " + models.HumanSize(quotaBytes) + "."
+		message = fmt.Sprintf("Quota for %s set to %s.", user.Username, models.HumanSize(quotaBytes))
 	}
-	redirectNotice(w, r, "/admin/users", "notice", message)
+
+	updated := s.reloadAdminUser(r, userID)
+	s.adminRespond(w, r, updated, adminNotice{Text: message}, "", "/admin/users")
 }
 
 // handleAdminSetDisabled enables or disables an account.
@@ -141,17 +175,24 @@ func (s *Server) handleAdminSetDisabled(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	actor := currentUser(r.Context())
 
-	if userID == actor.ID {
-		redirectNotice(w, r, "/admin/users", "error", "You cannot disable your own account.")
+	user, err := s.store.UserByID(r.Context(), userID)
+	if err != nil {
+		s.renderAdminRow(w, "admin_user_row", nil, adminNotice{Text: "No such account.", Error: true})
+		return
+	}
+
+	if userID == currentUser(r.Context()).ID {
+		s.adminRespond(w, r, user, adminNotice{},
+			"You cannot disable your own account.", "/admin/users")
 		return
 	}
 
 	disabled := r.FormValue("disabled") == "1"
 	if err := s.store.SetUserDisabled(r.Context(), userID, disabled); err != nil {
 		s.log.Error("admin: set disabled", "user", userID, "error", err)
-		redirectNotice(w, r, "/admin/users", "error", "Could not update the account.")
+		s.adminRespond(w, r, user, adminNotice{},
+			"Could not update the account.", "/admin/users")
 		return
 	}
 
@@ -165,11 +206,13 @@ func (s *Server) handleAdminSetDisabled(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	message := "Account enabled."
+	message := user.Username + " can sign in again."
 	if disabled {
-		message = "Account disabled; its sessions and API keys were revoked."
+		message = user.Username + " is disabled; their sessions and API keys were revoked."
 	}
-	redirectNotice(w, r, "/admin/users", "notice", message)
+
+	updated := s.reloadAdminUser(r, userID)
+	s.adminRespond(w, r, updated, adminNotice{Text: message}, "", "/admin/users")
 }
 
 // handleAdminSetAdmin grants or revokes administrator rights.
@@ -178,30 +221,40 @@ func (s *Server) handleAdminSetAdmin(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	actor := currentUser(r.Context())
+
+	user, err := s.store.UserByID(r.Context(), userID)
+	if err != nil {
+		s.renderAdminRow(w, "admin_user_row", nil, adminNotice{Text: "No such account.", Error: true})
+		return
+	}
 
 	grant := r.FormValue("admin") == "1"
-	if userID == actor.ID && !grant {
-		redirectNotice(w, r, "/admin/users", "error", "You cannot remove your own administrator rights.")
+	if userID == currentUser(r.Context()).ID && !grant {
+		s.adminRespond(w, r, user, adminNotice{},
+			"You cannot remove your own administrator rights.", "/admin/users")
 		return
 	}
 
 	if err := s.store.SetUserAdmin(r.Context(), userID, grant); err != nil {
 		if errors.Is(err, store.ErrLastAdmin) {
-			redirectNotice(w, r, "/admin/users", "error",
-				"The last administrator cannot be demoted; grant somebody else the role first.")
+			s.adminRespond(w, r, user, adminNotice{},
+				"The last administrator cannot be demoted; grant somebody else the role first.",
+				"/admin/users")
 			return
 		}
 		s.log.Error("admin: set admin", "user", userID, "error", err)
-		redirectNotice(w, r, "/admin/users", "error", "Could not update the account.")
+		s.adminRespond(w, r, user, adminNotice{},
+			"Could not update the account.", "/admin/users")
 		return
 	}
 
-	message := "Administrator rights revoked."
+	message := "Administrator rights revoked from " + user.Username + "."
 	if grant {
-		message = "Administrator rights granted."
+		message = user.Username + " is now an administrator."
 	}
-	redirectNotice(w, r, "/admin/users", "notice", message)
+
+	updated := s.reloadAdminUser(r, userID)
+	s.adminRespond(w, r, updated, adminNotice{Text: message}, "", "/admin/users")
 }
 
 // handleAdminDeleteUser removes an account and everything it stored.
@@ -210,16 +263,17 @@ func (s *Server) handleAdminDeleteUser(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	actor := currentUser(r.Context())
 
-	if userID == actor.ID {
-		redirectNotice(w, r, "/admin/users", "error", "You cannot delete your own account.")
+	if userID == currentUser(r.Context()).ID {
+		user, _ := s.store.UserByID(r.Context(), userID)
+		s.adminRespond(w, r, user, adminNotice{},
+			"You cannot delete your own account.", "/admin/users")
 		return
 	}
 
 	target, err := s.store.UserByID(r.Context(), userID)
 	if err != nil {
-		redirectNotice(w, r, "/admin/users", "error", "No such account.")
+		s.renderAdminRow(w, "admin_user_row", nil, adminNotice{Text: "No such account.", Error: true})
 		return
 	}
 
@@ -228,18 +282,20 @@ func (s *Server) handleAdminDeleteUser(w http.ResponseWriter, r *http.Request) {
 	keys, err := s.store.StoredKeysForUser(r.Context(), userID)
 	if err != nil {
 		s.log.Error("admin: collect file keys", "user", userID, "error", err)
-		redirectNotice(w, r, "/admin/users", "error", "Could not delete the account.")
+		s.adminRespond(w, r, target, adminNotice{},
+			"Could not delete the account.", "/admin/users")
 		return
 	}
 
 	if err := s.store.DeleteUser(r.Context(), userID); err != nil {
 		if errors.Is(err, store.ErrLastAdmin) {
-			redirectNotice(w, r, "/admin/users", "error",
-				"The last administrator cannot be deleted.")
+			s.adminRespond(w, r, target, adminNotice{},
+				"The last administrator cannot be deleted.", "/admin/users")
 			return
 		}
 		s.log.Error("admin: delete user", "user", userID, "error", err)
-		redirectNotice(w, r, "/admin/users", "error", "Could not delete the account.")
+		s.adminRespond(w, r, target, adminNotice{},
+			"Could not delete the account.", "/admin/users")
 		return
 	}
 
@@ -247,8 +303,56 @@ func (s *Server) handleAdminDeleteUser(w http.ResponseWriter, r *http.Request) {
 		s.deleteKeys([]string{k.Object, k.Thumb, k.Preview})
 	}
 
-	redirectNotice(w, r, "/admin/users", "notice",
-		"Deleted "+target.Username+" and "+strconv.Itoa(len(keys))+" stored file(s).")
+	message := fmt.Sprintf("Deleted %s and %d stored file(s).", target.Username, len(keys))
+	s.adminRespond(w, r, nil, adminNotice{Text: message}, "", "/admin/users")
+}
+
+// handleAdminIssueReset mints a reset link and shows it to the administrator.
+//
+// The link is rendered into the response rather than redirected to, so it never
+// ends up in a URL, a browser history entry or a server log.
+func (s *Server) handleAdminIssueReset(w http.ResponseWriter, r *http.Request) {
+	userID, ok := s.adminTargetUser(w, r)
+	if !ok {
+		return
+	}
+
+	target, err := s.store.UserByID(r.Context(), userID)
+	if err != nil {
+		s.renderAdminRow(w, "admin_user_row", nil, adminNotice{Text: "No such account.", Error: true})
+		return
+	}
+
+	if err := s.store.DeleteAuthTokensForUser(r.Context(), target.ID, store.TokenPasswordReset); err != nil {
+		s.log.Error("admin reset: clear tokens", "user", target.ID, "error", err)
+	}
+
+	token, hash := tokens.New()
+	expires := time.Now().UTC().Add(s.cfg.PasswordResetTTL)
+	if err := s.store.CreateAuthToken(r.Context(), target.ID, store.TokenPasswordReset, hash, expires); err != nil {
+		s.log.Error("admin reset: create token", "user", target.ID, "error", err)
+		s.adminRespond(w, r, target, adminNotice{},
+			"Could not issue a reset link.", "/admin/users")
+		return
+	}
+
+	s.log.Info("admin issued a password reset link",
+		"actor", currentUser(r.Context()).ID, "user", target.ID)
+
+	notice := adminNotice{
+		Text: fmt.Sprintf("Reset link for %s. Hand it over out of band: it works once and expires in %s.",
+			target.Username, humanDuration(s.cfg.PasswordResetTTL)),
+		Link:      s.absoluteURL(r, resetPath+token),
+		LinkLabel: "Reset link for " + target.Username,
+	}
+
+	// The link exists only in this response, so the non-JavaScript path has to
+	// render a page rather than redirect: a redirect would lose it.
+	if !isHTMX(r) {
+		s.renderAdminUsersPage(w, r, http.StatusOK, notice)
+		return
+	}
+	s.adminRespond(w, r, target, notice, "", "/admin/users")
 }
 
 // handleAdminFiles lists every upload for moderation.
@@ -277,11 +381,14 @@ func (s *Server) handleAdminFiles(w http.ResponseWriter, r *http.Request) {
 	_, pg := pagination(r, total)
 	pg.Page = page
 
-	s.renderPage(w, http.StatusOK, "admin_files", adminFilesView{
-		base:       s.base(r, "All files"),
+	view := adminFilesView{
 		Grid:       s.grid(r, files, true, false, "/admin/files/%s/delete", "Nothing has been uploaded yet."),
 		Pagination: pg,
-	})
+	}
+	view.base = s.base(r, "All files")
+	view.UseAlpine = true
+
+	s.renderPage(w, http.StatusOK, "admin_files", view)
 }
 
 // handleAdminDeleteFile removes any account's upload, adjusting its owner's
@@ -300,20 +407,48 @@ func (s *Server) handleAdminDeleteFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if isHTMX(r) {
-		// Empty body with an outerHTML swap removes the card.
+		// An empty body with an outerHTML swap removes the card.
 		w.WriteHeader(http.StatusOK)
 		return
 	}
 	redirectNotice(w, r, "/admin/files", "notice", "Image deleted.")
 }
 
-// adminTargetUser resolves the {id} path value, writing the error response
-// itself.
-func (s *Server) adminTargetUser(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+// handleAdminRecomputeStorage recalculates every account's usage from the files
+// table, repairing any drift left by a crash mid-upload.
+func (s *Server) handleAdminRecomputeStorage(w http.ResponseWriter, r *http.Request) {
+	corrected, err := s.store.RecomputeStorageUsage(r.Context())
 	if err != nil {
-		http.Error(w, "invalid account", http.StatusBadRequest)
-		return 0, false
+		s.log.Error("admin: recompute storage", "error", err)
+		s.adminMaintenance(w, r, adminNotice{Text: "Could not recalculate storage usage.", Error: true})
+		return
 	}
-	return id, true
+
+	s.log.Info("admin recalculated storage usage",
+		"actor", currentUser(r.Context()).ID, "accounts_corrected", corrected)
+
+	var message string
+	switch corrected {
+	case 0:
+		message = "Storage usage was already accurate."
+	case 1:
+		message = "Corrected the usage recorded for 1 account."
+	default:
+		message = fmt.Sprintf("Corrected the usage recorded for %d accounts.", corrected)
+	}
+
+	s.adminMaintenance(w, r, adminNotice{Text: message})
+}
+
+// adminMaintenance reports a maintenance action, updating only the notice.
+func (s *Server) adminMaintenance(w http.ResponseWriter, r *http.Request, notice adminNotice) {
+	if !isHTMX(r) {
+		key := "notice"
+		if notice.Error {
+			key = "error"
+		}
+		redirectNotice(w, r, "/admin", key, notice.Text)
+		return
+	}
+	s.renderAdminRow(w, "", nil, notice)
 }

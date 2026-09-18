@@ -15,12 +15,12 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 
 	"imvault/internal/config"
 	"imvault/internal/db"
+	"imvault/internal/logging"
 	"imvault/internal/mail"
 	"imvault/internal/media"
 	"imvault/internal/storage"
@@ -30,21 +30,23 @@ import (
 
 func main() {
 	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, "imvault:", err)
+		// Goes through slog so that every line this process emits, including
+		// its last, is a logfmt record.
+		slog.Error("imvault", "error", err)
 		os.Exit(1)
 	}
 }
 
 func run() error {
+	// Built first, so a configuration failure is reported the same way as
+	// everything else.
+	logger := logging.New(os.Stdout, logging.LevelFromEnv())
+	slog.SetDefault(logger)
+
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
-
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: logLevel(),
-	}))
-	slog.SetDefault(logger)
 
 	if err := cfg.EnsureDirs(); err != nil {
 		return err
@@ -164,18 +166,4 @@ func mailSender(cfg *config.Config, st *store.Store, logger *slog.Logger) mail.S
 		"retry_interval", cfg.MailRetryInterval.String(),
 	)
 	return web.NewMailQueue(st, relay, cfg.MailMaxAttempts, cfg.MailRetryInterval, logger)
-}
-
-// logLevel reads IMVAULT_LOG_LEVEL ("debug", "info", "warn", "error").
-func logLevel() slog.Level {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv("IMVAULT_LOG_LEVEL"))) {
-	case "debug":
-		return slog.LevelDebug
-	case "warn", "warning":
-		return slog.LevelWarn
-	case "error":
-		return slog.LevelError
-	default:
-		return slog.LevelInfo
-	}
 }

@@ -20,6 +20,10 @@ type base struct {
 	CurrentPath string
 	// SourceURL is the upstream repository, offered in the footer.
 	SourceURL string
+	// UseAlpine pulls in Alpine.js. Only the admin pages need it: it carries
+	// client-side UI state (a confirmation dialog, table filtering, copy
+	// feedback) that htmx is not the right tool for.
+	UseAlpine bool
 }
 
 // IsAuthed reports whether a user is signed in. Available to templates.
@@ -127,22 +131,56 @@ type adminDashboardView struct {
 	PendingMail int
 	FailedMail  int
 	MailEnabled bool
-	Notice      string
-	Error       string
+	// Notice is reported either inline on a full page load or out of
+	// band when htmx swaps a row.
+	Notice adminNotice
 }
 
 // adminUsersView backs the account list and its controls.
 type adminUsersView struct {
 	base
-	Users      []*models.User
+	Rows       []adminUserRow
 	Pagination paginationView
-	Notice     string
-	Error      string
 	// ResetLink is populated once, immediately after an administrator issues a
 	// reset, and never persisted anywhere.
 	ResetLink string
 	ResetFor  string
 	ResetTTL  string
+	// Notice is reported either inline on a full page load or out of
+	// band when htmx swaps a row.
+	Notice adminNotice
+}
+
+// adminUserRow is one row of the account table, carrying everything its forms
+// need so the same partial renders in a page and as an htmx response.
+type adminUserRow struct {
+	User      *models.User
+	CSRFToken string
+	// Search is the lowercased text the client-side filter matches against.
+	Search string
+	// Self marks the signed-in administrator's own row, which offers no
+	// disable or delete controls.
+	Self bool
+	// Error is an action failure to show inline.
+	Error string
+}
+
+// adminMailRow is one row of the outbound queue.
+type adminMailRow struct {
+	Message   *models.OutboundMail
+	CSRFToken string
+	Search    string
+	Error     string
+}
+
+// adminNotice is the out-of-band message an admin action reports.
+type adminNotice struct {
+	Text  string
+	Error bool
+	// Link, when set, renders a one-time value worth copying. It is shown only
+	// in this response and never stored anywhere.
+	Link      string
+	LinkLabel string
 }
 
 // forgotView backs the reset-request form.
@@ -173,12 +211,13 @@ type passwordView struct {
 // adminMailView backs the outbound mail queue.
 type adminMailView struct {
 	base
-	Messages    []*models.OutboundMail
+	Rows        []adminMailRow
 	Pending     int
 	Failed      int
 	MailEnabled bool
-	Notice      string
-	Error       string
+	// Notice is reported either inline on a full page load or out of
+	// band when htmx swaps a row.
+	Notice adminNotice
 }
 
 // adminFilesView backs instance-wide content moderation.

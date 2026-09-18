@@ -1,0 +1,57 @@
+[Unit]
+Description=imvault image and clip host
+Documentation=https://github.com/airencracken/imvault
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# Create the account once, before enabling:
+#   useradd --system --home-dir /var/lib/imvault --shell /usr/sbin/nologin imvault
+User=imvault
+Group=imvault
+
+# Optional overrides. Anything here wins over the Environment= lines below.
+EnvironmentFile=-/etc/imvault/imvault.env
+
+# StateDirectory creates /var/lib/imvault with the right ownership and keeps it
+# writable even under ProtectSystem=strict.
+Environment=IMVAULT_DATA_DIR=/var/lib/imvault
+StateDirectory=imvault
+StateDirectoryMode=0750
+
+ExecStart=/usr/local/bin/imvault
+
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=20s
+
+# --- Hardening -------------------------------------------------------------
+#
+# These are deliberately the safe subset. A system call filter
+# (SystemCallFilter=@system-service) and MemoryDenyWriteExecute=yes are both
+# reasonable additions, but imvault shells out to ffmpeg for clip posters, and
+# a filter that turns out to be too tight would break video silently. Add them
+# only after checking the journal for EPERM after an upload.
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+# If you move the data directory, add it here or ProtectSystem=strict will make
+# it read-only and the service will fail to start:
+#   ReadWritePaths=/srv/imvault
+
+[Install]
+WantedBy=multi-user.target

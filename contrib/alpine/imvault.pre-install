@@ -1,0 +1,12 @@
+#!/bin/sh
+# Create the account the service runs as, if it is not already present.
+
+if ! getent group imvault >/dev/null 2>&1; then
+	addgroup -S imvault 2>/dev/null || true
+fi
+
+if ! getent passwd imvault >/dev/null 2>&1; then
+	adduser -S -D -H -h /var/lib/imvault -s /sbin/nologin -G imvault -g imvault imvault 2>/dev/null || true
+fi
+
+exit 0

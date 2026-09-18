@@ -5,6 +5,7 @@ package web
 import (
 	"context"
 	"errors"
+	"io"
 	"io/fs"
 	"net/http"
 	"net/http/cookiejar"
@@ -199,6 +200,17 @@ func verifyTokenFrom(t *testing.T, msg mail.Message) string {
 	}
 	t.Fatalf("no verification link in the message body:\n%s", msg.Body)
 	return ""
+}
+
+// readAll drains a response body, failing the test on error.
+func readAll(t *testing.T, r io.Reader) string {
+	t.Helper()
+
+	body, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	return string(body)
 }
 
 // countStoredObjects counts the files in the harness's object store, which is

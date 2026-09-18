@@ -1,0 +1,28 @@
+{{define "confirm_dialog"}}
+{{/*
+  A confirmation dialog for destructive actions.
+
+  It is a native <dialog> opened with showModal(), which gives focus trapping,
+  Escape handling and a ::backdrop without pulling in Alpine's focus plugin.
+  The `confirm` store holds the wording and the form to submit; accepting
+  re-submits that form so htmx performs exactly the request it would have made
+  without the dialog in the way.
+*/}}
+<div x-data x-init="$watch('$store.confirm.open', (open) => {
+       if (open && !$refs.dialog.open) $refs.dialog.showModal();
+       if (!open && $refs.dialog.open) $refs.dialog.close();
+     })">
+  <dialog class="modal" x-ref="dialog"
+          @close="$store.confirm.cancel()"
+          @click="if ($event.target === $refs.dialog) $store.confirm.cancel()">
+    <p x-text="$store.confirm.message"></p>
+    <p class="muted" x-show="$store.confirm.detail" x-text="$store.confirm.detail"></p>
+    <div class="modal-actions">
+      <button class="btn" type="button" @click="$store.confirm.cancel()">Cancel</button>
+      <button class="btn danger" type="button" @click="$store.confirm.accept()">
+        <span x-text="$store.confirm.action"></span>
+      </button>
+    </div>
+  </dialog>
+</div>
+{{end}}

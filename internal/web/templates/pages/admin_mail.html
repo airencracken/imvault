@@ -14,8 +14,7 @@
   </nav>
 </header>
 
-{{if .Error}}<p class="flash err">{{.Error}}</p>{{end}}
-{{if .Notice}}<p class="flash ok">{{.Notice}}</p>{{end}}
+<div id="admin-notice">{{template "admin_notice_inner" .Notice}}</div>
 
 {{if not .MailEnabled}}
 <p class="flash err">
@@ -34,47 +33,23 @@
   <div class="stat"><span class="stat-value{{if .Failed}} warn{{end}}">{{.Failed}}</span><span class="stat-label">given up</span></div>
 </div>
 
-{{if .Messages}}
-<table class="keys">
-  <thead>
-    <tr><th>Recipient</th><th>Subject</th><th>Status</th><th>Tries</th><th>When</th><th></th></tr>
-  </thead>
-  <tbody>
-    {{range .Messages}}
-    <tr>
-      <td>{{.Recipient}}</td>
-      <td>{{.Subject}}</td>
-      <td>
-        {{if eq .MailStatus "sent"}}<span class="badge">sent</span>
-        {{else if eq .MailStatus "failed"}}<span class="badge private">failed</span>
-        {{else}}<span class="badge warn">queued</span>{{end}}
-      </td>
-      <td>{{.Attempts}}</td>
-      <td>
-        {{if .SentAt}}{{humanTime .SentAt}}
-        {{else if .FailedAt}}{{humanTime .FailedAt}}
-        {{else}}next {{humanTime .NextAttemptAt}}{{end}}
-      </td>
-      <td class="row-actions">
-        {{if .Pending}}
-        <form method="post" action="/admin/mail/{{.ID}}/retry">
-          <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
-          <button class="btn small" type="submit">Retry now</button>
-        </form>
-        {{end}}
-        <form method="post" action="/admin/mail/{{.ID}}/delete"
-              onsubmit="return confirm('Discard this message?');">
-          <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
-          <button class="btn small danger" type="submit">Discard</button>
-        </form>
-      </td>
-    </tr>
-    {{if .LastError}}
-    <tr><td colspan="6" class="muted"><code>{{.LastError}}</code></td></tr>
-    {{end}}
-    {{end}}
-  </tbody>
-</table>
+{{if .Rows}}
+<section x-data="tableFilter">
+  <div class="filter-row">
+    <input type="search" x-model="q" placeholder="Filter by recipient, subject or status"
+           autocomplete="off" aria-label="Filter messages">
+    <span class="muted" x-text="summary($refs.table)"></span>
+  </div>
+
+  <table class="keys" x-ref="table">
+    <thead>
+      <tr><th>Recipient</th><th>Subject</th><th>Status</th><th>Tries</th><th>When</th><th></th></tr>
+    </thead>
+    <tbody>
+      {{range .Rows}}{{template "admin_mail_row" .}}{{end}}
+    </tbody>
+  </table>
+</section>
 {{else}}
 <p class="empty">Nothing has been queued.</p>
 {{end}}

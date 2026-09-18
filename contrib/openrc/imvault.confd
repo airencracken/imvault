@@ -1,0 +1,46 @@
+# Configuration for the OpenRC service, read by /etc/init.d/imvault.
+#
+#   install -Dm644 contrib/openrc/imvault.confd /etc/conf.d/imvault
+#
+# This is a shell fragment sourced by the init script, so the syntax is shell:
+# quote values containing spaces. Only the IMVAULT_* names are passed on to the
+# server; the three above them control the init script itself.
+
+# --- service account and paths ---------------------------------------------
+# IMVAULT_USER=imvault
+# IMVAULT_GROUP=imvault
+# IMVAULT_BIN=/usr/bin/imvault
+# IMVAULT_DATA_DIR=/var/lib/imvault
+# IMVAULT_LOG_FILE=/var/log/imvault.log
+
+# --- server ----------------------------------------------------------------
+# IMVAULT_ADDR=:8080
+
+# Set this to the URL people actually browse, so share links are absolute.
+# IMVAULT_BASE_URL=https://img.example.com
+
+# Enable when serving over HTTPS, behind a TLS-terminating proxy.
+# IMVAULT_SECURE_COOKIES=true
+
+# Only trust X-Forwarded-For when a proxy you control sets it.
+# IMVAULT_TRUST_PROXY_HEADERS=true
+
+# IMVAULT_ALLOW_SIGNUP=false
+# IMVAULT_ALLOW_ANONYMOUS_UPLOADS=true
+# IMVAULT_ANONYMOUS_TTL=24h
+# IMVAULT_DEFAULT_QUOTA_BYTES=5368709120
+# IMVAULT_MAX_UPLOAD_BYTES=33554432
+# IMVAULT_MAX_VIDEO_BYTES=134217728
+# IMVAULT_MAX_VIDEO_DURATION=60s
+# IMVAULT_UPLOAD_RATE_PER_HOUR=120
+# IMVAULT_UPLOAD_BURST=20
+# IMVAULT_LOG_LEVEL=info
+
+# Email, for password reset and address confirmation. Leave unset and resets
+# are issued by an administrator from the admin UI instead.
+# IMVAULT_SMTP_HOST=smtp.example.com
+# IMVAULT_SMTP_PORT=587
+# IMVAULT_SMTP_USERNAME=imvault
+# IMVAULT_SMTP_PASSWORD=changeme
+# IMVAULT_SMTP_FROM="imvault <no-reply@example.com>"
+# IMVAULT_SMTP_TLS=starttls

@@ -1,0 +1,47 @@
+{{define "admin_mail_row"}}
+{{/*
+  One queued message. The error, when there is one, is part of the same row so
+  that swapping the row keeps the reason next to the status it explains.
+*/}}
+<tr id="mail-{{.Message.ID}}" data-search="{{lower .Search}}">
+  <td>{{.Message.Recipient}}</td>
+  <td>
+    {{.Message.Subject}}
+    {{if .Message.LastError}}<br><span class="row-error-text"><code>{{.Message.LastError}}</code></span>{{end}}
+  </td>
+  <td>
+    {{if eq .Message.MailStatus "sent"}}<span class="badge">sent</span>
+    {{else if eq .Message.MailStatus "failed"}}<span class="badge private">failed</span>
+    {{else}}<span class="badge warn">queued</span>{{end}}
+  </td>
+  <td>{{.Message.Attempts}}</td>
+  <td>
+    {{if .Message.SentAt}}{{humanTime .Message.SentAt}}
+    {{else if .Message.FailedAt}}{{humanTime .Message.FailedAt}}
+    {{else}}next {{humanTime .Message.NextAttemptAt}}{{end}}
+  </td>
+  <td class="row-actions">
+    {{if .Message.Pending}}
+    <form method="post" action="/admin/mail/{{.Message.ID}}/retry"
+          hx-post="/admin/mail/{{.Message.ID}}/retry"
+          hx-target="closest tr" hx-swap="outerHTML">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <button class="btn small" type="submit">Retry now</button>
+    </form>
+    {{end}}
+    <form method="post" action="/admin/mail/{{.Message.ID}}/delete"
+          hx-post="/admin/mail/{{.Message.ID}}/delete"
+          hx-target="closest tr" hx-swap="outerHTML">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <button class="btn small danger" type="submit"
+              @click="if (!$el.form.dataset.confirmed) {
+                        $event.preventDefault();
+                        $store.confirm.ask($el.form, {
+                          message: 'Discard this message?',
+                          detail: 'It will not be delivered, and the recipient will never receive it.',
+                          action: 'Discard' });
+                      }">Discard</button>
+    </form>
+  </td>
+</tr>
+{{end}}

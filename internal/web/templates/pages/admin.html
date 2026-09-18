@@ -13,8 +13,7 @@
   </nav>
 </header>
 
-{{if .Error}}<p class="flash err">{{.Error}}</p>{{end}}
-{{if .Notice}}<p class="flash ok">{{.Notice}}</p>{{end}}
+<div id="admin-notice">{{template "admin_notice_inner" .Notice}}</div>
 
 <div class="stat-row">
   <div class="stat"><span class="stat-value">{{.Stats.Users}}</span><span class="stat-label">accounts</span></div>
@@ -73,7 +72,8 @@
   </div>
   <div class="panel stack">
     <div class="row">
-      <form method="post" action="/admin/maintenance/storage">
+      <form method="post" action="/admin/maintenance/storage"
+            hx-post="/admin/maintenance/storage" hx-target="#admin-notice" hx-swap="innerHTML">
         <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
         <button class="btn" type="submit">Recalculate storage usage</button>
       </form>

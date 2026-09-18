@@ -379,57 +379,6 @@ func (s *Server) applyNewPassword(ctx context.Context, w http.ResponseWriter, r 
 	return s.startSession(ctx, w, r, user.ID)
 }
 
-// handleAdminIssueReset mints a reset link for an account and shows it to the
-// administrator, who passes it on out of band.
-//
-// The link is rendered straight into the response rather than redirected to, so
-// it never ends up in a URL, a browser history entry or a server log.
-func (s *Server) handleAdminIssueReset(w http.ResponseWriter, r *http.Request) {
-	userID, ok := s.adminTargetUser(w, r)
-	if !ok {
-		return
-	}
-
-	target, err := s.store.UserByID(r.Context(), userID)
-	if err != nil {
-		redirectNotice(w, r, "/admin/users", "error", "No such account.")
-		return
-	}
-
-	if err := s.store.DeleteAuthTokensForUser(r.Context(), target.ID, store.TokenPasswordReset); err != nil {
-		s.log.Error("admin reset: clear tokens", "user", target.ID, "error", err)
-	}
-
-	token, hash := tokens.New()
-	expires := time.Now().UTC().Add(s.cfg.PasswordResetTTL)
-	if err := s.store.CreateAuthToken(r.Context(), target.ID, store.TokenPasswordReset, hash, expires); err != nil {
-		s.log.Error("admin reset: create token", "user", target.ID, "error", err)
-		redirectNotice(w, r, "/admin/users", "error", "Could not issue a reset link.")
-		return
-	}
-
-	s.log.Info("admin issued a password reset link",
-		"actor", currentUser(r.Context()).ID, "user", target.ID)
-
-	users, total, err := s.store.ListUsers(r.Context(), adminPageSize, 0)
-	if err != nil {
-		s.log.Error("admin reset: reload users", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
-		return
-	}
-
-	_, pg := pagination(r, total)
-
-	s.renderPage(w, http.StatusOK, "admin_users", adminUsersView{
-		base:       s.base(r, "Users"),
-		Users:      users,
-		Pagination: pg,
-		ResetLink:  s.absoluteURL(r, resetPath+token),
-		ResetFor:   target.Username,
-		ResetTTL:   humanDuration(s.cfg.PasswordResetTTL),
-	})
-}
-
 // resetTokenUser resolves a reset token without spending it.
 func (s *Server) resetTokenUser(w http.ResponseWriter, r *http.Request) (*models.User, bool) {
 	user, err := s.store.AuthTokenValid(r.Context(), tokens.Hash(r.PathValue("token")),
