@@ -103,19 +103,33 @@ func (s *Server) handleFilePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	user := currentUser(r.Context())
+
 	view := fileView{
 		base:      s.base(r, file.OriginalName),
 		File:      file,
-		IsOwner:   canChangeFile(currentUser(r.Context()), file),
-		CanDelete: canDeleteFile(currentUser(r.Context()), file),
+		IsOwner:   canChangeFile(user, file),
+		CanDelete: canDeleteFile(user, file),
 		ShareURL:  s.absoluteURL(r, "/f/"+file.ID),
 		RawURL:    s.absoluteURL(r, "/f/"+file.ID+"/raw"),
 		TagsFragment: tagsFragmentView{
 			base:    s.base(r, file.OriginalName),
 			File:    file,
 			Tags:    file.Tags,
-			CanEdit: canChangeFile(currentUser(r.Context()), file),
+			CanEdit: canChangeFile(user, file),
 		},
+	}
+
+	// Reporting is for a signed-in member looking at somebody else's upload. A
+	// moderator can remove it instead, and an owner has Delete.
+	if user != nil && !ownsFile(user, file) && !canModerateContent(user) {
+		view.ReportForm = &reportFormView{
+			base:       s.base(r, file.OriginalName),
+			Kind:       "image",
+			TargetKind: models.TargetFile,
+			TargetID:   file.ID,
+			Reasons:    models.ReportReasons(),
+		}
 	}
 
 	if view.IsOwner {

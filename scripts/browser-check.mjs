@@ -564,6 +564,100 @@ async function main() {
     `);
     record("the list shows the prefix and not the code",
       listed.hasPrefix && !listed.hasCode, JSON.stringify(listed));
+    // --- reporting and moderation ---
+    //
+    // The whole loop, through a member's eyes first: only they see the report
+    // control, since a moderator can simply remove the content.
+    const reportTarget = await page.evaluate(`
+      const token = document.querySelector('meta[name="csrf-token"]').content;
+      const form = new FormData();
+      form.append("csrf_token", token);
+      form.append("visibility", "public");
+      const bytes = Uint8Array.from(atob(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+      ), (c) => c.charCodeAt(0));
+      form.append("files", new Blob([bytes], { type: "image/png" }), "reportme.png");
+      const resp = await fetch("/upload", {
+        method: "POST", body: form, headers: { "HX-Request": "true" },
+      });
+      const html = await resp.text();
+      const match = html.match(/id="file-([A-Za-z0-9]+)"/);
+      return match ? match[1] : "";
+    `);
+    record("a public upload to report", reportTarget !== "");
+
+    await signInBasic(page, base, "carol");
+    await page.goto(`${base}/f/${reportTarget}`);
+    const control = await page.evaluate(`
+      const details = document.querySelector("details.report-form");
+      if (!details) return { found: false };
+      details.querySelector("summary").click();
+      await new Promise((r) => setTimeout(r, 80));
+      return {
+        found: true,
+        open: details.open,
+        action: details.querySelector("form").getAttribute("action"),
+      };
+    `);
+    record("a member is offered the report control",
+      control.found && control.open && control.action === "/reports", JSON.stringify(control));
+
+    const reported = await page.evaluate(`
+      const form = document.querySelector("details.report-form form");
+      const body = new URLSearchParams();
+      body.set("csrf_token", form.querySelector('input[name="csrf_token"]').value);
+      body.set("target_kind", form.querySelector('input[name="target_kind"]').value);
+      body.set("target_id", form.querySelector('input[name="target_id"]').value);
+      body.set("reason", "abuse");
+      body.set("note", "browser check");
+      const resp = await fetch("/reports", {
+        method: "POST", body,
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      });
+      return resp.ok;
+    `);
+    record("the report is accepted", reported === true);
+
+    // Back to the administrator, who works the queue.
+    await signInBasic(page, base, "boss");
+    await page.goto(`${base}/moderation`);
+    const queued = await page.evaluate(`
+      return {
+        note: document.body.textContent.includes("browser check"),
+        reason: document.body.textContent.includes("Harassment or abuse"),
+        badge: !!document.querySelector('a[href="/moderation"] .badge'),
+      };
+    `);
+    record("the report reaches the queue with its reason and note",
+      queued.note && queued.reason, JSON.stringify(queued));
+    record("and the navigation badges it", queued.badge, JSON.stringify(queued));
+
+    const dismissed = await page.evaluate(`
+      const form = document.querySelector('.report form[action^="/moderation/reports/"]');
+      if (!form) return false;
+      const body = new URLSearchParams();
+      body.set("csrf_token", form.querySelector('input[name="csrf_token"]').value);
+      body.set("action", "dismiss");
+      body.set("resolution", "fine, actually");
+      const resp = await fetch(form.getAttribute("action"), {
+        method: "POST", body,
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      });
+      return resp.ok;
+    `);
+    record("a moderator can dismiss a report", dismissed === true);
+
+    await page.goto(`${base}/moderation`);
+    record("the queue is empty afterwards", await page.evaluate(`
+      return !document.body.textContent.includes("browser check");
+    `));
+
+    await page.goto(`${base}/moderation/log`);
+    record("the decision is in the log with its reason", await page.evaluate(`
+      const text = document.body.textContent;
+      return text.includes("fine, actually") && text.includes("dismissed a report");
+    `));
+
     // --- the guard on deleting your own account ---
     await page.goto(`${base}/settings/account`);
 
@@ -623,6 +717,26 @@ async function main() {
 }
 
 // seed registers an account over HTTP, the way the browser would.
+// signInBasic signs in without assuming the account is an administrator, so a
+// check can look at the instance through a member's eyes.
+async function signInBasic(page, base, username) {
+  await page.goto(`${base}/login`);
+  await page.evaluate(`
+    const match = document.cookie.match(/imvault_csrf=([^;]+)/);
+    const body = new URLSearchParams({
+      csrf_token: match[1],
+      username: ${JSON.stringify(username)},
+      password: "hunter2hunter2",
+    });
+    await fetch("/login", { method: "POST", body, redirect: "manual",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" } });
+    return "";
+  `);
+  await page.goto(`${base}/gallery`);
+  const ok = await page.evaluate(`return !document.querySelector('form[action="/login"]');`);
+  if (!ok) throw new Error(`signing in as ${username} did not take`);
+}
+
 async function seed(base, username, email, admin = false) {
   const jar = new Map();
 

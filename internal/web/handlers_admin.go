@@ -468,6 +468,7 @@ func (s *Server) handleAdminDeleteFile(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not delete the image", http.StatusInternalServerError)
 		return
 	}
+	s.recordFileRemoval(r.Context(), currentUser(r.Context()), file, "")
 
 	if isHTMX(r) {
 		// An empty body with an outerHTML swap removes the card.

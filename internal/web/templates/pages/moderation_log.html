@@ -1,0 +1,41 @@
+{{define "content"}}
+<header class="page-head">
+  <div>
+    <h1>Moderation log</h1>
+    <p class="muted">
+      What moderators and administrators have removed or decided, newest first.
+      Names are recorded as they were at the time, so an entry survives the
+      content and the account it names.
+    </p>
+  </div>
+  {{template "admin_nav" .}}
+</header>
+
+{{if .Entries}}
+<table class="keys">
+  <thead>
+    <tr><th>When</th><th>Who</th><th>What</th><th>Target</th><th>Why</th></tr>
+  </thead>
+  <tbody>
+    {{range .Entries}}
+    <tr>
+      <td class="muted">{{humanTime .CreatedAt}}</td>
+      <td>{{default "a deleted account" .ActorName}}</td>
+      <td>{{.Action.Label}}</td>
+      <td>
+        {{if .TargetLabel}}
+          <span class="muted">{{.TargetKind.Label}}</span> {{.TargetLabel}}
+        {{else if .TargetID}}
+          <code>{{.TargetID}}</code>
+        {{else}}—{{end}}
+      </td>
+      <td class="muted">{{default "—" .Reason}}</td>
+    </tr>
+    {{end}}
+  </tbody>
+</table>
+{{template "pagination" .Pagination}}
+{{else}}
+<p class="empty">Nothing has been moderated yet.</p>
+{{end}}
+{{end}}

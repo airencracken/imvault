@@ -555,6 +555,164 @@ func (i *Invite) UsesLabel() string {
 	return used + " of " + strconv.Itoa(i.MaxUses)
 }
 
+// TargetKind is what a report or a log entry is about.
+type TargetKind string
+
+const (
+	TargetFile  TargetKind = "file"
+	TargetAlbum TargetKind = "album"
+)
+
+// Label is the name shown in the interface.
+func (k TargetKind) Label() string {
+	if k == TargetAlbum {
+		return "album"
+	}
+	return "image"
+}
+
+// ReportReason is why somebody raised a report.
+type ReportReason string
+
+const (
+	ReportSpam      ReportReason = "spam"
+	ReportAbuse     ReportReason = "abuse"
+	ReportCopyright ReportReason = "copyright"
+	ReportIllegal   ReportReason = "illegal"
+	ReportOther     ReportReason = "other"
+)
+
+// ParseReportReason reads a submitted value, defaulting to other for anything
+// unrecognised. A reason nobody offered is not a reason, but refusing the whole
+// report over it would lose the report.
+func ParseReportReason(raw string) ReportReason {
+	switch ReportReason(strings.ToLower(strings.TrimSpace(raw))) {
+	case ReportSpam:
+		return ReportSpam
+	case ReportAbuse:
+		return ReportAbuse
+	case ReportCopyright:
+		return ReportCopyright
+	case ReportIllegal:
+		return ReportIllegal
+	default:
+		return ReportOther
+	}
+}
+
+// Valid reports whether r is one of the offered reasons.
+func (r ReportReason) Valid() bool {
+	switch r {
+	case ReportSpam, ReportAbuse, ReportCopyright, ReportIllegal, ReportOther:
+		return true
+	}
+	return false
+}
+
+// Label is the name shown in the interface.
+func (r ReportReason) Label() string {
+	switch r {
+	case ReportSpam:
+		return "Spam or advertising"
+	case ReportAbuse:
+		return "Harassment or abuse"
+	case ReportCopyright:
+		return "Copyright"
+	case ReportIllegal:
+		return "Illegal content"
+	}
+	return "Something else"
+}
+
+// ReportReasons lists the reasons, in the order they are offered.
+func ReportReasons() []ReportReason {
+	return []ReportReason{ReportSpam, ReportAbuse, ReportCopyright, ReportIllegal, ReportOther}
+}
+
+// ReportStatus is where a report has got to.
+type ReportStatus string
+
+const (
+	ReportOpen      ReportStatus = "open"
+	ReportActioned  ReportStatus = "actioned"
+	ReportDismissed ReportStatus = "dismissed"
+)
+
+// Label is the name shown in the interface.
+func (s ReportStatus) Label() string {
+	switch s {
+	case ReportActioned:
+		return "actioned"
+	case ReportDismissed:
+		return "dismissed"
+	}
+	return "open"
+}
+
+// Report is one member's complaint about one file or album.
+type Report struct {
+	ID         int64
+	TargetKind TargetKind
+	TargetID   string
+	// ReporterID is nil once the account that raised it is deleted.
+	ReporterID *int64
+	Reporter   string
+	Reason     ReportReason
+	Note       string
+	Status     ReportStatus
+	CreatedAt  time.Time
+
+	ResolvedBy *int64
+	Resolver   string
+	ResolvedAt *time.Time
+	Resolution string
+}
+
+// Open reports whether the report is still waiting to be worked.
+func (r *Report) Open() bool { return r.Status == ReportOpen }
+
+// ModerationAction is a thing a moderator did.
+type ModerationAction string
+
+const (
+	ActionRemoveFile    ModerationAction = "remove_file"
+	ActionRemoveAlbum   ModerationAction = "remove_album"
+	ActionResolveReport ModerationAction = "resolve_report"
+	ActionDismissReport ModerationAction = "dismiss_report"
+)
+
+// Label is the phrase shown in the interface.
+func (a ModerationAction) Label() string {
+	switch a {
+	case ActionRemoveFile:
+		return "removed an image"
+	case ActionRemoveAlbum:
+		return "removed an album"
+	case ActionResolveReport:
+		return "actioned a report"
+	case ActionDismissReport:
+		return "dismissed a report"
+	}
+	return string(a)
+}
+
+// ModerationEntry is one line of the audit trail.
+//
+// The actor's and the target's names are snapshotted rather than joined,
+// because both may be gone by the time anybody reads this, and a log that turns
+// into a list of numbers once the content is deleted is not an audit trail.
+type ModerationEntry struct {
+	ID          int64
+	ActorID     *int64
+	ActorName   string
+	Action      ModerationAction
+	TargetKind  TargetKind
+	TargetID    string
+	TargetLabel string
+	Reason      string
+	CreatedAt   time.Time
+}
+
 // AnonymousTagOwner is the path segment standing for the shared namespace that
 // tags on anonymous uploads live in. It cannot collide with a username, which
 // is restricted to letters, digits, dot, dash, and underscore.

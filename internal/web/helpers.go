@@ -122,9 +122,11 @@ func (s *Server) base(r *http.Request, title string) base {
 	// the instance policy is read on nearly every render.
 	policy := s.policy()
 
-	return base{
+	user := currentUser(r.Context())
+
+	b := base{
 		Title:             title,
-		User:              currentUser(r.Context()),
+		User:              user,
 		CSRFToken:         csrfToken(r.Context()),
 		AnonUploads:       policy.AllowAnonymousUploads,
 		SignupOpen:        policy.AllowSignup,
@@ -135,6 +137,18 @@ func (s *Server) base(r *http.Request, title string) base {
 		Error:             strings.TrimSpace(r.URL.Query().Get("error")),
 		CurrentPath:       r.URL.Path,
 	}
+
+	// The report badge is only counted for the people who can act on it, so an
+	// ordinary page render does not pay for a query nobody will look at.
+	if user.CanModerate() {
+		if open, err := s.store.CountOpenReports(r.Context()); err != nil {
+			s.log.Warn("count open reports", "error", err)
+		} else {
+			b.OpenReports = open
+		}
+	}
+
+	return b
 }
 
 // baseErr is base with an error message attached.

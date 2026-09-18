@@ -73,7 +73,9 @@
     </section>
     {{end}}
 
-    {{if .IsOwner}}
+    {{with .ReportForm}}{{template "report_form" .}}{{end}}
+
+    {{if .CanDelete}}
     <section class="block">
       <h2>Danger zone</h2>
       <form method="post" action="/f/{{.File.ID}}/delete">

@@ -46,6 +46,10 @@ account deletion. See [Accounts](docs/accounts.md).
 JSON or form encoding, and returning bare URLs for tools that want them. See
 [API](docs/api.md).
 
+**Moderation.** Members can report a file or an album; reports land in a queue a
+moderator works, and every removal of somebody else's content is recorded with
+who did it, when, and why. See [Accounts](docs/accounts.md).
+
 **Operations.** Per-account storage quotas and single-file limits, identical
 uploads stored once, an export of everything an account holds, upload and
 sign-in rate limiting, an admin area for usage, quotas, user management, and content moderation, and

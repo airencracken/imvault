@@ -122,6 +122,26 @@ cannot reach the account list, instance settings, or the mail queue, and cannot
 change anybody's role. Otherwise "come and help me deal with this spam" would
 be a way to take the instance.
 
+## Reports and the audit trail
+
+A signed-in member can report a file or an album that is not theirs. The report
+carries the reason they chose and a free-text note, and it is visible only to
+moderators and administrators.
+
+Two things are worth knowing about the record:
+
+- **A report is evidence, and it outlives the account that raised it.** Deleting
+  the reporter's account clears the reference to it and keeps the name, so the
+  queue does not turn into a list of numbers.
+- **Removals are attributed the same way.** Every removal of somebody else's
+  content writes an entry naming the actor, the action, the target, and the
+  reason, with the actor's and the target's names snapshotted at the time.
+  Deleting the moderator's account or the content itself does not erase the
+  entry.
+
+An owner removing their own upload is not recorded. That is housekeeping, not
+moderation, and logging it would bury the entries that matter.
+
 ## Rate limiting
 
 Two budgets, both in memory, both keyed so that one client cannot exhaust

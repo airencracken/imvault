@@ -1,0 +1,67 @@
+{{define "content"}}
+<header class="page-head">
+  <div>
+    <h1>Reports</h1>
+    <p class="muted">
+      What members have asked somebody to look at, oldest first.
+      {{if .Closed}}{{.Closed}} already dealt with, in the
+      <a href="/moderation/log">log</a>.{{end}}
+    </p>
+  </div>
+  {{template "admin_nav" .}}
+</header>
+
+{{if .Rows}}
+<div class="report-list">
+  {{range .Rows}}
+  <section class="panel stack report">
+    <div class="report-head">
+      <div>
+        <strong>{{.Report.Reason.Label}}</strong>
+        <span class="muted">
+          reported by {{default "a deleted account" .Report.Reporter}}
+          · {{.Age}} ago
+        </span>
+        {{with .Report.Note}}<p>“{{.}}”</p>{{end}}
+      </div>
+      {{if .TargetGone}}
+      <span class="badge private">already gone</span>
+      {{end}}
+    </div>
+
+    <div class="report-target">
+      {{if .TargetThumb}}
+      <a class="thumb" href="{{.TargetURL}}"><img src="{{.TargetThumb}}" alt="" loading="lazy"></a>
+      {{end}}
+      <div>
+        {{if .TargetGone}}
+        <span class="muted">{{.TargetLabel}} — no longer exists</span>
+        {{else}}
+        <a href="{{.TargetURL}}">{{.TargetLabel}}</a>
+        {{if .Owner}}<br><span class="muted">by {{.Owner}}</span>{{end}}
+        {{end}}
+      </div>
+    </div>
+
+    <form class="stack" method="post" action="/moderation/reports/{{.Report.ID}}/resolve">
+      <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+      <label>Note <span class="muted">(optional, goes in the log)</span>
+        <input name="resolution" maxlength="500" autocomplete="off">
+      </label>
+      <div class="row-actions">
+        {{if .TargetGone}}
+        <button class="btn primary" type="submit" name="action" value="remove">Close it</button>
+        {{else}}
+        <button class="btn danger" type="submit" name="action" value="remove">Remove and close</button>
+        {{end}}
+        <button class="btn" type="submit" name="action" value="dismiss">Dismiss</button>
+      </div>
+    </form>
+  </section>
+  {{end}}
+</div>
+{{template "pagination" .Pagination}}
+{{else}}
+<p class="empty">Nothing is waiting. Reports from members land here.</p>
+{{end}}
+{{end}}

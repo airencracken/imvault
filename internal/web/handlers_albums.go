@@ -201,6 +201,18 @@ func (s *Server) handleAlbumPage(w http.ResponseWriter, r *http.Request) {
 		Access:        models.AlbumAccessLevels(),
 	}
 
+	// Reporting is for a signed-in member looking at somebody else's album. A
+	// moderator can remove it instead, and an owner has Delete.
+	if user != nil && !ownsAlbum(user, album) && !canModerateContent(user) {
+		view.ReportForm = &reportFormView{
+			base:       s.base(r, album.Title),
+			Kind:       "album",
+			TargetKind: models.TargetAlbum,
+			TargetID:   album.Slug,
+			Reasons:    models.ReportReasons(),
+		}
+	}
+
 	if canContribute {
 		available, err := s.albumCandidates(r, user, album.ID)
 		if err != nil {
@@ -249,6 +261,7 @@ func (s *Server) handleAlbumDelete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not delete the album", http.StatusInternalServerError)
 		return
 	}
+	s.recordAlbumRemoval(r.Context(), currentUser(r.Context()), album, "")
 
 	if isHTMX(r) {
 		hxRedirect(w, "/albums")

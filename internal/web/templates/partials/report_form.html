@@ -1,0 +1,28 @@
+{{define "report_form"}}
+{{/*
+  Reporting is offered to signed-in members on content that is not theirs, and
+  never to moderators, who can remove it directly. It is a disclosure rather
+  than a button so it does not compete with the content itself.
+*/}}
+<details class="panel stack report-form">
+  <summary>Report this {{.Kind}}</summary>
+  <form class="stack" method="post" action="/reports">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <input type="hidden" name="target_kind" value="{{.TargetKind}}">
+    <input type="hidden" name="target_id" value="{{.TargetID}}">
+    <label>What is wrong with it?
+      <select name="reason">
+        {{range .Reasons}}<option value="{{.}}">{{.Label}}</option>{{end}}
+      </select>
+    </label>
+    <label>Anything else <span class="muted">(optional)</span>
+      <input name="note" maxlength="500" autocomplete="off">
+    </label>
+    <button class="btn" type="submit">Send the report</button>
+  </form>
+  <p class="muted">
+    This goes to the moderators and administrators, not to the person who
+    posted it.
+  </p>
+</details>
+{{end}}

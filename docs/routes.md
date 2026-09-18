@@ -38,6 +38,10 @@ Everything the server answers.
 | `GET` | `/p/{id}` | Short share link (redirects to `/f/{id}`) |
 | `GET` `POST` | `/settings/api-keys` | Manage API keys |
 | `POST` | `/settings/api-keys/{id}/delete` | Revoke a key |
+| `POST` | `/reports` | Report a file or an album (any signed-in member) |
+| `GET` | `/moderation` | The report queue (moderators and administrators) |
+| `GET` | `/moderation/log` | The audit trail of removals and decisions |
+| `POST` | `/moderation/reports/{id}/resolve` | Remove the reported content, or dismiss the report |
 | `GET` | `/admin` | Admin overview |
 | `GET` | `/admin/users` | Account list with usage |
 | `POST` | `/admin/users/{id}/quota` | Set an account's storage cap |

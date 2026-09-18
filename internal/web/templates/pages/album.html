@@ -21,6 +21,8 @@
 
 {{template "file_grid" .Grid}}
 
+{{with .ReportForm}}{{template "report_form" .}}{{end}}
+
 {{if .CanContribute}}
 <section class="section">
   <h2>Add images</h2>

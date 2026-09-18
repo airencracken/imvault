@@ -408,6 +408,20 @@ details.album-settings > summary {
 }
 details.album-settings[open] > summary { margin-bottom: .6rem; }
 
+/* ---------- moderation ---------- */
+
+.report-list { display: flex; flex-direction: column; gap: 1rem; margin-top: 1.5rem; }
+.report-head { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; }
+.report-head p { margin: .45rem 0 0; }
+.report-target { display: flex; gap: .8rem; align-items: center; }
+.report-target .thumb { display: block; width: 96px; flex: none; }
+.report-target .thumb img { display: block; width: 100%; border-radius: 8px; }
+
+/* Reporting is a disclosure so it does not compete with the content. */
+details.report-form { margin-top: 2rem; }
+details.report-form > summary { cursor: pointer; color: var(--muted); font-size: .9rem; }
+details.report-form[open] > summary { margin-bottom: .6rem; }
+
 /* ---------- API keys ---------- */
 
 table.keys {

@@ -1,13 +1,20 @@
 {{define "admin_nav"}}
 {{/*
-  The admin area's navigation, rendered in one place so every page agrees.
+  The operations navigation, rendered in one place so every page agrees.
 
-  Administration and moderation are different jobs, so a moderator is shown only
-  the content links. Listing the rest would be a row of refusals, which teaches
-  nobody anything.
+  Administration and moderation are different jobs, so a moderator is shown the
+  content, report, and log links and nothing else. Listing the rest would be a
+  row of refusals, which teaches nobody anything.
+
+  The report badge comes from base, which only counts open reports for accounts
+  that can act on them.
 */}}
 <nav class="subtabs">
   {{if .IsAdmin}}<a class="btn small" href="/admin">Overview</a>{{end}}
+  <a class="btn small" href="/moderation">
+    Reports{{if .OpenReports}} <span class="badge private">{{.OpenReports}}</span>{{end}}
+  </a>
+  <a class="btn small" href="/moderation/log">Log</a>
   <a class="btn small" href="/admin/files">Content</a>
   {{if .IsAdmin}}
   <a class="btn small" href="/admin/users">Users</a>

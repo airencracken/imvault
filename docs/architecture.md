@@ -35,6 +35,11 @@ A few decisions worth knowing about:
   from what the routes serving the bytes will allow. Retention is folded into the
   same predicate: a lapsed upload disappears the moment it expires, not whenever
   the reaper next runs.
+- **The audit trail snapshots names rather than joining them.** A moderation
+  entry stores the actor's and the target's names as they were when the action
+  happened, alongside nullable references to the rows. Deleting the moderator's
+  account or the content itself therefore leaves the record intact, which is the
+  difference between an audit trail and a list of numbers pointing at nothing.
 - **An album decides who may add, never whose files may be added.** An album has
   an `access` level: `owner`, or `members` for one anybody on the instance may
   contribute to. Contributing always means adding your *own* files, so sharing

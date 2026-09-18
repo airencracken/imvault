@@ -84,6 +84,39 @@ Two things are worth knowing before granting it:
 Two operations are refused to avoid locking everybody out: demoting the last
 administrator, and deleting the last administrator.
 
+## Reporting, and the moderation log
+
+A signed-in member can report a file or an album that is not theirs, with a
+reason and an optional note. Reports land in a queue at `/moderation`, oldest
+first, which moderators and administrators can work: remove the content, or
+dismiss the report, with a note either way.
+
+A few decisions worth knowing about:
+
+- **Reporting is for members, not moderators.** A moderator looking at a bad
+  upload can remove it, so offering them a report button would be busywork. The
+  control is not shown to them, and the route refuses them.
+- **Reporting is for other people's content.** Your own upload has a Delete
+  button, and the route says so rather than accepting a report against yourself.
+- **One open report per person per target.** Reporting something twice is not
+  more persuasive, and a queue that fills with duplicates is a queue nobody
+  works. A second person's complaint is a separate report, and a new report is
+  allowed once an earlier one has been closed either way.
+- **Closing a report happens once.** The status condition is part of the
+  statement, so two moderators working the same queue cannot both act on the
+  same report; the second is told somebody got there first.
+
+Every removal of somebody else's content is recorded in the log at
+`/moderation/log`, along with the report decisions. Each entry names the person
+who acted, what they did, the thing they acted on, and why. The names are
+snapshots rather than references: deleting the account or the content does not
+erase the record, because a log that turns into a list of numbers once somebody
+leaves is not an audit trail.
+
+An owner clearing out their own gallery is **not** logged. That is housekeeping
+rather than moderation, and filling the log with it would bury the entries that
+matter.
+
 ## Two-factor authentication
 
 Any TOTP app works: the setup page shows a QR code and the key for typing in by

@@ -286,3 +286,71 @@ func TestInviteUsability(t *testing.T) {
 		t.Errorf("Remaining = %d for an unlimited code, want 0", got)
 	}
 }
+
+func TestReportReasonKeepsTheReport(t *testing.T) {
+	// A reason nobody offered is not a reason, but refusing the whole report
+	// over it would lose the report, so it becomes "other" rather than failing.
+	for _, raw := range []string{"", "  ", "garbage", "SPAMISH"} {
+		if got := ParseReportReason(raw); got != ReportOther {
+			t.Errorf("ParseReportReason(%q) = %q, want other", raw, got)
+		}
+	}
+
+	for raw, want := range map[string]ReportReason{
+		"spam":       ReportSpam,
+		"ABUSE":      ReportAbuse,
+		" Copyright": ReportCopyright,
+		"illegal ":   ReportIllegal,
+	} {
+		if got := ParseReportReason(raw); got != want {
+			t.Errorf("ParseReportReason(%q) = %q, want %q", raw, got, want)
+		}
+	}
+
+	// Every offered reason must round-trip and be presentable, or the picker
+	// would store something other than what was chosen and then fail to label it.
+	for _, reason := range ReportReasons() {
+		if !reason.Valid() {
+			t.Errorf("%q is offered but not valid", reason)
+		}
+		if got := ParseReportReason(string(reason)); got != reason {
+			t.Errorf("%q round-tripped to %q", reason, got)
+		}
+		if reason.Label() == "" {
+			t.Errorf("%q has no label", reason)
+		}
+	}
+
+	if ReportReason("nonsense").Valid() {
+		t.Error("an invented reason was accepted")
+	}
+	if len(ReportReasons()) != 5 {
+		t.Errorf("%d reasons offered, want 5", len(ReportReasons()))
+	}
+
+	// Statuses and actions are only ever shown to people, so they all have to
+	// say something.
+	for _, status := range []ReportStatus{ReportOpen, ReportActioned, ReportDismissed} {
+		if status.Label() == "" {
+			t.Errorf("status %q has no label", status)
+		}
+	}
+	for _, action := range []ModerationAction{
+		ActionRemoveFile, ActionRemoveAlbum, ActionResolveReport, ActionDismissReport,
+	} {
+		if action.Label() == "" || action.Label() == string(action) {
+			t.Errorf("action %q has no phrase to show", action)
+		}
+	}
+	for _, kind := range []TargetKind{TargetFile, TargetAlbum} {
+		if kind.Label() == "" {
+			t.Errorf("target kind %q has no label", kind)
+		}
+	}
+	if got := (&Report{Status: ReportOpen}).Open(); !got {
+		t.Error("an open report does not report itself as open")
+	}
+	if got := (&Report{Status: ReportDismissed}).Open(); got {
+		t.Error("a dismissed report reports itself as open")
+	}
+}

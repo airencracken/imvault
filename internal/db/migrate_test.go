@@ -821,6 +821,74 @@ func TestInvitesMigrationArrivesEmpty(t *testing.T) {
 	}
 }
 
+func TestModerationMigrationArrivesEmpty(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "pre-moderation.db")
+	buildLegacyDatabase(t, path,
+		"001_init.sql", "002_media_and_api_keys.sql", "003_per_account_tags.sql",
+		"004_quotas_and_admin.sql", "005_auth_tokens.sql", "006_outbound_mail.sql",
+		"007_two_factor.sql", "008_content_addressed_storage.sql", "009_per_file_quota.sql",
+		"010_anonymous_tags.sql")
+
+	raw, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{
+		"011_blobs.sql", "012_settings.sql", "013_visibility.sql",
+		"014_shared_albums.sql", "015_roles.sql", "016_invites.sql",
+	} {
+		body, err := migrationsFS.ReadFile("migrations/" + name)
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		if _, err := raw.Exec(string(body)); err != nil {
+			t.Fatalf("apply %s: %v", name, err)
+		}
+		if _, err := raw.Exec(
+			`INSERT INTO schema_migrations (version, applied_at) VALUES (?, 0)`, name); err != nil {
+			t.Fatalf("record %s: %v", name, err)
+		}
+	}
+	raw.Close()
+
+	ctx := context.Background()
+	database, err := Open(ctx, path)
+	if err != nil {
+		t.Fatalf("upgrade database: %v", err)
+	}
+	defer database.Close()
+
+	// Nothing is reported or moderated on an instance that has just upgraded,
+	// and in particular nobody is shown an empty queue badge.
+	for _, table := range []string{"reports", "moderation_log"} {
+		var count int
+		if err := database.QueryRowContext(ctx, `SELECT COUNT(*) FROM `+table).Scan(&count); err != nil {
+			t.Fatalf("read %s: %v", table, err)
+		}
+		if count != 0 {
+			t.Errorf("%s has %d rows after upgrading, want none", table, count)
+		}
+	}
+
+	// The partial unique index is what stops one account filing the same
+	// complaint twice, and it must lift once the report is closed.
+	if _, err := database.ExecContext(ctx, `
+		INSERT INTO reports (target_kind, target_id, reporter_id, reporter, reason, note, status, created_at)
+		VALUES ('file', 'abc', 1, 'alice', 'spam', '', 'open', 0)`); err != nil {
+		t.Fatalf("insert open report: %v", err)
+	}
+	if _, err := database.ExecContext(ctx, `
+		INSERT INTO reports (target_kind, target_id, reporter_id, reporter, reason, note, status, created_at)
+		VALUES ('file', 'abc', 1, 'alice', 'spam', '', 'open', 0)`); err == nil {
+		t.Error("a second open report on the same target was accepted")
+	}
+	if _, err := database.ExecContext(ctx, `
+		INSERT INTO reports (target_kind, target_id, reporter_id, reporter, reason, note, status, created_at)
+		VALUES ('file', 'abc', 1, 'alice', 'spam', '', 'dismissed', 0)`); err != nil {
+		t.Errorf("a closed report blocks a later one: %v", err)
+	}
+}
+
 func TestMigrationIsIdempotent(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "fresh.db")
 	ctx := context.Background()

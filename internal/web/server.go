@@ -149,6 +149,10 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /f/{id}/tags/{tagID}/delete", s.requireUser(s.handleTagRemove))
 
 	// Albums
+	mux.HandleFunc("POST /reports", s.requireUser(s.handleReport))
+	mux.HandleFunc("GET /moderation", s.requireModerator(s.handleModeration))
+	mux.HandleFunc("GET /moderation/log", s.requireModerator(s.handleModerationLog))
+	mux.HandleFunc("POST /moderation/reports/{id}/resolve", s.requireModerator(s.handleResolveReport))
 	mux.HandleFunc("GET /albums", s.requireUser(s.handleAlbumsPage))
 	mux.HandleFunc("POST /albums", s.requireUser(s.handleAlbumCreate))
 	mux.HandleFunc("GET /a/{slug}", s.handleAlbumPage)

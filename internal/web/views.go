@@ -32,6 +32,10 @@ type base struct {
 	// FailedMail is only populated on the dashboard, where the mail queue's
 	// health is worth surfacing before an administrator goes looking for it.
 	FailedMail int
+	// OpenReports is how many reports are waiting. It is only counted for
+	// accounts that can act on them, so ordinary browsing does not pay for a
+	// query nobody will look at.
+	OpenReports int
 }
 
 // IsAuthed reports whether a user is signed in. Available to templates.
@@ -268,6 +272,9 @@ type fileView struct {
 	File         *models.File
 	Albums       []*models.Album
 	TagsFragment tagsFragmentView
+	// ReportForm is present when the viewer may report this, which is a
+	// signed-in member looking at somebody else's upload.
+	ReportForm *reportFormView
 	// IsOwner is the right to change what the file is: its visibility and its
 	// tags. A moderator may remove a file but not republish it, so this is
 	// narrower than CanDelete.
@@ -297,6 +304,8 @@ type albumView struct {
 	base
 	Album *models.Album
 	Grid  fileCardsView
+	// ReportForm is present when the viewer may report this album.
+	ReportForm *reportFormView
 	// IsOwner is the right to change or delete the album itself.
 	IsOwner bool
 	// CanContribute is the right to add one's own files, which a shared album
@@ -316,6 +325,15 @@ type albumsView struct {
 	Shared []*models.Album
 	Levels []models.Visibility
 	Access []models.AlbumAccess
+}
+
+// reportFormView backs the report control on a file or album page.
+type reportFormView struct {
+	base
+	Kind       string
+	TargetKind models.TargetKind
+	TargetID   string
+	Reasons    []models.ReportReason
 }
 
 // errorView backs the shared error page.

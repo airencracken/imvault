@@ -138,6 +138,7 @@ func (s *Server) handleFileDelete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not delete the image", http.StatusInternalServerError)
 		return
 	}
+	s.recordFileRemoval(r.Context(), currentUser(r.Context()), file, "")
 
 	next := safeNext(r.FormValue("next"))
 	switch {
