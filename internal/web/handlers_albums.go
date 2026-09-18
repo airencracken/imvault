@@ -47,7 +47,7 @@ func (s *Server) handleAlbumCreate(w http.ResponseWriter, r *http.Request) {
 		user.ID,
 		title,
 		strings.TrimSpace(r.FormValue("description")),
-		r.FormValue("public") == "1",
+		models.ParseVisibility(r.FormValue("visibility")),
 	)
 	if err != nil {
 		s.log.Error("create album", "error", err)
@@ -79,14 +79,16 @@ func (s *Server) handleAlbumPage(w http.ResponseWriter, r *http.Request) {
 
 	user := currentUser(r.Context())
 	isOwner := user != nil && (user.IsAdmin || user.ID == album.UserID)
-	if !album.IsPublic && !isOwner {
+	if !canViewAlbum(user, album) {
 		s.notFound(w, r, "No album by that name.")
 		return
 	}
 
+	// The album gates the page; each file is still listed at its own level, so
+	// a private file in a shared album stays private to its owner.
 	albumID := album.ID
 	filter := store.FileQuery{AlbumID: &albumID}
-	if isOwner {
+	if user != nil {
 		filter.VisibleTo = &user.ID
 	} else {
 		filter.PublicOnly = true

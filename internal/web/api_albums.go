@@ -18,10 +18,13 @@ type apiAlbumJSON struct {
 	Title       string `json:"title"`
 	Slug        string `json:"slug"`
 	Description string `json:"description"`
-	Public      bool   `json:"public"`
-	FileCount   int    `json:"file_count"`
-	CreatedAt   string `json:"created_at"`
-	PageURL     string `json:"page_url"`
+	// Public is the older boolean. It is true only at the public level.
+	Public bool `json:"public"`
+	// Visibility is the level itself: public, members, or private.
+	Visibility string `json:"visibility"`
+	FileCount  int    `json:"file_count"`
+	CreatedAt  string `json:"created_at"`
+	PageURL    string `json:"page_url"`
 }
 
 // apiAlbumDetailJSON adds the album's members.
@@ -36,7 +39,8 @@ func newAPIAlbum(r *http.Request, s *Server, a *models.Album) apiAlbumJSON {
 		Title:       a.Title,
 		Slug:        a.Slug,
 		Description: a.Description,
-		Public:      a.IsPublic,
+		Public:      a.Visibility.IsPublic(),
+		Visibility:  string(a.Visibility),
 		FileCount:   a.FileCount,
 		CreatedAt:   a.CreatedAt.UTC().Format(time.RFC3339),
 		PageURL:     s.absoluteURL(r, "/a/"+a.Slug),
@@ -82,9 +86,15 @@ func (s *Server) apiCreateAlbum(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	public, _ := params.boolPtr("public")
+	visibility := s.policy().DefaultVisibility
+	if level, present, err := params.visibility(); err != nil {
+		writeAPIError(w, http.StatusBadRequest, err.Error())
+		return
+	} else if present {
+		visibility = level
+	}
 
-	album, err := s.store.CreateAlbum(r.Context(), user.ID, title, params.str("description"), public)
+	album, err := s.store.CreateAlbum(r.Context(), user.ID, title, params.str("description"), visibility)
 	if err != nil {
 		s.log.Error("api: create album", "error", err)
 		writeAPIError(w, http.StatusInternalServerError, "could not create the album")
@@ -164,12 +174,15 @@ func (s *Server) apiPatchAlbum(w http.ResponseWriter, r *http.Request) {
 	if provided := params.str("description"); provided != "" {
 		description = provided
 	}
-	public := album.IsPublic
-	if provided, present := params.boolPtr("public"); present {
-		public = provided
+	visibility := album.Visibility
+	if level, present, err := params.visibility(); err != nil {
+		writeAPIError(w, http.StatusBadRequest, err.Error())
+		return
+	} else if present {
+		visibility = level
 	}
 
-	if err := s.store.UpdateAlbum(r.Context(), album.ID, title, description, public); err != nil {
+	if err := s.store.UpdateAlbum(r.Context(), album.ID, title, description, visibility); err != nil {
 		s.log.Error("api: update album", "album", album.ID, "error", err)
 		writeAPIError(w, http.StatusInternalServerError, "could not update the album")
 		return

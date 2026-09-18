@@ -37,7 +37,7 @@ func mustUser(t *testing.T, s *Store, ctx context.Context, name string) *models.
 	return u
 }
 
-func mustFile(t *testing.T, s *Store, ctx context.Context, id string, owner *int64, public bool, expires *time.Time) *models.File {
+func mustFile(t *testing.T, s *Store, ctx context.Context, id string, owner *int64, visibility models.Visibility, expires *time.Time) *models.File {
 	t.Helper()
 	f := &models.File{
 		ID:           id,
@@ -52,7 +52,7 @@ func mustFile(t *testing.T, s *Store, ctx context.Context, id string, owner *int
 		ObjectKey:    "orig/" + id + ".jpg",
 		ThumbKey:     "thumb/" + id + ".jpg",
 		PreviewKey:   "preview/" + id + ".jpg",
-		IsPublic:     public,
+		Visibility:   visibility,
 		CreatedAt:    time.Now().UTC(),
 		ExpiresAt:    expires,
 	}
@@ -130,21 +130,24 @@ func TestFileListingRespectsVisibilityAndSearch(t *testing.T) {
 	alice := mustUser(t, s, ctx, "alice")
 	bob := mustUser(t, s, ctx, "bob")
 
-	mustFile(t, s, ctx, "alicepublic", &alice.ID, true, nil)
-	mustFile(t, s, ctx, "aliceprivate", &alice.ID, false, nil)
-	mustFile(t, s, ctx, "bobpublic", &bob.ID, true, nil)
-	mustFile(t, s, ctx, "anonymous", nil, true, nil)
+	mustFile(t, s, ctx, "alicepublic", &alice.ID, models.VisibilityPublic, nil)
+	mustFile(t, s, ctx, "aliceprivate", &alice.ID, models.VisibilityPrivate, nil)
+	mustFile(t, s, ctx, "alicemembers", &alice.ID, models.VisibilityMembers, nil)
+	mustFile(t, s, ctx, "bobpublic", &bob.ID, models.VisibilityPublic, nil)
+	mustFile(t, s, ctx, "bobmembers", &bob.ID, models.VisibilityMembers, nil)
+	mustFile(t, s, ctx, "bobprivate", &bob.ID, models.VisibilityPrivate, nil)
+	mustFile(t, s, ctx, "anonymous", nil, models.VisibilityPublic, nil)
 
 	// Owner listing sees only their own uploads, public or not.
 	files, err := s.ListFiles(ctx, FileQuery{OwnerID: &alice.ID, Limit: 10})
 	if err != nil {
 		t.Fatalf("list by owner: %v", err)
 	}
-	if len(files) != 2 {
-		t.Errorf("alice has %d files, want 2", len(files))
+	if len(files) != 3 {
+		t.Errorf("alice has %d files, want 3", len(files))
 	}
 
-	// Public listing excludes private files.
+	// Public listing excludes members-only and private files.
 	files, err = s.ListFiles(ctx, FileQuery{PublicOnly: true, Limit: 10})
 	if err != nil {
 		t.Fatalf("list public: %v", err)
@@ -153,13 +156,48 @@ func TestFileListingRespectsVisibilityAndSearch(t *testing.T) {
 		t.Errorf("public listing has %d files, want 3", len(files))
 	}
 
-	// VisibleTo returns public files plus the viewer's own private ones.
+	// VisibleTo is the whole access model: public, plus everything shared with
+	// members, plus the viewer's own. It is what makes an account worth having.
 	files, err = s.ListFiles(ctx, FileQuery{VisibleTo: &alice.ID, Limit: 10})
 	if err != nil {
 		t.Fatalf("list visible: %v", err)
 	}
+	if len(files) != 6 {
+		t.Errorf("alice-visible listing has %d files, want 6", len(files))
+	}
+	for _, f := range files {
+		if f.ID == "bobprivate" {
+			t.Error("alice was shown bob's private upload")
+		}
+	}
+
+	// Bob sees the same set, and the two differ only in whose private upload
+	// is included.
+	bobFiles, err := s.ListFiles(ctx, FileQuery{VisibleTo: &bob.ID, Limit: 10})
+	if err != nil {
+		t.Fatalf("list visible for bob: %v", err)
+	}
+	if len(bobFiles) != 6 {
+		t.Errorf("bob-visible listing has %d files, want 6", len(bobFiles))
+	}
+
+	// An exact-level filter, for the API's ?visibility= and the admin pages.
+	members := models.VisibilityMembers
+	files, err = s.ListFiles(ctx, FileQuery{Visibility: &members, Limit: 10})
+	if err != nil {
+		t.Fatalf("list members: %v", err)
+	}
+	if len(files) != 2 {
+		t.Errorf("members-only listing has %d files, want 2", len(files))
+	}
+
+	// NotPublic is what the older public=false filter meant.
+	files, err = s.ListFiles(ctx, FileQuery{NotPublic: true, Limit: 10})
+	if err != nil {
+		t.Fatalf("list not public: %v", err)
+	}
 	if len(files) != 4 {
-		t.Errorf("alice-visible listing has %d files, want 4", len(files))
+		t.Errorf("not-public listing has %d files, want 4", len(files))
 	}
 
 	// Search matches the id.
@@ -188,9 +226,9 @@ func TestExpiredFilesAndDeletion(t *testing.T) {
 	past := time.Now().Add(-time.Minute)
 	future := time.Now().Add(time.Hour)
 
-	mustFile(t, s, ctx, "gone", nil, true, &past)
-	mustFile(t, s, ctx, "later", nil, true, &future)
-	mustFile(t, s, ctx, "forever", &alice.ID, false, nil)
+	mustFile(t, s, ctx, "gone", nil, models.VisibilityPublic, &past)
+	mustFile(t, s, ctx, "later", nil, models.VisibilityPublic, &future)
+	mustFile(t, s, ctx, "forever", &alice.ID, models.VisibilityPrivate, nil)
 
 	expired, err := s.ExpiredFiles(ctx, time.Now(), 10)
 	if err != nil {
@@ -215,8 +253,8 @@ func TestTags(t *testing.T) {
 	s, ctx := newTestStore(t)
 
 	alice := mustUser(t, s, ctx, "alice")
-	mustFile(t, s, ctx, "one", &alice.ID, false, nil)
-	mustFile(t, s, ctx, "two", &alice.ID, false, nil)
+	mustFile(t, s, ctx, "one", &alice.ID, models.VisibilityPrivate, nil)
+	mustFile(t, s, ctx, "two", &alice.ID, models.VisibilityPrivate, nil)
 
 	// Counts are a property of a viewer-scoped listing, not of the tag itself.
 	countOf := func(name string) int {
@@ -288,7 +326,7 @@ func TestAlbums(t *testing.T) {
 	alice := mustUser(t, s, ctx, "alice")
 	bob := mustUser(t, s, ctx, "bob")
 
-	a, err := s.CreateAlbum(ctx, alice.ID, "Summer 2026", "Warm ones", true)
+	a, err := s.CreateAlbum(ctx, alice.ID, "Summer 2026", "Warm ones", models.VisibilityPublic)
 	if err != nil {
 		t.Fatalf("create album: %v", err)
 	}
@@ -297,7 +335,7 @@ func TestAlbums(t *testing.T) {
 	}
 
 	// A colliding title gets a distinct slug rather than failing.
-	b, err := s.CreateAlbum(ctx, bob.ID, "Summer 2026", "", false)
+	b, err := s.CreateAlbum(ctx, bob.ID, "Summer 2026", "", models.VisibilityPrivate)
 	if err != nil {
 		t.Fatalf("create colliding album: %v", err)
 	}
@@ -305,8 +343,8 @@ func TestAlbums(t *testing.T) {
 		t.Errorf("slug %q was reused", b.Slug)
 	}
 
-	mustFile(t, s, ctx, "pic1", &alice.ID, false, nil)
-	mustFile(t, s, ctx, "pic2", &alice.ID, false, nil)
+	mustFile(t, s, ctx, "pic1", &alice.ID, models.VisibilityPrivate, nil)
+	mustFile(t, s, ctx, "pic2", &alice.ID, models.VisibilityPrivate, nil)
 
 	if err := s.AddFileToAlbum(ctx, a.ID, "pic1"); err != nil {
 		t.Fatalf("add file: %v", err)
@@ -356,7 +394,7 @@ func TestTagByRefInUser(t *testing.T) {
 	s, ctx := newTestStore(t)
 
 	alice := mustUser(t, s, ctx, "alice")
-	mustFile(t, s, ctx, "pic", &alice.ID, false, nil)
+	mustFile(t, s, ctx, "pic", &alice.ID, models.VisibilityPrivate, nil)
 
 	tag, err := s.AddTag(ctx, "pic", &alice.ID, "Holiday Snaps")
 	if err != nil {
@@ -400,8 +438,8 @@ func TestTagsAreScopedPerAccount(t *testing.T) {
 	alice := mustUser(t, s, ctx, "alice")
 	bob := mustUser(t, s, ctx, "bob")
 
-	mustFile(t, s, ctx, "alicepic", &alice.ID, false, nil)
-	mustFile(t, s, ctx, "bobpic", &bob.ID, false, nil)
+	mustFile(t, s, ctx, "alicepic", &alice.ID, models.VisibilityPrivate, nil)
+	mustFile(t, s, ctx, "bobpic", &bob.ID, models.VisibilityPrivate, nil)
 
 	// The same name in two namespaces yields two independent rows.
 	aliceTag, err := s.AddTag(ctx, "alicepic", &alice.ID, "beach")
@@ -441,7 +479,7 @@ func TestDeletingATagOwnerRemovesTheirTags(t *testing.T) {
 	s, ctx := newTestStore(t)
 
 	alice := mustUser(t, s, ctx, "alice")
-	mustFile(t, s, ctx, "pic", &alice.ID, false, nil)
+	mustFile(t, s, ctx, "pic", &alice.ID, models.VisibilityPrivate, nil)
 	if _, err := s.AddTag(ctx, "pic", &alice.ID, "beach"); err != nil {
 		t.Fatal(err)
 	}
@@ -459,9 +497,9 @@ func TestFileQueryFiltersByKindAndPrivacy(t *testing.T) {
 
 	alice := mustUser(t, s, ctx, "alice")
 
-	mustFileKind(t, s, ctx, "still", &alice.ID, true, models.KindImage)
-	mustFileKind(t, s, ctx, "wiggle", &alice.ID, true, models.KindAnimated)
-	mustFileKind(t, s, ctx, "clip", &alice.ID, false, models.KindVideo)
+	mustFileKind(t, s, ctx, "still", &alice.ID, models.VisibilityPublic, models.KindImage)
+	mustFileKind(t, s, ctx, "wiggle", &alice.ID, models.VisibilityPublic, models.KindAnimated)
+	mustFileKind(t, s, ctx, "clip", &alice.ID, models.VisibilityPrivate, models.KindVideo)
 
 	count := func(q FileQuery) int {
 		t.Helper()
@@ -490,13 +528,13 @@ func TestFileQueryFiltersByKindAndPrivacy(t *testing.T) {
 	if got := count(FileQuery{OwnerID: &alice.ID, PublicOnly: true}); got != 2 {
 		t.Errorf("public = %d, want 2", got)
 	}
-	if got := count(FileQuery{OwnerID: &alice.ID, PrivateOnly: true}); got != 1 {
+	if got := count(FileQuery{OwnerID: &alice.ID, NotPublic: true}); got != 1 {
 		t.Errorf("private = %d, want 1", got)
 	}
 
 	// Filters compose.
 	kind := models.KindVideo
-	if got := count(FileQuery{OwnerID: &alice.ID, Kind: &kind, PrivateOnly: true}); got != 1 {
+	if got := count(FileQuery{OwnerID: &alice.ID, Kind: &kind, NotPublic: true}); got != 1 {
 		t.Errorf("private video = %d, want 1", got)
 	}
 	if got := count(FileQuery{OwnerID: &alice.ID, Kind: &kind, PublicOnly: true}); got != 0 {
@@ -516,10 +554,10 @@ func TestFileQueryFiltersByKindAndPrivacy(t *testing.T) {
 }
 
 // mustFileKind inserts a file of a specific media kind.
-func mustFileKind(t *testing.T, s *Store, ctx context.Context, id string, owner *int64, public bool, kind models.Kind) *models.File {
+func mustFileKind(t *testing.T, s *Store, ctx context.Context, id string, owner *int64, visibility models.Visibility, kind models.Kind) *models.File {
 	t.Helper()
 
-	f := mustFile(t, s, ctx, id, owner, public, nil)
+	f := mustFile(t, s, ctx, id, owner, visibility, nil)
 	if _, err := s.DB().ExecContext(ctx, `UPDATE files SET kind = ? WHERE id = ?`, string(kind), id); err != nil {
 		t.Fatalf("set kind: %v", err)
 	}
@@ -533,9 +571,9 @@ func TestListTagsFollowsFileVisibility(t *testing.T) {
 	alice := mustUser(t, s, ctx, "alice")
 	bob := mustUser(t, s, ctx, "bob")
 
-	mustFile(t, s, ctx, "alicepublic", &alice.ID, true, nil)
-	mustFile(t, s, ctx, "aliceprivate", &alice.ID, false, nil)
-	mustFile(t, s, ctx, "bobprivate", &bob.ID, false, nil)
+	mustFile(t, s, ctx, "alicepublic", &alice.ID, models.VisibilityPublic, nil)
+	mustFile(t, s, ctx, "aliceprivate", &alice.ID, models.VisibilityPrivate, nil)
+	mustFile(t, s, ctx, "bobprivate", &bob.ID, models.VisibilityPrivate, nil)
 
 	for _, link := range []struct {
 		file  string
@@ -607,9 +645,9 @@ func TestListTagsCountsOnlyVisibleFiles(t *testing.T) {
 
 	// The same tag on one public and two private files: an anonymous visitor
 	// must count one, not three.
-	mustFile(t, s, ctx, "pub", &alice.ID, true, nil)
-	mustFile(t, s, ctx, "priv1", &alice.ID, false, nil)
-	mustFile(t, s, ctx, "priv2", &alice.ID, false, nil)
+	mustFile(t, s, ctx, "pub", &alice.ID, models.VisibilityPublic, nil)
+	mustFile(t, s, ctx, "priv1", &alice.ID, models.VisibilityPrivate, nil)
+	mustFile(t, s, ctx, "priv2", &alice.ID, models.VisibilityPrivate, nil)
 
 	for _, id := range []string{"pub", "priv1", "priv2"} {
 		if _, err := s.AddTag(ctx, id, &alice.ID, "grouped"); err != nil {
@@ -643,8 +681,8 @@ func TestTagCountsAreScopedToTheViewer(t *testing.T) {
 	alice := mustUser(t, s, ctx, "alice")
 	bob := mustUser(t, s, ctx, "bob")
 
-	mustFile(t, s, ctx, "alicesprivate", &alice.ID, false, nil)
-	mustFile(t, s, ctx, "bobspublic", &bob.ID, true, nil)
+	mustFile(t, s, ctx, "alicesprivate", &alice.ID, models.VisibilityPrivate, nil)
+	mustFile(t, s, ctx, "bobspublic", &bob.ID, models.VisibilityPublic, nil)
 
 	aliceTag, err := s.AddTag(ctx, "alicesprivate", &alice.ID, "secret project")
 	if err != nil {
@@ -682,8 +720,8 @@ func TestExpiredFilesLeaveListingsAndTagCounts(t *testing.T) {
 	alice := mustUser(t, s, ctx, "alice")
 	past := time.Now().Add(-time.Minute)
 
-	mustFile(t, s, ctx, "live", &alice.ID, true, nil)
-	mustFile(t, s, ctx, "gone", &alice.ID, true, &past)
+	mustFile(t, s, ctx, "live", &alice.ID, models.VisibilityPublic, nil)
+	mustFile(t, s, ctx, "gone", &alice.ID, models.VisibilityPublic, &past)
 
 	if _, err := s.AddTag(ctx, "live", &alice.ID, "keep"); err != nil {
 		t.Fatal(err)
@@ -715,9 +753,9 @@ func TestDeleteFileCascadesJoinRows(t *testing.T) {
 	s, ctx := newTestStore(t)
 
 	alice := mustUser(t, s, ctx, "alice")
-	mustFile(t, s, ctx, "pic", &alice.ID, false, nil)
+	mustFile(t, s, ctx, "pic", &alice.ID, models.VisibilityPrivate, nil)
 
-	album, err := s.CreateAlbum(ctx, alice.ID, "Trip", "", false)
+	album, err := s.CreateAlbum(ctx, alice.ID, "Trip", "", models.VisibilityPrivate)
 	if err != nil {
 		t.Fatalf("create album: %v", err)
 	}

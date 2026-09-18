@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"imvault/internal/models"
 )
 
 // Config holds all runtime settings for the server.
@@ -37,6 +39,11 @@ type Config struct {
 	// AnonymousTTL is how long an anonymous upload survives before the reaper
 	// deletes it.
 	AnonymousTTL time.Duration
+	// DefaultVisibility is the level a new upload gets when the uploader does
+	// not choose one. It is the setting that most changes what an instance
+	// feels like: private is a personal host, members is a group, and public
+	// is a public one.
+	DefaultVisibility models.Visibility
 	// SessionTTL is the lifetime of a login session.
 	SessionTTL time.Duration
 	// CleanupInterval is how often the background reaper runs.
@@ -120,6 +127,7 @@ func Load() (*Config, error) {
 		AllowSignup:           getBool("IMVAULT_ALLOW_SIGNUP", true),
 		AllowAnonymousUploads: getBool("IMVAULT_ALLOW_ANONYMOUS_UPLOADS", true),
 		AnonymousTTL:          getDuration("IMVAULT_ANONYMOUS_TTL", 24*time.Hour),
+		DefaultVisibility:     models.Visibility(getenv("IMVAULT_DEFAULT_VISIBILITY", string(models.VisibilityMembers))),
 		SessionTTL:            getDuration("IMVAULT_SESSION_TTL", 30*24*time.Hour),
 		CleanupInterval:       getDuration("IMVAULT_CLEANUP_INTERVAL", 15*time.Minute),
 		MaxUploadBytes:        getInt64("IMVAULT_MAX_UPLOAD_BYTES", 32<<20),
@@ -153,6 +161,14 @@ func Load() (*Config, error) {
 
 	c.DBPath = getenv("IMVAULT_DB", filepath.Join(dataDir, "imvault.db"))
 	c.SecretKeyFile = getenv("IMVAULT_SECRET_KEY_FILE", filepath.Join(dataDir, "secret.key"))
+
+	// Normalised before validation so that "Public" is accepted, and a typo is
+	// reported rather than silently becoming the closed level.
+	c.DefaultVisibility = models.Visibility(strings.ToLower(strings.TrimSpace(string(c.DefaultVisibility))))
+	if !c.DefaultVisibility.Valid() {
+		return nil, fmt.Errorf("IMVAULT_DEFAULT_VISIBILITY must be public, members or private, got %q",
+			c.DefaultVisibility)
+	}
 
 	if c.MaxUploadBytes <= 0 {
 		return nil, fmt.Errorf("IMVAULT_MAX_UPLOAD_BYTES must be positive, got %d", c.MaxUploadBytes)

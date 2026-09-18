@@ -371,7 +371,7 @@ func (s *Store) Stats(ctx context.Context) (InstanceStats, error) {
 			(SELECT COUNT(*) FROM users WHERE is_admin = 1),
 			(SELECT COUNT(*) FROM users WHERE disabled = 1),
 			(SELECT COUNT(*) FROM files),
-			(SELECT COUNT(*) FROM files WHERE is_public = 1),
+			(SELECT COUNT(*) FROM files WHERE visibility = 'public'),
 			(SELECT COALESCE(SUM(size), 0) FROM files),
 			(SELECT COUNT(*) FROM api_keys WHERE expires_at IS NULL OR expires_at > ?)`,
 		nowUnix(),

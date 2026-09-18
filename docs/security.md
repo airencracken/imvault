@@ -68,14 +68,22 @@ a cookie can be read off a plaintext connection.
 
 ## Who can see what
 
-There are three levels, and they are applied by a single predicate in the store
-so that a listing can never disagree with the route that serves the bytes:
+Visibility has three levels, and they are applied by a single predicate in the
+store so that a listing can never disagree with the route that serves the bytes:
 
-| File | Who can see it |
+| Level | Who can see it |
 | --- | --- |
-| Public | Anybody with the link, and anybody browsing |
-| Private | Its owner, and administrators |
-| Anonymous upload | Anybody with the link, until its retention window closes |
+| **Public** | Anybody, signed in or not, with the link or browsing |
+| **Members** | Any signed-in account, plus anybody the public level allows |
+| **Private** | Its owner, and administrators |
+
+Anonymous uploads are always public. With no owner and no session there is
+nobody a closed level could be scoped to, and the share link handed back to the
+uploader would not open for them otherwise. They keep their retention window,
+which is the thing that limits them instead.
+
+A members-level file is marked `Cache-Control: private`, so a shared cache
+cannot hold it and hand it to a stranger.
 
 Unknown ids, other people's private files, and files that never existed all
 produce the same `404`. The API does the same for other accounts' resources, so

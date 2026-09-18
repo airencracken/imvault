@@ -15,6 +15,7 @@ settings](#instance-settings) below.
 | `IMVAULT_ALLOW_SIGNUP` | `true` | Whether new accounts can register |
 | `IMVAULT_ALLOW_ANONYMOUS_UPLOADS` | `true` | Whether logged-out visitors may upload |
 | `IMVAULT_ANONYMOUS_TTL` | `24h` | How long anonymous uploads survive |
+| `IMVAULT_DEFAULT_VISIBILITY` | `members` | What a new upload is visible to: `public`, `members`, or `private` |
 | `IMVAULT_SESSION_TTL` | `720h` | Login session lifetime |
 | `IMVAULT_CLEANUP_INTERVAL` | `15m` | How often the reaper runs |
 | `IMVAULT_MAX_UPLOAD_BYTES` | `33554432` (32 MiB) | Per-file limit for images and animations |
@@ -59,6 +60,21 @@ them are things an operator may need to change in a hurry:
 | Whether new accounts can register | `IMVAULT_ALLOW_SIGNUP` |
 | Whether logged-out visitors may upload | `IMVAULT_ALLOW_ANONYMOUS_UPLOADS` |
 | How long anonymous uploads survive | `IMVAULT_ANONYMOUS_TTL` |
+| What a new upload is visible to | `IMVAULT_DEFAULT_VISIBILITY` |
+
+The same page offers the three ways of running an instance as one-click
+profiles, because personal, group, and public hosts are the same program at
+different settings rather than three programs:
+
+| Profile | Joining | Anonymous uploads | New uploads are visible to |
+| --- | --- | --- | --- |
+| **Personal** | closed | off | private |
+| **Group** | open | off | members |
+| **Public** | open | allowed, expiring | public |
+
+Applying a profile deliberately leaves the retention window alone. That setting
+reaches backwards over uploads already stored, and a button labelled "Public"
+should not quietly purge somebody's files.
 
 **The variable seeds the setting; the interface takes over once you save.** A row
 is written only when an administrator actually changes something, so a

@@ -123,8 +123,8 @@ func TestRecomputeStorageUsageRepairsDrift(t *testing.T) {
 	s, ctx := newTestStore(t)
 	alice := mustUser(t, s, ctx, "alice")
 
-	mustFile(t, s, ctx, "one", &alice.ID, false, nil) // 1024 bytes
-	mustFile(t, s, ctx, "two", &alice.ID, false, nil)
+	mustFile(t, s, ctx, "one", &alice.ID, models.VisibilityPrivate, nil) // 1024 bytes
+	mustFile(t, s, ctx, "two", &alice.ID, models.VisibilityPrivate, nil)
 
 	// Simulate a crash that reserved bytes without recording a file.
 	if err := s.ReserveStorage(ctx, alice.ID, 500_000); err != nil {
@@ -192,7 +192,7 @@ func TestDeletedUserLeavesNoFilesKeysOrTags(t *testing.T) {
 	s, ctx := newTestStore(t)
 	alice := mustUser(t, s, ctx, "alice")
 
-	mustFile(t, s, ctx, "pic", &alice.ID, false, nil)
+	mustFile(t, s, ctx, "pic", &alice.ID, models.VisibilityPrivate, nil)
 	if _, err := s.AddTag(ctx, "pic", &alice.ID, "beach"); err != nil {
 		t.Fatal(err)
 	}
@@ -245,9 +245,9 @@ func TestInstanceStats(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mustFile(t, s, ctx, "pub", &alice.ID, true, nil)
-	mustFile(t, s, ctx, "priv", &bob.ID, false, nil)
-	mustFile(t, s, ctx, "anon", nil, true, nil)
+	mustFile(t, s, ctx, "pub", &alice.ID, models.VisibilityPublic, nil)
+	mustFile(t, s, ctx, "priv", &bob.ID, models.VisibilityPrivate, nil)
+	mustFile(t, s, ctx, "anon", nil, models.VisibilityPublic, nil)
 
 	stats, err := s.Stats(ctx)
 	if err != nil {

@@ -24,6 +24,12 @@ contrib/             systemd unit, OpenRC script, Caddy configs, distro packagin
 
 A few decisions worth knowing about:
 
+- **Three visibility levels, not two.** Public is the whole internet, members is
+  any signed-in account, and private is the owner. A boolean can express "me" and
+  "everybody" but not "us", and "us" is the only one of the three a group has any
+  use for: without it, signing in grants nothing over being a stranger. The level
+  is a setting, so a personal, group, or public host is the same program at
+  different points rather than three programs.
 - **One visibility predicate.** Every listing, every count, and the tag index go
   through a single `visibilityClause`, so what a listing shows can never diverge
   from what the routes serving the bytes will allow. Retention is folded into the
@@ -53,9 +59,12 @@ A few decisions worth knowing about:
   placeholder and a logged warning rather than a failed upload.
 - **Row first, then bytes.** Deletes remove the database row before the objects, so
   a crash leaves harmless orphaned files rather than dangling references.
-- **Content-addressed storage with no reference counter.** Whether bytes are
-  still needed is answered by a `COUNT` over the file rows that name them, so
-  there is no counter that can drift out of step with reality.
+- **Content-addressed storage with a trigger-maintained reference count.**
+  Identical bytes are stored once however many accounts upload them, and a
+  `blobs` table carries a count the database keeps itself rather than one
+  application code maintains. The triggers fire for `ON DELETE CASCADE` too, so
+  removing an account decrements every count it should; a counter kept by callers
+  would leak there, because those rows disappear inside the database.
 - **Storage is an interface.** Swapping the disk backend for S3 means implementing
   `storage.Backend`; no handler changes.
 

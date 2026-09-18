@@ -124,7 +124,7 @@ func templateFuncs() template.FuncMap {
 		"hasTag": hasTag,
 		"join":   strings.Join,
 		"lower":  strings.ToLower,
-		"card": func(csrf, removePattern string, removable, selectable bool, f *models.File) fileCard {
+		"card": func(csrf, removePattern string, removable, selectable, showOwner bool, f *models.File) fileCard {
 			removeURL := ""
 			if removable {
 				if removePattern == "" {
@@ -137,6 +137,7 @@ func templateFuncs() template.FuncMap {
 				CSRFToken:  csrf,
 				Removable:  removable,
 				Selectable: selectable,
+				ShowOwner:  showOwner,
 				RemoveURL:  removeURL,
 			}
 		},

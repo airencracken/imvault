@@ -60,6 +60,12 @@ func (s *Store) LoadSettings(ctx context.Context, defaults models.Settings) (mod
 			sources[models.SettingAnonymousTTLSeconds] = true
 		}
 	}
+	if raw, ok := stored[models.SettingDefaultVisibility]; ok {
+		if visibility := models.ParseVisibility(raw); visibility.Valid() {
+			resolved.DefaultVisibility = visibility
+			sources[models.SettingDefaultVisibility] = true
+		}
+	}
 
 	return resolved, sources, nil
 }
@@ -69,12 +75,16 @@ func (s *Store) SaveSettings(ctx context.Context, settings models.Settings) erro
 	if settings.AnonymousTTL <= 0 {
 		return errors.New("store: the anonymous retention window must be positive")
 	}
+	if !settings.DefaultVisibility.Valid() {
+		return fmt.Errorf("store: %q is not a visibility level", settings.DefaultVisibility)
+	}
 
 	return s.withTx(ctx, func(tx *sql.Tx) error {
 		for key, value := range map[string]string{
 			models.SettingAllowSignup:           strconv.FormatBool(settings.AllowSignup),
 			models.SettingAllowAnonymousUploads: strconv.FormatBool(settings.AllowAnonymousUploads),
 			models.SettingAnonymousTTLSeconds:   strconv.FormatInt(int64(settings.AnonymousTTL/time.Second), 10),
+			models.SettingDefaultVisibility:     string(settings.DefaultVisibility),
 		} {
 			_, err := tx.ExecContext(ctx, `
 				INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)

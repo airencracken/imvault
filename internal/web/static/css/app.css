@@ -182,6 +182,39 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
 .search { display: flex; gap: .5rem; align-items: center; }
 .search input { margin-top: 0; min-width: 220px; }
 
+/* A group of mutually exclusive choices, rendered as a stack of labelled rows
+   rather than a bare radio list so the explanation travels with the option. */
+fieldset.choices {
+  margin: 0;
+  padding: .6rem .8rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+fieldset.choices legend { color: var(--muted); font-size: .82rem; padding: 0 .3rem; }
+fieldset.choices label.row { align-items: flex-start; }
+fieldset.choices label.row > input[type="radio"] { margin: .2rem 0 0; width: auto; }
+fieldset.choices label.row span { font-size: .85rem; }
+fieldset.choices p.muted { margin: .4rem 0 0; font-size: .8rem; }
+
+/* The instance profiles: side by side where there is room, stacked when not. */
+.profiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: .8rem; }
+.profile {
+  display: flex; flex-direction: column; gap: .4rem;
+  padding: .8rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.profile p { margin: 0; font-size: .82rem; }
+.profile button { margin-top: auto; }
+
+/* The three-way visibility control on a file page. */
+.vis-control { display: flex; align-items: center; gap: .35rem; flex-wrap: wrap; }
+.vis-control > .muted { font-size: .82rem; }
+
+/* Who shared a tile, on the instance feed. */
+.card .meta .by { color: var(--accent); }
+
 /* ---------- grid & cards ---------- */
 
 .grid {

@@ -495,6 +495,16 @@ func TestAPIListFilters(t *testing.T) {
 	if got := countFiles("?public=0"); got != 1 {
 		t.Errorf("public=0 total = %d, want 1", got)
 	}
+	// The level itself, which the boolean cannot express.
+	if got := countFiles("?visibility=public"); got != 1 {
+		t.Errorf("visibility=public total = %d, want 1", got)
+	}
+	if got := countFiles("?visibility=members"); got != 1 {
+		t.Errorf("visibility=members total = %d, want 1", got)
+	}
+	if got := countFiles("?visibility=private"); got != 0 {
+		t.Errorf("visibility=private total = %d, want 0", got)
+	}
 	if got := countFiles("?tag=keep"); got != 1 {
 		t.Errorf("tag=keep total = %d, want 1", got)
 	}
@@ -514,5 +524,8 @@ func TestAPIListFilters(t *testing.T) {
 	}
 	if resp, _ := h.apiJSON(http.MethodGet, "/api/v1/files?album=nosuchalbum", key, nil); resp.StatusCode != http.StatusNotFound {
 		t.Errorf("unknown album filter status = %d, want 404", resp.StatusCode)
+	}
+	if resp, _ := h.apiJSON(http.MethodGet, "/api/v1/files?visibility=nonsense", key, nil); resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("unknown visibility filter status = %d, want 400", resp.StatusCode)
 	}
 }

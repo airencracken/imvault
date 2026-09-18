@@ -1,0 +1,16 @@
+{{define "content"}}
+<header class="page-head">
+  <div>
+    <h1>Recent</h1>
+    <p class="muted">What everybody here has shared, newest first.</p>
+  </div>
+  <nav class="subtabs">
+    <a class="btn small" href="/gallery">Your gallery</a>
+    <a class="btn small" href="/albums">Albums</a>
+    <a class="btn small" href="/tags">Tags</a>
+  </nav>
+</header>
+
+{{template "file_grid" .Grid}}
+{{template "pagination" .Pagination}}
+{{end}}

@@ -12,6 +12,12 @@ make demo          # a throwaway instance, seeded with sample media
 
 The first account you register becomes the administrator.
 
+It serves three scales from the same binary, because they are settings rather
+than different programs: a **personal** host for one person, a **group** host
+for a community, and a **public** host open to the world. The settings page
+offers those three as profiles and lets you tune each axis by hand. See
+[Configuration](docs/configuration.md#instance-settings).
+
 ## What it does
 
 **Media.** Still images (JPEG, PNG, WebP, BMP, TIFF), animated GIFs and WebPs,
@@ -24,9 +30,10 @@ clips get a placeholder poster rather than failing. See
 [Media handling](docs/media.md).
 
 **Library.** Per-account galleries, albums, and tags, with tags scoped to the
-account that owns the file and a shared namespace for anonymous uploads. Public
-or private per file. Anonymous uploads with a retention window enforced by a
-reaper.
+account that owns the file and a shared namespace for anonymous uploads. A
+members feed shows what everybody has shared, not only what you put there. Every
+file and album is public, members-only, or private. Anonymous uploads with a
+retention window enforced by a reaper.
 
 **Accounts.** Multi-user signup, two-factor authentication with recovery codes,
 password reset by email or by an administrator-issued link, and self-service

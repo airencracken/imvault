@@ -223,9 +223,14 @@ func TestAPIUploadLifecycle(t *testing.T) {
 	if !strings.HasSuffix(file.RawURL, "/f/"+file.ID+"/raw") {
 		t.Errorf("raw_url = %q", file.RawURL)
 	}
-	// The API is private by default so a script cannot publish by accident.
+	// The API follows the instance default like the web form, which on this
+	// harness is members: a script that says nothing does not publish to the
+	// world, but it does not have to repeat the instance policy either.
 	if file.Public {
 		t.Error("api upload defaulted to public")
+	}
+	if file.Visibility != "members" {
+		t.Errorf("visibility = %q, want the instance default, members", file.Visibility)
 	}
 	if file.Kind != "image" {
 		t.Errorf("kind = %q, want image", file.Kind)
@@ -371,7 +376,7 @@ func TestAPIUploadIntoAlbum(t *testing.T) {
 	user := h.seedUser("alice")
 	key := h.seedKey(user.ID, "laptop", nil)
 
-	album, err := h.store.CreateAlbum(h.t.Context(), user.ID, "Summer 2026", "", true)
+	album, err := h.store.CreateAlbum(h.t.Context(), user.ID, "Summer 2026", "", models.VisibilityPublic)
 	if err != nil {
 		t.Fatalf("create album: %v", err)
 	}

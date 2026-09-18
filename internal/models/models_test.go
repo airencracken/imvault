@@ -111,3 +111,43 @@ func ExampleHumanSize() {
 	fmt.Println(HumanSize(2048))
 	// Output: 2.0 KiB
 }
+
+func TestVisibilityParsingClosesOnAnythingUnknown(t *testing.T) {
+	// A typo, an empty value, and a level from some future version all become
+	// private. The safe direction to be wrong in is closed.
+	for _, raw := range []string{"", "  ", "semi-public", "true", "1", "PRIVATEISH"} {
+		if got := ParseVisibility(raw); got != VisibilityPrivate {
+			t.Errorf("ParseVisibility(%q) = %q, want private", raw, got)
+		}
+	}
+
+	// Case and surrounding space are the caller's sloppiness, not a level.
+	for raw, want := range map[string]Visibility{
+		"public":   VisibilityPublic,
+		"PUBLIC":   VisibilityPublic,
+		" Members": VisibilityMembers,
+		"private ": VisibilityPrivate,
+	} {
+		if got := ParseVisibility(raw); got != want {
+			t.Errorf("ParseVisibility(%q) = %q, want %q", raw, got, want)
+		}
+	}
+
+	// Every level the picker offers must round-trip through the parser, or the
+	// form would silently store something other than what was chosen.
+	for _, level := range VisibilityLevels() {
+		if !level.Valid() {
+			t.Errorf("%q is offered but not valid", level)
+		}
+		if got := ParseVisibility(string(level)); got != level {
+			t.Errorf("%q round-tripped to %q", level, got)
+		}
+	}
+
+	if Visibility("wat").Valid() {
+		t.Error("an invented level was accepted")
+	}
+	if len(VisibilityLevels()) != 3 {
+		t.Errorf("%d levels, want 3", len(VisibilityLevels()))
+	}
+}

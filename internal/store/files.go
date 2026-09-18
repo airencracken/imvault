@@ -18,7 +18,7 @@ import (
 const fileColumns = `f.id, f.user_id, f.original_name, f.ext, f.mime, f.size,
 	f.width, f.height, f.sha256,
 	COALESCE(b.object_key, ''), COALESCE(b.thumb_key, ''), COALESCE(b.preview_key, ''),
-	f.is_public, f.kind, f.duration_ms, f.frame_count, f.views, f.created_at, f.expires_at,
+	f.visibility, f.kind, f.duration_ms, f.frame_count, f.views, f.created_at, f.expires_at,
 	COALESCE(u.username, '')`
 
 const fileFrom = `FROM files f
@@ -27,17 +27,17 @@ const fileFrom = `FROM files f
 
 func scanFile(sc rowScanner) (*models.File, error) {
 	var (
-		f        models.File
-		userID   sql.NullInt64
-		expires  sql.NullInt64
-		isPublic int
-		kind     string
-		created  int64
+		f          models.File
+		userID     sql.NullInt64
+		expires    sql.NullInt64
+		visibility string
+		kind       string
+		created    int64
 	)
 	if err := sc.Scan(
 		&f.ID, &userID, &f.OriginalName, &f.Ext, &f.Mime, &f.Size,
 		&f.Width, &f.Height, &f.SHA256, &f.ObjectKey, &f.ThumbKey, &f.PreviewKey,
-		&isPublic, &kind, &f.DurationMS, &f.FrameCount, &f.Views, &created, &expires, &f.Username,
+		&visibility, &kind, &f.DurationMS, &f.FrameCount, &f.Views, &created, &expires, &f.Username,
 	); err != nil {
 		return nil, err
 	}
@@ -45,7 +45,7 @@ func scanFile(sc rowScanner) (*models.File, error) {
 		id := userID.Int64
 		f.UserID = &id
 	}
-	f.IsPublic = isPublic != 0
+	f.Visibility = models.ParseVisibility(visibility)
 	f.Kind = models.ParseKind(kind)
 	f.CreatedAt = toTime(created)
 	f.ExpiresAt = timePtr(expires)
@@ -58,17 +58,22 @@ func (s *Store) CreateFile(ctx context.Context, f *models.File) error {
 	if kind == "" {
 		kind = string(models.KindImage)
 	}
+	// A caller that did not choose a level gets the closed one rather than an
+	// empty string that would fail the check constraint, if there were one.
+	if !f.Visibility.Valid() {
+		f.Visibility = models.VisibilityPrivate
+	}
 
 	// The blob has to exist first: the trigger that counts references fires on
 	// this insert and has nothing to update otherwise.
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO files (
 			id, user_id, original_name, ext, mime, size, width, height, sha256,
-			is_public, kind, duration_ms, frame_count, views, created_at, expires_at
+			visibility, kind, duration_ms, frame_count, views, created_at, expires_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		f.ID, nullableInt64(f.UserID), f.OriginalName, f.Ext, f.Mime, f.Size,
 		f.Width, f.Height, f.SHA256,
-		boolToInt(f.IsPublic), kind, f.DurationMS, f.FrameCount, f.Views,
+		string(f.Visibility), kind, f.DurationMS, f.FrameCount, f.Views,
 		ts(f.CreatedAt), nullableTime(f.ExpiresAt),
 	)
 	if err != nil {
@@ -109,14 +114,19 @@ type FileQuery struct {
 	OwnerID *int64
 	// AnonymousOnly restricts results to uploads with no owner.
 	AnonymousOnly bool
-	// PublicOnly restricts results to publicly visible files.
+	// PublicOnly restricts results to the public level.
 	PublicOnly bool
-	// PrivateOnly restricts results to files that are not public.
-	PrivateOnly bool
+	// NotPublic restricts results to anything above the public level. It is
+	// what the older public=false filter meant, kept so that callers written
+	// against two levels keep working.
+	NotPublic bool
+	// Visibility restricts results to one exact level.
+	Visibility *models.Visibility
 	// Kind restricts results to one media kind.
 	Kind *models.Kind
-	// VisibleTo restricts results to files that are public or owned by the
-	// given account. It composes with the other filters.
+	// VisibleTo restricts results to files this account may see: everything
+	// public, everything shared with members, and its own. It composes with
+	// the other filters.
 	VisibleTo *int64
 	// AlbumID restricts results to members of an album.
 	AlbumID *int64
@@ -152,18 +162,21 @@ func (q FileQuery) where() (string, []any) {
 		clauses = append(clauses, `f.user_id IS NULL`)
 	}
 
-	// Visibility: an explicit viewer scope wins over the public-only shorthand.
+	// Visibility: an explicit viewer scope wins over the level shorthands.
 	switch {
 	case q.VisibleTo != nil:
 		clause, extra := visibilityClause("f", q.VisibleTo)
 		clauses = append(clauses, clause)
 		args = append(args, extra...)
 	case q.PublicOnly:
-		clause, _ := visibilityClause("f", nil)
-		clauses = append(clauses, clause)
+		clauses = append(clauses, `f.visibility = 'public'`)
 	}
-	if q.PrivateOnly {
-		clauses = append(clauses, `f.is_public = 0`)
+	if q.NotPublic {
+		clauses = append(clauses, `f.visibility <> 'public'`)
+	}
+	if q.Visibility != nil {
+		clauses = append(clauses, `f.visibility = ?`)
+		args = append(args, string(*q.Visibility))
 	}
 
 	if q.Kind != nil {
@@ -277,10 +290,13 @@ func (s *Store) DeleteFile(ctx context.Context, id string) error {
 	return nil
 }
 
-// SetFilePublic toggles a file's public visibility.
-func (s *Store) SetFilePublic(ctx context.Context, id string, public bool) error {
+// SetFileVisibility changes which level a file is visible at.
+func (s *Store) SetFileVisibility(ctx context.Context, id string, visibility models.Visibility) error {
+	if !visibility.Valid() {
+		return fmt.Errorf("set file visibility: %q is not a level", visibility)
+	}
 	if _, err := s.db.ExecContext(ctx,
-		`UPDATE files SET is_public = ? WHERE id = ?`, boolToInt(public), id); err != nil {
+		`UPDATE files SET visibility = ? WHERE id = ?`, string(visibility), id); err != nil {
 		return fmt.Errorf("set file visibility: %w", err)
 	}
 	return nil

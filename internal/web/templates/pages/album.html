@@ -4,7 +4,7 @@
     <h1>{{.Album.Title}}</h1>
     <p class="muted">
       {{.Album.FileCount}} image{{if ne .Album.FileCount 1}}s{{end}}
-      · {{if .Album.IsPublic}}Public{{else}}Private{{end}}
+      · {{.Album.Visibility.Label}}
       · by {{default "unknown" .Album.Username}}
     </p>
     {{with .Album.Description}}<p>{{.}}</p>{{end}}

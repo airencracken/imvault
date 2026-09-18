@@ -12,9 +12,13 @@
   <label>Description <span class="muted">(optional)</span>
     <input name="description" maxlength="500" autocomplete="off">
   </label>
-  <label class="row">
-    <input type="checkbox" name="public" value="1">
-    <span>Public (anyone with the link can view)</span>
+  <label class="row">Visible to
+    <select name="visibility">
+      {{$default := .DefaultVisibility}}
+      {{range .VisibilityLevels}}
+      <option value="{{.}}" {{if eq . $default}}selected{{end}}>{{.Label}} — {{.Explain}}</option>
+      {{end}}
+    </select>
   </label>
   <button class="btn primary" type="submit">Create album</button>
 </form>
@@ -25,7 +29,7 @@
   <a class="album-card" href="/a/{{.Slug}}">
     <strong>{{.Title}}</strong>
     <span class="muted">{{.FileCount}} image{{if ne .FileCount 1}}s{{end}}</span>
-    {{if .IsPublic}}<span class="badge">public</span>{{else}}<span class="badge private">private</span>{{end}}
+    {{if not .Visibility.IsPublic}}<span class="badge private">{{.Visibility.ShortLabel}}</span>{{end}}
   </a>
   {{end}}
 </div>

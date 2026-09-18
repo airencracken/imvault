@@ -20,6 +20,11 @@ type base struct {
 	CurrentPath string
 	// SourceURL is the upstream repository, offered in the footer.
 	SourceURL string
+	// VisibilityLevels is every level, for the forms that offer the choice.
+	VisibilityLevels []models.Visibility
+	// DefaultVisibility is what a new upload gets unless the uploader picks
+	// something, so the forms can preselect it.
+	DefaultVisibility models.Visibility
 	// UseAlpine pulls in Alpine.js. Only the admin pages need it: it carries
 	// client-side UI state (a confirmation dialog, table filtering, copy
 	// feedback) that htmx is not the right tool for.
@@ -38,6 +43,9 @@ type fileCard struct {
 	CSRFToken  string
 	Removable  bool
 	Selectable bool
+	// ShowOwner attributes the upload, which matters where the point is what
+	// other people have shared rather than what you have.
+	ShowOwner bool
 	// RemoveURL is the endpoint that detaches or deletes this tile.
 	RemoveURL string
 }
@@ -48,6 +56,8 @@ type fileCardsView struct {
 	Files      []*models.File
 	Removable  bool
 	Selectable bool
+	// ShowOwner attributes each tile to the account that uploaded it.
+	ShowOwner bool
 	// RemovePattern is a printf-style path where %s is the file id.
 	RemovePattern string
 	Empty         string
@@ -101,6 +111,13 @@ type galleryView struct {
 	base
 	Grid       fileCardsView
 	Query      string
+	Pagination paginationView
+}
+
+// recentView is the instance feed: what everybody has shared, newest first.
+type recentView struct {
+	base
+	Grid       fileCardsView
 	Pagination paginationView
 }
 

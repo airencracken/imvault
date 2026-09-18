@@ -39,19 +39,24 @@ func (s *Server) installSettings(ctx context.Context) error {
 
 // reloadSettings refreshes the cache from the database and configuration.
 func (s *Server) reloadSettings(ctx context.Context) error {
-	defaults := models.Settings{
-		AllowSignup:           s.cfg.AllowSignup,
-		AllowAnonymousUploads: s.cfg.AllowAnonymousUploads,
-		AnonymousTTL:          s.cfg.AnonymousTTL,
-	}
-
-	values, stored, err := s.store.LoadSettings(ctx, defaults)
+	values, stored, err := s.store.LoadSettings(ctx, s.configDefaults())
 	if err != nil {
 		return err
 	}
 
 	s.settings.Store(&settingSource{Values: values, Stored: stored})
 	return nil
+}
+
+// configDefaults is the policy the environment asks for, which applies to
+// anything an administrator has not overridden.
+func (s *Server) configDefaults() models.Settings {
+	return models.Settings{
+		AllowSignup:           s.cfg.AllowSignup,
+		AllowAnonymousUploads: s.cfg.AllowAnonymousUploads,
+		AnonymousTTL:          s.cfg.AnonymousTTL,
+		DefaultVisibility:     s.cfg.DefaultVisibility,
+	}
 }
 
 // policy is the current instance policy.
@@ -61,11 +66,7 @@ func (s *Server) policy() models.Settings {
 	}
 	// Only reachable if the server was constructed without loading, which
 	// should not happen; the configuration is the safe answer.
-	return models.Settings{
-		AllowSignup:           s.cfg.AllowSignup,
-		AllowAnonymousUploads: s.cfg.AllowAnonymousUploads,
-		AnonymousTTL:          s.cfg.AnonymousTTL,
-	}
+	return s.configDefaults()
 }
 
 // settingSources reports which settings are currently overridden.
@@ -84,16 +85,77 @@ type settingsView struct {
 	// Retention is the window as written for a person, for example "24h" or
 	// "7d0h".
 	Retention string
-	// Stored marks which of the three are set here rather than in the
-	// environment.
+	// Visibility is the level a new upload gets.
+	Visibility models.Visibility
+	// Levels is every level, in the order they are offered.
+	Levels []models.Visibility
+	// Profiles are the named bundles, so the three ways of running this do not
+	// have to be reconstructed setting by setting.
+	Profiles []instanceProfile
+	// Stored marks which settings are set here rather than in the environment.
 	Stored map[string]bool
 	// Config values, shown so an operator can see what clearing would restore.
 	ConfigSignup     bool
 	ConfigAnon       bool
 	ConfigRetention  string
+	ConfigVisibility models.Visibility
 	AnonymousPending int
 	Error            string
 	Notice           string
+}
+
+// instanceProfile is a named bundle of instance policy.
+//
+// Personal, group, and public hosts are the same program at different points
+// along a few axes rather than three programs, so the profiles are a starting
+// point rather than a mode. Applying one leaves the retention window alone on
+// purpose: that setting reaches backwards over uploads already stored, and a
+// button labelled "Public" should not quietly purge somebody's files.
+type instanceProfile struct {
+	Key        string
+	Name       string
+	Summary    string
+	Signup     bool
+	Anonymous  bool
+	Visibility models.Visibility
+}
+
+func instanceProfiles() []instanceProfile {
+	return []instanceProfile{
+		{
+			Key:        "personal",
+			Name:       "Personal",
+			Summary:    "One person. Nobody joins, nothing is shared, and uploads are yours alone.",
+			Signup:     false,
+			Anonymous:  false,
+			Visibility: models.VisibilityPrivate,
+		},
+		{
+			Key:        "group",
+			Name:       "Group",
+			Summary:    "A community. Accounts may register, uploads are visible to members, and anonymous uploads are off.",
+			Signup:     true,
+			Anonymous:  false,
+			Visibility: models.VisibilityMembers,
+		},
+		{
+			Key:        "public",
+			Name:       "Public",
+			Summary:    "Open to the world. Anyone may register or upload anonymously, and uploads are public.",
+			Signup:     true,
+			Anonymous:  true,
+			Visibility: models.VisibilityPublic,
+		},
+	}
+}
+
+func profileFor(key string) (instanceProfile, bool) {
+	for _, profile := range instanceProfiles() {
+		if profile.Key == key {
+			return profile, true
+		}
+	}
+	return instanceProfile{}, false
 }
 
 // handleAdminSettings shows the instance-wide policy.
@@ -109,10 +171,14 @@ func (s *Server) handleAdminSettings(w http.ResponseWriter, r *http.Request) {
 		AllowSignup:           policy.AllowSignup,
 		AllowAnonymousUploads: policy.AllowAnonymousUploads,
 		Retention:             formatRetention(policy.AnonymousTTL),
+		Visibility:            policy.DefaultVisibility,
+		Levels:                models.VisibilityLevels(),
+		Profiles:              instanceProfiles(),
 		Stored:                s.settingSources(),
 		ConfigSignup:          s.cfg.AllowSignup,
 		ConfigAnon:            s.cfg.AllowAnonymousUploads,
 		ConfigRetention:       formatRetention(s.cfg.AnonymousTTL),
+		ConfigVisibility:      s.cfg.DefaultVisibility,
 		AnonymousPending:      pending,
 		Error:                 r.URL.Query().Get("error"),
 		Notice:                r.URL.Query().Get("notice"),
@@ -131,17 +197,35 @@ func (s *Server) handleAdminSaveSettings(w http.ResponseWriter, r *http.Request)
 
 	previous := s.policy()
 
-	window, err := parseRetention(r.FormValue("anonymous_ttl"))
-	if err != nil {
-		redirectNotice(w, r, "/admin/settings", "error", err.Error())
-		return
-	}
-
 	next := models.Settings{
 		// Absent checkboxes mean off, which is what a form sends.
 		AllowSignup:           r.FormValue("allow_signup") == "1",
 		AllowAnonymousUploads: r.FormValue("allow_anonymous_uploads") == "1",
-		AnonymousTTL:          window,
+		AnonymousTTL:          previous.AnonymousTTL,
+		DefaultVisibility:     models.ParseVisibility(r.FormValue("default_visibility")),
+	}
+
+	applied := ""
+	if key := strings.TrimSpace(r.FormValue("profile")); key != "" {
+		profile, ok := profileFor(key)
+		if !ok {
+			redirectNotice(w, r, "/admin/settings", "error", "No such profile.")
+			return
+		}
+		// A profile sets the policy axes and leaves the retention window as it
+		// is, because changing that rewrites the deadline on uploads already
+		// stored.
+		next.AllowSignup = profile.Signup
+		next.AllowAnonymousUploads = profile.Anonymous
+		next.DefaultVisibility = profile.Visibility
+		applied = profile.Name
+	} else {
+		window, err := parseRetention(r.FormValue("anonymous_ttl"))
+		if err != nil {
+			redirectNotice(w, r, "/admin/settings", "error", err.Error())
+			return
+		}
+		next.AnonymousTTL = window
 	}
 
 	if err := s.store.SaveSettings(r.Context(), next); err != nil {
@@ -157,9 +241,11 @@ func (s *Server) handleAdminSaveSettings(w http.ResponseWriter, r *http.Request)
 
 	s.log.Info("instance settings changed",
 		"actor", currentUser(r.Context()).ID,
+		"profile", applied,
 		"allow_signup", next.AllowSignup,
 		"allow_anonymous_uploads", next.AllowAnonymousUploads,
 		"anonymous_ttl", next.AnonymousTTL.String(),
+		"default_visibility", string(next.DefaultVisibility),
 	)
 
 	notice := "Settings saved."

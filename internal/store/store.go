@@ -130,18 +130,24 @@ func expiryClause(alias string) string {
 	return fmt.Sprintf("(%s.expires_at IS NULL OR %s.expires_at > ?)", alias, alias)
 }
 
-// visibilityClause restricts files to those a viewer may see: anything public,
-// plus their own uploads when they are signed in. A nil viewer is an anonymous
-// visitor, who sees only public files.
+// visibilityClause restricts files to those a viewer may see: everything
+// public, plus everything shared with members when they are signed in, plus
+// their own uploads. A nil viewer is an anonymous visitor, who sees only what
+// is public.
+//
+// The middle term is the one that makes an account worth having. Without it
+// signing in grants nothing over being a stranger, and an instance is a set of
+// personal vaults sharing a disk rather than a place.
 //
 // Every place that exposes files or file-derived data must go through this, so
 // that listings, counts and the tag index can never disagree with the access
 // checks on the routes that serve the bytes.
 func visibilityClause(alias string, viewerID *int64) (string, []any) {
 	if viewerID == nil {
-		return fmt.Sprintf("%s.is_public = 1", alias), nil
+		return fmt.Sprintf("%s.visibility = 'public'", alias), nil
 	}
-	return fmt.Sprintf("(%s.is_public = 1 OR %s.user_id = ?)", alias, alias), []any{*viewerID}
+	return fmt.Sprintf("(%s.visibility IN ('public', 'members') OR %s.user_id = ?)",
+		alias, alias), []any{*viewerID}
 }
 
 func mapErr(err error) error {

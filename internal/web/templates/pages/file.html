@@ -30,7 +30,7 @@
       {{with .File.DurationLabel}}<dt>Duration</dt><dd>{{.}}</dd>{{end}}
       <dt>Size</dt><dd>{{humanSize .File.Size}}</dd>
       <dt>Views</dt><dd>{{.File.Views}}</dd>
-      <dt>Visibility</dt><dd>{{if .File.IsPublic}}Public{{else}}Private{{end}}</dd>
+      <dt>Visibility</dt><dd>{{.File.Visibility.Label}} <span class="muted">— {{.File.Visibility.Explain}}</span></dd>
       {{with .File.ExpiryLabel}}<dt>Retention</dt><dd class="warn">{{.}}</dd>{{end}}
     </dl>
 

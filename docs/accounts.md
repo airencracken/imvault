@@ -6,8 +6,10 @@ Registration, signing in, second factors, and the way out.
 
 `/settings/account` downloads a zip of everything the account has uploaded,
 plus a `manifest.json` describing it: names, sizes, dimensions, content hashes,
-tags, albums, and the dates. Each original sits at `files/<id>/<name>`, so two
-uploads called `photo.jpg` do not collide.
+each file's visibility, tags, albums, and the dates. Each original sits at
+`files/<id>/<name>`, so two uploads called `photo.jpg` do not collide.
+The manifest carries both `visibility` and the older `public` boolean, so a
+reader written against two levels keeps working.
 
 The archive is streamed as it is built rather than assembled on disk first,
 because an export can easily be larger than the space left on the server.

@@ -16,7 +16,7 @@ import (
 // seedFileWithTag creates a file owned by owner and labels it, without going
 // through the upload pipeline. Tags belong to the file's owner, so owner must
 // not be nil.
-func seedFileWithTag(t *testing.T, h *harness, tag string, owner *int64, public bool) string {
+func seedFileWithTag(t *testing.T, h *harness, tag string, owner *int64, visibility models.Visibility) string {
 	t.Helper()
 
 	if owner == nil {
@@ -36,7 +36,7 @@ func seedFileWithTag(t *testing.T, h *harness, tag string, owner *int64, public 
 		ObjectKey:    "orig/" + id + ".png",
 		ThumbKey:     "thumb/" + id + ".png",
 		Kind:         models.KindImage,
-		IsPublic:     public,
+		Visibility:   visibility,
 		CreatedAt:    time.Now().UTC(),
 	}
 	if err := h.store.CreateFile(t.Context(), file); err != nil {
@@ -71,9 +71,9 @@ func TestTagIndexRespectsFileVisibility(t *testing.T) {
 	marcus := h.registerForm("marcus")
 	other := h.seedUser("other")
 
-	seedFileWithTag(t, h, "mytag", &marcus.ID, false)
-	seedFileWithTag(t, h, "other-secret", &other.ID, false)
-	seedFileWithTag(t, h, "public-tag", &other.ID, true)
+	seedFileWithTag(t, h, "mytag", &marcus.ID, models.VisibilityPrivate)
+	seedFileWithTag(t, h, "other-secret", &other.ID, models.VisibilityPrivate)
+	seedFileWithTag(t, h, "public-tag", &other.ID, models.VisibilityPublic)
 
 	// Signed in: Marcus sees his own private tag and the public one, but not
 	// the other account's private tag.
@@ -110,8 +110,8 @@ func TestTagPageHidesInvisibleTags(t *testing.T) {
 	marcus := h.registerForm("marcus")
 	other := h.seedUser("other")
 
-	seedFileWithTag(t, h, "mytag", &marcus.ID, false)
-	seedFileWithTag(t, h, "other-secret", &other.ID, false)
+	seedFileWithTag(t, h, "mytag", &marcus.ID, models.VisibilityPrivate)
+	seedFileWithTag(t, h, "other-secret", &other.ID, models.VisibilityPrivate)
 
 	// Tags are addressed by owner, so another account's tag is simply not
 	// reachable, exactly like a tag that does not exist.
@@ -134,8 +134,8 @@ func TestAPITagIndexRespectsVisibility(t *testing.T) {
 	aliceKey := h.seedKey(alice.ID, "alice", nil)
 	bobKey := h.seedKey(bob.ID, "bob", nil)
 
-	seedFileWithTag(t, h, "alice-secret", &alice.ID, false)
-	seedFileWithTag(t, h, "shared-tag", &alice.ID, true)
+	seedFileWithTag(t, h, "alice-secret", &alice.ID, models.VisibilityPrivate)
+	seedFileWithTag(t, h, "shared-tag", &alice.ID, models.VisibilityPublic)
 
 	// Bob's index contains the public tag but not Alice's private one.
 	resp, raw := h.apiJSON(http.MethodGet, "/api/v1/tags", bobKey, nil)
@@ -180,8 +180,8 @@ func TestAPIRemovingATagCannotProbeRemoteTagNames(t *testing.T) {
 	aliceKey := h.seedKey(alice.ID, "alice", nil)
 	bobKey := h.seedKey(bob.ID, "bob", nil)
 
-	seedFileWithTag(t, h, "alice-secret", &alice.ID, false)
-	bobFile := seedFileWithTag(t, h, "bob-tag", &bob.ID, false)
+	seedFileWithTag(t, h, "alice-secret", &alice.ID, models.VisibilityPrivate)
+	bobFile := seedFileWithTag(t, h, "bob-tag", &bob.ID, models.VisibilityPrivate)
 
 	// "alice-secret" exists elsewhere, but not on Bob's file, so the response
 	// must not confirm that it exists at all.

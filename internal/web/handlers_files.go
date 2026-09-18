@@ -88,30 +88,31 @@ func (s *Server) serveObject(w http.ResponseWriter, r *http.Request, file *model
 	w.Header().Set("ETag", `"`+file.ID+`-`+path.Base(key)+`"`)
 
 	// A given id's bytes never change, so the content is safe to cache for a
-	// long time. Private files are marked private to keep shared caches out.
-	scope := "public"
-	if !file.IsPublic {
-		scope = "private"
+	// long time. Anything not public is marked private to keep shared caches
+	// out, since a members-only file is still a signed-in-only file.
+	scope := "private"
+	if file.Visibility.IsPublic() {
+		scope = "public"
 	}
 	w.Header().Set("Cache-Control", scope+", max-age=31536000, immutable")
 
 	http.ServeContent(w, r, file.OriginalName, time.Time{}, f)
 }
 
-// handleFileVisibility flips a file between public and private.
+// handleFileVisibility changes which level a file is visible at.
 func (s *Server) handleFileVisibility(w http.ResponseWriter, r *http.Request) {
 	file, ok := s.loadEditableFile(w, r)
 	if !ok {
 		return
 	}
 
-	public := r.FormValue("public") == "1"
-	if err := s.store.SetFilePublic(r.Context(), file.ID, public); err != nil {
+	visibility := models.ParseVisibility(r.FormValue("visibility"))
+	if err := s.store.SetFileVisibility(r.Context(), file.ID, visibility); err != nil {
 		s.log.Error("set visibility", "id", file.ID, "error", err)
 		http.Error(w, "could not update visibility", http.StatusInternalServerError)
 		return
 	}
-	file.IsPublic = public
+	file.Visibility = visibility
 
 	if isHTMX(r) {
 		s.renderPartial(w, "visibility_button", fileView{

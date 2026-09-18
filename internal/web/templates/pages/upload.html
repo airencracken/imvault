@@ -28,10 +28,23 @@
   </div>
 
   <div class="stack">
-    <label class="row">
-      <input type="checkbox" name="public" value="1" checked>
-      <span>Make uploads public (anyone with the link can view them)</span>
-    </label>
+    {{if .IsAuthed}}
+    <fieldset class="choices">
+      <legend>New uploads are visible to</legend>
+      {{$current := .DefaultVisibility}}
+      {{range .VisibilityLevels}}
+      <label class="row">
+        <input type="radio" name="visibility" value="{{.}}" {{if eq . $current}}checked{{end}}>
+        <span><strong>{{.Label}}</strong> — {{.Explain}}</span>
+      </label>
+      {{end}}
+      <p class="muted">You can change this later on each file.</p>
+    </fieldset>
+    {{else}}
+    <p class="muted">
+      Anonymous uploads are public, and are deleted when their window ends.
+    </p>
+    {{end}}
 
     <label>Tags <span class="muted">(optional, comma separated)</span>
       <input name="tags" placeholder="holiday, beach" autocomplete="off" maxlength="200">

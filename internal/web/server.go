@@ -134,6 +134,7 @@ func (s *Server) routes() *http.ServeMux {
 
 	// Library
 	mux.HandleFunc("GET /gallery", s.requireUser(s.handleGallery))
+	mux.HandleFunc("GET /recent", s.requireUser(s.handleRecent))
 	mux.HandleFunc("GET /upload", s.handleUploadPage)
 	mux.HandleFunc("POST /upload", s.rateLimitUploads(s.handleUpload))
 

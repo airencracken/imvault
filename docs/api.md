@@ -25,9 +25,20 @@ curl -H "Authorization: Bearer $IMVAULT_KEY" \
 | Field | Meaning |
 | --- | --- |
 | `files` | One or more files. `file`, `image`, and `uploads` are accepted as aliases |
-| `public` | `1` to make the uploads link-shareable. **API uploads default to private** |
+| `visibility` | `public`, `members`, or `private`. Defaults to the instance default |
+| `public` | The older boolean. `1` means `visibility=public`, `0` means `private` |
 | `album` | Album slug or id to add the uploads to |
 | `tags` | Comma-separated tag names to apply to the uploads |
+
+**Visibility has three levels**, not two: `public` is anyone with the link,
+`members` is any signed-in account, and `private` is the uploader. An upload
+that names no level gets the instance default, which is what the upload form
+also preselects. Anonymous uploads are always public — there is no account to
+scope a closed level to, and the link handed back to the uploader would not open
+for them otherwise.
+
+The `public` field is kept as a synonym so existing clients, including the
+ShareX configuration below, keep working. Prefer `visibility`.
 
 An anonymous upload is the only chance to tag it, so the uploader form and this
 API both take tags at upload time. A signed-in account can tag its own uploads
@@ -90,8 +101,10 @@ curl -H "Authorization: Bearer $IMVAULT_KEY" \
      'https://img.example.com/api/v1/files?tag=beach&kind=image&public=1'
 ```
 
-`GET /api/v1/files` accepts `q`, `tag`, `album`, `public`, `kind`, `limit`, and
-`offset`. `kind` is one of `image`, `animated` or `video`.
+`GET /api/v1/files` accepts `q`, `tag`, `album`, `visibility`, `public`, `kind`,
+`limit`, and `offset`. `kind` is one of `image`, `animated` or `video`.
+`visibility` takes an exact level; `public=0` means anything that is not public,
+which is what callers written against two levels meant by it.
 
 **Endpoints**
 
@@ -101,7 +114,7 @@ curl -H "Authorization: Bearer $IMVAULT_KEY" \
 | `POST` | `/api/v1/upload` | Upload one or more files |
 | `GET` | `/api/v1/files` | List and filter your uploads |
 | `GET` | `/api/v1/files/{id}` | Metadata for one file |
-| `PATCH` | `/api/v1/files/{id}` | Change visibility (`public`) |
+| `PATCH` | `/api/v1/files/{id}` | Change visibility (`visibility`, or `public`) |
 | `DELETE` | `/api/v1/files/{id}` | Delete a file and its bytes |
 | `POST` | `/api/v1/files/{id}/tags` | Attach a tag |
 | `DELETE` | `/api/v1/files/{id}/tags/{ref}` | Detach a tag by id, slug or name |

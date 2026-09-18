@@ -59,6 +59,43 @@ func (s *Server) handleGallery(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleRecent shows what the instance has shared, newest first.
+//
+// This is the page that makes having an account worth something. Before it,
+// signing in led straight to your own uploads and never showed anybody else's,
+// so an instance was a set of personal vaults sharing a disk. Everything here
+// is filtered through the visibility predicate: public, plus what members may
+// see, plus the viewer's own.
+func (s *Server) handleRecent(w http.ResponseWriter, r *http.Request) {
+	user := currentUser(r.Context())
+
+	filter := store.FileQuery{VisibleTo: &user.ID}
+
+	total, err := s.store.CountFiles(r.Context(), filter)
+	if err != nil {
+		s.log.Error("recent: count", "error", err)
+		http.Error(w, "database error", http.StatusInternalServerError)
+		return
+	}
+
+	page, pg := pagination(r, total)
+	filter.Limit = defaultPageSize
+	filter.Offset = (page - 1) * defaultPageSize
+
+	files, err := s.store.ListFiles(r.Context(), filter)
+	if err != nil {
+		s.log.Error("recent: list", "error", err)
+		http.Error(w, "database error", http.StatusInternalServerError)
+		return
+	}
+
+	s.renderPage(w, http.StatusOK, "recent", recentView{
+		base:       s.base(r, "Recent"),
+		Grid:       s.feedGrid(r, files, "Nothing has been shared yet."),
+		Pagination: pg,
+	})
+}
+
 // handleFilePage shows a single image with its metadata and controls.
 func (s *Server) handleFilePage(w http.ResponseWriter, r *http.Request) {
 	file, ok := s.lookupVisibleFile(w, r)

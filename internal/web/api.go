@@ -19,15 +19,19 @@ import (
 
 // apiFileJSON is the wire representation of a stored file.
 type apiFileJSON struct {
-	ID         string       `json:"id"`
-	Name       string       `json:"name"`
-	Mime       string       `json:"mime"`
-	Kind       string       `json:"kind"`
-	Size       int64        `json:"size"`
-	Width      int          `json:"width"`
-	Height     int          `json:"height"`
-	Views      int64        `json:"views"`
-	Public     bool         `json:"public"`
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Mime   string `json:"mime"`
+	Kind   string `json:"kind"`
+	Size   int64  `json:"size"`
+	Width  int    `json:"width"`
+	Height int    `json:"height"`
+	Views  int64  `json:"views"`
+	// Public is the older boolean, kept so clients written against two levels
+	// keep working. It is true only at the public level.
+	Public bool `json:"public"`
+	// Visibility is the level itself: public, members, or private.
+	Visibility string       `json:"visibility"`
 	DurationMS int64        `json:"duration_ms,omitempty"`
 	FrameCount int          `json:"frame_count,omitempty"`
 	CreatedAt  string       `json:"created_at"`
@@ -66,7 +70,8 @@ func newAPIFile(r *http.Request, s *Server, f *models.File) apiFileJSON {
 		Width:      f.Width,
 		Height:     f.Height,
 		Views:      f.Views,
-		Public:     f.IsPublic,
+		Public:     f.Visibility.IsPublic(),
+		Visibility: string(f.Visibility),
 		DurationMS: f.DurationMS,
 		FrameCount: f.FrameCount,
 		CreatedAt:  f.CreatedAt.UTC().Format(time.RFC3339),
@@ -192,12 +197,12 @@ func (s *Server) apiUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Unlike the web form, the API defaults to private: a script should opt in
-	// to publishing rather than publish by accident.
-	public := apiBool(r.FormValue("public"))
-	if _, provided := r.Form["public"]; !provided {
-		public = false
-	}
+	// The level comes from the same form the web uploader uses, so a script and
+	// a person get the same policy: an explicit choice, then the older public
+	// boolean, then the instance default. The default matters more than it
+	// looks: on an instance configured for members, a script that says nothing
+	// uploads for members rather than for the world.
+	visibility := s.uploadVisibility(r, user)
 
 	var (
 		created  []apiFileJSON
@@ -205,7 +210,7 @@ func (s *Server) apiUpload(w http.ResponseWriter, r *http.Request) {
 	)
 
 	for _, header := range parts {
-		file, err := s.ingest(r.Context(), header, user, public)
+		file, err := s.ingest(r.Context(), header, user, visibility)
 		if err != nil {
 			failures = append(failures, fmt.Sprintf("%s: %s", header.Filename, err))
 			continue
@@ -263,8 +268,8 @@ func (s *Server) apiFile(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, newAPIFile(r, s, file))
 }
 
-// apiPatchFile updates a file's mutable fields. Only the public flag is
-// supported today.
+// apiPatchFile updates a file's mutable fields. Only visibility is supported
+// today.
 func (s *Server) apiPatchFile(w http.ResponseWriter, r *http.Request) {
 	file, ok := s.apiOwnedFile(w, r, currentUser(r.Context()))
 	if !ok {
@@ -277,19 +282,23 @@ func (s *Server) apiPatchFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	public, present := params.boolPtr("public")
+	visibility, present, err := params.visibility()
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if !present {
 		writeAPIError(w, http.StatusBadRequest,
-			"no supported fields were provided (supported: public)")
+			"no supported fields were provided (supported: visibility, public)")
 		return
 	}
 
-	if err := s.store.SetFilePublic(r.Context(), file.ID, public); err != nil {
+	if err := s.store.SetFileVisibility(r.Context(), file.ID, visibility); err != nil {
 		s.log.Error("api: set visibility", "id", file.ID, "error", err)
 		writeAPIError(w, http.StatusInternalServerError, "could not update the file")
 		return
 	}
-	file.IsPublic = public
+	file.Visibility = visibility
 
 	noStore(w)
 	writeJSON(w, http.StatusOK, newAPIFile(r, s, file))
@@ -339,11 +348,21 @@ func (s *Server) apiListFiles(w http.ResponseWriter, r *http.Request) {
 		filter.AlbumID = &albumID
 	}
 
-	if raw := strings.TrimSpace(query.Get("public")); raw != "" {
+	// Visibility filtering: an exact level, with the older public boolean kept
+	// as a synonym. public=false means "anything not public", which is what
+	// callers written against two levels meant by it.
+	if raw := strings.TrimSpace(query.Get("visibility")); raw != "" {
+		level, err := parseVisibilityStrict(raw)
+		if err != nil {
+			writeAPIError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		filter.Visibility = &level
+	} else if raw := strings.TrimSpace(query.Get("public")); raw != "" {
 		if apiBool(raw) {
 			filter.PublicOnly = true
 		} else {
-			filter.PrivateOnly = true
+			filter.NotPublic = true
 		}
 	}
 
@@ -484,6 +503,34 @@ func (p *params) str(key string) string {
 		return ""
 	}
 	return strings.TrimSpace(p.form.Get(key))
+}
+
+// visibility reads a visibility level, accepting the older public boolean as a
+// synonym. The third return value is the error, which is separate from absence
+// so a caller can reject a level it does not recognise rather than silently
+// closing the file.
+func (p *params) visibility() (models.Visibility, bool, error) {
+	if raw := p.str("visibility"); raw != "" {
+		level, err := parseVisibilityStrict(raw)
+		return level, true, err
+	}
+	if public, present := p.boolPtr("public"); present {
+		if public {
+			return models.VisibilityPublic, true, nil
+		}
+		return models.VisibilityPrivate, true, nil
+	}
+	return "", false, nil
+}
+
+// parseVisibilityStrict is ParseVisibility for input a person typed, where a
+// typo should be reported rather than quietly treated as private.
+func parseVisibilityStrict(raw string) (models.Visibility, error) {
+	level := models.Visibility(strings.ToLower(strings.TrimSpace(raw)))
+	if !level.Valid() {
+		return "", fmt.Errorf("%q is not a visibility level (use public, members, or private)", raw)
+	}
+	return level, nil
 }
 
 // boolPtr returns a boolean field and whether it was present at all, which

@@ -45,18 +45,21 @@ type exportAccount struct {
 }
 
 type exportFile struct {
-	ID         string      `json:"id"`
-	Name       string      `json:"name"`
-	Path       string      `json:"path"`
-	Size       int64       `json:"size_bytes"`
-	Mime       string      `json:"mime"`
-	Kind       string      `json:"kind"`
-	Width      int         `json:"width,omitempty"`
-	Height     int         `json:"height,omitempty"`
-	DurationMS int64       `json:"duration_ms,omitempty"`
-	FrameCount int         `json:"frame_count,omitempty"`
-	SHA256     string      `json:"sha256"`
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Path       string `json:"path"`
+	Size       int64  `json:"size_bytes"`
+	Mime       string `json:"mime"`
+	Kind       string `json:"kind"`
+	Width      int    `json:"width,omitempty"`
+	Height     int    `json:"height,omitempty"`
+	DurationMS int64  `json:"duration_ms,omitempty"`
+	FrameCount int    `json:"frame_count,omitempty"`
+	SHA256     string `json:"sha256"`
+	// Public is the older boolean, kept so a manifest written before levels
+	// existed still reads the same way. Visibility is the level itself.
 	Public     bool        `json:"public"`
+	Visibility string      `json:"visibility"`
 	Views      int64       `json:"views"`
 	CreatedAt  string      `json:"created_at"`
 	ExpiresAt  *string     `json:"expires_at"`
@@ -81,6 +84,7 @@ type exportAlbum struct {
 	Slug        string   `json:"slug"`
 	Description string   `json:"description,omitempty"`
 	Public      bool     `json:"public"`
+	Visibility  string   `json:"visibility"`
 	CreatedAt   string   `json:"created_at"`
 	Files       []string `json:"file_ids"`
 }
@@ -194,7 +198,8 @@ func (s *Server) exportableFiles(r *http.Request, userID int64) ([]exportFile, e
 				DurationMS: file.DurationMS,
 				FrameCount: file.FrameCount,
 				SHA256:     file.SHA256,
-				Public:     file.IsPublic,
+				Public:     file.Visibility.IsPublic(),
+				Visibility: string(file.Visibility),
 				Views:      file.Views,
 				CreatedAt:  file.CreatedAt.UTC().Format(time.RFC3339),
 				ExpiresAt:  exportExpiry(file),
@@ -245,7 +250,8 @@ func (s *Server) exportableAlbums(ctx context.Context, userID int64, files []exp
 			Title:       album.Title,
 			Slug:        album.Slug,
 			Description: album.Description,
-			Public:      album.IsPublic,
+			Public:      album.Visibility.IsPublic(),
+			Visibility:  string(album.Visibility),
 			CreatedAt:   album.CreatedAt.UTC().Format(time.RFC3339),
 			Files:       ids,
 		})

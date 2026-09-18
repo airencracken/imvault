@@ -350,6 +350,50 @@ async function main() {
     record("the out-of-band notice reports it", notice.includes("Deleted alice"),
       notice.slice(0, 90));
 
+    // --- the three-way visibility control ---
+    //
+    // Uploaded through the browser so the request carries the page's own CSRF
+    // token, then driven the way a person would.
+    const fileID = await page.evaluate(`
+      const token = document.querySelector('meta[name="csrf-token"]').content;
+      const form = new FormData();
+      form.append("csrf_token", token);
+      form.append("visibility", "members");
+      const bytes = Uint8Array.from(atob(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+      ), (c) => c.charCodeAt(0));
+      form.append("files", new Blob([bytes], { type: "image/png" }), "pixel.png");
+      const resp = await fetch("/upload", {
+        method: "POST", body: form, headers: { "HX-Request": "true" },
+      });
+      const html = await resp.text();
+      const match = html.match(/id="file-([A-Za-z0-9]+)"/);
+      return match ? match[1] : "";
+    `);
+    record("a members-level upload succeeds", fileID !== "", "the upload returned no file card");
+
+    await page.goto(`${base}/f/${fileID}`);
+
+    const readPressed = `
+      const pressed = document.querySelector(".vis-control button[aria-pressed='true']");
+      return pressed ? pressed.textContent.trim() : "";
+    `;
+    const initial = await page.evaluate(readPressed);
+    record("the control shows the stored level", initial === "Members", `showed "${initial}"`);
+
+    await page.evaluate(`
+      [...document.querySelectorAll(".vis-control button")]
+        .find((b) => b.textContent.trim() === "Private").click();
+      await new Promise((r) => setTimeout(r, 400));
+    `);
+    const swapped = await page.evaluate(readPressed);
+    record("clicking a level swaps the control in place", swapped === "Private",
+      `showed "${swapped}"`);
+
+    // And it persisted, rather than only looking changed.
+    await page.goto(`${base}/f/${fileID}`);
+    const persisted = await page.evaluate(readPressed);
+    record("the new level persisted", persisted === "Private", `showed "${persisted}"`);
     // --- the guard on deleting your own account ---
     await page.goto(`${base}/settings/account`);
 

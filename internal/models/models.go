@@ -11,6 +11,95 @@ import (
 	"unicode/utf8"
 )
 
+// Visibility is who may see a file or an album.
+//
+// Three levels rather than a boolean, because the middle one is what lets a
+// single build serve a personal host, a group host, and a public host. Public
+// is the whole internet, members is everyone with an account here, and private
+// is the owner. A two-level model can express "me" and "everybody" but not
+// "us", which is the only one of the three a group has any use for.
+type Visibility string
+
+const (
+	// VisibilityPrivate is the owner, and administrators.
+	VisibilityPrivate Visibility = "private"
+	// VisibilityMembers is any signed-in account.
+	VisibilityMembers Visibility = "members"
+	// VisibilityPublic is anyone, signed in or not.
+	VisibilityPublic Visibility = "public"
+)
+
+// ParseVisibility reads a stored or submitted value. Anything unrecognised
+// becomes private, because the safe direction to be wrong in is closed.
+func ParseVisibility(raw string) Visibility {
+	switch Visibility(strings.ToLower(strings.TrimSpace(raw))) {
+	case VisibilityPublic:
+		return VisibilityPublic
+	case VisibilityMembers:
+		return VisibilityMembers
+	default:
+		return VisibilityPrivate
+	}
+}
+
+// Valid reports whether v is one of the three levels.
+func (v Visibility) Valid() bool {
+	switch v {
+	case VisibilityPublic, VisibilityMembers, VisibilityPrivate:
+		return true
+	}
+	return false
+}
+
+// Label is the name shown in the interface.
+func (v Visibility) Label() string {
+	switch v {
+	case VisibilityPublic:
+		return "Public"
+	case VisibilityMembers:
+		return "Members"
+	}
+	return "Private"
+}
+
+// ShortLabel is the badge text.
+func (v Visibility) ShortLabel() string {
+	switch v {
+	case VisibilityPublic:
+		return "public"
+	case VisibilityMembers:
+		return "members"
+	}
+	return "private"
+}
+
+// Explain describes the level in one sentence, for the upload form and the
+// settings page.
+func (v Visibility) Explain() string {
+	switch v {
+	case VisibilityPublic:
+		return "Anyone with the link, signed in or not"
+	case VisibilityMembers:
+		return "Anyone with an account on this instance"
+	}
+	return "Only you"
+}
+
+// IsPublic reports whether the level is visible to logged-out visitors.
+func (v Visibility) IsPublic() bool { return v == VisibilityPublic }
+
+// IsMembers reports whether the level is the middle tier.
+func (v Visibility) IsMembers() bool { return v == VisibilityMembers }
+
+// IsPrivate reports whether the level is owner-only.
+func (v Visibility) IsPrivate() bool { return v == VisibilityPrivate }
+
+// VisibilityLevels lists the levels most open first, which is the order they
+// are offered in.
+func VisibilityLevels() []Visibility {
+	return []Visibility{VisibilityPublic, VisibilityMembers, VisibilityPrivate}
+}
+
 // User is a registered account.
 type User struct {
 	ID           int64
@@ -127,7 +216,7 @@ type File struct {
 	ObjectKey    string
 	ThumbKey     string
 	PreviewKey   string
-	IsPublic     bool
+	Visibility   Visibility
 	Kind         Kind
 	DurationMS   int64
 	FrameCount   int
@@ -205,6 +294,7 @@ const (
 	SettingAllowSignup           = "allow_signup"
 	SettingAllowAnonymousUploads = "allow_anonymous_uploads"
 	SettingAnonymousTTLSeconds   = "anonymous_ttl_seconds"
+	SettingDefaultVisibility     = "default_visibility"
 )
 
 // Settings is that policy, resolved: stored values where an administrator has
@@ -213,6 +303,11 @@ type Settings struct {
 	AllowSignup           bool
 	AllowAnonymousUploads bool
 	AnonymousTTL          time.Duration
+	// DefaultVisibility is what a new upload gets when the uploader does not
+	// choose. It is the single setting that most changes what an instance
+	// feels like: private is a personal host, members is a group, public is a
+	// public one.
+	DefaultVisibility Visibility
 }
 
 // Blob is one piece of stored content, shared by every file with the same hash.
@@ -244,14 +339,14 @@ func (b *Blob) Keys() []string {
 	return out
 }
 
-// Album is a user-owned collection of files.
+// Album is a collection of files, owned by the account that created it.
 type Album struct {
 	ID          int64
 	UserID      int64
 	Title       string
 	Slug        string
 	Description string
-	IsPublic    bool
+	Visibility  Visibility
 	CreatedAt   time.Time
 
 	// Populated by list queries.

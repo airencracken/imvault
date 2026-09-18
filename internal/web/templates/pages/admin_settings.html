@@ -18,6 +18,29 @@
 {{if .Error}}<p class="flash err">{{.Error}}</p>{{end}}
 {{if .Notice}}<p class="flash ok">{{.Notice}}</p>{{end}}
 
+<section class="panel stack">
+  <h2>What is this instance for?</h2>
+  <p class="muted">
+    Personal, group, and public hosts are the same program at different
+    settings rather than three programs, so these are starting points. Each one
+    sets who may join, whether anonymous uploads are allowed, and what a new
+    upload is visible to. None of them changes the retention window, which
+    reaches backwards over uploads already stored.
+  </p>
+  <div class="profiles">
+    {{range .Profiles}}
+    <form class="profile" method="post" action="/admin/settings"
+          {{if eq .Key "public"}}onsubmit="return confirm('Open this instance to the world? Anyone will be able to register and upload.')"{{end}}>
+      <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+      <input type="hidden" name="profile" value="{{.Key}}">
+      <strong>{{.Name}}</strong>
+      <p class="muted">{{.Summary}}</p>
+      <button class="btn" type="submit">Apply {{.Name}}</button>
+    </form>
+    {{end}}
+  </div>
+</section>
+
 <form class="panel stack" method="post" action="/admin/settings">
   <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
 
@@ -41,9 +64,11 @@
     <span>Allow uploads without an account</span>
   </label>
   <p class="muted">
-    Anonymous uploads are public, and are deleted
+    Anonymous uploads are public and are deleted
     {{if .AnonymousPending}}along with the {{.AnonymousPending}} already stored{{else}}automatically{{end}}
-    when their window ends.
+    when their window ends. They are always public: there is no account to
+    scope a closed level to, and the link the uploader is given would not open
+    for them otherwise.
     {{if index .Stored "allow_anonymous_uploads"}}
       Currently set here. Clearing the settings restores
       {{if .ConfigAnon}}open{{else}}closed{{end}}.
@@ -70,6 +95,28 @@
     shortening it takes effect immediately rather than whenever the old
     deadlines pass. Each deadline stays measured from when that upload arrived,
     so anything older than a shortened window becomes collectable at once.
+  </p>
+
+  <h2>New uploads are visible to</h2>
+  <fieldset class="choices">
+    {{$current := .Visibility}}
+    {{range .Levels}}
+    <label class="row">
+      <input type="radio" name="default_visibility" value="{{.}}" {{if eq . $current}}checked{{end}}>
+      <span><strong>{{.Label}}</strong> — {{.Explain}}</span>
+    </label>
+    {{end}}
+  </fieldset>
+  <p class="muted">
+    This is the setting that most changes what the instance feels like:
+    <strong>private</strong> is a personal host, <strong>members</strong> is a
+    group, and <strong>public</strong> is a public one. It applies to new
+    uploads only; existing ones keep the level they were stored at.
+    {{if index .Stored "default_visibility"}}
+      Currently set here. Clearing the settings restores {{.ConfigVisibility.Label}}.
+    {{else}}
+      Currently from the configuration: {{.ConfigVisibility.Label}}.
+    {{end}}
   </p>
 
   <button class="btn primary" type="submit">Save settings</button>

@@ -115,7 +115,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	public := r.FormValue("public") == "1"
+	visibility := s.uploadVisibility(r, user)
 	albumID := int64(queryInt(r, "album_id", 0))
 	tags := r.FormValue("tags")
 
@@ -125,7 +125,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	)
 
 	for _, header := range parts {
-		file, err := s.ingest(r.Context(), header, user, public)
+		file, err := s.ingest(r.Context(), header, user, visibility)
 		if err != nil {
 			failures = append(failures, fmt.Sprintf("%s: %s", header.Filename, err))
 			continue
@@ -181,7 +181,7 @@ func (s *Server) attachUploadsToAlbum(r *http.Request, user *models.User, albumI
 
 // ingest validates, stores and records a single upload, dispatching on the
 // classified media format.
-func (s *Server) ingest(ctx context.Context, header *multipart.FileHeader, user *models.User, public bool) (*models.File, error) {
+func (s *Server) ingest(ctx context.Context, header *multipart.FileHeader, user *models.User, visibility models.Visibility) (*models.File, error) {
 	src, err := header.Open()
 	if err != nil {
 		return nil, fmt.Errorf("could not open the upload")
@@ -211,9 +211,9 @@ func (s *Server) ingest(ctx context.Context, header *multipart.FileHeader, user 
 	}
 
 	if format.IsVideo() {
-		return s.storeVideo(ctx, src, format, header, owner, public, expires, now)
+		return s.storeVideo(ctx, src, format, header, owner, visibility, expires, now)
 	}
-	return s.storeStill(ctx, src, format, header, owner, public, expires, now)
+	return s.storeStill(ctx, src, format, header, owner, visibility, expires, now)
 }
 
 // quotaError turns a store quota failure into a message worth showing a user.
@@ -253,7 +253,7 @@ func (s *Server) storeStill(
 	format media.Format,
 	header *multipart.FileHeader,
 	owner *int64,
-	public bool,
+	visibility models.Visibility,
 	expires *time.Time,
 	now time.Time,
 ) (*models.File, error) {
@@ -265,7 +265,7 @@ func (s *Server) storeStill(
 	// Identical bytes are already stored: point at them rather than decoding,
 	// resizing, and writing a second copy.
 	if existing, ok := s.reusableUpload(ctx, sha); ok {
-		return s.recordReused(ctx, existing, header, owner, public, expires, now)
+		return s.recordReused(ctx, existing, header, owner, visibility, expires, now)
 	}
 
 	result, err := s.media.ProcessStill(src, format)
@@ -329,7 +329,7 @@ func (s *Server) storeStill(
 		PreviewKey:   keys.preview,
 		Kind:         result.Kind,
 		FrameCount:   result.FrameCount,
-		IsPublic:     public || owner == nil,
+		Visibility:   visibility,
 		CreatedAt:    now,
 		ExpiresAt:    expires,
 	}
@@ -353,7 +353,7 @@ func (s *Server) storeVideo(
 	format media.Format,
 	header *multipart.FileHeader,
 	owner *int64,
-	public bool,
+	visibility models.Visibility,
 	expires *time.Time,
 	now time.Time,
 ) (*models.File, error) {
@@ -363,7 +363,7 @@ func (s *Server) storeVideo(
 	}
 
 	if existing, ok := s.reusableUpload(ctx, sha); ok {
-		return s.recordReused(ctx, existing, header, owner, public, expires, now)
+		return s.recordReused(ctx, existing, header, owner, visibility, expires, now)
 	}
 
 	// The original goes to its content-addressed key before probing, because
@@ -432,7 +432,7 @@ func (s *Server) storeVideo(
 		PreviewKey:   keys.preview,
 		Kind:         result.Kind,
 		DurationMS:   result.DurationMS,
-		IsPublic:     public || owner == nil,
+		Visibility:   visibility,
 		CreatedAt:    now,
 		ExpiresAt:    expires,
 	}
@@ -526,6 +526,32 @@ func (s *Server) expiryFor(user *models.User) *time.Time {
 	// uploads immediately and existing ones through ApplyAnonymousRetention.
 	e := time.Now().UTC().Add(s.policy().AnonymousTTL)
 	return &e
+}
+
+// uploadVisibility resolves the level an upload should be stored at.
+//
+// Anonymous uploads are always public. There is no owner to scope a closed
+// level to and no session to check one against, and the share link the
+// uploader is handed would not open for them, so any other answer would make
+// the upload useless to the person who made it.
+//
+// For a signed-in uploader an explicit choice wins, then the older public
+// boolean, and otherwise the instance default — which is the setting that most
+// changes what an instance feels like.
+func (s *Server) uploadVisibility(r *http.Request, owner *models.User) models.Visibility {
+	if owner == nil {
+		return models.VisibilityPublic
+	}
+	if raw := strings.TrimSpace(r.FormValue("visibility")); raw != "" {
+		return models.ParseVisibility(raw)
+	}
+	if raw := strings.TrimSpace(r.FormValue("public")); raw != "" {
+		if raw == "1" || strings.EqualFold(raw, "true") {
+			return models.VisibilityPublic
+		}
+		return models.VisibilityPrivate
+	}
+	return s.policy().DefaultVisibility
 }
 
 // uploadFailure reports a whole-request upload error.

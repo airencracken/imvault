@@ -24,6 +24,7 @@ import (
 	"imvault/internal/db"
 	"imvault/internal/mail"
 	"imvault/internal/media"
+	"imvault/internal/models"
 	"imvault/internal/secrets"
 	"imvault/internal/storage"
 	"imvault/internal/store"
@@ -92,16 +93,19 @@ func newHarnessFull(t *testing.T, mutate func(*config.Config), mode mailMode) *h
 		AllowSignup:           true,
 		AllowAnonymousUploads: true,
 		AnonymousTTL:          time.Hour,
-		SessionTTL:            time.Hour,
-		CleanupInterval:       time.Hour,
-		MaxUploadBytes:        8 << 20,
-		MaxVideoBytes:         16 << 20,
-		MaxVideoDuration:      30 * time.Second,
-		FFmpegPath:            "ffmpeg",
-		FFprobePath:           "ffprobe",
-		ThumbMax:              128,
-		PreviewMax:            256,
-		JPEGQuality:           80,
+		// Mirror config.Load: an unset level would make every upload land at
+		// the zero value instead of the documented default.
+		DefaultVisibility: models.VisibilityMembers,
+		SessionTTL:        time.Hour,
+		CleanupInterval:   time.Hour,
+		MaxUploadBytes:    8 << 20,
+		MaxVideoBytes:     16 << 20,
+		MaxVideoDuration:  30 * time.Second,
+		FFmpegPath:        "ffmpeg",
+		FFprobePath:       "ffprobe",
+		ThumbMax:          128,
+		PreviewMax:        256,
+		JPEGQuality:       80,
 		// Mirror the defaults config.Load would apply: a zero TTL would mint
 		// tokens that are already expired.
 		PasswordResetTTL:  time.Hour,
@@ -456,7 +460,7 @@ func TestAnonymousUploadsArePublicAndExpire(t *testing.T) {
 	if file.UserID != nil {
 		t.Error("anonymous upload should have no owner")
 	}
-	if !file.IsPublic {
+	if !file.Visibility.IsPublic() {
 		t.Error("anonymous upload should be public")
 	}
 	if file.ExpiresAt == nil {
@@ -505,8 +509,8 @@ func TestPrivateFilesAreHiddenFromAnonymous(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if file.IsPublic {
-		t.Fatal("upload without the public flag should be private")
+	if file.Visibility.IsPublic() {
+		t.Fatal("upload without a public choice should not be public")
 	}
 
 	// A fresh anonymous client must not see it.

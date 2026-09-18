@@ -89,6 +89,14 @@ func (s *Server) grid(r *http.Request, files []*models.File, removable, selectab
 	}
 }
 
+// feedGrid is grid with attribution, for the pages whose point is what other
+// people have shared rather than one account's own uploads.
+func (s *Server) feedGrid(r *http.Request, files []*models.File, empty string) fileCardsView {
+	view := s.grid(r, files, false, false, "", empty)
+	view.ShowOwner = true
+	return view
+}
+
 func csrfToken(ctx context.Context) string {
 	t, _ := ctx.Value(csrfKey).(string)
 	return t
@@ -115,15 +123,17 @@ func (s *Server) base(r *http.Request, title string) base {
 	policy := s.policy()
 
 	return base{
-		Title:       title,
-		User:        currentUser(r.Context()),
-		CSRFToken:   csrfToken(r.Context()),
-		AnonUploads: policy.AllowAnonymousUploads,
-		SignupOpen:  policy.AllowSignup,
-		SourceURL:   s.cfg.SourceURL,
-		Notice:      strings.TrimSpace(r.URL.Query().Get("notice")),
-		Error:       strings.TrimSpace(r.URL.Query().Get("error")),
-		CurrentPath: r.URL.Path,
+		Title:             title,
+		User:              currentUser(r.Context()),
+		CSRFToken:         csrfToken(r.Context()),
+		AnonUploads:       policy.AllowAnonymousUploads,
+		SignupOpen:        policy.AllowSignup,
+		SourceURL:         s.cfg.SourceURL,
+		VisibilityLevels:  models.VisibilityLevels(),
+		DefaultVisibility: policy.DefaultVisibility,
+		Notice:            strings.TrimSpace(r.URL.Query().Get("notice")),
+		Error:             strings.TrimSpace(r.URL.Query().Get("error")),
+		CurrentPath:       r.URL.Path,
 	}
 }
 

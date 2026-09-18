@@ -482,6 +482,119 @@ func TestBlobMigrationBackfillsCountsAndMovesTheKeys(t *testing.T) {
 	}
 }
 
+func TestVisibilityMigrationKeepsPublicPublic(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "pre-visibility.db")
+	buildLegacyDatabase(t, path,
+		"001_init.sql", "002_media_and_api_keys.sql", "003_per_account_tags.sql",
+		"004_quotas_and_admin.sql", "005_auth_tokens.sql", "006_outbound_mail.sql",
+		"007_two_factor.sql", "008_content_addressed_storage.sql", "009_per_file_quota.sql",
+		"010_anonymous_tags.sql")
+
+	// Bring the database to the schema an instance would have when the
+	// visibility migration arrives.
+	raw, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"011_blobs.sql", "012_settings.sql"} {
+		body, err := migrationsFS.ReadFile("migrations/" + name)
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		if _, err := raw.Exec(string(body)); err != nil {
+			t.Fatalf("apply %s: %v", name, err)
+		}
+		if _, err := raw.Exec(
+			`INSERT INTO schema_migrations (version, applied_at) VALUES (?, 0)`, name); err != nil {
+			t.Fatalf("record %s: %v", name, err)
+		}
+	}
+	if _, err := raw.Exec(`
+		INSERT INTO albums (user_id, title, slug, description, is_public, created_at) VALUES
+			(1, 'Public album',  'public-album',  '', 1, 0),
+			(1, 'Private album', 'private-album', '', 0, 0)`); err != nil {
+		t.Fatalf("seed albums: %v", err)
+	}
+	raw.Close()
+
+	database, err := Open(context.Background(), path)
+	if err != nil {
+		t.Fatalf("upgrade database: %v", err)
+	}
+	defer database.Close()
+
+	// Nothing changes meaning. Public stays public, and everything else is
+	// private rather than members: widening access during an upgrade would be
+	// the wrong direction to guess in, since an administrator can lift the
+	// default afterwards but cannot un-share what has already been seen.
+	want := map[string]string{
+		"alicepub":  "public",
+		"alicepriv": "private",
+		"bobfile":   "public",
+		"anonfile":  "public",
+	}
+	rows, err := database.QueryContext(context.Background(), `SELECT id, visibility FROM files`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	seen := 0
+	for rows.Next() {
+		var id, visibility string
+		if err := rows.Scan(&id, &visibility); err != nil {
+			t.Fatal(err)
+		}
+		seen++
+		if want[id] != visibility {
+			t.Errorf("file %s came through as %q, want %q", id, visibility, want[id])
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if seen != len(want) {
+		t.Errorf("read %d files, want %d", seen, len(want))
+	}
+
+	var publicAlbums int
+	if err := database.QueryRowContext(context.Background(),
+		`SELECT COUNT(*) FROM albums WHERE visibility = 'public'`).Scan(&publicAlbums); err != nil {
+		t.Fatal(err)
+	}
+	if publicAlbums != 1 {
+		t.Errorf("%d public albums, want 1", publicAlbums)
+	}
+
+	// The boolean is gone rather than left beside the level, so there is one
+	// source of truth.
+	if _, err := database.Exec(`SELECT is_public FROM files`); err == nil {
+		t.Error("the is_public column survived the migration")
+	}
+
+	// Dropping a column rewrites the table, so the reference-count triggers
+	// must be checked rather than assumed: silently losing one would leak
+	// blobs forever, and nothing else would notice.
+	ctx := context.Background()
+	if _, err := database.ExecContext(ctx,
+		`INSERT INTO blobs (sha256, size, object_key, refcount, created_at) VALUES ('aa', 1, 'o/aa', 0, 0)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.ExecContext(ctx, `
+		INSERT INTO files (id, user_id, original_name, ext, mime, size, width, height,
+			sha256, visibility, kind, created_at)
+		VALUES ('newone', 1, 'n.png', 'png', 'image/png', 1, 1, 1, 'aa', 'private', 'image', 0)`); err != nil {
+		t.Fatal(err)
+	}
+	var refcount int
+	if err := database.QueryRowContext(ctx,
+		`SELECT refcount FROM blobs WHERE sha256 = 'aa'`).Scan(&refcount); err != nil {
+		t.Fatal(err)
+	}
+	if refcount != 1 {
+		t.Errorf("blob refcount = %d after an insert, want 1: the trigger was lost", refcount)
+	}
+}
+
 func TestMigrationIsIdempotent(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "fresh.db")
 	ctx := context.Background()

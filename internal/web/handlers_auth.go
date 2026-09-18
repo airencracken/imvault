@@ -42,7 +42,9 @@ func validatePassword(password string) error {
 // handleHome is the landing page; signed-in users go straight to their gallery.
 func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 	if currentUser(r.Context()) != nil {
-		http.Redirect(w, r, "/gallery", http.StatusSeeOther)
+		// The feed, not your own gallery: the point of signing in is to see
+		// what everybody has shared, not only what you put there.
+		http.Redirect(w, r, "/recent", http.StatusSeeOther)
 		return
 	}
 
@@ -307,7 +309,21 @@ func validEmail(addr string) bool {
 	return err == nil && parsed.Address == addr && strings.Contains(addr, ".")
 }
 
-// requireOwnership reports whether user may modify file.
+// canViewVisibility reports whether a viewer may see content at a given level,
+// ignoring ownership. Ownership is checked separately, because the owner can
+// always see their own.
+func canViewVisibility(user *models.User, visibility models.Visibility) bool {
+	switch visibility {
+	case models.VisibilityPublic:
+		return true
+	case models.VisibilityMembers:
+		return user != nil
+	default:
+		return false
+	}
+}
+
+// canEditFile reports whether user may modify file.
 func canEditFile(user *models.User, f *models.File) bool {
 	if user == nil {
 		return false
@@ -320,8 +336,21 @@ func canEditFile(user *models.User, f *models.File) bool {
 
 // canViewFile reports whether user may see the file's content.
 func canViewFile(user *models.User, f *models.File) bool {
-	if f.IsPublic {
+	return canViewVisibility(user, f.Visibility) || canEditFile(user, f)
+}
+
+// canEditAlbum reports whether user may modify album.
+func canEditAlbum(user *models.User, a *models.Album) bool {
+	if user == nil {
+		return false
+	}
+	if user.IsAdmin {
 		return true
 	}
-	return canEditFile(user, f)
+	return a.UserID == user.ID
+}
+
+// canViewAlbum reports whether user may see the album's page.
+func canViewAlbum(user *models.User, a *models.Album) bool {
+	return canViewVisibility(user, a.Visibility) || canEditAlbum(user, a)
 }

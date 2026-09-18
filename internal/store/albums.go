@@ -11,32 +11,35 @@ import (
 	"imvault/internal/models"
 )
 
-const albumColumns = `a.id, a.user_id, a.title, a.slug, a.description, a.is_public, a.created_at,
+const albumColumns = `a.id, a.user_id, a.title, a.slug, a.description, a.visibility, a.created_at,
 	COALESCE(u.username, ''), (SELECT COUNT(*) FROM album_files WHERE album_id = a.id)`
 
 func scanAlbum(sc rowScanner) (*models.Album, error) {
 	var (
-		a        models.Album
-		isPublic int
-		created  int64
+		a          models.Album
+		visibility string
+		created    int64
 	)
 	if err := sc.Scan(&a.ID, &a.UserID, &a.Title, &a.Slug, &a.Description,
-		&isPublic, &created, &a.Username, &a.FileCount); err != nil {
+		&visibility, &created, &a.Username, &a.FileCount); err != nil {
 		return nil, err
 	}
-	a.IsPublic = isPublic != 0
+	a.Visibility = models.ParseVisibility(visibility)
 	a.CreatedAt = toTime(created)
 	return &a, nil
 }
 
 // CreateAlbum inserts an album, deriving a unique slug from the title.
-func (s *Store) CreateAlbum(ctx context.Context, userID int64, title, description string, public bool) (*models.Album, error) {
+func (s *Store) CreateAlbum(ctx context.Context, userID int64, title, description string, visibility models.Visibility) (*models.Album, error) {
 	title = strings.TrimSpace(title)
 	if title == "" {
 		return nil, fmt.Errorf("album title is empty")
 	}
 	if len(title) > 120 {
 		title = models.Truncate(title, 120)
+	}
+	if !visibility.Valid() {
+		visibility = models.VisibilityPrivate
 	}
 
 	base := ids.Slug(title)
@@ -50,9 +53,9 @@ func (s *Store) CreateAlbum(ctx context.Context, userID int64, title, descriptio
 		}
 
 		res, err := s.db.ExecContext(ctx, `
-			INSERT INTO albums (user_id, title, slug, description, is_public, created_at)
+			INSERT INTO albums (user_id, title, slug, description, visibility, created_at)
 			VALUES (?, ?, ?, ?, ?, ?)`,
-			userID, title, slug, description, boolToInt(public), created,
+			userID, title, slug, description, string(visibility), created,
 		)
 		if err != nil {
 			if ok, col := isUniqueViolation(err); ok && strings.Contains(col, "slug") {
@@ -71,7 +74,7 @@ func (s *Store) CreateAlbum(ctx context.Context, userID int64, title, descriptio
 			Title:       title,
 			Slug:        slug,
 			Description: description,
-			IsPublic:    public,
+			Visibility:  visibility,
 			CreatedAt:   toTime(created),
 		}
 		return &album, nil
@@ -126,7 +129,7 @@ func (s *Store) AlbumsByUser(ctx context.Context, userID int64) ([]*models.Album
 }
 
 // UpdateAlbum changes an album's mutable fields.
-func (s *Store) UpdateAlbum(ctx context.Context, id int64, title, description string, public bool) error {
+func (s *Store) UpdateAlbum(ctx context.Context, id int64, title, description string, visibility models.Visibility) error {
 	title = strings.TrimSpace(title)
 	if title == "" {
 		return fmt.Errorf("album title is empty")
@@ -134,9 +137,12 @@ func (s *Store) UpdateAlbum(ctx context.Context, id int64, title, description st
 	if len(title) > 120 {
 		title = models.Truncate(title, 120)
 	}
+	if !visibility.Valid() {
+		visibility = models.VisibilityPrivate
+	}
 	if _, err := s.db.ExecContext(ctx, `
-		UPDATE albums SET title = ?, description = ?, is_public = ? WHERE id = ?`,
-		title, description, boolToInt(public), id); err != nil {
+		UPDATE albums SET title = ?, description = ?, visibility = ? WHERE id = ?`,
+		title, description, string(visibility), id); err != nil {
 		return fmt.Errorf("update album: %w", err)
 	}
 	return nil

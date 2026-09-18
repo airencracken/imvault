@@ -19,12 +19,13 @@ Everything the server answers.
 | `GET` `POST` | `/login/2fa` | The second sign-in step |
 | `POST` | `/settings/email` | Set or clear the email address |
 | `GET` | `/gallery` | Your uploads (supports `?q=` and `?page=`) |
+| `GET` | `/recent` | The instance feed: what everybody has shared (supports `?page=`) |
 | `GET` `POST` | `/upload` | Uploader and upload endpoint |
 | `GET` | `/f/{id}` | Asset detail page |
 | `GET` | `/f/{id}/raw` | Original file (range requests supported) |
 | `GET` | `/f/{id}/thumb` | Thumbnail or clip poster |
 | `GET` | `/f/{id}/preview` | Preview, or the original for animations and clips |
-| `POST` | `/f/{id}/visibility` | Toggle public/private |
+| `POST` | `/f/{id}/visibility` | Set the level: public, members, or private |
 | `POST` | `/f/{id}/delete` | Delete the file |
 | `POST` | `/f/{id}/tags`, `/f/{id}/tags/{tagID}/delete` | Attach or detach a tag |
 | `GET` `POST` | `/albums` | List and create albums |
