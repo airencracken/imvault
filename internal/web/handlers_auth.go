@@ -16,6 +16,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"imvault/internal/ids"
+	"imvault/internal/invites"
 	"imvault/internal/models"
 	"imvault/internal/store"
 )
@@ -139,6 +140,73 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/gallery", http.StatusSeeOther)
 }
 
+// admission is the outcome of checking whether a registration may proceed.
+type admission struct {
+	// Invite is the row to consume, or nil when none is needed.
+	Invite *models.Invite
+	// Refusal explains why the attempt may not proceed. Empty means it may.
+	Refusal string
+}
+
+// admit decides whether a registration may go ahead, and against which
+// invitation.
+//
+// An invitation always admits, whatever the general policy says. It is a
+// deliberate grant by an administrator, which is what makes "close signup, then
+// invite the people you want" work: a closed instance is not an unreachable
+// one, and without this the only way to add somebody to a closed instance was
+// to edit the database by hand.
+func (s *Server) admit(ctx context.Context, firstUser bool, code string) admission {
+	// The first account bootstraps the instance and is always allowed.
+	if firstUser {
+		return admission{}
+	}
+
+	policy := s.policy()
+	code = strings.TrimSpace(code)
+
+	if code == "" {
+		if policy.AllowSignup && !policy.InviteOnly {
+			return admission{}
+		}
+		if policy.InviteOnly {
+			return admission{Refusal: "This instance is by invitation. Enter the code you were given."}
+		}
+		return admission{Refusal: "Registration is disabled on this instance."}
+	}
+
+	prefix, ok := invites.Split(code)
+	if !ok {
+		return admission{Refusal: "That invitation is not valid, or has already been used."}
+	}
+
+	found, err := s.store.InviteByPrefix(ctx, prefix)
+	if err != nil {
+		if !errors.Is(err, store.ErrNotFound) {
+			return admission{Refusal: "That invitation is not valid, or has already been used."}
+		}
+		return admission{Refusal: "That invitation is not valid, or has already been used."}
+	}
+
+	// Looking the row up by prefix narrows the search; it does not authenticate
+	// anything. Only a digest match does.
+	hash, err := s.store.InviteCodeHash(ctx, prefix)
+	if err != nil {
+		return admission{Refusal: "That invitation is not valid, or has already been used."}
+	}
+	if !invites.Verify(code, hash) {
+		return admission{Refusal: "That invitation is not valid, or has already been used."}
+	}
+	// A revoked, expired, or used-up code is refused here for a clear message;
+	// the redemption enforces the same conditions atomically, which is what
+	// stops two people consuming the last use at once.
+	if !found.Usable(time.Now()) {
+		return admission{Refusal: "That invitation is not valid, or has already been used."}
+	}
+
+	return admission{Invite: found}
+}
+
 func (s *Server) handleRegisterPage(w http.ResponseWriter, r *http.Request) {
 	if currentUser(r.Context()) != nil {
 		http.Redirect(w, r, "/gallery", http.StatusSeeOther)
@@ -152,15 +220,18 @@ func (s *Server) handleRegisterPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		return
 	}
-	if count > 0 && !s.policy().AllowSignup {
-		s.renderPage(w, http.StatusForbidden, "register", authView{
-			base: s.baseErr(r, "Registration closed",
-				"Registration is disabled on this instance."),
-		})
-		return
-	}
 
-	s.renderPage(w, http.StatusOK, "register", authView{base: s.base(r, "Create account")})
+	policy := s.policy()
+
+	// The page is shown even when registration is closed, because an invitation
+	// still admits and that is where it is entered.
+	view := authView{
+		base:           s.base(r, "Create account"),
+		Invite:         strings.TrimSpace(r.URL.Query().Get("invite")),
+		InviteOnly:     count > 0 && policy.InviteOnly,
+		RegisterClosed: count > 0 && !policy.AllowSignup,
+	}
+	s.renderPage(w, http.StatusOK, "register", view)
 }
 
 func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
@@ -177,6 +248,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		base:     s.base(r, "Create account"),
 		Username: username,
 		Email:    email,
+		Invite:   strings.TrimSpace(r.FormValue("invite")),
 	}
 	renderErr := func(status int, message string) {
 		view.Error = message
@@ -195,10 +267,17 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	if firstUser {
 		role = models.RoleAdmin
 	}
-	if !firstUser && !s.policy().AllowSignup {
-		renderErr(http.StatusForbidden, "Registration is disabled on this instance.")
+
+	// Whether this attempt may proceed at all, and against which invitation.
+	// An invitation always admits, so this replaces the old plain check on the
+	// signup switch.
+	decision := s.admit(r.Context(), firstUser, r.FormValue("invite"))
+	if decision.Refusal != "" {
+		renderErr(http.StatusForbidden, decision.Refusal)
 		return
 	}
+	view.InviteOnly = !firstUser && s.policy().InviteOnly
+	view.RegisterClosed = !firstUser && !s.policy().AllowSignup
 
 	switch {
 	case !usernameRe.MatchString(username):
@@ -222,21 +301,40 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := s.store.CreateUser(r.Context(), store.NewUser{
+	newcomer := store.NewUser{
 		Username:     username,
 		Email:        email,
 		PasswordHash: string(hash),
 		Role:         role,
 		QuotaBytes:   s.cfg.DefaultQuotaBytes,
-	})
+	}
+
+	// With an invitation, the account and the consumed use are one transaction,
+	// so registering a taken username does not burn the code and a use cannot
+	// disappear without an account to show for it.
+	var user *models.User
+	if decision.Invite != nil {
+		user, err = s.store.RegisterWithInvite(r.Context(), newcomer, decision.Invite.ID)
+	} else {
+		user, err = s.store.CreateUser(r.Context(), newcomer)
+	}
 	if err != nil {
-		if errors.Is(err, store.ErrConflict) {
+		switch {
+		case errors.Is(err, store.ErrConflict):
 			renderErr(http.StatusConflict, "That username is already taken.")
-			return
+		case errors.Is(err, store.ErrInviteUnusable):
+			renderErr(http.StatusForbidden,
+				"That invitation is not valid, or has already been used.")
+		default:
+			s.log.Error("register: create user", "error", err)
+			http.Error(w, "could not create account", http.StatusInternalServerError)
 		}
-		s.log.Error("register: create user", "error", err)
-		http.Error(w, "could not create account", http.StatusInternalServerError)
 		return
+	}
+
+	if decision.Invite != nil {
+		s.log.Info("account registered with an invitation",
+			"user", user.ID, "invite", decision.Invite.ID, "prefix", decision.Invite.Prefix)
 	}
 
 	if err := s.startSession(r.Context(), w, r, user.ID); err != nil {

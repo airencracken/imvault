@@ -6,6 +6,7 @@ package models
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -376,6 +377,7 @@ const (
 	SettingAllowAnonymousUploads = "allow_anonymous_uploads"
 	SettingAnonymousTTLSeconds   = "anonymous_ttl_seconds"
 	SettingDefaultVisibility     = "default_visibility"
+	SettingInviteOnly            = "invite_only"
 )
 
 // Settings is that policy, resolved: stored values where an administrator has
@@ -384,6 +386,10 @@ type Settings struct {
 	AllowSignup           bool
 	AllowAnonymousUploads bool
 	AnonymousTTL          time.Duration
+	// InviteOnly requires a valid invitation to register while signup is open.
+	// An invitation always admits, whatever this says, because it is a direct
+	// grant from an administrator.
+	InviteOnly bool
 	// DefaultVisibility is what a new upload gets when the uploader does not
 	// choose. It is the single setting that most changes what an instance
 	// feels like: private is a personal host, members is a group, public is a
@@ -490,6 +496,63 @@ func (a AlbumAccess) Explain() string {
 // offered in.
 func AlbumAccessLevels() []AlbumAccess {
 	return []AlbumAccess{AlbumAccessOwner, AlbumAccessMembers}
+}
+
+// Invite is a code that admits an account, for an instance whose registration
+// is closed or restricted.
+type Invite struct {
+	ID        int64
+	Prefix    string
+	Label     string
+	CreatedBy *int64
+	CreatedAt time.Time
+	ExpiresAt *time.Time
+	// MaxUses of zero means no limit, matching how quotas read zero.
+	MaxUses   int
+	Uses      int
+	RevokedAt *time.Time
+
+	// Populated by list queries.
+	Creator string
+}
+
+// Unlimited reports whether the invitation has no use cap.
+func (i *Invite) Unlimited() bool { return i.MaxUses <= 0 }
+
+// Remaining is how many more times the code may be used, or 0 when unlimited.
+func (i *Invite) Remaining() int {
+	if i.Unlimited() {
+		return 0
+	}
+	if remaining := i.MaxUses - i.Uses; remaining > 0 {
+		return remaining
+	}
+	return 0
+}
+
+// Revoked reports whether the code has been withdrawn.
+func (i *Invite) Revoked() bool { return i.RevokedAt != nil }
+
+// Expired reports whether the deadline has passed.
+func (i *Invite) Expired(at time.Time) bool {
+	return i.ExpiresAt != nil && !i.ExpiresAt.After(at)
+}
+
+// Usable reports whether the code can still admit somebody.
+func (i *Invite) Usable(at time.Time) bool {
+	if i.Revoked() || i.Expired(at) {
+		return false
+	}
+	return i.Unlimited() || i.Uses < i.MaxUses
+}
+
+// UsesLabel renders the use count for the admin list.
+func (i *Invite) UsesLabel() string {
+	used := strconv.Itoa(i.Uses)
+	if i.Unlimited() {
+		return used + " used"
+	}
+	return used + " of " + strconv.Itoa(i.MaxUses)
 }
 
 // AnonymousTagOwner is the path segment standing for the shared namespace that

@@ -240,3 +240,49 @@ func TestRoleDefaultsToThePowerlessOne(t *testing.T) {
 		t.Error("a nil account has powers")
 	}
 }
+
+func TestInviteUsability(t *testing.T) {
+	now := time.Now()
+	past := now.Add(-time.Hour)
+	future := now.Add(time.Hour)
+	revoked := now
+
+	tests := map[string]struct {
+		invite Invite
+		usable bool
+	}{
+		"a fresh single-use code": {Invite{MaxUses: 1}, true},
+		"a spent single-use code": {Invite{MaxUses: 1, Uses: 1}, false},
+		"a partly used code":      {Invite{MaxUses: 3, Uses: 1}, true},
+		"an unlimited code":       {Invite{MaxUses: 0, Uses: 500}, true},
+		"an expired code":         {Invite{MaxUses: 1, ExpiresAt: &past}, false},
+		"a code not yet expired":  {Invite{MaxUses: 1, ExpiresAt: &future}, true},
+		"a revoked code":          {Invite{MaxUses: 1, RevokedAt: &revoked}, false},
+	}
+
+	for name, tc := range tests {
+		if got := tc.invite.Usable(now); got != tc.usable {
+			t.Errorf("%s: Usable = %v, want %v", name, got, tc.usable)
+		}
+	}
+
+	// The label has to distinguish "three of five" from "three, ever", because
+	// an administrator reads it to decide what to revoke.
+	if got := (&Invite{MaxUses: 5, Uses: 3}).UsesLabel(); got != "3 of 5" {
+		t.Errorf("UsesLabel = %q, want \"3 of 5\"", got)
+	}
+	if got := (&Invite{MaxUses: 0, Uses: 3}).UsesLabel(); got != "3 used" {
+		t.Errorf("UsesLabel = %q, want \"3 used\"", got)
+	}
+
+	// Remaining never goes negative, so a display cannot read as "-2 left".
+	if got := (&Invite{MaxUses: 1, Uses: 4}).Remaining(); got != 0 {
+		t.Errorf("Remaining = %d, want 0", got)
+	}
+	if got := (&Invite{MaxUses: 5, Uses: 2}).Remaining(); got != 3 {
+		t.Errorf("Remaining = %d, want 3", got)
+	}
+	if got := (&Invite{MaxUses: 0, Uses: 2}).Remaining(); got != 0 {
+		t.Errorf("Remaining = %d for an unlimited code, want 0", got)
+	}
+}

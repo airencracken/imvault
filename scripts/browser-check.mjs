@@ -528,6 +528,42 @@ async function main() {
     `);
     record("the role picker changes a role over htmx",
       role.badge && role.value === "moderator", JSON.stringify(role));
+
+    // --- invitations ---
+    await page.goto(`${base}/admin/invites`);
+    const invite = await page.evaluate(`
+      const form = document.querySelector('#invites form[action="/admin/invites"]');
+      if (!form) return { error: "no create form" };
+      form.querySelector('input[name="label"]').value = "Browser guest";
+      const before = document.querySelectorAll("#invites tbody tr").length;
+      form.querySelector('button[type="submit"]').click();
+      await new Promise((r) => setTimeout(r, 600));
+      const reveal = document.querySelector("#invites .key-reveal");
+      return {
+        revealed: reveal ? reveal.value : "",
+        warned: document.body.textContent.includes("cannot be shown again"),
+        rows: document.querySelectorAll("#invites tbody tr").length,
+        before,
+      };
+    `);
+    record("an invitation is revealed once",
+      invite.revealed.startsWith("inv_") && invite.warned, JSON.stringify(invite));
+    record("and it appears in the list", invite.rows === invite.before + 1,
+      `${invite.before} rows, now ${invite.rows}`);
+
+    // Reloading keeps the prefix, which is what makes a row identifiable, and
+    // not the code.
+    await page.goto(`${base}/admin/invites`);
+    const prefix = invite.revealed.split("_")[1] || "";
+    const listed = await page.evaluate(`
+      const text = document.body.textContent;
+      return {
+        hasPrefix: text.includes(${JSON.stringify(prefix)}),
+        hasCode: text.includes(${JSON.stringify(invite.revealed)}),
+      };
+    `);
+    record("the list shows the prefix and not the code",
+      listed.hasPrefix && !listed.hasCode, JSON.stringify(listed));
     // --- the guard on deleting your own account ---
     await page.goto(`${base}/settings/account`);
 

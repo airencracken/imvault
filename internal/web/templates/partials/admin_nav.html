@@ -11,6 +11,7 @@
   <a class="btn small" href="/admin/files">Content</a>
   {{if .IsAdmin}}
   <a class="btn small" href="/admin/users">Users</a>
+  <a class="btn small" href="/admin/invites">Invitations</a>
   <a class="btn small" href="/admin/settings">Settings</a>
   <a class="btn small" href="/admin/mail">Mail{{if .FailedMail}} <span class="badge private">{{.FailedMail}}</span>{{end}}</a>
   {{end}}

@@ -13,6 +13,7 @@ settings](#instance-settings) below.
 | `IMVAULT_DB` | `<data>/imvault.db` | SQLite database path |
 | `IMVAULT_BASE_URL` | *(derived from request)* | Absolute prefix used when building share links |
 | `IMVAULT_ALLOW_SIGNUP` | `true` | Whether new accounts can register |
+| `IMVAULT_INVITE_ONLY` | `false` | Whether registering needs an invitation code |
 | `IMVAULT_ALLOW_ANONYMOUS_UPLOADS` | `true` | Whether logged-out visitors may upload |
 | `IMVAULT_ANONYMOUS_TTL` | `24h` | How long anonymous uploads survive |
 | `IMVAULT_DEFAULT_VISIBILITY` | `members` | What a new upload is visible to: `public`, `members`, or `private` |
@@ -58,6 +59,7 @@ them are things an operator may need to change in a hurry:
 | Setting | Variable it falls back to |
 | --- | --- |
 | Whether new accounts can register | `IMVAULT_ALLOW_SIGNUP` |
+| Whether registering needs an invitation | `IMVAULT_INVITE_ONLY` |
 | Whether logged-out visitors may upload | `IMVAULT_ALLOW_ANONYMOUS_UPLOADS` |
 | How long anonymous uploads survive | `IMVAULT_ANONYMOUS_TTL` |
 | What a new upload is visible to | `IMVAULT_DEFAULT_VISIBILITY` |
@@ -69,12 +71,19 @@ different settings rather than three programs:
 | Profile | Joining | Anonymous uploads | New uploads are visible to |
 | --- | --- | --- | --- |
 | **Personal** | closed | off | private |
-| **Group** | open | off | members |
+| **Group** | by invitation | off | members |
 | **Public** | open | allowed, expiring | public |
 
 Applying a profile deliberately leaves the retention window alone. That setting
 reaches backwards over uploads already stored, and a button labelled "Public"
 should not quietly purge somebody's files.
+
+Read and closed are not the same thing. An invitation **always** admits, even
+when registration is switched off entirely, because it is a deliberate grant by
+an administrator rather than a public door. That is what makes "close the
+instance, then invite the people you want" work; without it the only way to add
+somebody to a closed instance was to edit the database by hand. Codes are issued
+at `/admin/invites`.
 
 **The variable seeds the setting; the interface takes over once you save.** A row
 is written only when an administrator actually changes something, so a

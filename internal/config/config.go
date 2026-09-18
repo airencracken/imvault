@@ -34,6 +34,8 @@ type Config struct {
 
 	// AllowSignup controls whether new accounts can register.
 	AllowSignup bool
+	// InviteOnly requires a valid invitation to register while signup is open.
+	InviteOnly bool
 	// AllowAnonymousUploads controls whether logged-out visitors may upload.
 	AllowAnonymousUploads bool
 	// AnonymousTTL is how long an anonymous upload survives before the reaper
@@ -125,6 +127,7 @@ func Load() (*Config, error) {
 		BaseURL:               strings.TrimRight(getenv("IMVAULT_BASE_URL", ""), "/"),
 		SourceURL:             getenv("IMVAULT_SOURCE_URL", "https://github.com/airencracken/imvault"),
 		AllowSignup:           getBool("IMVAULT_ALLOW_SIGNUP", true),
+		InviteOnly:            getBool("IMVAULT_INVITE_ONLY", false),
 		AllowAnonymousUploads: getBool("IMVAULT_ALLOW_ANONYMOUS_UPLOADS", true),
 		AnonymousTTL:          getDuration("IMVAULT_ANONYMOUS_TTL", 24*time.Hour),
 		DefaultVisibility:     models.Visibility(getenv("IMVAULT_DEFAULT_VISIBILITY", string(models.VisibilityMembers))),

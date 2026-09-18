@@ -38,6 +38,13 @@ type NewUser struct {
 // CreateUser inserts a new account. It returns ErrConflict when the username
 // or email is already taken.
 func (s *Store) CreateUser(ctx context.Context, in NewUser) (*models.User, error) {
+	return createUser(ctx, s.db, in)
+}
+
+// createUser is CreateUser against a caller-supplied handle, so registration
+// with an invitation can create the account and consume the use in one
+// transaction.
+func createUser(ctx context.Context, ex execer, in NewUser) (*models.User, error) {
 	if in.QuotaBytes < 0 {
 		in.QuotaBytes = 0
 	}
@@ -46,7 +53,7 @@ func (s *Store) CreateUser(ctx context.Context, in NewUser) (*models.User, error
 	}
 	created := nowUnix()
 
-	res, err := s.db.ExecContext(ctx, `
+	res, err := ex.ExecContext(ctx, `
 		INSERT INTO users (username, email, password_hash, role, quota_bytes, storage_used, created_at)
 		VALUES (?, ?, ?, ?, ?, 0, ?)`,
 		in.Username, in.Email, in.PasswordHash, string(in.Role), in.QuotaBytes, created,

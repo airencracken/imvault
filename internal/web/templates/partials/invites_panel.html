@@ -1,0 +1,68 @@
+{{define "invites_panel"}}
+<div id="invites" class="panel stack">
+  {{if .NewCode}}
+  <div class="flash ok">
+    <p><strong>Copy this invitation now.</strong> It is stored hashed and cannot be shown again.</p>
+    <input class="key-reveal" readonly value="{{.NewCode}}" onclick="this.select()">
+    <p class="muted">Or send this link, which fills the code in for them:</p>
+    <input class="key-reveal" readonly value="{{.InviteURL}}" onclick="this.select()">
+  </div>
+  {{end}}
+  {{if .Error}}<p class="flash err">{{.Error}}</p>{{end}}
+
+  <form class="stack" method="post" action="/admin/invites"
+        hx-post="/admin/invites" hx-target="#invites" hx-swap="outerHTML">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <h2>Create an invitation</h2>
+    <label>Label <span class="muted">(optional, for your own reference)</span>
+      <input name="label" maxlength="64" autocomplete="off" placeholder="e.g. for Sam">
+    </label>
+    <label>Uses <span class="muted">(0 for no limit)</span>
+      <input name="max_uses" type="number" min="0" max="10000" value="1">
+    </label>
+    <label>Expires after <span class="muted">(days, leave blank for never)</span>
+      <input name="expires_days" type="number" min="1" max="3650" placeholder="never">
+    </label>
+    <button class="btn primary" type="submit">Create invitation</button>
+  </form>
+
+  {{if .Rows}}
+  <table class="keys">
+    <thead>
+      <tr>
+        <th>Label</th><th>Prefix</th><th>Uses</th><th>Expires</th>
+        <th>Issued by</th><th>Status</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Rows}}
+      <tr>
+        <td>{{default "—" .Invite.Label}}</td>
+        <td><code>{{.Invite.Prefix}}</code></td>
+        <td>{{.Uses}}</td>
+        <td>{{.Expiry}}</td>
+        <td>{{.Creator}}</td>
+        <td>
+          {{if eq .Status "open"}}<span class="badge">open</span>
+          {{else}}<span class="badge private">{{.Status}}</span>{{end}}
+        </td>
+        <td>
+          {{if eq .Status "open"}}
+          <form method="post" action="/admin/invites/{{.Invite.ID}}/revoke"
+                hx-post="/admin/invites/{{.Invite.ID}}/revoke"
+                hx-target="#invites" hx-swap="outerHTML"
+                onsubmit="return confirm('Revoke this invitation? Anybody holding it will no longer be able to register.');">
+            <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+            <button class="btn small danger" type="submit">Revoke</button>
+          </form>
+          {{end}}
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p class="muted">No invitations yet.</p>
+  {{end}}
+</div>
+{{end}}

@@ -1,8 +1,28 @@
 {{define "content"}}
 <section class="narrow">
   <h1>Create an account</h1>
+
+  {{if .RegisterClosed}}
+  <p class="muted">
+    This instance is not taking new accounts. If somebody here gave you an
+    invitation, enter it below.
+  </p>
+  {{else if .InviteOnly}}
+  <p class="muted">
+    This instance is by invitation. Enter the code you were given.
+  </p>
+  {{end}}
+
   <form class="panel stack" method="post" action="/register">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+
+    <label>Invitation code
+      {{if or .InviteOnly .RegisterClosed}}<span class="muted">(required)</span>
+      {{else}}<span class="muted">(only if you were given one)</span>{{end}}
+      <input name="invite" value="{{.Invite}}" autocomplete="off" spellcheck="false"
+             placeholder="inv_…" {{if or .InviteOnly .RegisterClosed}}required{{end}}>
+    </label>
+
     <label>Username
       <input name="username" value="{{.Username}}" autocomplete="username" autofocus required
              pattern="[A-Za-z0-9_.-]{3,32}" title="3-32 characters: letters, digits, dot, dash, underscore">

@@ -25,6 +25,34 @@ Renditions are not included either. They are deterministic from the originals
 and the settings, so shipping them would double the size to save a few seconds
 of processing.
 
+## Invitations
+
+An instance can be open to anybody who finds it, closed to everybody, or
+somewhere in between. Invitations are the in-between: a code an administrator
+issues at `/admin/invites`, with an optional label, a use limit, and an expiry,
+that admits one account each time it is used.
+
+An invitation **always** admits, even when registration is switched off
+altogether. It is a deliberate grant rather than a public door, and without that
+the only way to add somebody to a closed instance would be to edit the database
+by hand. The two switches compose:
+
+| `IMVAULT_ALLOW_SIGNUP` | `IMVAULT_INVITE_ONLY` | Who can register |
+| --- | --- | --- |
+| `true` | `false` | Anybody |
+| `true` | `true` | Only with an invitation |
+| `false` | either | Only with an invitation |
+
+A code is shown once, when it is created, and only a digest is stored — the same
+trade API keys make. If one is lost, revoke it and issue another; the list shows
+each code's prefix so it is clear which row is which. Revoking takes effect
+immediately.
+
+Issuing a code with several uses is for a group you trust together, and `0`
+means no limit at all. A code's uses are consumed in the same transaction that
+creates the account, so a registration that fails — a username that is already
+taken, say — does not cost the code a use.
+
 ## Roles
 
 The first account registered is the administrator. After that, every account has

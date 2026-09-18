@@ -754,6 +754,73 @@ func TestRoleMigrationKeepsAdministratorsAdministrators(t *testing.T) {
 	}
 }
 
+func TestInvitesMigrationArrivesEmpty(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "pre-invites.db")
+	buildLegacyDatabase(t, path,
+		"001_init.sql", "002_media_and_api_keys.sql", "003_per_account_tags.sql",
+		"004_quotas_and_admin.sql", "005_auth_tokens.sql", "006_outbound_mail.sql",
+		"007_two_factor.sql", "008_content_addressed_storage.sql", "009_per_file_quota.sql",
+		"010_anonymous_tags.sql")
+
+	raw, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{
+		"011_blobs.sql", "012_settings.sql", "013_visibility.sql",
+		"014_shared_albums.sql", "015_roles.sql",
+	} {
+		body, err := migrationsFS.ReadFile("migrations/" + name)
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		if _, err := raw.Exec(string(body)); err != nil {
+			t.Fatalf("apply %s: %v", name, err)
+		}
+		if _, err := raw.Exec(
+			`INSERT INTO schema_migrations (version, applied_at) VALUES (?, 0)`, name); err != nil {
+			t.Fatalf("record %s: %v", name, err)
+		}
+	}
+	raw.Close()
+
+	ctx := context.Background()
+	database, err := Open(ctx, path)
+	if err != nil {
+		t.Fatalf("upgrade database: %v", err)
+	}
+	defer database.Close()
+
+	// An upgraded instance has issued nothing, so it must not accidentally be
+	// invitation-only on top of whatever its signup switch says.
+	var count int
+	if err := database.QueryRowContext(ctx, `SELECT COUNT(*) FROM invites`).Scan(&count); err != nil {
+		t.Fatalf("read invites: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("%d invitations after upgrading, want none", count)
+	}
+
+	// The table is usable, and the creator reference is optional and cleared
+	// rather than cascade-deleting the invitation when that account goes.
+	if _, err := database.ExecContext(ctx, `
+		INSERT INTO invites (prefix, code_hash, label, created_by, created_at, max_uses)
+		VALUES ('abcdefghijkl', 'hash', 'test', 1, 0, 1)`); err != nil {
+		t.Fatalf("insert invite: %v", err)
+	}
+	if _, err := database.ExecContext(ctx, `DELETE FROM users WHERE id = 1`); err != nil {
+		t.Fatalf("delete user: %v", err)
+	}
+	var creator sql.NullInt64
+	if err := database.QueryRowContext(ctx,
+		`SELECT created_by FROM invites`).Scan(&creator); err != nil {
+		t.Fatal(err)
+	}
+	if creator.Valid {
+		t.Error("deleting the issuer did not clear the invitation's attribution")
+	}
+}
+
 func TestMigrationIsIdempotent(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "fresh.db")
 	ctx := context.Background()

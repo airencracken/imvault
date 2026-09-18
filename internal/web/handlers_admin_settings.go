@@ -81,6 +81,7 @@ func (s *Server) settingSources() map[string]bool {
 type settingsView struct {
 	base
 	AllowSignup           bool
+	InviteOnly            bool
 	AllowAnonymousUploads bool
 	// Retention is the window as written for a person, for example "24h" or
 	// "7d0h".
@@ -96,6 +97,7 @@ type settingsView struct {
 	Stored map[string]bool
 	// Config values, shown so an operator can see what clearing would restore.
 	ConfigSignup     bool
+	ConfigInviteOnly bool
 	ConfigAnon       bool
 	ConfigRetention  string
 	ConfigVisibility models.Visibility
@@ -116,6 +118,7 @@ type instanceProfile struct {
 	Name       string
 	Summary    string
 	Signup     bool
+	InviteOnly bool
 	Anonymous  bool
 	Visibility models.Visibility
 }
@@ -133,8 +136,9 @@ func instanceProfiles() []instanceProfile {
 		{
 			Key:        "group",
 			Name:       "Group",
-			Summary:    "A community. Accounts may register, uploads are visible to members, and anonymous uploads are off.",
+			Summary:    "A community. Accounts join by invitation, uploads are visible to members, and anonymous uploads are off.",
 			Signup:     true,
+			InviteOnly: true,
 			Anonymous:  false,
 			Visibility: models.VisibilityMembers,
 		},
@@ -169,6 +173,7 @@ func (s *Server) handleAdminSettings(w http.ResponseWriter, r *http.Request) {
 
 	view := settingsView{
 		AllowSignup:           policy.AllowSignup,
+		InviteOnly:            policy.InviteOnly,
 		AllowAnonymousUploads: policy.AllowAnonymousUploads,
 		Retention:             formatRetention(policy.AnonymousTTL),
 		Visibility:            policy.DefaultVisibility,
@@ -176,6 +181,7 @@ func (s *Server) handleAdminSettings(w http.ResponseWriter, r *http.Request) {
 		Profiles:              instanceProfiles(),
 		Stored:                s.settingSources(),
 		ConfigSignup:          s.cfg.AllowSignup,
+		ConfigInviteOnly:      s.cfg.InviteOnly,
 		ConfigAnon:            s.cfg.AllowAnonymousUploads,
 		ConfigRetention:       formatRetention(s.cfg.AnonymousTTL),
 		ConfigVisibility:      s.cfg.DefaultVisibility,
@@ -200,6 +206,7 @@ func (s *Server) handleAdminSaveSettings(w http.ResponseWriter, r *http.Request)
 	next := models.Settings{
 		// Absent checkboxes mean off, which is what a form sends.
 		AllowSignup:           r.FormValue("allow_signup") == "1",
+		InviteOnly:            r.FormValue("invite_only") == "1",
 		AllowAnonymousUploads: r.FormValue("allow_anonymous_uploads") == "1",
 		AnonymousTTL:          previous.AnonymousTTL,
 		DefaultVisibility:     models.ParseVisibility(r.FormValue("default_visibility")),
@@ -216,6 +223,7 @@ func (s *Server) handleAdminSaveSettings(w http.ResponseWriter, r *http.Request)
 		// is, because changing that rewrites the deadline on uploads already
 		// stored.
 		next.AllowSignup = profile.Signup
+		next.InviteOnly = profile.InviteOnly
 		next.AllowAnonymousUploads = profile.Anonymous
 		next.DefaultVisibility = profile.Visibility
 		applied = profile.Name
@@ -243,6 +251,7 @@ func (s *Server) handleAdminSaveSettings(w http.ResponseWriter, r *http.Request)
 		"actor", currentUser(r.Context()).ID,
 		"profile", applied,
 		"allow_signup", next.AllowSignup,
+		"invite_only", next.InviteOnly,
 		"allow_anonymous_uploads", next.AllowAnonymousUploads,
 		"anonymous_ttl", next.AnonymousTTL.String(),
 		"default_visibility", string(next.DefaultVisibility),

@@ -36,10 +36,11 @@ file and album is public, members-only, or private, and an album can be shared
 so that anybody on the instance may add their own images to it. Anonymous
 uploads with a retention window enforced by a reaper.
 
-**Accounts.** Multi-user signup, three roles so moderation can be somebody
-else's job without handing them the instance, two-factor authentication with
-recovery codes, password reset by email or by an administrator-issued link, and
-self-service account deletion. See [Accounts](docs/accounts.md).
+**Accounts.** Multi-user signup, invitation codes so a closed instance is not an
+unreachable one, three roles so moderation can be somebody else's job without
+handing them the instance, two-factor authentication with recovery codes,
+password reset by email or by an administrator-issued link, and self-service
+account deletion. See [Accounts](docs/accounts.md).
 
 **API.** Bearer-token keys with full CRUD over files, albums, and tags, taking
 JSON or form encoding, and returning bare URLs for tools that want them. See

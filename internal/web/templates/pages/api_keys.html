@@ -27,15 +27,16 @@
      {{.BaseURL}}/api/v1/upload</pre>
 
   <p class="muted">
-    Add <code>-F "public=1"</code> to make the upload shareable, and
-    <code>-F "album=summer-2026"</code> to drop it into an album. Uploads made
-    through the API are private by default.
+    Add <code>-F "visibility=public"</code> to make the upload shareable (or
+    <code>members</code> for signed-in accounts only), and
+    <code>-F "album=summer-2026"</code> to drop it into an album. An upload that
+    names no level gets the instance default.
   </p>
 
   <h2>Albums and tags</h2>
   <pre class="code"># Create an album and add two uploads to it
 curl -H "Authorization: Bearer $IMVAULT_KEY" -H 'Content-Type: application/json' \
-     -d '{"title":"Summer 2026","public":true}' \
+     -d '{"title":"Summer 2026","visibility":"public"}' \
      {{.BaseURL}}/api/v1/albums
 
 curl -H "Authorization: Bearer $IMVAULT_KEY" -H 'Content-Type: application/json' \
@@ -78,7 +79,7 @@ curl -H "Authorization: Bearer $IMVAULT_KEY" \
       <tr><td><code>GET</code></td><td><code>/api/v1/albums</code></td><td>List your albums</td></tr>
       <tr><td><code>POST</code></td><td><code>/api/v1/albums</code></td><td>Create an album</td></tr>
       <tr><td><code>GET</code></td><td><code>/api/v1/albums/{ref}</code></td><td>Album with its files</td></tr>
-      <tr><td><code>PATCH</code></td><td><code>/api/v1/albums/{ref}</code></td><td>Update title, description or visibility</td></tr>
+      <tr><td><code>PATCH</code></td><td><code>/api/v1/albums/{ref}</code></td><td>Update title, description, visibility or access</td></tr>
       <tr><td><code>DELETE</code></td><td><code>/api/v1/albums/{ref}</code></td><td>Delete an album (files are kept)</td></tr>
       <tr><td><code>POST</code></td><td><code>/api/v1/albums/{ref}/files</code></td><td>Add files to an album</td></tr>
       <tr><td><code>DELETE</code></td><td><code>/api/v1/albums/{ref}/files/{id}</code></td><td>Remove a file from an album</td></tr>

@@ -41,6 +41,8 @@ Everything the server answers.
 | `GET` | `/admin` | Admin overview |
 | `GET` | `/admin/users` | Account list with usage |
 | `POST` | `/admin/users/{id}/quota` | Set an account's storage cap |
+| `GET` `POST` | `/admin/invites` | List and issue invitation codes |
+| `POST` | `/admin/invites/{id}/revoke` | Withdraw an invitation |
 | `POST` | `/admin/users/{id}/role` | Set an account's role: member, moderator, or administrator |
 | `POST` | `/admin/users/{id}/disabled` | Disable or enable an account |
 | `POST` | `/admin/users/{id}/delete` | Delete an account and its files |

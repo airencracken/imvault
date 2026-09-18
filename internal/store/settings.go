@@ -60,6 +60,12 @@ func (s *Store) LoadSettings(ctx context.Context, defaults models.Settings) (mod
 			sources[models.SettingAnonymousTTLSeconds] = true
 		}
 	}
+	if raw, ok := stored[models.SettingInviteOnly]; ok {
+		if parsed, err := strconv.ParseBool(raw); err == nil {
+			resolved.InviteOnly = parsed
+			sources[models.SettingInviteOnly] = true
+		}
+	}
 	if raw, ok := stored[models.SettingDefaultVisibility]; ok {
 		if visibility := models.ParseVisibility(raw); visibility.Valid() {
 			resolved.DefaultVisibility = visibility
@@ -85,6 +91,7 @@ func (s *Store) SaveSettings(ctx context.Context, settings models.Settings) erro
 			models.SettingAllowAnonymousUploads: strconv.FormatBool(settings.AllowAnonymousUploads),
 			models.SettingAnonymousTTLSeconds:   strconv.FormatInt(int64(settings.AnonymousTTL/time.Second), 10),
 			models.SettingDefaultVisibility:     string(settings.DefaultVisibility),
+			models.SettingInviteOnly:            strconv.FormatBool(settings.InviteOnly),
 		} {
 			_, err := tx.ExecContext(ctx, `
 				INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)

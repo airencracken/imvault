@@ -53,6 +53,22 @@
     {{end}}
   </p>
 
+  <label class="row">
+    <input type="checkbox" name="invite_only" value="1" {{if .InviteOnly}}checked{{end}}>
+    <span>Require an invitation to register</span>
+  </label>
+  <p class="muted">
+    Invitations are issued at <a href="/admin/invites">Invitations</a>. An
+    invitation <strong>always</strong> admits, even when registration is closed
+    above, because it is a deliberate grant rather than a public door.
+    {{if index .Stored "invite_only"}}
+      Currently set here. Clearing the settings restores
+      {{if .ConfigInviteOnly}}invitation-only{{else}}open{{end}}.
+    {{else}}
+      Currently from the configuration: {{if .ConfigInviteOnly}}invitation-only{{else}}open{{end}}.
+    {{end}}
+  </p>
+
   <h2>Anonymous uploads</h2>
   <label class="row">
     <input type="checkbox" name="allow_anonymous_uploads" value="1" {{if .AllowAnonymousUploads}}checked{{end}}>

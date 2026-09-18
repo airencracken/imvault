@@ -115,6 +115,13 @@ type authView struct {
 	Next     string
 	Username string
 	Email    string
+	// Invite is the code carried in from a link, so the field arrives filled.
+	Invite string
+	// InviteOnly asks for a code on an instance that is otherwise open.
+	InviteOnly bool
+	// RegisterClosed is shown so the page can explain what would admit an
+	// account rather than just refusing.
+	RegisterClosed bool
 }
 
 type galleryView struct {
