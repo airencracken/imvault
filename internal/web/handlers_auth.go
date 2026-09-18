@@ -191,6 +191,10 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 	// The first user bootstraps the instance and always becomes an admin.
 	firstUser := count == 0
+	role := models.RoleMember
+	if firstUser {
+		role = models.RoleAdmin
+	}
 	if !firstUser && !s.policy().AllowSignup {
 		renderErr(http.StatusForbidden, "Registration is disabled on this instance.")
 		return
@@ -222,7 +226,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		Username:     username,
 		Email:        email,
 		PasswordHash: string(hash),
-		IsAdmin:      firstUser,
+		Role:         role,
 		QuotaBytes:   s.cfg.DefaultQuotaBytes,
 	})
 	if err != nil {
@@ -323,36 +327,72 @@ func canViewVisibility(user *models.User, visibility models.Visibility) bool {
 	}
 }
 
-// canEditFile reports whether user may modify file.
-func canEditFile(user *models.User, f *models.File) bool {
-	if user == nil {
-		return false
-	}
-	if user.IsAdmin {
-		return true
-	}
-	return f.UserID != nil && *f.UserID == user.ID
+// ownsFile reports whether the account uploaded the file.
+//
+// It takes no administrative bypass, on purpose. An album may widen *who* can
+// add, but nobody puts somebody else's upload into an album, administrator
+// included: the contributor and the uploader are the same person, and that is
+// what keeps sharing from becoming a way to shuffle files around.
+func ownsFile(user *models.User, f *models.File) bool {
+	return user != nil && f.UserID != nil && *f.UserID == user.ID
 }
 
-// canViewFile reports whether user may see the file's content.
+// ownsAlbum reports whether the account created the album.
+func ownsAlbum(user *models.User, a *models.Album) bool {
+	return user != nil && a.UserID == user.ID
+}
+
+// canModerateContent reports whether the account may act on other people's
+// content: look at it, and remove it.
+func canModerateContent(user *models.User) bool {
+	return user != nil && user.CanModerate()
+}
+
+// canChangeFile reports whether the account may change what a file *is*: its
+// visibility and its tags. The owner and administrators may; a moderator may
+// not, and that line matters.
+//
+// Publishing somebody's private upload is not a moderation action, and a
+// moderator who could republish content would be an escalation rather than a
+// safeguard. Removing a bad file is the moderation action, and that is
+// canDeleteFile.
+func canChangeFile(user *models.User, f *models.File) bool {
+	return ownsFile(user, f) || (user != nil && user.IsAdmin())
+}
+
+// canDeleteFile reports whether the account may remove a file: the owner, a
+// moderator, or an administrator.
+func canDeleteFile(user *models.User, f *models.File) bool {
+	return ownsFile(user, f) || canModerateContent(user)
+}
+
+// canViewFile reports whether the account may see the file's content.
+//
+// A moderator can see anything, because judging content you are not allowed to
+// look at is not possible. That is a real consequence of the role, which is why
+// the interface says so before granting it.
 func canViewFile(user *models.User, f *models.File) bool {
-	return canViewVisibility(user, f.Visibility) || canEditFile(user, f)
+	return canViewVisibility(user, f.Visibility) || canDeleteFile(user, f)
 }
 
-// canEditAlbum reports whether user may modify album.
-func canEditAlbum(user *models.User, a *models.Album) bool {
-	if user == nil {
-		return false
-	}
-	if user.IsAdmin {
-		return true
-	}
-	return a.UserID == user.ID
+// canAdministerAlbum reports whether the account may change what an album is:
+// its title, its description, its visibility, and who may contribute. The owner
+// and administrators may; a moderator may not, for the same reason it may not
+// republish a file.
+func canAdministerAlbum(user *models.User, a *models.Album) bool {
+	return ownsAlbum(user, a) || (user != nil && user.IsAdmin())
 }
 
-// canViewAlbum reports whether user may see the album's page.
+// canDeleteAlbum reports whether the account may remove an album. A moderator
+// may, because an album is content; changing one is not.
+func canDeleteAlbum(user *models.User, a *models.Album) bool {
+	return ownsAlbum(user, a) || canModerateContent(user)
+}
+
+// canViewAlbum reports whether the account may see the album's page.
 func canViewAlbum(user *models.User, a *models.Album) bool {
-	return canViewVisibility(user, a.Visibility) || canEditAlbum(user, a)
+	return canViewVisibility(user, a.Visibility) ||
+		canAdministerAlbum(user, a) || canModerateContent(user)
 }
 
 // canContributeToAlbum reports whether user may add their own files to album.
@@ -362,7 +402,7 @@ func canViewAlbum(user *models.User, a *models.Album) bool {
 // may be added, which is what keeps sharing from becoming a way to shuffle
 // somebody else's uploads around.
 func canContributeToAlbum(user *models.User, a *models.Album) bool {
-	if canEditAlbum(user, a) {
+	if canAdministerAlbum(user, a) {
 		return true
 	}
 	return user != nil && a.Access.Shared() && canViewAlbum(user, a)

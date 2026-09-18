@@ -146,10 +146,17 @@ func TestAPIRequiresAKey(t *testing.T) {
 		t.Errorf("unknown key status = %d, want 401", resp.StatusCode)
 	}
 
-	// So must a key whose secret does not match its prefix.
+	// So must a key whose secret does not match its prefix. The replacement
+	// character is chosen so the "tampered" key is guaranteed to differ: always
+	// appending a z would leave the key untouched whenever it already ended in
+	// one, and the check would pass by accident.
 	user := h.seedUser("alice")
 	real := h.seedKey(user.ID, "laptop", nil)
-	tampered := real[:len(real)-1] + "z"
+	replacement := "z"
+	if strings.HasSuffix(real, "z") {
+		replacement = "y"
+	}
+	tampered := real[:len(real)-1] + replacement
 	if resp, _ := h.apiDo(http.MethodGet, "/api/v1/me", tampered, nil, ""); resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("tampered key status = %d, want 401", resp.StatusCode)
 	}

@@ -14,7 +14,8 @@
     x-show="matches($el)">
   <td>
     <strong>{{.User.Username}}</strong>
-    {{if .User.IsAdmin}}<span class="badge">admin</span>{{end}}
+    {{if .User.Role.IsAdmin}}<span class="badge">admin</span>
+    {{else if .User.Role.CanModerate}}<span class="badge">moderator</span>{{end}}
     {{if .User.Disabled}}<span class="badge private">disabled</span>{{end}}
     {{if .Self}}<span class="badge">you</span>{{end}}
     {{if .User.TOTPEnabled}}<span class="badge" title="Two-factor authentication is on">2FA</span>{{end}}
@@ -57,12 +58,18 @@
   </td>
 
   <td class="row-actions">
-    <form method="post" action="/admin/users/{{.User.ID}}/admin"
-          hx-post="/admin/users/{{.User.ID}}/admin"
+    <form class="inline-form" method="post" action="/admin/users/{{.User.ID}}/role"
+          hx-post="/admin/users/{{.User.ID}}/role"
           hx-target="closest tr" hx-swap="outerHTML">
       <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-      <input type="hidden" name="admin" value="{{if .User.IsAdmin}}0{{else}}1{{end}}">
-      <button class="btn small" type="submit">{{if .User.IsAdmin}}Demote{{else}}Promote{{end}}</button>
+      <select name="role" aria-label="Role for {{.User.Username}}"
+              title="{{.User.Role.Explain}}">
+        {{$current := .User.Role}}
+        {{range .Roles}}
+        <option value="{{.}}" {{if eq . $current}}selected{{end}}>{{.Label}}</option>
+        {{end}}
+      </select>
+      <button class="btn small" type="submit">Set</button>
     </form>
 
     {{if .Self}}

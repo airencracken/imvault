@@ -186,7 +186,7 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /admin/users", s.requireAdmin(s.handleAdminUsers))
 	mux.HandleFunc("POST /admin/users/{id}/limits", s.requireAdmin(s.handleAdminSetLimits))
 	mux.HandleFunc("POST /admin/users/{id}/disabled", s.requireAdmin(s.handleAdminSetDisabled))
-	mux.HandleFunc("POST /admin/users/{id}/admin", s.requireAdmin(s.handleAdminSetAdmin))
+	mux.HandleFunc("POST /admin/users/{id}/role", s.requireAdmin(s.handleAdminSetRole))
 	mux.HandleFunc("POST /admin/users/{id}/delete", s.requireAdmin(s.handleAdminDeleteUser))
 	mux.HandleFunc("POST /admin/users/{id}/reset", s.requireAdmin(s.handleAdminIssueReset))
 	mux.HandleFunc("POST /admin/users/{id}/2fa", s.requireAdmin(s.handleAdminClearTwoFactor))
@@ -198,8 +198,8 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /admin/settings", s.requireAdmin(s.handleAdminSettings))
 	mux.HandleFunc("POST /admin/settings", s.requireAdmin(s.handleAdminSaveSettings))
 	mux.HandleFunc("POST /admin/settings/clear", s.requireAdmin(s.handleAdminClearSettings))
-	mux.HandleFunc("GET /admin/files", s.requireAdmin(s.handleAdminFiles))
-	mux.HandleFunc("POST /admin/files/{id}/delete", s.requireAdmin(s.handleAdminDeleteFile))
+	mux.HandleFunc("GET /admin/files", s.requireModerator(s.handleAdminFiles))
+	mux.HandleFunc("POST /admin/files/{id}/delete", s.requireModerator(s.handleAdminDeleteFile))
 
 	// Programmatic API. These authenticate with a bearer token rather than a
 	// cookie, so they are exempt from CSRF and accept no session fallback.

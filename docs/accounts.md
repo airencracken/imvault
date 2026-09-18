@@ -25,10 +25,36 @@ Renditions are not included either. They are deterministic from the originals
 and the settings, so shipping them would double the size to save a few seconds
 of processing.
 
-The first account registered is the administrator; the role can be granted and
-revoked from `/admin/users`. Two operations are refused to avoid locking
-everybody out: demoting the last administrator, and deleting the last
-administrator.
+## Roles
+
+The first account registered is the administrator. After that, every account has
+one of three roles, set from `/admin/users`:
+
+| Role | What it adds |
+| --- | --- |
+| **Member** | Manages its own uploads, and contributes to shared albums |
+| **Moderator** | Can see and remove anybody's content, and work the report queue |
+| **Administrator** | Can also manage accounts, roles, mail, and instance settings |
+
+The split is deliberate. Moderation has to scale with the group, so it is a role
+somebody else can hold; account administration does not, and a moderator who
+could edit accounts could promote themselves and take the instance. A moderator
+therefore reaches `/admin/files` and the report queue, and nothing else in the
+admin area.
+
+Two things are worth knowing before granting it:
+
+- **A moderator can see everything.** Judging content you are not allowed to
+  look at is not possible, so the role includes visibility of private files and
+  albums. On an instance where that is not acceptable, do not have moderators —
+  a family instance with one administrator is the normal shape.
+- **A moderator cannot republish.** Changing a file's visibility or an album's
+  visibility and sharing is the owner's and the administrator's. Removing a bad
+  upload is a moderation action; making a private upload public is not, and a
+  moderator who could do it would be an escalation rather than a safeguard.
+
+Two operations are refused to avoid locking everybody out: demoting the last
+administrator, and deleting the last administrator.
 
 ## Two-factor authentication
 

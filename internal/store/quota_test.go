@@ -159,11 +159,11 @@ func TestLastAdministratorCannotBeRemoved(t *testing.T) {
 	s, ctx := newTestStore(t)
 
 	boss := mustUser(t, s, ctx, "boss")
-	if err := s.SetUserAdmin(ctx, boss.ID, true); err != nil {
+	if err := s.SetUserRole(ctx, boss.ID, models.RoleAdmin); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := s.SetUserAdmin(ctx, boss.ID, false); !errors.Is(err, ErrLastAdmin) {
+	if err := s.SetUserRole(ctx, boss.ID, models.RoleMember); !errors.Is(err, ErrLastAdmin) {
 		t.Errorf("demoting the last admin = %v, want ErrLastAdmin", err)
 	}
 	if err := s.DeleteUser(ctx, boss.ID); !errors.Is(err, ErrLastAdmin) {
@@ -172,7 +172,7 @@ func TestLastAdministratorCannotBeRemoved(t *testing.T) {
 
 	// With a second administrator, removal becomes possible.
 	deputy := mustUser(t, s, ctx, "deputy")
-	if err := s.SetUserAdmin(ctx, deputy.ID, true); err != nil {
+	if err := s.SetUserRole(ctx, deputy.ID, models.RoleAdmin); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.DeleteUser(ctx, boss.ID); err != nil {
@@ -180,7 +180,7 @@ func TestLastAdministratorCannotBeRemoved(t *testing.T) {
 	}
 
 	// Now the deputy is the last one, and is protected again.
-	if err := s.SetUserAdmin(ctx, deputy.ID, false); !errors.Is(err, ErrLastAdmin) {
+	if err := s.SetUserRole(ctx, deputy.ID, models.RoleMember); !errors.Is(err, ErrLastAdmin) {
 		t.Errorf("demoting the remaining admin = %v, want ErrLastAdmin", err)
 	}
 	if err := s.DeleteUser(ctx, deputy.ID); !errors.Is(err, ErrLastAdmin) {
@@ -238,7 +238,7 @@ func TestInstanceStats(t *testing.T) {
 
 	alice := mustUser(t, s, ctx, "alice")
 	bob := mustUser(t, s, ctx, "bob")
-	if err := s.SetUserAdmin(ctx, alice.ID, true); err != nil {
+	if err := s.SetUserRole(ctx, alice.ID, models.RoleAdmin); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.SetUserDisabled(ctx, bob.ID, true); err != nil {

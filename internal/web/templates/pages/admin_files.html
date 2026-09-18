@@ -7,10 +7,7 @@
       Deleting here also credits the owner's storage back.
     </p>
   </div>
-  <nav class="subtabs">
-    <a class="btn small" href="/admin">Overview</a>
-    <a class="btn small" href="/admin/users">Users</a>
-  </nav>
+  {{template "admin_nav" .}}
 </header>
 
 {{template "file_grid" .Grid}}

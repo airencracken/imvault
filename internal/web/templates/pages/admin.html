@@ -4,15 +4,7 @@
     <h1>Admin</h1>
     <p class="muted">Instance-wide totals and the accounts using the most space.</p>
   </div>
-  <nav class="subtabs">
-    <a class="btn small" href="/admin/users">Users</a>
-    <a class="btn small" href="/admin/files">All files</a>
-    <a class="btn small" href="/admin/settings">Settings</a>
-    <a class="btn small" href="/admin/settings">Settings</a>
-    <a class="btn small" href="/admin/mail">
-      Mail{{if .FailedMail}} <span class="badge private">{{.FailedMail}}</span>{{end}}
-    </a>
-  </nav>
+  {{template "admin_nav" .}}
 </header>
 
 <div id="admin-notice">{{template "admin_notice_inner" .Notice}}</div>
@@ -23,6 +15,9 @@
   <div class="stat"><span class="stat-value">{{humanSize .Stats.TotalBytes}}</span><span class="stat-label">stored</span></div>
   <div class="stat"><span class="stat-value">{{.Stats.PublicFiles}}</span><span class="stat-label">public</span></div>
   <div class="stat"><span class="stat-value">{{.Stats.Admins}}</span><span class="stat-label">admins</span></div>
+  {{if .Stats.Moderators}}
+  <div class="stat"><span class="stat-value">{{.Stats.Moderators}}</span><span class="stat-label">moderators</span></div>
+  {{end}}
   <div class="stat"><span class="stat-value">{{.Stats.ActiveKeys}}</span><span class="stat-label">API keys</span></div>
   {{if .Stats.Disabled}}
   <div class="stat"><span class="stat-value warn">{{.Stats.Disabled}}</span><span class="stat-label">disabled</span></div>

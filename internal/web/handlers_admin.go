@@ -18,18 +18,42 @@ import (
 // adminPageSize is how many rows the admin listings show.
 const adminPageSize = 50
 
-// requireAdmin guards the admin UI.
+// requireAdmin guards the account and policy area: accounts, roles, mail, and
+// instance settings.
 func (s *Server) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 	return s.requireUser(func(w http.ResponseWriter, r *http.Request) {
-		if !currentUser(r.Context()).IsAdmin {
-			s.renderPage(w, http.StatusForbidden, "notfound", errorView{
-				base:    s.base(r, "Not permitted"),
-				Code:    "403",
-				Message: "That area is for administrators.",
-			})
+		if !currentUser(r.Context()).IsAdmin() {
+			s.notPermitted(w, r, "That area is for administrators.")
 			return
 		}
 		next(w, r)
+	})
+}
+
+// requireModerator guards the content area. Moderators and administrators reach
+// it; ordinary members do not.
+//
+// The split is deliberate. Moderation has to scale with the group, so it is a
+// role somebody else can hold; account administration does not, and a moderator
+// who could edit accounts could promote themselves and take the instance.
+func (s *Server) requireModerator(next http.HandlerFunc) http.HandlerFunc {
+	return s.requireUser(func(w http.ResponseWriter, r *http.Request) {
+		if !currentUser(r.Context()).CanModerate() {
+			s.notPermitted(w, r, "That area is for moderators.")
+			return
+		}
+		next(w, r)
+	})
+}
+
+// notPermitted renders the shared refusal. It is a page rather than a bare
+// status because a signed-in person who followed a link deserves to be told
+// what happened and shown the way back.
+func (s *Server) notPermitted(w http.ResponseWriter, r *http.Request, message string) {
+	s.renderPage(w, http.StatusForbidden, "notfound", errorView{
+		base:    s.base(r, "Not permitted"),
+		Code:    "403",
+		Message: message,
 	})
 }
 
@@ -82,12 +106,12 @@ func (s *Server) handleAdminDashboard(w http.ResponseWriter, r *http.Request) {
 		Users:       users,
 		Grid:        s.grid(r, recent, true, false, "/admin/files/%s/delete", "Nothing has been uploaded yet."),
 		PendingMail: pendingMail,
-		FailedMail:  failedMail,
 		MailEnabled: s.mail.Enabled(),
 		Blobs:       blobs,
 		Notice:      noticeFromQuery(r),
 	}
 	view.base = s.base(r, "Admin")
+	view.FailedMail = failedMail
 	view.UseAlpine = true
 
 	s.renderPage(w, http.StatusOK, "admin", view)
@@ -256,8 +280,8 @@ func (s *Server) handleAdminSetDisabled(w http.ResponseWriter, r *http.Request) 
 	s.adminRespond(w, r, updated, adminNotice{Text: message}, "", "/admin/users")
 }
 
-// handleAdminSetAdmin grants or revokes administrator rights.
-func (s *Server) handleAdminSetAdmin(w http.ResponseWriter, r *http.Request) {
+// handleAdminSetRole changes what an account may do.
+func (s *Server) handleAdminSetRole(w http.ResponseWriter, r *http.Request) {
 	userID, ok := s.adminTargetUser(w, r)
 	if !ok {
 		return
@@ -269,33 +293,44 @@ func (s *Server) handleAdminSetAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	grant := r.FormValue("admin") == "1"
-	if userID == currentUser(r.Context()).ID && !grant {
+	role := models.ParseRole(r.FormValue("role"))
+	if role == user.Role {
+		s.adminRespond(w, r, user, adminNotice{}, "", "/admin/users")
+		return
+	}
+
+	// Demoting yourself out of the administrator role is refused here as well as
+	// in the store: it is nearly always a mistake, and the store's guard only
+	// catches the case where you are the last one.
+	if userID == currentUser(r.Context()).ID && !role.IsAdmin() {
 		s.adminRespond(w, r, user, adminNotice{},
 			"You cannot remove your own administrator rights.", "/admin/users")
 		return
 	}
 
-	if err := s.store.SetUserAdmin(r.Context(), userID, grant); err != nil {
+	if err := s.store.SetUserRole(r.Context(), userID, role); err != nil {
 		if errors.Is(err, store.ErrLastAdmin) {
 			s.adminRespond(w, r, user, adminNotice{},
 				"The last administrator cannot be demoted; grant somebody else the role first.",
 				"/admin/users")
 			return
 		}
-		s.log.Error("admin: set admin", "user", userID, "error", err)
+		s.log.Error("admin: set role", "user", userID, "role", string(role), "error", err)
 		s.adminRespond(w, r, user, adminNotice{},
 			"Could not update the account.", "/admin/users")
 		return
 	}
 
-	message := "Administrator rights revoked from " + user.Username + "."
-	if grant {
-		message = user.Username + " is now an administrator."
-	}
+	s.log.Info("account role changed",
+		"actor", currentUser(r.Context()).ID,
+		"user", userID,
+		"from", string(user.Role),
+		"to", string(role))
 
 	updated := s.reloadAdminUser(r, userID)
-	s.adminRespond(w, r, updated, adminNotice{Text: message}, "", "/admin/users")
+	s.adminRespond(w, r, updated, adminNotice{
+		Text: user.Username + " is now " + role.Label() + ".",
+	}, "", "/admin/users")
 }
 
 // handleAdminDeleteUser removes an account and everything it stored.
@@ -383,7 +418,7 @@ func (s *Server) handleAdminIssueReset(w http.ResponseWriter, r *http.Request) {
 	s.adminRespond(w, r, target, notice, "", "/admin/users")
 }
 
-// handleAdminFiles lists every upload for moderation.
+// handleAdminFiles lists every upload, which is the moderation surface.
 func (s *Server) handleAdminFiles(w http.ResponseWriter, r *http.Request) {
 	page := queryInt(r, "page", 1)
 	if page < 1 {
@@ -413,7 +448,7 @@ func (s *Server) handleAdminFiles(w http.ResponseWriter, r *http.Request) {
 		Grid:       s.grid(r, files, true, false, "/admin/files/%s/delete", "Nothing has been uploaded yet."),
 		Pagination: pg,
 	}
-	view.base = s.base(r, "All files")
+	view.base = s.base(r, "Content")
 	view.UseAlpine = true
 
 	s.renderPage(w, http.StatusOK, "admin_files", view)

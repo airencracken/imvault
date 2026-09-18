@@ -1,0 +1,18 @@
+{{define "admin_nav"}}
+{{/*
+  The admin area's navigation, rendered in one place so every page agrees.
+
+  Administration and moderation are different jobs, so a moderator is shown only
+  the content links. Listing the rest would be a row of refusals, which teaches
+  nobody anything.
+*/}}
+<nav class="subtabs">
+  {{if .IsAdmin}}<a class="btn small" href="/admin">Overview</a>{{end}}
+  <a class="btn small" href="/admin/files">Content</a>
+  {{if .IsAdmin}}
+  <a class="btn small" href="/admin/users">Users</a>
+  <a class="btn small" href="/admin/settings">Settings</a>
+  <a class="btn small" href="/admin/mail">Mail{{if .FailedMail}} <span class="badge private">{{.FailedMail}}</span>{{end}}</a>
+  {{end}}
+</nav>
+{{end}}

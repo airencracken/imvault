@@ -7,12 +7,7 @@
       <a href="/admin/users">Users</a>.
     </p>
   </div>
-  <nav class="subtabs">
-    <a class="btn small" href="/admin">Overview</a>
-    <a class="btn small" href="/admin/users">Users</a>
-    <a class="btn small" href="/admin/files">All files</a>
-    <a class="btn small" href="/admin/mail">Mail</a>
-  </nav>
+  {{template "admin_nav" .}}
 </header>
 
 {{if .Error}}<p class="flash err">{{.Error}}</p>{{end}}

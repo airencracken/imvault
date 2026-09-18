@@ -117,7 +117,7 @@ func (s *Server) apiOwnedFile(w http.ResponseWriter, r *http.Request, user *mode
 		writeAPIError(w, http.StatusInternalServerError, "database error")
 		return nil, false
 	}
-	if !canEditFile(user, file) {
+	if !canChangeFile(user, file) {
 		writeAPIError(w, http.StatusNotFound, "no such file")
 		return nil, false
 	}
@@ -151,8 +151,12 @@ func (s *Server) apiMe(w http.ResponseWriter, r *http.Request) {
 		"id":       user.ID,
 		"username": user.Username,
 		"email":    user.Email,
-		"admin":    user.IsAdmin,
-		"created":  user.CreatedAt.UTC().Format(time.RFC3339),
+		"role":     string(user.Role),
+		// admin and can_moderate are kept for clients written against the
+		// administrator flag; role is the field to read now.
+		"admin":        user.IsAdmin(),
+		"can_moderate": user.CanModerate(),
+		"created":      user.CreatedAt.UTC().Format(time.RFC3339),
 	})
 }
 

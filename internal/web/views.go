@@ -29,13 +29,19 @@ type base struct {
 	// client-side UI state (a confirmation dialog, table filtering, copy
 	// feedback) that htmx is not the right tool for.
 	UseAlpine bool
+	// FailedMail is only populated on the dashboard, where the mail queue's
+	// health is worth surfacing before an administrator goes looking for it.
+	FailedMail int
 }
 
 // IsAuthed reports whether a user is signed in. Available to templates.
 func (b base) IsAuthed() bool { return b.User != nil }
 
 // IsAdmin reports whether the signed-in user is an administrator.
-func (b base) IsAdmin() bool { return b.User != nil && b.User.IsAdmin }
+func (b base) IsAdmin() bool { return b.User != nil && b.User.IsAdmin() }
+
+// CanModerate reports whether the signed-in user may remove anybody's content.
+func (b base) CanModerate() bool { return b.User != nil && b.User.CanModerate() }
 
 // fileCard is the data for a single tile in a grid.
 type fileCard struct {
@@ -150,7 +156,6 @@ type adminDashboardView struct {
 	Users       []*models.User
 	Grid        fileCardsView
 	PendingMail int
-	FailedMail  int
 	MailEnabled bool
 	Blobs       store.BlobStats
 	// Notice is reported either inline on a full page load or out of
@@ -185,6 +190,8 @@ type adminUserRow struct {
 	Self bool
 	// Error is an action failure to show inline.
 	Error string
+	// Roles is every role the picker offers.
+	Roles []models.Role
 }
 
 // adminMailRow is one row of the outbound queue.
@@ -254,9 +261,15 @@ type fileView struct {
 	File         *models.File
 	Albums       []*models.Album
 	TagsFragment tagsFragmentView
-	IsOwner      bool
-	ShareURL     string
-	RawURL       string
+	// IsOwner is the right to change what the file is: its visibility and its
+	// tags. A moderator may remove a file but not republish it, so this is
+	// narrower than CanDelete.
+	IsOwner bool
+	// CanDelete is the right to remove the file, which a moderator has for
+	// anybody's content.
+	CanDelete bool
+	ShareURL  string
+	RawURL    string
 }
 
 type tagsView struct {

@@ -434,16 +434,16 @@ func TestAdminCannotRemoveTheLastAdministrator(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resp, _ := h.postForm("/admin/users/"+itoa64(boss.ID)+"/admin", url.Values{
+	resp, _ := h.postForm("/admin/users/"+itoa64(boss.ID)+"/role", url.Values{
 		"csrf_token": {h.csrf()},
-		"admin":      {"0"},
+		"role":       {"member"},
 	})
 	if resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("demote = %d, want 303", resp.StatusCode)
 	}
 	if after, err := h.store.UserByID(t.Context(), boss.ID); err != nil {
 		t.Fatal(err)
-	} else if !after.IsAdmin {
+	} else if !after.IsAdmin() {
 		t.Error("the last administrator was demoted")
 	}
 

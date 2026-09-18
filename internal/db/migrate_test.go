@@ -664,6 +664,96 @@ func TestSharedAlbumMigrationDefaultsToTheOwner(t *testing.T) {
 	}
 }
 
+func TestRoleMigrationKeepsAdministratorsAdministrators(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "pre-roles.db")
+	buildLegacyDatabase(t, path,
+		"001_init.sql", "002_media_and_api_keys.sql", "003_per_account_tags.sql",
+		"004_quotas_and_admin.sql", "005_auth_tokens.sql", "006_outbound_mail.sql",
+		"007_two_factor.sql", "008_content_addressed_storage.sql", "009_per_file_quota.sql",
+		"010_anonymous_tags.sql")
+
+	// Bring the database to the schema an instance would have when this
+	// migration arrives, and make one of its accounts an administrator.
+	raw, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{
+		"011_blobs.sql", "012_settings.sql", "013_visibility.sql", "014_shared_albums.sql",
+	} {
+		body, err := migrationsFS.ReadFile("migrations/" + name)
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		if _, err := raw.Exec(string(body)); err != nil {
+			t.Fatalf("apply %s: %v", name, err)
+		}
+		if _, err := raw.Exec(
+			`INSERT INTO schema_migrations (version, applied_at) VALUES (?, 0)`, name); err != nil {
+			t.Fatalf("record %s: %v", name, err)
+		}
+	}
+	if _, err := raw.Exec(`UPDATE users SET is_admin = 1 WHERE username = 'alice'`); err != nil {
+		t.Fatalf("seed admin: %v", err)
+	}
+	raw.Close()
+
+	ctx := context.Background()
+	database, err := Open(ctx, path)
+	if err != nil {
+		t.Fatalf("upgrade database: %v", err)
+	}
+	defer database.Close()
+
+	// The flag maps onto the role, and nothing gains power: the administrator
+	// stays one, and everybody else becomes an ordinary member.
+	want := map[string]string{"alice": "admin", "bob": "member"}
+	rows, err := database.QueryContext(ctx, `SELECT username, role FROM users`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	seen := 0
+	for rows.Next() {
+		var username, role string
+		if err := rows.Scan(&username, &role); err != nil {
+			t.Fatal(err)
+		}
+		seen++
+		if want[username] != role {
+			t.Errorf("%s came through as %q, want %q", username, role, want[username])
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if seen != len(want) {
+		t.Errorf("read %d accounts, want %d", seen, len(want))
+	}
+
+	// The schema default agrees with the code's: an account inserted without
+	// naming the column is a member, not something more.
+	if _, err := database.ExecContext(ctx, `
+		INSERT INTO users (username, email, password_hash, created_at)
+		VALUES ('newcomer', '', 'x', 0)`); err != nil {
+		t.Fatal(err)
+	}
+	var role string
+	if err := database.QueryRowContext(ctx,
+		`SELECT role FROM users WHERE username = 'newcomer'`).Scan(&role); err != nil {
+		t.Fatal(err)
+	}
+	if role != "member" {
+		t.Errorf("a new account got the role %q, want member", role)
+	}
+
+	// The flag is gone rather than left beside the role, so there is one source
+	// of truth for who may do what.
+	if _, err := database.Exec(`SELECT is_admin FROM users`); err == nil {
+		t.Error("the is_admin column survived the migration")
+	}
+}
+
 func TestMigrationIsIdempotent(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "fresh.db")
 	ctx := context.Background()

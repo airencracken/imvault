@@ -37,7 +37,7 @@ type exportAccount struct {
 	Username        string `json:"username"`
 	Email           string `json:"email,omitempty"`
 	EmailVerified   bool   `json:"email_verified"`
-	IsAdmin         bool   `json:"is_admin"`
+	Role            string `json:"role"`
 	CreatedAt       string `json:"created_at"`
 	FileCount       int    `json:"file_count"`
 	StorageUsed     int64  `json:"storage_used_bytes"`
@@ -121,7 +121,7 @@ func (s *Server) handleAccountExport(w http.ResponseWriter, r *http.Request) {
 			Username:        user.Username,
 			Email:           user.Email,
 			EmailVerified:   user.EmailVerified,
-			IsAdmin:         user.IsAdmin,
+			Role:            string(user.Role),
 			CreatedAt:       user.CreatedAt.UTC().Format(time.RFC3339),
 			FileCount:       len(files),
 			StorageUsed:     user.StorageUsed,

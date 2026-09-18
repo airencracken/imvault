@@ -71,11 +71,11 @@ func mustFile(t *testing.T, s *Store, ctx context.Context, id string, owner *int
 func TestUsersAndSessions(t *testing.T) {
 	s, ctx := newTestStore(t)
 
-	u, err := s.CreateUser(ctx, NewUser{Username: "marcus", Email: "marcus@example.com", PasswordHash: "hash", IsAdmin: true})
+	u, err := s.CreateUser(ctx, NewUser{Username: "marcus", Email: "marcus@example.com", PasswordHash: "hash", Role: models.RoleAdmin})
 	if err != nil {
 		t.Fatalf("create user: %v", err)
 	}
-	if !u.IsAdmin {
+	if !u.IsAdmin() {
 		t.Error("first user should be admin")
 	}
 

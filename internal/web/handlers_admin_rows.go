@@ -28,6 +28,7 @@ func (s *Server) adminUserRowFor(r *http.Request, user *models.User, errMsg stri
 		Search:    strings.ToLower(user.Username + " " + user.Email),
 		Self:      viewer != nil && viewer.ID == user.ID,
 		Error:     errMsg,
+		Roles:     models.RoleLevels(),
 	}
 }
 

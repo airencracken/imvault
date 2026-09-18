@@ -153,7 +153,7 @@ func (s *Server) handleAlbumPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user := currentUser(r.Context())
-	isOwner := canEditAlbum(user, album)
+	isOwner := canAdministerAlbum(user, album)
 	canContribute := canContributeToAlbum(user, album)
 	if !canViewAlbum(user, album) {
 		s.notFound(w, r, "No album by that name.")
@@ -239,7 +239,7 @@ func (s *Server) albumCandidates(r *http.Request, user *models.User, albumID int
 
 // handleAlbumDelete removes an album, leaving its files in place.
 func (s *Server) handleAlbumDelete(w http.ResponseWriter, r *http.Request) {
-	album, ok := s.loadAdministerableAlbum(w, r)
+	album, ok := s.loadDeletableAlbum(w, r)
 	if !ok {
 		return
 	}
@@ -280,7 +280,7 @@ func (s *Server) handleAlbumAddFiles(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			continue // vanished or bogus id
 		}
-		if !canEditFile(user, file) {
+		if !ownsFile(user, file) {
 			continue // never let one user file another's uploads
 		}
 		if err := s.store.AddFileToAlbum(r.Context(), album.ID, file.ID); err != nil {
@@ -330,7 +330,7 @@ func (s *Server) handleAlbumRemoveFile(w http.ResponseWriter, r *http.Request) {
 	user := currentUser(r.Context())
 	fileID := r.PathValue("fileID")
 
-	if !canEditAlbum(user, album) {
+	if !canDeleteAlbum(user, album) {
 		file, err := s.store.FileByID(r.Context(), fileID)
 		if err != nil {
 			http.NotFound(w, r)
@@ -376,7 +376,7 @@ func (s *Server) ownedAlbum(ctx context.Context, user *models.User, ref string) 
 	if err != nil {
 		return nil, err
 	}
-	if !canEditAlbum(user, album) {
+	if !canAdministerAlbum(user, album) {
 		return nil, store.ErrNotFound
 	}
 	return album, nil
@@ -420,7 +420,21 @@ func (s *Server) loadAdministerableAlbum(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return nil, false
 	}
-	if !canEditAlbum(currentUser(r.Context()), album) {
+	if !canAdministerAlbum(currentUser(r.Context()), album) {
+		http.Error(w, "not permitted", http.StatusForbidden)
+		return nil, false
+	}
+	return album, true
+}
+
+// loadDeletableAlbum enforces the right to remove an album, which a moderator
+// has for anybody's content.
+func (s *Server) loadDeletableAlbum(w http.ResponseWriter, r *http.Request) (*models.Album, bool) {
+	album, ok := s.loadAlbum(w, r)
+	if !ok {
+		return nil, false
+	}
+	if !canDeleteAlbum(currentUser(r.Context()), album) {
 		http.Error(w, "not permitted", http.StatusForbidden)
 		return nil, false
 	}

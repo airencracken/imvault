@@ -187,3 +187,56 @@ func TestAlbumAccessDefaultsToTheOwner(t *testing.T) {
 		t.Error("Shared() disagrees with the levels")
 	}
 }
+
+func TestRoleDefaultsToThePowerlessOne(t *testing.T) {
+	// Anything unrecognised is an ordinary member. Getting this wrong in the
+	// other direction would hand out moderation, so the zero value and every
+	// typo land here.
+	for _, raw := range []string{"", "  ", "administrator", "root", "mod", "true"} {
+		if got := ParseRole(raw); got != RoleMember {
+			t.Errorf("ParseRole(%q) = %q, want member", raw, got)
+		}
+	}
+
+	for raw, want := range map[string]Role{
+		"admin":      RoleAdmin,
+		"ADMIN":      RoleAdmin,
+		" Moderator": RoleModerator,
+		"member ":    RoleMember,
+	} {
+		if got := ParseRole(raw); got != want {
+			t.Errorf("ParseRole(%q) = %q, want %q", raw, got, want)
+		}
+	}
+
+	if Role("owner").Valid() {
+		t.Error("an invented role was accepted")
+	}
+
+	// The powers are cumulative, and only administrator is implied downward.
+	if !RoleAdmin.CanModerate() || !RoleModerator.CanModerate() || RoleMember.CanModerate() {
+		t.Error("CanModerate disagrees with the roles")
+	}
+	if !RoleAdmin.IsAdmin() || RoleModerator.IsAdmin() || RoleMember.IsAdmin() {
+		t.Error("IsAdmin disagrees with the roles")
+	}
+
+	for _, role := range RoleLevels() {
+		if !role.Valid() {
+			t.Errorf("%q is offered but not valid", role)
+		}
+		if got := ParseRole(string(role)); got != role {
+			t.Errorf("%q round-tripped to %q", role, got)
+		}
+		if role.Label() == "" || role.Explain() == "" {
+			t.Errorf("%q has no label or explanation to show", role)
+		}
+	}
+
+	// A nil account is powerless, which matters because handlers reach here
+	// with whatever currentUser returned.
+	var nobody *User
+	if nobody.IsAdmin() || nobody.CanModerate() {
+		t.Error("a nil account has powers")
+	}
+}

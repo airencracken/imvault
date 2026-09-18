@@ -41,7 +41,7 @@ Everything the server answers.
 | `GET` | `/admin` | Admin overview |
 | `GET` | `/admin/users` | Account list with usage |
 | `POST` | `/admin/users/{id}/quota` | Set an account's storage cap |
-| `POST` | `/admin/users/{id}/admin` | Grant or revoke administrator rights |
+| `POST` | `/admin/users/{id}/role` | Set an account's role: member, moderator, or administrator |
 | `POST` | `/admin/users/{id}/disabled` | Disable or enable an account |
 | `POST` | `/admin/users/{id}/delete` | Delete an account and its files |
 | `POST` | `/admin/users/{id}/reset` | Issue a one-time password reset link |
@@ -53,8 +53,8 @@ Everything the server answers.
 | `POST` | `/admin/settings/clear` | Drop the stored overrides and follow the configuration again |
 | `POST` | `/admin/maintenance/storage` | Recalculate per-account storage usage |
 | `POST` | `/admin/maintenance/blobs` | Recalculate content reference counts |
-| `GET` | `/admin/files` | Every upload, for moderation |
-| `POST` | `/admin/files/{id}/delete` | Delete any file |
+| `GET` | `/admin/files` | Every upload, for moderation (moderators and administrators) |
+| `POST` | `/admin/files/{id}/delete` | Delete any file (moderators and administrators) |
 | `GET` | `/healthz` | Liveness probe |
 
 Mutating requests that use cookies must carry the CSRF token, either as the

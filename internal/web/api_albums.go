@@ -304,7 +304,7 @@ func (s *Server) apiRemoveAlbumFile(w http.ResponseWriter, r *http.Request) {
 	fileID := r.PathValue("fileID")
 
 	// The owner may remove anything; a contributor may take back their own.
-	if !canEditAlbum(user, album) {
+	if !canDeleteAlbum(user, album) {
 		file, err := s.store.FileByID(r.Context(), fileID)
 		if err != nil {
 			writeAPIError(w, http.StatusNotFound, "no such file in the album")
@@ -349,7 +349,7 @@ func (s *Server) apiAttachFiles(r *http.Request, user *models.User, album *model
 			s.log.Warn("api: album add skipped unknown file", "album", album.Slug, "file", ref)
 			continue
 		}
-		if !canEditFile(user, file) {
+		if !ownsFile(user, file) {
 			s.log.Warn("api: album add skipped unowned file", "album", album.Slug, "file", ref)
 			continue
 		}

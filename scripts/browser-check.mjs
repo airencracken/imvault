@@ -506,6 +506,28 @@ async function main() {
       const card = cards.find((c) => c.textContent.includes("Browser Shared"));
       return !!card && card.textContent.includes("shared");
     `));
+
+    // --- roles ---
+    await page.goto(`${base}/admin/users`);
+    const role = await page.evaluate(`
+      const rowFor = () => [...document.querySelectorAll("tr[data-search]")]
+        .find((r) => r.dataset.search.includes("bob"));
+      const row = rowFor();
+      if (!row) return { error: "no row for bob" };
+      const select = row.querySelector('select[name="role"]');
+      if (!select) return { error: "no role picker" };
+      select.value = "moderator";
+      select.closest("form").querySelector('button[type="submit"]').click();
+      await new Promise((r) => setTimeout(r, 500));
+      const after = rowFor();
+      return {
+        badge: after.textContent.includes("moderator"),
+        value: after.querySelector('select[name="role"]').value,
+        chips: [...after.querySelectorAll(".badge")].map((b) => b.textContent.trim()),
+      };
+    `);
+    record("the role picker changes a role over htmx",
+      role.badge && role.value === "moderator", JSON.stringify(role));
     // --- the guard on deleting your own account ---
     await page.goto(`${base}/settings/account`);
 

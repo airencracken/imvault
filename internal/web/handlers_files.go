@@ -101,7 +101,7 @@ func (s *Server) serveObject(w http.ResponseWriter, r *http.Request, file *model
 
 // handleFileVisibility changes which level a file is visible at.
 func (s *Server) handleFileVisibility(w http.ResponseWriter, r *http.Request) {
-	file, ok := s.loadEditableFile(w, r)
+	file, ok := s.loadChangeableFile(w, r)
 	if !ok {
 		return
 	}
@@ -126,7 +126,7 @@ func (s *Server) handleFileVisibility(w http.ResponseWriter, r *http.Request) {
 
 // handleFileDelete removes a file and its stored objects.
 func (s *Server) handleFileDelete(w http.ResponseWriter, r *http.Request) {
-	file, ok := s.loadEditableFile(w, r)
+	file, ok := s.loadDeletableFile(w, r)
 	if !ok {
 		return
 	}
@@ -153,7 +153,7 @@ func (s *Server) handleFileDelete(w http.ResponseWriter, r *http.Request) {
 
 // handleTagAdd attaches a tag to a file.
 func (s *Server) handleTagAdd(w http.ResponseWriter, r *http.Request) {
-	file, ok := s.loadEditableFile(w, r)
+	file, ok := s.loadChangeableFile(w, r)
 	if !ok {
 		return
 	}
@@ -174,7 +174,7 @@ func (s *Server) handleTagAdd(w http.ResponseWriter, r *http.Request) {
 
 // handleTagRemove detaches a tag from a file.
 func (s *Server) handleTagRemove(w http.ResponseWriter, r *http.Request) {
-	file, ok := s.loadEditableFile(w, r)
+	file, ok := s.loadChangeableFile(w, r)
 	if !ok {
 		return
 	}
@@ -204,7 +204,7 @@ func (s *Server) renderTagsFragment(w http.ResponseWriter, r *http.Request, file
 		base:    s.base(r, file.OriginalName),
 		File:    file,
 		Tags:    tags,
-		CanEdit: canEditFile(currentUser(r.Context()), file),
+		CanEdit: canChangeFile(currentUser(r.Context()), file),
 	})
 }
 
@@ -218,8 +218,8 @@ func tagOwner(file *models.File) *int64 {
 	return file.UserID
 }
 
-// loadEditableFile resolves {id} and enforces ownership.
-func (s *Server) loadEditableFile(w http.ResponseWriter, r *http.Request) (*models.File, bool) {
+// loadFile resolves {id} to a file, or writes the error response itself.
+func (s *Server) loadFile(w http.ResponseWriter, r *http.Request) (*models.File, bool) {
 	id := r.PathValue("id")
 
 	file, err := s.store.FileByID(r.Context(), id)
@@ -232,8 +232,31 @@ func (s *Server) loadEditableFile(w http.ResponseWriter, r *http.Request) (*mode
 		http.Error(w, "database error", http.StatusInternalServerError)
 		return nil, false
 	}
+	return file, true
+}
 
-	if !canEditFile(currentUser(r.Context()), file) {
+// loadChangeableFile enforces the right to change what a file *is*. A moderator
+// may remove content but not republish it, so this is narrower than deletion.
+func (s *Server) loadChangeableFile(w http.ResponseWriter, r *http.Request) (*models.File, bool) {
+	file, ok := s.loadFile(w, r)
+	if !ok {
+		return nil, false
+	}
+	if !canChangeFile(currentUser(r.Context()), file) {
+		http.Error(w, "not permitted", http.StatusForbidden)
+		return nil, false
+	}
+	return file, true
+}
+
+// loadDeletableFile enforces the right to remove a file, which a moderator has
+// for anybody's content.
+func (s *Server) loadDeletableFile(w http.ResponseWriter, r *http.Request) (*models.File, bool) {
+	file, ok := s.loadFile(w, r)
+	if !ok {
+		return nil, false
+	}
+	if !canDeleteFile(currentUser(r.Context()), file) {
 		http.Error(w, "not permitted", http.StatusForbidden)
 		return nil, false
 	}

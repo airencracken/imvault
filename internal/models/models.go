@@ -100,14 +100,89 @@ func VisibilityLevels() []Visibility {
 	return []Visibility{VisibilityPublic, VisibilityMembers, VisibilityPrivate}
 }
 
+// Role is what an account may do beyond managing its own content.
+//
+// Three levels rather than an administrator flag, because a group needs
+// somebody who can remove a bad upload without also being handed the ability to
+// change policy, manage accounts, or promote themselves. Moderation has to
+// scale with the group; account administration does not, and separating them is
+// what keeps "help me delete this" from becoming "you now own the instance".
+type Role string
+
+const (
+	// RoleMember may manage its own uploads and contribute to shared albums.
+	RoleMember Role = "member"
+	// RoleModerator may additionally remove anybody's content and work the
+	// report queue. It cannot manage accounts or instance settings.
+	RoleModerator Role = "moderator"
+	// RoleAdmin may do anything, including granting roles.
+	RoleAdmin Role = "admin"
+)
+
+// ParseRole reads a stored or submitted value, defaulting to member for
+// anything unrecognised. The safe direction to be wrong in is the powerless
+// one.
+func ParseRole(raw string) Role {
+	switch Role(strings.ToLower(strings.TrimSpace(raw))) {
+	case RoleModerator:
+		return RoleModerator
+	case RoleAdmin:
+		return RoleAdmin
+	default:
+		return RoleMember
+	}
+}
+
+// Valid reports whether r is one of the three roles.
+func (r Role) Valid() bool {
+	return r == RoleMember || r == RoleModerator || r == RoleAdmin
+}
+
+// CanModerate reports whether the role may remove content and work reports.
+func (r Role) CanModerate() bool { return r == RoleModerator || r == RoleAdmin }
+
+// IsAdmin reports whether the role may manage accounts and instance settings.
+func (r Role) IsAdmin() bool { return r == RoleAdmin }
+
+// Label is the name shown in the interface.
+func (r Role) Label() string {
+	switch r {
+	case RoleModerator:
+		return "Moderator"
+	case RoleAdmin:
+		return "Administrator"
+	}
+	return "Member"
+}
+
+// Explain describes the role in one sentence.
+func (r Role) Explain() string {
+	switch r {
+	case RoleModerator:
+		return "Can remove anybody's content and work the report queue"
+	case RoleAdmin:
+		return "Can also manage accounts, roles, and instance settings"
+	}
+	return "Manages their own uploads"
+}
+
+// RoleLevels lists the roles, least powerful first, which is the order they are
+// offered in.
+func RoleLevels() []Role {
+	return []Role{RoleMember, RoleModerator, RoleAdmin}
+}
+
 // User is a registered account.
 type User struct {
 	ID           int64
 	Username     string
 	Email        string
 	PasswordHash string
-	IsAdmin      bool
-	Disabled     bool
+	// Role is what the account may do beyond its own content. The zero value is
+	// not a role, so an account built by hand is powerless rather than
+	// privileged; every path that reads one goes through ParseRole.
+	Role     Role
+	Disabled bool
 	// EmailVerified records that the address was confirmed, when the instance
 	// has mail configured. It never gates access: an unverified account works
 	// exactly like a verified one.
@@ -134,6 +209,12 @@ type User struct {
 
 // TwoFactorRequired reports whether signing in needs a second factor.
 func (u *User) TwoFactorRequired() bool { return u.TOTPEnabled }
+
+// CanModerate reports whether the account may remove content and work reports.
+func (u *User) CanModerate() bool { return u != nil && u.Role.CanModerate() }
+
+// IsAdmin reports whether the account may manage accounts and policy.
+func (u *User) IsAdmin() bool { return u != nil && u.Role.IsAdmin() }
 
 // Unlimited reports whether the account has no storage cap.
 func (u *User) Unlimited() bool { return u.QuotaBytes <= 0 }

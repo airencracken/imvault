@@ -28,8 +28,9 @@ type NewUser struct {
 	Email        string
 	PasswordHash string
 
-	// IsAdmin grants access to the admin UI.
-	IsAdmin bool
+	// Role is what the account may do beyond its own content. An invalid or
+	// empty role becomes an ordinary member.
+	Role models.Role
 	// QuotaBytes caps stored original bytes; zero means unlimited.
 	QuotaBytes int64
 }
@@ -40,12 +41,15 @@ func (s *Store) CreateUser(ctx context.Context, in NewUser) (*models.User, error
 	if in.QuotaBytes < 0 {
 		in.QuotaBytes = 0
 	}
+	if !in.Role.Valid() {
+		in.Role = models.RoleMember
+	}
 	created := nowUnix()
 
 	res, err := s.db.ExecContext(ctx, `
-		INSERT INTO users (username, email, password_hash, is_admin, quota_bytes, storage_used, created_at)
+		INSERT INTO users (username, email, password_hash, role, quota_bytes, storage_used, created_at)
 		VALUES (?, ?, ?, ?, ?, 0, ?)`,
-		in.Username, in.Email, in.PasswordHash, boolToInt(in.IsAdmin), in.QuotaBytes, created,
+		in.Username, in.Email, in.PasswordHash, string(in.Role), in.QuotaBytes, created,
 	)
 	if err != nil {
 		if ok, col := isUniqueViolation(err); ok {
@@ -64,32 +68,32 @@ func (s *Store) CreateUser(ctx context.Context, in NewUser) (*models.User, error
 		Username:     in.Username,
 		Email:        in.Email,
 		PasswordHash: in.PasswordHash,
-		IsAdmin:      in.IsAdmin,
+		Role:         in.Role,
 		QuotaBytes:   in.QuotaBytes,
 		CreatedAt:    toTime(created),
 	}, nil
 }
 
-const userColumns = `id, username, email, password_hash, is_admin, disabled,
+const userColumns = `id, username, email, password_hash, role, disabled,
 	email_verified, quota_bytes, storage_used, max_file_bytes, created_at,
 	totp_secret, totp_enabled, totp_last_step`
 
 func scanUser(sc rowScanner) (*models.User, error) {
 	var (
 		u             models.User
-		isAdmin       int
+		role          string
 		disabled      int
 		emailVerified int
 		totpEnabled   int
 		totpLastStep  int64
 		created       int64
 	)
-	if err := sc.Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &isAdmin,
+	if err := sc.Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &role,
 		&disabled, &emailVerified, &u.QuotaBytes, &u.StorageUsed, &u.MaxFileBytes,
 		&created, &u.TOTPSecret, &totpEnabled, &totpLastStep); err != nil {
 		return nil, err
 	}
-	u.IsAdmin = isAdmin != 0
+	u.Role = models.ParseRole(role)
 	u.Disabled = disabled != 0
 	u.EmailVerified = emailVerified != 0
 	u.TOTPEnabled = totpEnabled != 0
@@ -204,28 +208,33 @@ func (s *Store) SetUserDisabled(ctx context.Context, userID int64, disabled bool
 	return nil
 }
 
-// SetUserAdmin grants or revokes administrator rights.
+// SetUserRole changes what an account may do.
 //
-// Revoking the last administrator is refused: it would leave the instance with
-// nobody able to reach the admin UI.
-func (s *Store) SetUserAdmin(ctx context.Context, userID int64, isAdmin bool) error {
-	if !isAdmin {
+// Demoting the last administrator is refused: it would leave the instance with
+// nobody able to reach the admin UI or grant the role back.
+func (s *Store) SetUserRole(ctx context.Context, userID int64, role models.Role) error {
+	if !role.Valid() {
+		return fmt.Errorf("set role: %q is not a role", role)
+	}
+
+	target, err := s.UserByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	if target.Role.IsAdmin() && !role.IsAdmin() {
 		admins, err := s.CountAdmins(ctx)
 		if err != nil {
 			return err
 		}
-		current, err := s.UserByID(ctx, userID)
-		if err != nil {
-			return err
-		}
-		if current.IsAdmin && admins <= 1 {
+		if admins <= 1 {
 			return ErrLastAdmin
 		}
 	}
 
 	if _, err := s.db.ExecContext(ctx,
-		`UPDATE users SET is_admin = ? WHERE id = ?`, boolToInt(isAdmin), userID); err != nil {
-		return fmt.Errorf("set admin: %w", err)
+		`UPDATE users SET role = ? WHERE id = ?`, string(role), userID); err != nil {
+		return fmt.Errorf("set role: %w", err)
 	}
 	return nil
 }
@@ -234,7 +243,7 @@ func (s *Store) SetUserAdmin(ctx context.Context, userID int64, isAdmin bool) er
 func (s *Store) CountAdmins(ctx context.Context) (int, error) {
 	var n int
 	err := s.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM users WHERE is_admin = 1`).Scan(&n)
+		`SELECT COUNT(*) FROM users WHERE role = 'admin'`).Scan(&n)
 	if err != nil {
 		return 0, fmt.Errorf("count admins: %w", err)
 	}
@@ -252,7 +261,7 @@ func (s *Store) DeleteUser(ctx context.Context, userID int64) error {
 	if err != nil {
 		return err
 	}
-	if target.IsAdmin && admins <= 1 {
+	if target.Role.IsAdmin() && admins <= 1 {
 		return ErrLastAdmin
 	}
 
@@ -354,6 +363,7 @@ func (s *Store) RecomputeStorageUsage(ctx context.Context) (int64, error) {
 type InstanceStats struct {
 	Users       int
 	Admins      int
+	Moderators  int
 	Disabled    int
 	Files       int
 	PublicFiles int
@@ -368,14 +378,15 @@ func (s *Store) Stats(ctx context.Context) (InstanceStats, error) {
 	err := s.db.QueryRowContext(ctx, `
 		SELECT
 			(SELECT COUNT(*) FROM users),
-			(SELECT COUNT(*) FROM users WHERE is_admin = 1),
+			(SELECT COUNT(*) FROM users WHERE role = 'admin'),
+			(SELECT COUNT(*) FROM users WHERE role = 'moderator'),
 			(SELECT COUNT(*) FROM users WHERE disabled = 1),
 			(SELECT COUNT(*) FROM files),
 			(SELECT COUNT(*) FROM files WHERE visibility = 'public'),
 			(SELECT COALESCE(SUM(size), 0) FROM files),
 			(SELECT COUNT(*) FROM api_keys WHERE expires_at IS NULL OR expires_at > ?)`,
 		nowUnix(),
-	).Scan(&stats.Users, &stats.Admins, &stats.Disabled, &stats.Files,
+	).Scan(&stats.Users, &stats.Admins, &stats.Moderators, &stats.Disabled, &stats.Files,
 		&stats.PublicFiles, &stats.TotalBytes, &stats.ActiveKeys)
 	if err != nil {
 		return InstanceStats{}, fmt.Errorf("instance stats: %w", err)

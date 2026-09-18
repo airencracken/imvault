@@ -7,11 +7,7 @@
       than losing them.
     </p>
   </div>
-  <nav class="subtabs">
-    <a class="btn small" href="/admin">Overview</a>
-    <a class="btn small" href="/admin/users">Users</a>
-    <a class="btn small" href="/admin/files">All files</a>
-  </nav>
+  {{template "admin_nav" .}}
 </header>
 
 <div id="admin-notice">{{template "admin_notice_inner" .Notice}}</div>

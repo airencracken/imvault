@@ -171,9 +171,9 @@ func TestAdminLastAdministratorErrorIsInline(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resp, body := h.postHTMX("/admin/users/"+itoa64(boss.ID)+"/admin", url.Values{
+	resp, body := h.postHTMX("/admin/users/"+itoa64(boss.ID)+"/role", url.Values{
 		"csrf_token": {h.csrf()},
-		"admin":      {"0"},
+		"role":       {"member"},
 	})
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("self-demotion = %d, want 200", resp.StatusCode)
@@ -186,7 +186,7 @@ func TestAdminLastAdministratorErrorIsInline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !after.IsAdmin {
+	if !after.IsAdmin() {
 		t.Error("the last administrator was demoted")
 	}
 }

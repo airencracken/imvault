@@ -99,6 +99,29 @@ Tags follow the file they label. The tag index and its counts are computed over
 the files you can see, so a tag that only labels somebody else's private upload
 never appears, and resolving it looks exactly like a tag that does not exist.
 
+## Roles, and what they may change
+
+Three roles exist, and the difference between the middle two is a deliberate
+boundary rather than a matter of degree:
+
+| Role | Sees | May remove | May change visibility or sharing |
+| --- | --- | --- | --- |
+| Member | Its own, plus everything public or shared with members | Its own | Its own |
+| Moderator | Everything | Anybody's | Nobody's |
+| Administrator | Everything | Anybody's | Anybody's |
+
+A moderator can see private content because judging something you are not
+allowed to look at is not possible, and can remove it because that is the point
+of the role. What a moderator cannot do is *republish* it: changing a file's
+visibility, or an album's visibility and sharing, is the owner's and the
+administrator's. A moderator who could make a private upload public would be an
+escalation rather than a safeguard.
+
+That is also why moderation and administration are separate roles. A moderator
+cannot reach the account list, instance settings, or the mail queue, and cannot
+change anybody's role. Otherwise "come and help me deal with this spam" would
+be a way to take the instance.
+
 ## Rate limiting
 
 Two budgets, both in memory, both keyed so that one client cannot exhaust

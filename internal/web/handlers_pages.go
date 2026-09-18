@@ -104,16 +104,17 @@ func (s *Server) handleFilePage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	view := fileView{
-		base:     s.base(r, file.OriginalName),
-		File:     file,
-		IsOwner:  canEditFile(currentUser(r.Context()), file),
-		ShareURL: s.absoluteURL(r, "/f/"+file.ID),
-		RawURL:   s.absoluteURL(r, "/f/"+file.ID+"/raw"),
+		base:      s.base(r, file.OriginalName),
+		File:      file,
+		IsOwner:   canChangeFile(currentUser(r.Context()), file),
+		CanDelete: canDeleteFile(currentUser(r.Context()), file),
+		ShareURL:  s.absoluteURL(r, "/f/"+file.ID),
+		RawURL:    s.absoluteURL(r, "/f/"+file.ID+"/raw"),
 		TagsFragment: tagsFragmentView{
 			base:    s.base(r, file.OriginalName),
 			File:    file,
 			Tags:    file.Tags,
-			CanEdit: canEditFile(currentUser(r.Context()), file),
+			CanEdit: canChangeFile(currentUser(r.Context()), file),
 		},
 	}
 

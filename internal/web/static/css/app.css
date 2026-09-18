@@ -477,6 +477,9 @@ table.users .inline-form input { width: 6rem; margin: 0; padding: .3rem .5rem; }
 
 .row-actions { display: flex; gap: .35rem; flex-wrap: wrap; }
 .row-actions form { margin: 0; }
+/* The role picker sits in the action column, where a full-width select would
+   push every other control onto its own line. */
+.row-actions select { width: auto; margin-top: 0; padding: .25rem .4rem; font-size: .82rem; }
 
 /* Alpine renders after the document is parsed; hide anything it controls until
    then, so nothing flashes before it is initialised. */

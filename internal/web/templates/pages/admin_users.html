@@ -4,12 +4,7 @@
     <h1>Users</h1>
     <p class="muted">{{.Pagination.Total}} account{{if ne .Pagination.Total 1}}s{{end}}</p>
   </div>
-  <nav class="subtabs">
-    <a class="btn small" href="/admin">Overview</a>
-    <a class="btn small" href="/admin/files">All files</a>
-    <a class="btn small" href="/admin/settings">Settings</a>
-    <a class="btn small" href="/admin/mail">Mail</a>
-  </nav>
+  {{template "admin_nav" .}}
 </header>
 
 {{/* Rendered by both the full page and by an out-of-band swap after an
