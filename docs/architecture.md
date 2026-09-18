@@ -53,6 +53,9 @@ A few decisions worth knowing about:
   placeholder and a logged warning rather than a failed upload.
 - **Row first, then bytes.** Deletes remove the database row before the objects, so
   a crash leaves harmless orphaned files rather than dangling references.
+- **Content-addressed storage with no reference counter.** Whether bytes are
+  still needed is answered by a `COUNT` over the file rows that name them, so
+  there is no counter that can drift out of step with reality.
 - **Storage is an interface.** Swapping the disk backend for S3 means implementing
   `storage.Backend`; no handler changes.
 
@@ -61,10 +64,17 @@ A few decisions worth knowing about:
 ```
 data/
 ├── imvault.db
+├── secret.key                        # decrypts two-factor secrets
 └── objects/
-    ├── orig/YYYY/MM/<id>.<ext>       # untouched upload
-    ├── thumb/YYYY/MM/<id>.<ext>      # grid thumbnail / clip poster
-    └── preview/YYYY/MM/<id>.<ext>    # detail rendition (still images only)
+    ├── orig/v1/<ab>/<sha256>.<ext>          # untouched upload
+    ├── thumb/v1/<tag>/<ab>/<sha256>.<ext>   # grid thumbnail / clip poster
+    └── preview/v1/<tag>/<ab>/<sha256>.<ext> # detail rendition
+
+Objects are addressed by content: `<sha256>` is the hash of the original, `<ab>`
+its first two characters as a directory shard, and `<tag>` a short digest of the
+thumbnail settings, so a rendition made with different settings is a different
+object rather than a stale one served under the same name. Objects stored before
+this scheme keep the paths recorded on their rows and still work.
 ```
 
 File ids are random 12-character base36 strings — unguessable, and private files

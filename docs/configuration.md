@@ -50,6 +50,19 @@ Durations accept Go syntax (`24h`, `90m`) or a bare number of seconds.
 
 ## Quotas
 
+Two ceilings exist per account, and both are set together at `/admin/users`:
+
+| | |
+| --- | --- |
+| **Total storage** | Everything the account holds, added up. `0` means unlimited |
+| **Largest single file** | `0` means the instance defaults apply |
+
+The single-file ceiling *replaces* those defaults rather than merely lowering
+them, so an administrator can raise it for somebody trusted as well as impose a
+tighter one. The instance-wide defaults are `IMVAULT_MAX_UPLOAD_BYTES` for
+images and animations, and `IMVAULT_MAX_VIDEO_BYTES` for clips.
+
+
 Every account has a storage cap, defaulting to `IMVAULT_DEFAULT_QUOTA_BYTES` at
 creation and settable per account from `/admin/users`. **Zero means unlimited**,
 which is what accounts created before quotas existed are left at — retrofitting

@@ -2,6 +2,27 @@
 
 Registration, signing in, second factors, and the way out.
 
+## Exporting an account
+
+`/settings/account` downloads a zip of everything the account has uploaded,
+plus a `manifest.json` describing it: names, sizes, dimensions, content hashes,
+tags, albums, and the dates. Each original sits at `files/<id>/<name>`, so two
+uploads called `photo.jpg` do not collide.
+
+The archive is streamed as it is built rather than assembled on disk first,
+because an export can easily be larger than the space left on the server.
+
+What is deliberately **not** in it: passwords, sessions, API keys, recovery
+codes, and the two-factor secret. Neither is anything belonging to another
+account. The manifest is built from purpose-written types rather than from the
+model structs, precisely so that adding a field to a model cannot quietly add a
+credential to a download; there is a test that checks the archive for each of
+them.
+
+Renditions are not included either. They are deterministic from the originals
+and the settings, so shipping them would double the size to save a few seconds
+of processing.
+
 The first account registered is the administrator; the role can be granted and
 revoked from `/admin/users`. Two operations are refused to avoid locking
 everybody out: demoting the last administrator, and deleting the last

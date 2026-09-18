@@ -36,7 +36,7 @@ func TestAdminActionsAnswerHTMXWithAFragment(t *testing.T) {
 
 	target := h.seedUser("alice")
 
-	resp, body := h.postHTMX("/admin/users/"+itoa64(target.ID)+"/quota", url.Values{
+	resp, body := h.postHTMX("/admin/users/"+itoa64(target.ID)+"/limits", url.Values{
 		"csrf_token": {h.csrf()},
 		"quota_mb":   {"3"},
 	})
@@ -59,8 +59,18 @@ func TestAdminActionsAnswerHTMXWithAFragment(t *testing.T) {
 	if !strings.Contains(body, `id="admin-notice"`) || !strings.Contains(body, "hx-swap-oob") {
 		t.Errorf("no out-of-band notice in the response: %s", truncate(body))
 	}
-	if !strings.Contains(body, "Quota for alice set to") {
-		t.Errorf("the notice does not say what happened: %s", truncate(body))
+	// The notice names the account; the effect itself is asserted below, so the
+	// exact sentence is free to change.
+	if !strings.Contains(body, "alice") {
+		t.Errorf("the notice does not name the account: %s", truncate(body))
+	}
+
+	updated, err := h.store.UserByID(t.Context(), target.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.QuotaBytes != 3*1024*1024 {
+		t.Errorf("quota = %d, want 3 MiB", updated.QuotaBytes)
 	}
 }
 
@@ -128,14 +138,14 @@ func TestAdminActionFailuresStayInline(t *testing.T) {
 
 	// A quota that is not a number must not be silently applied, and must not
 	// bounce the administrator to another page.
-	resp, body := h.postHTMX("/admin/users/"+itoa64(target.ID)+"/quota", url.Values{
+	resp, body := h.postHTMX("/admin/users/"+itoa64(target.ID)+"/limits", url.Values{
 		"csrf_token": {h.csrf()},
 		"quota_mb":   {"lots"},
 	})
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("bad quota = %d, want 200", resp.StatusCode)
 	}
-	if !strings.Contains(body, "whole number of MiB") {
+	if !strings.Contains(body, "whole number") {
 		t.Errorf("the error is not shown inline: %s", truncate(body))
 	}
 	// The row is still returned, so the table is not left with a hole.
@@ -189,7 +199,7 @@ func TestAdminActionsStillWorkWithoutJavaScript(t *testing.T) {
 
 	// The same requests without the htmx header get a redirect, so the plain
 	// form fallback keeps working.
-	resp, _ := h.postForm("/admin/users/"+itoa64(target.ID)+"/quota", url.Values{
+	resp, _ := h.postForm("/admin/users/"+itoa64(target.ID)+"/limits", url.Values{
 		"csrf_token": {h.csrf()},
 		"quota_mb":   {"2"},
 	})

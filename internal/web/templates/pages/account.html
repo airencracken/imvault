@@ -33,6 +33,30 @@
   </dl>
 </section>
 
+<section class="panel stack">
+  <h2>Export your data</h2>
+  <p class="muted">
+    Downloads a zip of everything you have uploaded, plus a
+    <code>manifest.json</code> describing it: names, sizes, dimensions, tags,
+    albums, and the dates they were added.
+  </p>
+  {{if .FileCount}}
+  <p class="muted">
+    {{.FileCount}} file{{if ne .FileCount 1}}s{{end}}, about
+    {{humanSize .ExportableBytes}} in total. The download starts as soon as you
+    ask for it, so a large library takes a while and cannot be resumed.
+  </p>
+  <p><a class="btn" href="/settings/account/export">Download export</a></p>
+  {{else}}
+  <p class="muted">There is nothing to export yet.</p>
+  {{end}}
+  <p class="muted">
+    Originals only: thumbnails and previews are generated from them and are not
+    included. Passwords, sessions, API keys, and two-factor secrets are not
+    exported, and neither is anything belonging to another account.
+  </p>
+</section>
+
 <section class="panel stack danger-zone">
   <h2>Delete this account</h2>
 

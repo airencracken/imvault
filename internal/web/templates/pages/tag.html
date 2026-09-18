@@ -4,7 +4,7 @@
     <h1>#{{.Tag.Name}}</h1>
     <p class="muted">
       {{.Pagination.Total}} image{{if ne .Pagination.Total 1}}s{{end}}
-      tagged by {{default "unknown" .Tag.Username}}
+      tagged by {{.Tag.OwnerLabel}}
     </p>
   </div>
 </header>

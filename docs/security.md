@@ -17,6 +17,11 @@ usable if the database leaked.
 | Recovery codes | SHA-256 digest |
 | **TOTP secrets** | **Encrypted, not hashed** |
 
+The account export is built from purpose-written types rather than the model
+structs, so a field added to a model cannot silently become a downloadable
+credential. A test checks the archive for the password hash, the TOTP secret,
+and API key internals.
+
 The last one is the exception, and it has to be: a TOTP secret must be readable
 again in order to check a code, so it cannot be a one-way digest. It is
 encrypted with AES-GCM under a key kept in `secret.key` beside the database, so

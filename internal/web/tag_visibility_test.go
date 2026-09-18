@@ -42,7 +42,7 @@ func seedFileWithTag(t *testing.T, h *harness, tag string, owner *int64, public 
 	if err := h.store.CreateFile(t.Context(), file); err != nil {
 		t.Fatalf("seed file: %v", err)
 	}
-	if _, err := h.store.AddTag(t.Context(), id, *owner, tag); err != nil {
+	if _, err := h.store.AddTag(t.Context(), id, owner, tag); err != nil {
 		t.Fatalf("seed tag: %v", err)
 	}
 	return id

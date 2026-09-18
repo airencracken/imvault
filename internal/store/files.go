@@ -355,3 +355,40 @@ func escapeLike(s string) string {
 	r := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 	return r.Replace(s)
 }
+
+// FileBySHA256 returns any file with the given content hash.
+//
+// Identical bytes produce identical renditions, so a second upload of the same
+// image can reuse everything the first one stored rather than decoding,
+// resizing, and writing it all again.
+func (s *Store) FileBySHA256(ctx context.Context, sha string) (*models.File, error) {
+	row := s.db.QueryRowContext(ctx,
+		`SELECT `+fileColumns+` `+fileFrom+` WHERE f.sha256 = ? LIMIT 1`, sha)
+	f, err := scanFile(row)
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	return f, nil
+}
+
+// CountFilesUsingKey counts the file rows referencing a stored object.
+//
+// It answers "would deleting these bytes strand somebody else's file?", which
+// is the question content-addressed storage makes necessary.
+func (s *Store) CountFilesUsingKey(ctx context.Context, key string) (int, error) {
+	if key == "" {
+		return 0, nil
+	}
+
+	var n int
+	err := s.db.QueryRowContext(ctx, `
+		SELECT
+			(SELECT COUNT(*) FROM files WHERE object_key = ?)
+		  + (SELECT COUNT(*) FROM files WHERE thumb_key = ?)
+		  + (SELECT COUNT(*) FROM files WHERE preview_key = ?)`,
+		key, key, key).Scan(&n)
+	if err != nil {
+		return 0, fmt.Errorf("count files using key: %w", err)
+	}
+	return n, nil
+}

@@ -129,13 +129,21 @@ func (s *Server) handleTagsPage(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleTagPage(w http.ResponseWriter, r *http.Request) {
 	viewer := userIDPtr(currentUser(r.Context()))
 
-	owner, err := s.store.UserByUsername(r.Context(), r.PathValue("username"))
-	if err != nil {
-		s.notFound(w, r, "No tag by that name.")
-		return
+	// The owner segment is a username, or the reserved "~" for the shared
+	// namespace that anonymous uploads are tagged in.
+	ownerSegment := r.PathValue("username")
+	var ownerID *int64
+
+	if ownerSegment != models.AnonymousTagOwner {
+		owner, err := s.store.UserByUsername(r.Context(), ownerSegment)
+		if err != nil {
+			s.notFound(w, r, "No tag by that name.")
+			return
+		}
+		ownerID = &owner.ID
 	}
 
-	tag, err := s.store.TagBySlugInUser(r.Context(), owner.ID, r.PathValue("slug"))
+	tag, err := s.store.TagBySlugInNamespace(r.Context(), ownerID, r.PathValue("slug"))
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			s.notFound(w, r, "No tag by that name.")

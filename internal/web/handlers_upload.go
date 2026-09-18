@@ -5,8 +5,6 @@ package web
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -17,7 +15,6 @@ import (
 	"time"
 
 	"imvault/internal/ids"
-	"imvault/internal/imaging"
 	"imvault/internal/media"
 	"imvault/internal/models"
 	"imvault/internal/storage"
@@ -42,8 +39,8 @@ func (s *Server) handleUploadPage(w http.ResponseWriter, r *http.Request) {
 
 	view := uploadView{
 		base:            s.base(r, "Upload"),
-		MaxUploadMB:     s.cfg.MaxUploadBytes >> 20,
-		MaxVideoMB:      s.cfg.MaxVideoBytes >> 20,
+		MaxUploadMB:     s.fileLimit(user, media.FormatImage) >> 20,
+		MaxVideoMB:      s.fileLimit(user, media.FormatWebM) >> 20,
 		MaxVideoSeconds: int(s.cfg.MaxVideoDuration.Seconds()),
 		VideoEnabled:    s.media.VideoEnabled(),
 	}
@@ -58,6 +55,35 @@ func (s *Server) handleUploadPage(w http.ResponseWriter, r *http.Request) {
 	s.renderPage(w, http.StatusOK, "upload", view)
 }
 
+// fileLimit is the largest single file this account may upload, for a format
+// that has already been classified.
+//
+// An account-level override replaces the instance defaults rather than merely
+// lowering them, so an administrator can raise the ceiling for somebody trusted
+// as well as impose a tighter one.
+func (s *Server) fileLimit(user *models.User, format media.Format) int64 {
+	if user != nil && user.MaxFileBytes > 0 {
+		return user.MaxFileBytes
+	}
+	if format.IsVideo() {
+		return s.cfg.MaxVideoBytes
+	}
+	return s.cfg.MaxUploadBytes
+}
+
+// requestSizeLimit bounds a whole upload request, which has to allow for the
+// largest file any of the callers might send.
+func (s *Server) requestSizeLimit(user *models.User) int64 {
+	perFile := s.cfg.MaxUploadBytes
+	if s.cfg.MaxVideoBytes > perFile {
+		perFile = s.cfg.MaxVideoBytes
+	}
+	if user != nil && user.MaxFileBytes > perFile {
+		perFile = user.MaxFileBytes
+	}
+	return perFile*maxFilesPerUpload + (1 << 20)
+}
+
 // handleUpload accepts one or more uploads and returns the created cards.
 func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	user := currentUser(r.Context())
@@ -67,13 +93,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Bound the whole request by the largest per-file limit; individual files
-	// are checked against the limit for their kind once classified.
-	perFile := s.cfg.MaxUploadBytes
-	if s.cfg.MaxVideoBytes > perFile {
-		perFile = s.cfg.MaxVideoBytes
-	}
-	r.Body = http.MaxBytesReader(w, r.Body, perFile*maxFilesPerUpload+(1<<20))
+	r.Body = http.MaxBytesReader(w, r.Body, s.requestSizeLimit(user))
 
 	if err := r.ParseMultipartForm(multipartMemory); err != nil {
 		s.uploadFailure(w, r, "Could not read the upload: "+uploadErrMessage(err))
@@ -97,6 +117,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 
 	public := r.FormValue("public") == "1"
 	albumID := int64(queryInt(r, "album_id", 0))
+	tags := r.FormValue("tags")
 
 	var (
 		created  []*models.File
@@ -109,6 +130,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 			failures = append(failures, fmt.Sprintf("%s: %s", header.Filename, err))
 			continue
 		}
+		s.applyUploadTags(r.Context(), file, tags)
 		created = append(created, file)
 	}
 
@@ -123,6 +145,25 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		Errors:    failures,
 		Anonymous: anonymous,
 	})
+}
+
+// applyUploadTags attaches the tags supplied with an upload.
+//
+// This is the only way an anonymous upload can be tagged: there is no session
+// to come back and edit it with, so the names have to arrive with the bytes.
+// For a signed-in uploader the same field works, and lands in their own
+// namespace. A failure here never fails the upload, which has already
+// succeeded by this point.
+func (s *Server) applyUploadTags(ctx context.Context, file *models.File, raw string) {
+	for _, name := range strings.Split(raw, ",") {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		if _, err := s.store.AddTag(ctx, file.ID, tagOwner(file), name); err != nil {
+			s.log.Error("upload: add tag", "file", file.ID, "error", err)
+		}
+	}
 }
 
 // attachUploadsToAlbum verifies ownership then links the new files.
@@ -152,11 +193,7 @@ func (s *Server) ingest(ctx context.Context, header *multipart.FileHeader, user 
 		return nil, err
 	}
 
-	limit := s.cfg.MaxUploadBytes
-	if format.IsVideo() {
-		limit = s.cfg.MaxVideoBytes
-	}
-	if header.Size > limit {
+	if limit := s.fileLimit(user, format); header.Size > limit {
 		return nil, fmt.Errorf("larger than the %d MiB limit for %s",
 			limit>>20, kindNoun(format))
 	}
@@ -220,75 +257,82 @@ func (s *Server) storeStill(
 	expires *time.Time,
 	now time.Time,
 ) (*models.File, error) {
+	sha, size, err := hashSource(src)
+	if err != nil {
+		return nil, err
+	}
+
+	// Identical bytes are already stored: point at them rather than decoding,
+	// resizing, and writing a second copy.
+	if existing, ok := s.reusableUpload(ctx, sha); ok {
+		return s.recordReused(ctx, existing, header, owner, public, expires, now)
+	}
+
 	result, err := s.media.ProcessStill(src, format)
 	if err != nil {
 		return nil, err
 	}
 	s.logWarnings(result.Warnings, "")
 
-	dir := now.Format("2006/01")
+	thumbExt, previewExt := "", ""
+	if result.Thumb != nil {
+		thumbExt = result.Thumb.Ext
+	}
+	if result.Preview != nil {
+		previewExt = result.Preview.Ext
+	}
+	keys := s.contentKeys(sha, result.Ext, thumbExt, previewExt)
 
-	for attempt := 0; attempt < 4; attempt++ {
-		id := ids.New(12)
-		keys := renditionKeys(dir, id, result.Ext, result.Thumb, result.Preview)
-
-		if _, err := src.Seek(0, io.SeekStart); err != nil {
-			return nil, fmt.Errorf("could not rewind the upload")
-		}
-
-		hasher := sha256.New()
-		size, err := s.objects.Save(keys.object, io.TeeReader(src, hasher))
-		if err != nil {
-			return nil, fmt.Errorf("could not store the file")
-		}
-
-		// Claim the bytes before recording the file, so two concurrent uploads
-		// cannot both fit into room that only exists once.
-		if owner != nil {
-			if err := s.store.ReserveStorage(ctx, *owner, size); err != nil {
-				s.deleteKeys(keys.all())
-				return nil, quotaError(err, nil)
-			}
-		}
-
-		if !s.saveRenditions(keys, result) {
-			s.releaseStorage(ctx, owner, size)
-			return nil, fmt.Errorf("could not store the renditions")
-		}
-
-		file := &models.File{
-			ID:           id,
-			UserID:       owner,
-			OriginalName: sanitiseFilename(header.Filename),
-			Ext:          result.Ext,
-			Mime:         result.Mime,
-			Size:         size,
-			Width:        result.Width,
-			Height:       result.Height,
-			SHA256:       hex.EncodeToString(hasher.Sum(nil)),
-			ObjectKey:    keys.object,
-			ThumbKey:     keys.thumb,
-			PreviewKey:   keys.preview,
-			Kind:         result.Kind,
-			FrameCount:   result.FrameCount,
-			IsPublic:     public || owner == nil,
-			CreatedAt:    now,
-			ExpiresAt:    expires,
-		}
-
-		if err := s.store.CreateFile(ctx, file); err != nil {
-			s.releaseStorage(ctx, owner, size)
-			s.deleteKeys(keys.all())
-			if errors.Is(err, store.ErrConflict) {
-				continue // id collision: try again with a fresh id
-			}
-			return nil, fmt.Errorf("could not record the file")
-		}
-
-		return file, nil
+	if _, err := src.Seek(0, io.SeekStart); err != nil {
+		return nil, fmt.Errorf("could not rewind the upload")
 	}
 
-	return nil, fmt.Errorf("could not allocate a unique id")
+	// Claim the bytes before recording the file, so two concurrent uploads
+	// cannot both fit into room that only exists once.
+	if owner != nil {
+		if err := s.store.ReserveStorage(ctx, *owner, size); err != nil {
+			return nil, quotaError(err, nil)
+		}
+	}
+
+	if err := s.storeObject(keys.object, src); err != nil {
+		s.releaseStorage(ctx, owner, size)
+		return nil, fmt.Errorf("could not store the file")
+	}
+
+	if !s.saveRenditions(keys, result) {
+		s.releaseStorage(ctx, owner, size)
+		s.deleteObjectsIfUnreferenced(ctx, keys.all())
+		return nil, fmt.Errorf("could not store the renditions")
+	}
+
+	file := &models.File{
+		ID:           ids.New(12),
+		UserID:       owner,
+		OriginalName: sanitiseFilename(header.Filename),
+		Ext:          result.Ext,
+		Mime:         result.Mime,
+		Size:         size,
+		Width:        result.Width,
+		Height:       result.Height,
+		SHA256:       sha,
+		ObjectKey:    keys.object,
+		ThumbKey:     keys.thumb,
+		PreviewKey:   keys.preview,
+		Kind:         result.Kind,
+		FrameCount:   result.FrameCount,
+		IsPublic:     public || owner == nil,
+		CreatedAt:    now,
+		ExpiresAt:    expires,
+	}
+
+	if err := s.store.CreateFile(ctx, file); err != nil {
+		s.releaseStorage(ctx, owner, size)
+		s.deleteObjectsIfUnreferenced(ctx, keys.all())
+		return nil, fmt.Errorf("could not record the file")
+	}
+
+	return file, nil
 }
 
 // storeVideo handles WebM/MP4/MOV clips.
@@ -305,84 +349,86 @@ func (s *Server) storeVideo(
 	expires *time.Time,
 	now time.Time,
 ) (*models.File, error) {
-	dir := now.Format("2006/01")
-
-	for attempt := 0; attempt < 4; attempt++ {
-		id := ids.New(12)
-		objectKey := path.Join("orig", dir, id+"."+format.Ext())
-
-		if _, err := src.Seek(0, io.SeekStart); err != nil {
-			return nil, fmt.Errorf("could not rewind the clip")
-		}
-
-		hasher := sha256.New()
-		size, err := s.objects.Save(objectKey, io.TeeReader(src, hasher))
-		if err != nil {
-			return nil, fmt.Errorf("could not store the clip")
-		}
-
-		// Claim the bytes before probing, so an over-quota upload does not pay
-		// for a poster frame it will never use.
-		if owner != nil {
-			if err := s.store.ReserveStorage(ctx, *owner, size); err != nil {
-				s.objects.Delete(objectKey)
-				return nil, quotaError(err, nil)
-			}
-		}
-
-		// ffmpeg runs against the stored file when the backend is disk-backed;
-		// otherwise media materialises a temporary copy.
-		localPath, _ := s.objects.LocalPath(objectKey)
-
-		result, err := s.media.ProcessVideo(ctx, src, localPath, format)
-		if err != nil {
-			s.releaseStorage(ctx, owner, size)
-			s.objects.Delete(objectKey)
-			return nil, err
-		}
-		s.logWarnings(result.Warnings, id)
-
-		keys := renditionKeys(dir, id, result.Ext, result.Thumb, nil)
-		keys.object = objectKey
-
-		if !s.saveRenditions(keys, result) {
-			s.releaseStorage(ctx, owner, size)
-			s.deleteKeys(keys.all())
-			return nil, fmt.Errorf("could not store the poster frame")
-		}
-
-		file := &models.File{
-			ID:           id,
-			UserID:       owner,
-			OriginalName: sanitiseFilename(header.Filename),
-			Ext:          result.Ext,
-			Mime:         result.Mime,
-			Size:         size,
-			Width:        result.Width,
-			Height:       result.Height,
-			SHA256:       hex.EncodeToString(hasher.Sum(nil)),
-			ObjectKey:    keys.object,
-			ThumbKey:     keys.thumb,
-			PreviewKey:   keys.preview,
-			Kind:         result.Kind,
-			DurationMS:   result.DurationMS,
-			IsPublic:     public || owner == nil,
-			CreatedAt:    now,
-			ExpiresAt:    expires,
-		}
-
-		if err := s.store.CreateFile(ctx, file); err != nil {
-			s.releaseStorage(ctx, owner, size)
-			s.deleteKeys(keys.all())
-			if errors.Is(err, store.ErrConflict) {
-				continue
-			}
-			return nil, fmt.Errorf("could not record the clip")
-		}
-		return file, nil
+	sha, size, err := hashSource(src)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil, fmt.Errorf("could not allocate a unique id")
+	if existing, ok := s.reusableUpload(ctx, sha); ok {
+		return s.recordReused(ctx, existing, header, owner, public, expires, now)
+	}
+
+	// The original goes to its content-addressed key before probing, because
+	// ffmpeg needs a real file to seek within.
+	objectKey := s.contentKeys(sha, format.Ext(), "", "").object
+
+	if _, err := src.Seek(0, io.SeekStart); err != nil {
+		return nil, fmt.Errorf("could not rewind the clip")
+	}
+
+	// Claim the bytes before probing, so an over-quota upload does not pay for
+	// a poster frame it will never use.
+	if owner != nil {
+		if err := s.store.ReserveStorage(ctx, *owner, size); err != nil {
+			return nil, quotaError(err, nil)
+		}
+	}
+
+	if err := s.storeObject(objectKey, src); err != nil {
+		s.releaseStorage(ctx, owner, size)
+		return nil, fmt.Errorf("could not store the clip")
+	}
+
+	// ffmpeg runs against the stored file when the backend is disk-backed;
+	// otherwise media materialises a temporary copy.
+	localPath, _ := s.objects.LocalPath(objectKey)
+
+	result, err := s.media.ProcessVideo(ctx, src, localPath, format)
+	if err != nil {
+		s.releaseStorage(ctx, owner, size)
+		s.deleteObjectsIfUnreferenced(ctx, []string{objectKey})
+		return nil, err
+	}
+	s.logWarnings(result.Warnings, "")
+
+	thumbExt := ""
+	if result.Thumb != nil {
+		thumbExt = result.Thumb.Ext
+	}
+	keys := s.contentKeys(sha, result.Ext, thumbExt, "")
+
+	if !s.saveRenditions(keys, result) {
+		s.releaseStorage(ctx, owner, size)
+		s.deleteObjectsIfUnreferenced(ctx, keys.all())
+		return nil, fmt.Errorf("could not store the poster frame")
+	}
+
+	file := &models.File{
+		ID:           ids.New(12),
+		UserID:       owner,
+		OriginalName: sanitiseFilename(header.Filename),
+		Ext:          result.Ext,
+		Mime:         result.Mime,
+		Size:         size,
+		Width:        result.Width,
+		Height:       result.Height,
+		SHA256:       sha,
+		ObjectKey:    keys.object,
+		ThumbKey:     keys.thumb,
+		PreviewKey:   keys.preview,
+		Kind:         result.Kind,
+		DurationMS:   result.DurationMS,
+		IsPublic:     public || owner == nil,
+		CreatedAt:    now,
+		ExpiresAt:    expires,
+	}
+
+	if err := s.store.CreateFile(ctx, file); err != nil {
+		s.releaseStorage(ctx, owner, size)
+		s.deleteObjectsIfUnreferenced(ctx, keys.all())
+		return nil, fmt.Errorf("could not record the clip")
+	}
+	return file, nil
 }
 
 // objectKeys bundles the storage keys for one stored upload.
@@ -400,20 +446,6 @@ func (k objectKeys) all() []string {
 		}
 	}
 	return out
-}
-
-// renditionKeys derives storage keys for an upload's object and renditions.
-func renditionKeys(dir, id, ext string, thumb, preview *imaging.Rendition) objectKeys {
-	keys := objectKeys{
-		object: path.Join("orig", dir, id+"."+ext),
-	}
-	if thumb != nil && len(thumb.Data) > 0 {
-		keys.thumb = path.Join("thumb", dir, id+"."+thumb.Ext)
-	}
-	if preview != nil && len(preview.Data) > 0 {
-		keys.preview = path.Join("preview", dir, id+"."+preview.Ext)
-	}
-	return keys
 }
 
 // saveRenditions writes the thumbnail and preview. On failure it removes
@@ -526,9 +558,10 @@ func sanitiseFilename(name string) string {
 	return name
 }
 
-// deleteFileObjects removes a file's stored object and renditions.
-func (s *Server) deleteFileObjects(f *models.File) {
-	s.deleteKeys([]string{f.ObjectKey, f.ThumbKey, f.PreviewKey})
+// deleteFileObjects removes a file's stored object and renditions, unless
+// another upload shares them.
+func (s *Server) deleteFileObjects(ctx context.Context, f *models.File) {
+	s.deleteObjectsIfUnreferenced(ctx, []string{f.ObjectKey, f.ThumbKey, f.PreviewKey})
 }
 
 // deleteFileAndRelease removes a file's row and bytes, giving its owner their
@@ -537,7 +570,7 @@ func (s *Server) deleteFileAndRelease(ctx context.Context, file *models.File) er
 	if err := s.store.DeleteFile(ctx, file.ID); err != nil {
 		return err
 	}
-	s.deleteFileObjects(file)
+	s.deleteFileObjects(ctx, file)
 	s.releaseStorage(ctx, file.UserID, file.Size)
 	return nil
 }

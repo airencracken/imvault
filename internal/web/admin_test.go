@@ -205,14 +205,15 @@ func TestAdminSetsAQuota(t *testing.T) {
 	h.registerForm("boss")
 
 	target := h.seedUser("alice")
-	path := "/admin/users/" + itoa64(target.ID) + "/quota"
+	path := "/admin/users/" + itoa64(target.ID) + "/limits"
 
 	resp, _ := h.postForm(path, url.Values{
-		"csrf_token": {h.csrf()},
-		"quota_mb":   {"2"},
+		"csrf_token":  {h.csrf()},
+		"quota_mb":    {"2"},
+		"max_file_mb": {"1"},
 	})
 	if resp.StatusCode != http.StatusSeeOther {
-		t.Fatalf("set quota = %d, want 303", resp.StatusCode)
+		t.Fatalf("set limits = %d, want 303", resp.StatusCode)
 	}
 
 	updated, err := h.store.UserByID(t.Context(), target.ID)
@@ -222,23 +223,40 @@ func TestAdminSetsAQuota(t *testing.T) {
 	if updated.QuotaBytes != 2*1024*1024 {
 		t.Errorf("quota = %d, want %d", updated.QuotaBytes, 2*1024*1024)
 	}
+	if updated.MaxFileBytes != 1*1024*1024 {
+		t.Errorf("file limit = %d, want %d", updated.MaxFileBytes, 1*1024*1024)
+	}
 
-	// Zero clears the cap.
-	h.postForm(path, url.Values{"csrf_token": {h.csrf()}, "quota_mb": {"0"}})
+	// Zero clears both, leaving the instance defaults in force.
+	h.postForm(path, url.Values{
+		"csrf_token":  {h.csrf()},
+		"quota_mb":    {"0"},
+		"max_file_mb": {"0"},
+	})
 	if updated, err = h.store.UserByID(t.Context(), target.ID); err != nil {
 		t.Fatal(err)
 	}
 	if !updated.Unlimited() {
 		t.Errorf("quota = %d, want unlimited", updated.QuotaBytes)
 	}
+	if updated.MaxFileBytes != 0 {
+		t.Errorf("file limit = %d, want the instance default", updated.MaxFileBytes)
+	}
 
-	// Rubbish is rejected rather than silently applied.
-	h.postForm(path, url.Values{"csrf_token": {h.csrf()}, "quota_mb": {"lots"}})
+	// Rubbish is rejected rather than silently applied, and neither value moves.
+	h.postForm(path, url.Values{
+		"csrf_token":  {h.csrf()},
+		"quota_mb":    {"2"},
+		"max_file_mb": {"lots"},
+	})
 	if updated, err = h.store.UserByID(t.Context(), target.ID); err != nil {
 		t.Fatal(err)
 	}
 	if !updated.Unlimited() {
-		t.Errorf("a malformed quota changed the value to %d", updated.QuotaBytes)
+		t.Errorf("a malformed field changed the quota to %d", updated.QuotaBytes)
+	}
+	if updated.MaxFileBytes != 0 {
+		t.Errorf("a malformed field changed the file limit to %d", updated.MaxFileBytes)
 	}
 }
 

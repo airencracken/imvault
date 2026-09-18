@@ -22,20 +22,28 @@ const tagColumns = `t.id, t.user_id, t.name, t.slug, COALESCE(u.username, '')`
 const tagFrom = `FROM tags t LEFT JOIN users u ON u.id = t.user_id`
 
 func scanTag(sc rowScanner) (*models.Tag, error) {
-	var t models.Tag
-	if err := sc.Scan(&t.ID, &t.UserID, &t.Name, &t.Slug, &t.Username); err != nil {
+	var (
+		t      models.Tag
+		userID sql.NullInt64
+	)
+	if err := sc.Scan(&t.ID, &userID, &t.Name, &t.Slug, &t.Username); err != nil {
 		return nil, err
+	}
+	if userID.Valid {
+		id := userID.Int64
+		t.UserID = &id
 	}
 	return &t, nil
 }
 
-// AddTag attaches a tag to a file, creating it in the file owner's namespace if
+// AddTag attaches a tag to a file, creating it in the given namespace if
 // needed, and returns the tag.
 //
-// ownerID must be the file's owner: tags live in the account that owns the
-// file, not the account doing the tagging, so an administrator editing
-// somebody else's upload does not leave their own labels on it.
-func (s *Store) AddTag(ctx context.Context, fileID string, ownerID int64, name string) (*models.Tag, error) {
+// ownerID is the namespace the tag belongs to: the account that owns the file,
+// or nil for an anonymous upload, whose tags live in one shared namespace. An
+// administrator tagging somebody else's file adds to *that* file's namespace,
+// so their own labels do not end up on it.
+func (s *Store) AddTag(ctx context.Context, fileID string, ownerID *int64, name string) (*models.Tag, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return nil, fmt.Errorf("tag name is empty")
@@ -71,27 +79,40 @@ func (s *Store) AddTag(ctx context.Context, fileID string, ownerID int64, name s
 		return nil, err
 	}
 
-	if owner, err := s.UserByID(ctx, tag.UserID); err == nil {
-		tag.Username = owner.Username
+	if tag.UserID != nil {
+		if owner, err := s.UserByID(ctx, *tag.UserID); err == nil {
+			tag.Username = owner.Username
+		}
 	}
 	return &tag, nil
 }
 
-// lookupTagTx finds a tag by name within one account.
-func lookupTagTx(ctx context.Context, tx *sql.Tx, ownerID int64, name string) (*models.Tag, error) {
-	var t models.Tag
+// lookupTagTx finds a tag by name within one namespace.
+//
+// "IS" rather than "=", because the anonymous namespace is spelled NULL and
+// `user_id = NULL` is never true.
+func lookupTagTx(ctx context.Context, tx *sql.Tx, ownerID *int64, name string) (*models.Tag, error) {
+	var (
+		t      models.Tag
+		userID sql.NullInt64
+	)
 	err := tx.QueryRowContext(ctx,
 		`SELECT id, user_id, name, slug FROM tags
-		 WHERE user_id = ? AND name = ? COLLATE NOCASE`, ownerID, name).
-		Scan(&t.ID, &t.UserID, &t.Name, &t.Slug)
+		 WHERE user_id IS ? AND name = ? COLLATE NOCASE`, nullableInt64(ownerID), name).
+		Scan(&t.ID, &userID, &t.Name, &t.Slug)
 	if err != nil {
 		return nil, err
+	}
+	if userID.Valid {
+		id := userID.Int64
+		t.UserID = &id
 	}
 	return &t, nil
 }
 
-// insertTagTx creates a tag, deriving a slug that is unique within the account.
-func insertTagTx(ctx context.Context, tx *sql.Tx, ownerID int64, name string) (*models.Tag, error) {
+// insertTagTx creates a tag, deriving a slug that is unique within the
+// namespace.
+func insertTagTx(ctx context.Context, tx *sql.Tx, ownerID *int64, name string) (*models.Tag, error) {
 	base := ids.Slug(name)
 
 	for attempt := 0; attempt < 8; attempt++ {
@@ -102,13 +123,15 @@ func insertTagTx(ctx context.Context, tx *sql.Tx, ownerID int64, name string) (*
 
 		res, err := tx.ExecContext(ctx,
 			`INSERT INTO tags (user_id, name, slug, created_at) VALUES (?, ?, ?, ?)`,
-			ownerID, name, slug, nowUnix())
+			nullableInt64(ownerID), name, slug, nowUnix())
 		if err != nil {
-			if ok, col := isUniqueViolation(err); ok {
-				// Another row already uses this name or slug.
-				if strings.Contains(col, "slug") {
-					continue // try a different slug
-				}
+			// Two partial unique indexes guard each namespace, one on the name
+			// and one on the slug, so the message has to be read to tell which
+			// rule was broken.
+			if ok, column := isUniqueViolation(err); ok && mentionsSlug(column, err) {
+				continue // try a different slug
+			}
+			if ok, _ := isUniqueViolation(err); ok {
 				return nil, fmt.Errorf("%w: tag name already used", ErrConflict)
 			}
 			return nil, fmt.Errorf("insert tag: %w", err)
@@ -124,8 +147,18 @@ func insertTagTx(ctx context.Context, tx *sql.Tx, ownerID int64, name string) (*
 	return nil, fmt.Errorf("could not allocate a unique tag slug for %q", name)
 }
 
-// RemoveTag detaches a tag from a file and prunes it if the owner has no other
-// file carrying it.
+// mentionsSlug reports whether a uniqueness failure was about the slug rather
+// than the name, whichever way SQLite phrased it: a column for the composite
+// index, an index name for a partial one.
+func mentionsSlug(column string, err error) bool {
+	if strings.Contains(strings.ToLower(column), "slug") {
+		return true
+	}
+	return err != nil && strings.Contains(strings.ToLower(err.Error()), "slug")
+}
+
+// RemoveTag detaches a tag from a file and prunes it if the namespace has no
+// other file carrying it.
 func (s *Store) RemoveTag(ctx context.Context, fileID string, tagID int64) error {
 	return s.withTx(ctx, func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx,
@@ -141,7 +174,7 @@ func (s *Store) RemoveTag(ctx context.Context, fileID string, tagID int64) error
 	})
 }
 
-// TagsForFile lists the tags on one file, including their owner.
+// TagsForFile lists the tags on one file, including their namespace.
 func (s *Store) TagsForFile(ctx context.Context, fileID string) ([]models.Tag, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT `+tagColumns+`
@@ -166,10 +199,11 @@ func (s *Store) TagsForFile(ctx context.Context, fileID string) ([]models.Tag, e
 	return tags, rows.Err()
 }
 
-// TagBySlugInUser resolves a tag inside one account's namespace.
-func (s *Store) TagBySlugInUser(ctx context.Context, ownerID int64, slug string) (*models.Tag, error) {
+// TagBySlugInNamespace resolves a tag inside one namespace.
+func (s *Store) TagBySlugInNamespace(ctx context.Context, ownerID *int64, slug string) (*models.Tag, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT `+tagColumns+` `+tagFrom+` WHERE t.user_id = ? AND t.slug = ?`, ownerID, slug)
+		`SELECT `+tagColumns+` `+tagFrom+` WHERE t.user_id IS ? AND t.slug = ?`,
+		nullableInt64(ownerID), slug)
 	t, err := scanTag(row)
 	if err != nil {
 		return nil, mapErr(err)
@@ -177,27 +211,28 @@ func (s *Store) TagBySlugInUser(ctx context.Context, ownerID int64, slug string)
 	return t, nil
 }
 
-// TagByRefInUser resolves a tag by numeric id, slug or name within one account.
-// The numeric form takes precedence, so a tag literally named "2026" is still
-// reachable by name as long as it is not genuinely id 2026.
-func (s *Store) TagByRefInUser(ctx context.Context, ownerID int64, ref string) (*models.Tag, error) {
+// TagByRefInNamespace resolves a tag by numeric id, slug, or name within one
+// namespace. The numeric form takes precedence, so a tag literally named "2026"
+// is still reachable by name as long as it is not genuinely id 2026.
+func (s *Store) TagByRefInNamespace(ctx context.Context, ownerID *int64, ref string) (*models.Tag, error) {
 	ref = strings.TrimSpace(ref)
 	if ref == "" {
 		return nil, ErrNotFound
 	}
 
 	if id, err := strconv.ParseInt(ref, 10, 64); err == nil {
-		return s.userTagBy(ctx, ownerID, `t.id = ?`, id)
+		return s.tagBy(ctx, ownerID, `t.id = ?`, id)
 	}
-	if tag, err := s.userTagBy(ctx, ownerID, `t.slug = ?`, ref); err == nil {
+	if tag, err := s.tagBy(ctx, ownerID, `t.slug = ?`, ref); err == nil {
 		return tag, nil
 	}
-	return s.userTagBy(ctx, ownerID, `t.name = ? COLLATE NOCASE`, ref)
+	return s.tagBy(ctx, ownerID, `t.name = ? COLLATE NOCASE`, ref)
 }
 
-func (s *Store) userTagBy(ctx context.Context, ownerID int64, where string, arg any) (*models.Tag, error) {
+func (s *Store) tagBy(ctx context.Context, ownerID *int64, where string, arg any) (*models.Tag, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT `+tagColumns+` `+tagFrom+` WHERE t.user_id = ? AND `+where, ownerID, arg)
+		`SELECT `+tagColumns+` `+tagFrom+` WHERE t.user_id IS ? AND `+where,
+		nullableInt64(ownerID), arg)
 	t, err := scanTag(row)
 	if err != nil {
 		return nil, mapErr(err)
@@ -208,8 +243,9 @@ func (s *Store) userTagBy(ctx context.Context, ownerID int64, where string, arg 
 // ListTags returns the tags that label at least one file the viewer can see,
 // most used first.
 //
-// Tags belong to accounts, but the index follows file visibility: you see your
-// own tags, plus tags on other people's public uploads. Counts are computed
+// Tags belong to namespaces, but the index follows file visibility: you see
+// your own tags, plus tags on other people's public uploads, which includes the
+// shared namespace that anonymous uploads are tagged in. Counts are computed
 // over visible files only, so a tag that exists solely on somebody else's
 // private upload never appears. A nil viewerID is an anonymous visitor.
 func (s *Store) ListTags(ctx context.Context, viewerID *int64, limit int) ([]models.Tag, error) {
@@ -223,7 +259,7 @@ func (s *Store) ListTags(ctx context.Context, viewerID *int64, limit int) ([]mod
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT `+tagColumns+`, COUNT(ft.file_id) AS n
 		FROM tags t
-		JOIN users u ON u.id = t.user_id
+		LEFT JOIN users u ON u.id = t.user_id
 		JOIN file_tags ft ON ft.tag_id = t.id
 		JOIN files f ON f.id = ft.file_id
 		WHERE `+visibility+` AND `+expiryClause("f")+`
@@ -237,9 +273,16 @@ func (s *Store) ListTags(ctx context.Context, viewerID *int64, limit int) ([]mod
 
 	var tags []models.Tag
 	for rows.Next() {
-		var t models.Tag
-		if err := rows.Scan(&t.ID, &t.UserID, &t.Name, &t.Slug, &t.Username, &t.Count); err != nil {
+		var (
+			t      models.Tag
+			userID sql.NullInt64
+		)
+		if err := rows.Scan(&t.ID, &userID, &t.Name, &t.Slug, &t.Username, &t.Count); err != nil {
 			return nil, fmt.Errorf("scan tag: %w", err)
+		}
+		if userID.Valid {
+			id := userID.Int64
+			t.UserID = &id
 		}
 		tags = append(tags, t)
 	}

@@ -33,6 +33,10 @@
       <span>Make uploads public (anyone with the link can view them)</span>
     </label>
 
+    <label>Tags <span class="muted">(optional, comma separated)</span>
+      <input name="tags" placeholder="holiday, beach" autocomplete="off" maxlength="200">
+    </label>
+
     {{if .Albums}}
     <label class="row">Add to album
       <select name="album_id">

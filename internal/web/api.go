@@ -160,11 +160,7 @@ func (s *Server) apiUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	perFile := s.cfg.MaxUploadBytes
-	if s.cfg.MaxVideoBytes > perFile {
-		perFile = s.cfg.MaxVideoBytes
-	}
-	r.Body = http.MaxBytesReader(w, r.Body, perFile*maxFilesPerUpload+(1<<20))
+	r.Body = http.MaxBytesReader(w, r.Body, s.requestSizeLimit(user))
 
 	if err := r.ParseMultipartForm(multipartMemory); err != nil {
 		writeAPIError(w, http.StatusBadRequest, "could not read the upload: "+uploadErrMessage(err))
@@ -214,6 +210,8 @@ func (s *Server) apiUpload(w http.ResponseWriter, r *http.Request) {
 			failures = append(failures, fmt.Sprintf("%s: %s", header.Filename, err))
 			continue
 		}
+
+		s.applyUploadTags(r.Context(), file, r.FormValue("tags"))
 
 		if albumRef := strings.TrimSpace(r.FormValue("album")); albumRef != "" {
 			s.apiAttachToAlbum(r, user, albumRef, file)
@@ -320,9 +318,9 @@ func (s *Server) apiListFiles(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if ref := strings.TrimSpace(query.Get("tag")); ref != "" {
-		// Tags are per-account, and this endpoint only ever lists the caller's
-		// own uploads, so it resolves within their namespace.
-		tag, err := s.store.TagByRefInUser(r.Context(), user.ID, ref)
+		// This endpoint only ever lists the caller's own uploads, so it resolves
+		// within their namespace.
+		tag, err := s.store.TagByRefInNamespace(r.Context(), &user.ID, ref)
 		if err != nil {
 			writeAPIError(w, http.StatusNotFound, "no such tag")
 			return

@@ -437,3 +437,30 @@ func (s *session) upload(fields map[string]string, files []uploadFile) (*http.Re
 	defer resp.Body.Close()
 	return resp, readAll(s.t, resp.Body)
 }
+
+// statModTime reports a file's modification time, for checks that an object was
+// left alone.
+func statModTime(path string) (time.Time, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return info.ModTime(), nil
+}
+
+// getBytes fetches a path and returns the raw body, for downloads.
+func (s *session) getBytes(path string) (*http.Response, []byte) {
+	s.t.Helper()
+
+	resp, err := s.client.Get(s.h.server.URL + path)
+	if err != nil {
+		s.t.Fatalf("GET %s: %v", path, err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		s.t.Fatalf("read %s: %v", path, err)
+	}
+	return resp, body
+}

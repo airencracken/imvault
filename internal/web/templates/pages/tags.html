@@ -11,9 +11,11 @@
 {{$viewer := .ViewerID}}
 <div class="chips large">
   {{range .Tags}}
-  <a class="chip" href="/tags/{{.OwnerSlug}}" title="Tagged by {{.Username}}">
+  <a class="chip" href="/tags/{{.OwnerSlug}}" title="Tagged by {{.OwnerLabel}}">
     {{.Name}} <span class="count">{{.Count}}</span>
-    {{if ne .UserID $viewer}}<span class="owner">@{{.Username}}</span>{{end}}
+    {{/* UserID is a pointer now, because anonymous tags have no owner, so the
+         comparison goes through a method rather than a bare ne. */}}
+    {{if not (.OwnedBy $viewer)}}<span class="owner">@{{.OwnerLabel}}</span>{{end}}
   </a>
   {{end}}
 </div>

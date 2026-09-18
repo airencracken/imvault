@@ -15,8 +15,11 @@ type accountView struct {
 	base
 	Status    *store.AccountStatus
 	FileCount int
-	Error     string
-	Notice    string
+	// ExportableBytes is what a download would weigh before compression, which
+	// is the same as the account's stored total.
+	ExportableBytes int64
+	Error           string
+	Notice          string
 }
 
 // handleAccountPage shows the account's own settings, including the way out.
@@ -38,10 +41,11 @@ func (s *Server) handleAccountPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	view := accountView{
-		Status:    status,
-		FileCount: count,
-		Error:     r.URL.Query().Get("error"),
-		Notice:    r.URL.Query().Get("notice"),
+		Status:          status,
+		FileCount:       count,
+		ExportableBytes: status.User.StorageUsed,
+		Error:           r.URL.Query().Get("error"),
+		Notice:          r.URL.Query().Get("notice"),
 	}
 	view.base = s.base(r, "Account")
 	// The confirmation field uses Alpine, so the page has to load it.
@@ -107,8 +111,10 @@ func (s *Server) deleteAccount(ctx context.Context, userID int64) (int, error) {
 		return 0, err
 	}
 
+	// Another account may share some of these objects, so each is removed only
+	// once nothing points at it.
 	for _, k := range keys {
-		s.deleteKeys([]string{k.Object, k.Thumb, k.Preview})
+		s.deleteObjectsIfUnreferenced(ctx, []string{k.Object, k.Thumb, k.Preview})
 	}
 	return len(keys), nil
 }

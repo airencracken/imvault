@@ -27,6 +27,11 @@ curl -H "Authorization: Bearer $IMVAULT_KEY" \
 | `files` | One or more files. `file`, `image`, and `uploads` are accepted as aliases |
 | `public` | `1` to make the uploads link-shareable. **API uploads default to private** |
 | `album` | Album slug or id to add the uploads to |
+| `tags` | Comma-separated tag names to apply to the uploads |
+
+An anonymous upload is the only chance to tag it, so the uploader form and this
+API both take tags at upload time. A signed-in account can tag its own uploads
+later; so can an administrator, including anonymous ones.
 
 **Response formats**
 
@@ -46,6 +51,10 @@ A ready-to-paste ShareX custom uploader configuration:
 | Headers | `Authorization: Bearer <key>` |
 
 ## Albums and tags
+
+Anonymous uploads' tags live in a shared namespace rather than an account's, and
+are addressed as `/tags/~/<slug>` in the web UI. Tag JSON reports an empty
+`username` for them.
 
 Write endpoints accept **either JSON or ordinary form encoding**, so scripts and
 `curl` can both be comfortable. Albums can be addressed by **slug or numeric id**

@@ -58,14 +58,8 @@ func (s *Server) apiAddFileTag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Tags live in the file owner's namespace, not the caller's.
-	ownerID, err := tagOwner(file)
-	if err != nil {
-		writeAPIError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	if _, err := s.store.AddTag(r.Context(), file.ID, ownerID, name); err != nil {
+	// Tags live in the file's namespace, not the caller's.
+	if _, err := s.store.AddTag(r.Context(), file.ID, tagOwner(file), name); err != nil {
 		s.log.Error("api: add tag", "file", file.ID, "error", err)
 		writeAPIError(w, http.StatusInternalServerError, "could not add the tag")
 		return

@@ -301,6 +301,90 @@ func TestTwoFactorMigrationLeavesExistingAccountsAlone(t *testing.T) {
 	}
 }
 
+func TestAnonymousTagMigrationKeepsExistingTags(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "pre-anon-tags.db")
+	buildLegacyDatabase(t, path,
+		"001_init.sql", "002_media_and_api_keys.sql", "003_per_account_tags.sql",
+		"004_quotas_and_admin.sql", "005_auth_tokens.sql", "006_outbound_mail.sql",
+		"007_two_factor.sql", "008_content_addressed_storage.sql", "009_per_file_quota.sql")
+
+	// A tag as the account namespaces left it.
+	raw, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec(`
+		INSERT INTO tags (user_id, name, slug, created_at) VALUES (1, 'beach', 'beach', 0);
+		INSERT INTO file_tags (file_id, tag_id) VALUES ('alicepub', 1);
+		UPDATE users SET max_file_bytes = 4096 WHERE id = 1;
+	`); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	raw.Close()
+
+	ctx := context.Background()
+	database, err := Open(ctx, path)
+	if err != nil {
+		t.Fatalf("upgrade database: %v", err)
+	}
+	defer database.Close()
+
+	// The tag kept its id and its owner, and the link still points at it.
+	var (
+		id     int64
+		userID sql.NullInt64
+		name   string
+	)
+	if err := database.QueryRowContext(ctx,
+		`SELECT id, user_id, name FROM tags`).Scan(&id, &userID, &name); err != nil {
+		t.Fatalf("read tag: %v", err)
+	}
+	if id != 1 || !userID.Valid || userID.Int64 != 1 || name != "beach" {
+		t.Errorf("tag came through as id=%d user=%v name=%q", id, userID, name)
+	}
+
+	var linked int
+	if err := database.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM file_tags WHERE file_id = 'alicepub' AND tag_id = 1`).Scan(&linked); err != nil {
+		t.Fatal(err)
+	}
+	if linked != 1 {
+		t.Error("the tag lost its file")
+	}
+
+	// A column added by an earlier migration must have survived the rebuild of
+	// an unrelated table.
+	var maxFile int64
+	if err := database.QueryRowContext(ctx,
+		`SELECT max_file_bytes FROM users WHERE id = 1`).Scan(&maxFile); err != nil {
+		t.Fatal(err)
+	}
+	if maxFile != 4096 {
+		t.Errorf("max_file_bytes = %d, want 4096", maxFile)
+	}
+
+	// The two namespaces are now enforced separately. "beach" is taken by the
+	// account, but the anonymous namespace is free to use it as well.
+	if _, err := database.ExecContext(ctx,
+		`INSERT INTO tags (user_id, name, slug, created_at) VALUES (NULL, 'beach', 'beach', 0)`); err != nil {
+		t.Errorf("the anonymous namespace rejected a name an account already uses: %v", err)
+	}
+
+	// Within the anonymous namespace, though, names are still unique. A plain
+	// UNIQUE over (user_id, name) would not have caught this, because SQLite
+	// treats NULLs as distinct.
+	if _, err := database.ExecContext(ctx,
+		`INSERT INTO tags (user_id, name, slug, created_at) VALUES (NULL, 'beach', 'beach', 0)`); err == nil {
+		t.Error("the anonymous namespace allowed a duplicate tag name")
+	}
+
+	// And a duplicate slug under a different name is refused too.
+	if _, err := database.ExecContext(ctx,
+		`INSERT INTO tags (user_id, name, slug, created_at) VALUES (NULL, 'beach!', 'beach', 0)`); err == nil {
+		t.Error("the anonymous namespace allowed a duplicate slug")
+	}
+}
+
 func TestMigrationIsIdempotent(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "fresh.db")
 	ctx := context.Background()

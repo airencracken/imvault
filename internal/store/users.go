@@ -71,7 +71,7 @@ func (s *Store) CreateUser(ctx context.Context, in NewUser) (*models.User, error
 }
 
 const userColumns = `id, username, email, password_hash, is_admin, disabled,
-	email_verified, quota_bytes, storage_used, created_at,
+	email_verified, quota_bytes, storage_used, max_file_bytes, created_at,
 	totp_secret, totp_enabled, totp_last_step`
 
 func scanUser(sc rowScanner) (*models.User, error) {
@@ -85,8 +85,8 @@ func scanUser(sc rowScanner) (*models.User, error) {
 		created       int64
 	)
 	if err := sc.Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &isAdmin,
-		&disabled, &emailVerified, &u.QuotaBytes, &u.StorageUsed, &created,
-		&u.TOTPSecret, &totpEnabled, &totpLastStep); err != nil {
+		&disabled, &emailVerified, &u.QuotaBytes, &u.StorageUsed, &u.MaxFileBytes,
+		&created, &u.TOTPSecret, &totpEnabled, &totpLastStep); err != nil {
 		return nil, err
 	}
 	u.IsAdmin = isAdmin != 0
@@ -177,6 +177,19 @@ func (s *Store) SetUserQuota(ctx context.Context, userID, quotaBytes int64) erro
 	if _, err := s.db.ExecContext(ctx,
 		`UPDATE users SET quota_bytes = ? WHERE id = ?`, quotaBytes, userID); err != nil {
 		return fmt.Errorf("set quota: %w", err)
+	}
+	return nil
+}
+
+// SetUserFileLimit changes the largest single file an account may upload. Zero
+// clears the override, leaving the instance defaults in force.
+func (s *Store) SetUserFileLimit(ctx context.Context, userID, maxBytes int64) error {
+	if maxBytes < 0 {
+		maxBytes = 0
+	}
+	if _, err := s.db.ExecContext(ctx,
+		`UPDATE users SET max_file_bytes = ? WHERE id = ?`, maxBytes, userID); err != nil {
+		return fmt.Errorf("set file limit: %w", err)
 	}
 	return nil
 }

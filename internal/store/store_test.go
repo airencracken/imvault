@@ -227,7 +227,7 @@ func TestTags(t *testing.T) {
 		return 0
 	}
 
-	tag, err := s.AddTag(ctx, "one", alice.ID, "Holiday Snaps")
+	tag, err := s.AddTag(ctx, "one", &alice.ID, "Holiday Snaps")
 	if err != nil {
 		t.Fatalf("add tag: %v", err)
 	}
@@ -239,7 +239,7 @@ func TestTags(t *testing.T) {
 	}
 
 	// Adding the same tag again is a no-op, not an error or a duplicate.
-	if _, err := s.AddTag(ctx, "one", alice.ID, "holiday snaps"); err != nil {
+	if _, err := s.AddTag(ctx, "one", &alice.ID, "holiday snaps"); err != nil {
 		t.Fatalf("re-add tag: %v", err)
 	}
 	tags, err := s.TagsForFile(ctx, "one")
@@ -251,10 +251,10 @@ func TestTags(t *testing.T) {
 	}
 
 	// A second file sharing the tag bumps the count.
-	if _, err := s.AddTag(ctx, "two", alice.ID, "Holiday Snaps"); err != nil {
+	if _, err := s.AddTag(ctx, "two", &alice.ID, "Holiday Snaps"); err != nil {
 		t.Fatalf("tag second file: %v", err)
 	}
-	if tag, err = s.TagBySlugInUser(ctx, alice.ID, "holiday-snaps"); err != nil {
+	if tag, err = s.TagBySlugInNamespace(ctx, &alice.ID, "holiday-snaps"); err != nil {
 		t.Fatalf("tag by slug: %v", err)
 	}
 	if got := countOf("Holiday Snaps"); got != 2 {
@@ -265,13 +265,13 @@ func TestTags(t *testing.T) {
 	if err := s.RemoveTag(ctx, "one", tag.ID); err != nil {
 		t.Fatalf("remove tag: %v", err)
 	}
-	if _, err := s.TagBySlugInUser(ctx, alice.ID, "holiday-snaps"); err != nil {
+	if _, err := s.TagBySlugInNamespace(ctx, &alice.ID, "holiday-snaps"); err != nil {
 		t.Fatalf("tag should survive: %v", err)
 	}
 	if err := s.RemoveTag(ctx, "two", tag.ID); err != nil {
 		t.Fatalf("remove last tag: %v", err)
 	}
-	if _, err := s.TagBySlugInUser(ctx, alice.ID, "holiday-snaps"); !errors.Is(err, ErrNotFound) {
+	if _, err := s.TagBySlugInNamespace(ctx, &alice.ID, "holiday-snaps"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("orphaned tag error = %v, want ErrNotFound", err)
 	}
 }
@@ -352,7 +352,7 @@ func TestTagByRefInUser(t *testing.T) {
 	alice := mustUser(t, s, ctx, "alice")
 	mustFile(t, s, ctx, "pic", &alice.ID, false, nil)
 
-	tag, err := s.AddTag(ctx, "pic", alice.ID, "Holiday Snaps")
+	tag, err := s.AddTag(ctx, "pic", &alice.ID, "Holiday Snaps")
 	if err != nil {
 		t.Fatalf("add tag: %v", err)
 	}
@@ -366,7 +366,7 @@ func TestTagByRefInUser(t *testing.T) {
 		"by name": "Holiday Snaps",
 	}
 	for label, ref := range refs {
-		got, err := s.TagByRefInUser(ctx, alice.ID, ref)
+		got, err := s.TagByRefInNamespace(ctx, &alice.ID, ref)
 		if err != nil {
 			t.Errorf("TagByRefInUser(%s, %q): %v", label, ref, err)
 			continue
@@ -377,12 +377,12 @@ func TestTagByRefInUser(t *testing.T) {
 	}
 
 	// The name lookup is case-insensitive, matching the uniqueness rule.
-	if _, err := s.TagByRefInUser(ctx, alice.ID, "hOlIdAy sNaPs"); err != nil {
+	if _, err := s.TagByRefInNamespace(ctx, &alice.ID, "hOlIdAy sNaPs"); err != nil {
 		t.Errorf("TagByRefInUser is case sensitive: %v", err)
 	}
 
 	for _, ref := range []string{"", "   ", "nosuchtag", "9999"} {
-		if _, err := s.TagByRefInUser(ctx, alice.ID, ref); !errors.Is(err, ErrNotFound) {
+		if _, err := s.TagByRefInNamespace(ctx, &alice.ID, ref); !errors.Is(err, ErrNotFound) {
 			t.Errorf("TagByRefInUser(%q) error = %v, want ErrNotFound", ref, err)
 		}
 	}
@@ -398,23 +398,23 @@ func TestTagsAreScopedPerAccount(t *testing.T) {
 	mustFile(t, s, ctx, "bobpic", &bob.ID, false, nil)
 
 	// The same name in two namespaces yields two independent rows.
-	aliceTag, err := s.AddTag(ctx, "alicepic", alice.ID, "beach")
+	aliceTag, err := s.AddTag(ctx, "alicepic", &alice.ID, "beach")
 	if err != nil {
 		t.Fatalf("alice tag: %v", err)
 	}
-	bobTag, err := s.AddTag(ctx, "bobpic", bob.ID, "beach")
+	bobTag, err := s.AddTag(ctx, "bobpic", &bob.ID, "beach")
 	if err != nil {
 		t.Fatalf("bob tag: %v", err)
 	}
 	if aliceTag.ID == bobTag.ID {
 		t.Fatal("two accounts shared a tag row")
 	}
-	if aliceTag.UserID != alice.ID || bobTag.UserID != bob.ID {
-		t.Errorf("owners = %d/%d, want %d/%d", aliceTag.UserID, bobTag.UserID, alice.ID, bob.ID)
+	if !aliceTag.OwnedBy(alice.ID) || !bobTag.OwnedBy(bob.ID) {
+		t.Errorf("owners = %v/%v, want %d/%d", aliceTag.UserID, bobTag.UserID, alice.ID, bob.ID)
 	}
 
 	// Each namespace resolves its own tag.
-	got, err := s.TagByRefInUser(ctx, bob.ID, "beach")
+	got, err := s.TagByRefInNamespace(ctx, &bob.ID, "beach")
 	if err != nil {
 		t.Fatalf("bob lookup: %v", err)
 	}
@@ -426,7 +426,7 @@ func TestTagsAreScopedPerAccount(t *testing.T) {
 	if err := s.RemoveTag(ctx, "alicepic", aliceTag.ID); err != nil {
 		t.Fatalf("remove alice tag: %v", err)
 	}
-	if _, err := s.TagByRefInUser(ctx, bob.ID, "beach"); err != nil {
+	if _, err := s.TagByRefInNamespace(ctx, &bob.ID, "beach"); err != nil {
 		t.Errorf("bob's tag was affected by alice's removal: %v", err)
 	}
 }
@@ -436,14 +436,14 @@ func TestDeletingATagOwnerRemovesTheirTags(t *testing.T) {
 
 	alice := mustUser(t, s, ctx, "alice")
 	mustFile(t, s, ctx, "pic", &alice.ID, false, nil)
-	if _, err := s.AddTag(ctx, "pic", alice.ID, "beach"); err != nil {
+	if _, err := s.AddTag(ctx, "pic", &alice.ID, "beach"); err != nil {
 		t.Fatal(err)
 	}
 
 	if _, err := s.DB().ExecContext(ctx, `DELETE FROM users WHERE id = ?`, alice.ID); err != nil {
 		t.Fatalf("delete user: %v", err)
 	}
-	if _, err := s.TagByRefInUser(ctx, alice.ID, "beach"); !errors.Is(err, ErrNotFound) {
+	if _, err := s.TagByRefInNamespace(ctx, &alice.ID, "beach"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("tag outlived its owner: %v", err)
 	}
 }
@@ -540,7 +540,7 @@ func TestListTagsFollowsFileVisibility(t *testing.T) {
 		{"aliceprivate", "alice-secret", alice.ID},
 		{"bobprivate", "bob-secret", bob.ID},
 	} {
-		if _, err := s.AddTag(ctx, link.file, link.owner, link.tag); err != nil {
+		if _, err := s.AddTag(ctx, link.file, &link.owner, link.tag); err != nil {
 			t.Fatalf("tag %s: %v", link.file, err)
 		}
 	}
@@ -606,7 +606,7 @@ func TestListTagsCountsOnlyVisibleFiles(t *testing.T) {
 	mustFile(t, s, ctx, "priv2", &alice.ID, false, nil)
 
 	for _, id := range []string{"pub", "priv1", "priv2"} {
-		if _, err := s.AddTag(ctx, id, alice.ID, "grouped"); err != nil {
+		if _, err := s.AddTag(ctx, id, &alice.ID, "grouped"); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -640,11 +640,11 @@ func TestTagCountsAreScopedToTheViewer(t *testing.T) {
 	mustFile(t, s, ctx, "alicesprivate", &alice.ID, false, nil)
 	mustFile(t, s, ctx, "bobspublic", &bob.ID, true, nil)
 
-	aliceTag, err := s.AddTag(ctx, "alicesprivate", alice.ID, "secret project")
+	aliceTag, err := s.AddTag(ctx, "alicesprivate", &alice.ID, "secret project")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.AddTag(ctx, "bobspublic", bob.ID, "secret project"); err != nil {
+	if _, err := s.AddTag(ctx, "bobspublic", &bob.ID, "secret project"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -679,10 +679,10 @@ func TestExpiredFilesLeaveListingsAndTagCounts(t *testing.T) {
 	mustFile(t, s, ctx, "live", &alice.ID, true, nil)
 	mustFile(t, s, ctx, "gone", &alice.ID, true, &past)
 
-	if _, err := s.AddTag(ctx, "live", alice.ID, "keep"); err != nil {
+	if _, err := s.AddTag(ctx, "live", &alice.ID, "keep"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.AddTag(ctx, "gone", alice.ID, "keep"); err != nil {
+	if _, err := s.AddTag(ctx, "gone", &alice.ID, "keep"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -718,7 +718,7 @@ func TestDeleteFileCascadesJoinRows(t *testing.T) {
 	if err := s.AddFileToAlbum(ctx, album.ID, "pic"); err != nil {
 		t.Fatalf("add to album: %v", err)
 	}
-	tag, err := s.AddTag(ctx, "pic", alice.ID, "sunset")
+	tag, err := s.AddTag(ctx, "pic", &alice.ID, "sunset")
 	if err != nil {
 		t.Fatalf("add tag: %v", err)
 	}
@@ -742,7 +742,7 @@ func TestDeleteFileCascadesJoinRows(t *testing.T) {
 	if pruned != 1 {
 		t.Errorf("pruned %d tags, want 1", pruned)
 	}
-	if _, err := s.TagBySlugInUser(ctx, alice.ID, "sunset"); !errors.Is(err, ErrNotFound) {
+	if _, err := s.TagBySlugInNamespace(ctx, &alice.ID, "sunset"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("tag %d should be gone, got %v", tag.ID, err)
 	}
 }

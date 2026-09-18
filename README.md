@@ -23,9 +23,10 @@ originals are served, with range requests. ffmpeg is optional, and without it
 clips get a placeholder poster rather than failing. See
 [Media handling](docs/media.md).
 
-**Library.** Per-account galleries, albums, and tags owned by the account that
-owns the file. Public or private per file. Anonymous uploads with a retention
-window enforced by a reaper.
+**Library.** Per-account galleries, albums, and tags, with tags scoped to the
+account that owns the file and a shared namespace for anonymous uploads. Public
+or private per file. Anonymous uploads with a retention window enforced by a
+reaper.
 
 **Accounts.** Multi-user signup, two-factor authentication with recovery codes,
 password reset by email or by an administrator-issued link, and self-service
@@ -35,8 +36,9 @@ account deletion. See [Accounts](docs/accounts.md).
 JSON or form encoding, and returning bare URLs for tools that want them. See
 [API](docs/api.md).
 
-**Operations.** Per-account storage quotas, upload and sign-in rate limiting, an
-admin area for usage, quotas, user management, and content moderation, and
+**Operations.** Per-account storage quotas and single-file limits, identical
+uploads stored once, an export of everything an account holds, upload and
+sign-in rate limiting, an admin area for usage, quotas, user management, and content moderation, and
 outbound mail that is queued and retried rather than dropped. See
 [Configuration](docs/configuration.md) and [Operations](docs/operations.md).
 
@@ -158,15 +160,12 @@ Worth being upfront about what this deliberately does **not** do yet:
   back to administrator-issued links.
 - The mail queue is swept on a timer, so a message queued just after a sweep
   waits up to `IMVAULT_MAIL_RETRY_INTERVAL` before its first retry.
-- De-duplication: `sha256` is recorded for every upload, but identical files are
-  stored again rather than shared.
 - Rate limiting is in-memory and per process, so running several instances behind
   a load balancer gives each its own budget.
 - Storage usage can drift if the process is killed mid-upload; the admin
   dashboard has a button to recalculate it from the files table.
 - Two-factor authentication is TOTP only: no WebAuthn or hardware keys, and the
   recovery codes are the sole fallback.
-- There is no way for an account to export its own data before deleting it.
 
 ## License
 

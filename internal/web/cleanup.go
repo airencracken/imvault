@@ -58,7 +58,7 @@ func (s *Server) runCleanup(ctx context.Context) {
 				s.log.Error("cleanup: delete file row", "id", f.ID, "error", err)
 				continue
 			}
-			s.deleteFileObjects(f)
+			s.deleteFileObjects(ctx, f)
 			files++
 		}
 

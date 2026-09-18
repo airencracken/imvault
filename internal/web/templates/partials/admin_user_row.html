@@ -34,13 +34,18 @@
 
   <td>
     <form class="inline-form" method="post"
-          action="/admin/users/{{.User.ID}}/quota"
-          hx-post="/admin/users/{{.User.ID}}/quota"
+          action="/admin/users/{{.User.ID}}/limits"
+          hx-post="/admin/users/{{.User.ID}}/limits"
           hx-target="closest tr" hx-swap="outerHTML">
       <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
       <input name="quota_mb" type="number" min="0" step="1"
              value="{{if .User.Unlimited}}0{{else}}{{div .User.QuotaBytes 1048576}}{{end}}"
-             title="0 means unlimited" aria-label="Quota in MiB for {{.User.Username}}">
+             title="Total storage in MiB. 0 means unlimited."
+             aria-label="Storage quota in MiB for {{.User.Username}}">
+      <input name="max_file_mb" type="number" min="0" step="1"
+             value="{{div .User.MaxFileBytes 1048576}}"
+             title="Largest single file in MiB. 0 means the instance default."
+             aria-label="Single file limit in MiB for {{.User.Username}}">
       <button class="btn small" type="submit">Set</button>
     </form>
     {{if .User.OverQuota}}<span class="badge warn">over quota</span>{{end}}

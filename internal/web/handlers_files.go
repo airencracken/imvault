@@ -157,19 +157,13 @@ func (s *Server) handleTagAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ownerID, err := tagOwner(file)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
 	name := strings.TrimSpace(r.FormValue("name"))
 	if name == "" {
 		s.renderTagsFragment(w, r, file)
 		return
 	}
 
-	if _, err := s.store.AddTag(r.Context(), file.ID, ownerID, name); err != nil {
+	if _, err := s.store.AddTag(r.Context(), file.ID, tagOwner(file), name); err != nil {
 		s.log.Error("add tag", "id", file.ID, "error", err)
 		http.Error(w, "could not add the tag", http.StatusInternalServerError)
 		return
@@ -213,16 +207,14 @@ func (s *Server) renderTagsFragment(w http.ResponseWriter, r *http.Request, file
 	})
 }
 
-// tagOwner returns the account whose namespace a file's tags belong to.
+// tagOwner returns the namespace a file's tags belong to.
 //
-// Tags live with the file's owner rather than the person doing the tagging, so
-// an administrator editing somebody else's upload does not leave their own
-// labels on it. Anonymous uploads have no owner and so cannot be tagged.
-func tagOwner(file *models.File) (int64, error) {
-	if file.UserID == nil {
-		return 0, errors.New("anonymous uploads cannot be tagged")
-	}
-	return *file.UserID, nil
+// Tags live with the file rather than with the person doing the tagging, so an
+// administrator editing somebody else's upload does not leave their own labels
+// on it. An anonymous upload has no account, so its tags go to the shared
+// namespace: nil.
+func tagOwner(file *models.File) *int64 {
+	return file.UserID
 }
 
 // loadEditableFile resolves {id} and enforces ownership.

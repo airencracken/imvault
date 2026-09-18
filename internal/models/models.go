@@ -29,6 +29,9 @@ type User struct {
 	QuotaBytes int64
 	// StorageUsed is the running total of original bytes owned by the account.
 	StorageUsed int64
+	// MaxFileBytes caps the size of any single upload. Zero means the account
+	// uses the instance defaults rather than an override of its own.
+	MaxFileBytes int64
 
 	// TOTPEnabled reports whether a second factor is in force. TOTPSecret holds
 	// the shared secret, encrypted: unlike a session or an API key it has to be
@@ -211,23 +214,54 @@ type Album struct {
 	FileCount int
 }
 
-// Tag is a label applied to files. Tags belong to an account: two people can
-// both use the name "beach" without sharing a row, a count or a lifetime.
+// AnonymousTagOwner is the path segment standing for the shared namespace that
+// tags on anonymous uploads live in. It cannot collide with a username, which
+// is restricted to letters, digits, dot, dash, and underscore.
+const AnonymousTagOwner = "~"
+
+// Tag is a label applied to files. Tags belong to a namespace: an account for
+// most, and one shared namespace for anonymous uploads. Two people can both use
+// the name "beach" without sharing a row, a count, or a lifetime.
 type Tag struct {
-	ID     int64
-	UserID int64
+	ID int64
+	// UserID is the owning account, or nil for the shared namespace that
+	// anonymous uploads are tagged in.
+	UserID *int64
 	Name   string
 	Slug   string
 	Count  int
 
-	// Username is the owning account's name, populated by list queries so the
-	// UI can build owner-qualified tag URLs.
+	// Username is the owning account's name, empty for the anonymous
+	// namespace. Populated by list queries so the UI can build tag URLs.
 	Username string
 }
 
-// OwnerSlug joins the owner's username and the tag slug, which together
-// identify a tag unambiguously across the instance.
-func (t Tag) OwnerSlug() string { return t.Username + "/" + t.Slug }
+// Anonymous reports whether the tag belongs to the shared namespace.
+func (t Tag) Anonymous() bool { return t.UserID == nil }
+
+// OwnerSlug joins the owner and the slug, which together identify a tag
+// unambiguously across the instance. The anonymous namespace is addressed as
+// "~" where a username would otherwise go.
+func (t Tag) OwnerSlug() string {
+	if t.Anonymous() {
+		return AnonymousTagOwner + "/" + t.Slug
+	}
+	return t.Username + "/" + t.Slug
+}
+
+// OwnedBy reports whether the tag belongs to the given account. Available to
+// templates, which cannot compare a pointer to a value.
+func (t Tag) OwnedBy(userID int64) bool {
+	return t.UserID != nil && *t.UserID == userID
+}
+
+// OwnerLabel names the namespace for display.
+func (t Tag) OwnerLabel() string {
+	if t.Anonymous() {
+		return "anonymous"
+	}
+	return t.Username
+}
 
 // OutboundMail is a queued email message.
 //

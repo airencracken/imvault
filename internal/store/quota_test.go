@@ -193,7 +193,7 @@ func TestDeletedUserLeavesNoFilesKeysOrTags(t *testing.T) {
 	alice := mustUser(t, s, ctx, "alice")
 
 	mustFile(t, s, ctx, "pic", &alice.ID, false, nil)
-	if _, err := s.AddTag(ctx, "pic", alice.ID, "beach"); err != nil {
+	if _, err := s.AddTag(ctx, "pic", &alice.ID, "beach"); err != nil {
 		t.Fatal(err)
 	}
 	gen := "prefix000000"

@@ -156,6 +156,7 @@ func (s *Server) routes() *http.ServeMux {
 
 	// Account settings
 	mux.HandleFunc("GET /settings/account", s.requireUser(s.handleAccountPage))
+	mux.HandleFunc("GET /settings/account/export", s.requireUser(s.handleAccountExport))
 	mux.HandleFunc("POST /settings/account/delete", s.requireUser(s.handleAccountDelete))
 	mux.HandleFunc("GET /settings/2fa", s.requireUser(s.handleTwoFactorPage))
 	mux.HandleFunc("GET /settings/2fa/qr", s.requireUser(s.handleTwoFactorQR))
@@ -173,7 +174,7 @@ func (s *Server) routes() *http.ServeMux {
 	// Admin. Everything here is instance-wide, so it is administrator-only.
 	mux.HandleFunc("GET /admin", s.requireAdmin(s.handleAdminDashboard))
 	mux.HandleFunc("GET /admin/users", s.requireAdmin(s.handleAdminUsers))
-	mux.HandleFunc("POST /admin/users/{id}/quota", s.requireAdmin(s.handleAdminSetQuota))
+	mux.HandleFunc("POST /admin/users/{id}/limits", s.requireAdmin(s.handleAdminSetLimits))
 	mux.HandleFunc("POST /admin/users/{id}/disabled", s.requireAdmin(s.handleAdminSetDisabled))
 	mux.HandleFunc("POST /admin/users/{id}/admin", s.requireAdmin(s.handleAdminSetAdmin))
 	mux.HandleFunc("POST /admin/users/{id}/delete", s.requireAdmin(s.handleAdminDeleteUser))

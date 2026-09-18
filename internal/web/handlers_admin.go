@@ -120,8 +120,9 @@ func (s *Server) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 	s.renderPage(w, http.StatusOK, "admin_users", view)
 }
 
-// handleAdminSetQuota changes an account's storage cap.
-func (s *Server) handleAdminSetQuota(w http.ResponseWriter, r *http.Request) {
+// handleAdminSetLimits changes an account's storage cap and its single-file
+// ceiling together, since they are the same decision seen from two angles.
+func (s *Server) handleAdminSetLimits(w http.ResponseWriter, r *http.Request) {
 	userID, ok := s.adminTargetUser(w, r)
 	if !ok {
 		return
@@ -138,35 +139,69 @@ func (s *Server) handleAdminSetQuota(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	raw := strings.TrimSpace(r.FormValue("quota_mb"))
-	if raw == "" {
+	quotaMB, ok := adminMegabytes(r, "quota_mb")
+	if !ok {
 		s.adminRespond(w, r, user, adminNotice{},
-			"Enter a quota in MiB, or 0 for unlimited.", "/admin/users")
+			"Both limits must be whole numbers of MiB. Nothing was changed.", "/admin/users")
 		return
 	}
 
-	megabytes, err := strconv.ParseInt(raw, 10, 64)
-	if err != nil || megabytes < 0 {
+	fileMB, ok := adminMegabytes(r, "max_file_mb")
+	if !ok {
 		s.adminRespond(w, r, user, adminNotice{},
-			"The quota must be a whole number of MiB.", "/admin/users")
+			"Both limits must be whole numbers of MiB. Nothing was changed.", "/admin/users")
 		return
 	}
 
-	quotaBytes := megabytes * 1024 * 1024
+	quotaBytes := quotaMB * 1024 * 1024
+	fileBytes := fileMB * 1024 * 1024
+
 	if err := s.store.SetUserQuota(r.Context(), userID, quotaBytes); err != nil {
 		s.log.Error("admin: set quota", "user", userID, "error", err)
 		s.adminRespond(w, r, user, adminNotice{},
-			"Could not update the quota.", "/admin/users")
+			"Could not update the limits.", "/admin/users")
+		return
+	}
+	if err := s.store.SetUserFileLimit(r.Context(), userID, fileBytes); err != nil {
+		s.log.Error("admin: set file limit", "user", userID, "error", err)
+		s.adminRespond(w, r, user, adminNotice{},
+			"Could not update the limits.", "/admin/users")
 		return
 	}
 
-	message := fmt.Sprintf("Quota cleared for %s; the account is now unlimited.", user.Username)
-	if quotaBytes > 0 {
-		message = fmt.Sprintf("Quota for %s set to %s.", user.Username, models.HumanSize(quotaBytes))
+	updated := s.reloadAdminUser(r, userID)
+	s.adminRespond(w, r, updated, adminNotice{Text: limitsMessage(user.Username, quotaBytes, fileBytes)}, "", "/admin/users")
+}
+
+// adminMegabytes reads a MiB field, treating a blank or negative value as zero
+// rather than as an error: blank means "no override" and zero means "no limit".
+func adminMegabytes(r *http.Request, field string) (int64, bool) {
+	raw := strings.TrimSpace(r.FormValue(field))
+	if raw == "" {
+		return 0, true
 	}
 
-	updated := s.reloadAdminUser(r, userID)
-	s.adminRespond(w, r, updated, adminNotice{Text: message}, "", "/admin/users")
+	value, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || value < 0 {
+		return 0, false
+	}
+	return value, true
+}
+
+// limitsMessage describes what was just set, in the terms each limit is thought
+// about: unlimited, or no override.
+func limitsMessage(username string, quotaBytes, fileBytes int64) string {
+	quota := "unlimited"
+	if quotaBytes > 0 {
+		quota = models.HumanSize(quotaBytes)
+	}
+
+	file := "the instance default"
+	if fileBytes > 0 {
+		file = models.HumanSize(fileBytes)
+	}
+
+	return fmt.Sprintf("%s: total storage %s, largest single file %s.", username, quota, file)
 }
 
 // handleAdminSetDisabled enables or disables an account.
