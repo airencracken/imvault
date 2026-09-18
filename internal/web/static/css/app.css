@@ -476,6 +476,28 @@ dialog.modal::backdrop {
 }
 .filter-row .muted { font-size: .82rem; }
 
+.enrol { display: flex; gap: 1.25rem; flex-wrap: wrap; align-items: flex-start; }
+.enrol .qr { background: #fff; padding: .5rem; border-radius: 8px; }
+.enrol > .stack { flex: 1; min-width: 16rem; }
+
+.recovery-codes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: .4rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.recovery-codes code {
+  padding: .35rem .5rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  text-align: center;
+  font-size: .85rem;
+}
+
+.danger-zone { border-color: #47282d; }
+.danger-zone h2 { color: var(--danger); }
+
 .notice-link { display: flex; gap: .5rem; align-items: center; margin-top: .6rem; }
 .notice-link input { flex: 1; min-width: 0; margin: 0; }
 

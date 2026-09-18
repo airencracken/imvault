@@ -17,6 +17,7 @@
     {{if .User.IsAdmin}}<span class="badge">admin</span>{{end}}
     {{if .User.Disabled}}<span class="badge private">disabled</span>{{end}}
     {{if .Self}}<span class="badge">you</span>{{end}}
+    {{if .User.TOTPEnabled}}<span class="badge" title="Two-factor authentication is on">2FA</span>{{end}}
     {{if .User.Email}}<br><span class="muted">{{.User.Email}}</span>{{end}}
     <br><span class="muted">joined {{humanTime .User.CreatedAt}}</span>
     {{/* Kept inside the row so a swap replaces it atomically: an error on its
@@ -83,6 +84,15 @@
                           action: 'Disable' });
                       }">Disable</button>
       {{end}}
+    </form>
+    {{end}}
+
+    {{if .User.TOTPEnabled}}
+    <form method="post" action="/admin/users/{{.User.ID}}/2fa"
+          hx-post="/admin/users/{{.User.ID}}/2fa"
+          hx-target="closest tr" hx-swap="outerHTML">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <button class="btn small" type="submit" title="For somebody who has lost their authenticator">Clear 2FA</button>
     </form>
     {{end}}
 

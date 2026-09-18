@@ -1,0 +1,111 @@
+{{define "content"}}
+<header class="page-head">
+  <div>
+    <h1>Settings</h1>
+    <p class="muted">Signed in as <strong>{{.User.Username}}</strong>.</p>
+  </div>
+  <nav class="subtabs">
+    <a class="btn small" href="/settings/password">Password</a>
+    <a class="btn small" href="/settings/2fa">Two-factor</a>
+    <a class="btn small" href="/settings/account">Account</a>
+    <a class="btn small" href="/settings/api-keys">API keys</a>
+  </nav>
+</header>
+
+{{if .Error}}<p class="flash err">{{.Error}}</p>{{end}}
+{{if .Notice}}<p class="flash ok">{{.Notice}}</p>{{end}}
+
+{{if .RecoveryCodes}}
+<section class="panel stack">
+  <h2>Recovery codes</h2>
+  <p>
+    Each code works once, instead of a code from your authenticator app. Keep
+    them somewhere other than the device running the app — they are the way in
+    when that device is lost.
+  </p>
+  <div class="recovery-codes">
+    {{range .RecoveryCodes}}<code>{{.}}</code>{{end}}
+  </div>
+  <p class="muted">These are shown once and are stored only as digests. Generate a new set if you lose them.</p>
+</section>
+{{end}}
+
+{{if .Pending}}
+<section class="panel stack">
+  <h2>Finish setting up</h2>
+  <div class="enrol">
+    <img class="qr" src="/settings/2fa/qr" alt="QR code for your authenticator app" width="200" height="200">
+    <div class="stack">
+      <p>Scan this with an authenticator app, or enter the key by hand:</p>
+      <input class="key-reveal" readonly value="{{.Pending.SecretSpaced}}" onclick="this.select()">
+      <form class="stack" method="post" action="/settings/2fa/confirm">
+        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+        <label>Enter the six-digit code it shows
+          <input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required autofocus>
+        </label>
+        <button class="btn primary" type="submit">Turn on two-factor</button>
+      </form>
+    </div>
+  </div>
+</section>
+{{else if .Status.User.TOTPEnabled}}
+<section class="panel stack">
+  <h2>Status</h2>
+  <p>
+    <span class="badge">on</span>
+    Signing in needs your password and a code from your authenticator app.
+  </p>
+  <p class="muted">
+    {{if .Status.RecoveryLeft}}
+      {{.Status.RecoveryLeft}} recovery code{{if ne .Status.RecoveryLeft 1}}s{{end}} left.
+    {{else}}
+      <span class="warn">No recovery codes left.</span> Generate a new set, or you will need an administrator if you lose the app.
+    {{end}}
+  </p>
+</section>
+
+<section class="panel stack">
+  <h2>Recovery codes</h2>
+  <form class="stack" method="post" action="/settings/2fa/recovery">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <p class="muted">Generating a new set replaces the old one immediately.</p>
+    <label>Current password
+      <input name="password" type="password" autocomplete="current-password" required>
+    </label>
+    <label>Code
+      <input name="code" autocomplete="one-time-code" placeholder="123456 or a recovery code" required>
+    </label>
+    <button class="btn" type="submit">Generate new codes</button>
+  </form>
+</section>
+
+<section class="panel stack">
+  <h2>Turn off</h2>
+  <form class="stack" method="post" action="/settings/2fa/disable">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <p class="muted">Your recovery codes are discarded at the same time.</p>
+    <label>Current password
+      <input name="password" type="password" autocomplete="current-password" required>
+    </label>
+    <label>Code
+      <input name="code" autocomplete="one-time-code" placeholder="123456 or a recovery code" required>
+    </label>
+    <button class="btn danger" type="submit">Turn off two-factor</button>
+  </form>
+</section>
+{{else}}
+<section class="panel stack">
+  <h2>Status</h2>
+  <p><span class="badge private">off</span> A password alone gets into this account.</p>
+  <p class="muted">
+    With two-factor on, signing in also needs a six-digit code from an
+    authenticator app on your phone. You get ten single-use recovery codes for
+    when that phone is not to hand.
+  </p>
+  <form method="post" action="/settings/2fa/begin">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <button class="btn primary" type="submit">Set up two-factor</button>
+  </form>
+</section>
+{{end}}
+{{end}}

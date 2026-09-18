@@ -357,3 +357,38 @@ func (s *Server) clearSessionCookie(w http.ResponseWriter, r *http.Request) {
 		Secure:   s.cfg.SecureCookies || isSecureRequest(r),
 	})
 }
+
+// rateLimitLogins bounds sign-in attempts.
+//
+// This matters more once a second factor exists: a six-digit code is small
+// enough that unlimited guesses would eventually find one, so the code prompt
+// shares the budget with the password step.
+func (s *Server) rateLimitLogins(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !s.logins.Enabled() {
+			next(w, r)
+			return
+		}
+
+		// Keyed by address and the name being tried, so one client cannot work
+		// through a list of accounts unimpeded.
+		key := "login:" + s.clientIP(r)
+		if err := r.ParseForm(); err == nil {
+			if username := strings.TrimSpace(r.FormValue("username")); username != "" {
+				key += ":" + strings.ToLower(username)
+			}
+		}
+
+		if ok, retryAfter := s.logins.Allow(key); !ok {
+			seconds := int(retryAfter.Seconds()) + 1
+			s.log.Warn("sign-in rate limited", "key", key, "retry_after_s", seconds, "remote", r.RemoteAddr)
+
+			w.Header().Set("Retry-After", strconv.Itoa(seconds))
+			http.Error(w, "Too many sign-in attempts. Try again in "+strconv.Itoa(seconds)+" seconds.",
+				http.StatusTooManyRequests)
+			return
+		}
+
+		next(w, r)
+	}
+}

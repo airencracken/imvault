@@ -23,6 +23,7 @@ import (
 	"imvault/internal/logging"
 	"imvault/internal/mail"
 	"imvault/internal/media"
+	"imvault/internal/secrets"
 	"imvault/internal/storage"
 	"imvault/internal/store"
 	"imvault/internal/web"
@@ -85,7 +86,14 @@ func run() error {
 	st := store.New(database)
 	sender := mailSender(cfg, st, logger)
 
-	srv, err := web.New(cfg, st, objects, processor, sender, logger)
+	// The key beside the database encrypts the few values that have to be
+	// readable again, which today means TOTP secrets.
+	cipher, err := secrets.Load(cfg.SecretKeyFile, cfg.SecretKey)
+	if err != nil {
+		return err
+	}
+
+	srv, err := web.New(cfg, st, objects, processor, sender, cipher, logger)
 	if err != nil {
 		return err
 	}

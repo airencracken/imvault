@@ -350,6 +350,45 @@ async function main() {
     record("the out-of-band notice reports it", notice.includes("Deleted alice"),
       notice.slice(0, 90));
 
+    // --- the guard on deleting your own account ---
+    await page.goto(`${base}/settings/account`);
+
+    const guard = await page.evaluate(`
+      const form = document.querySelector('form[action="/settings/account/delete"]');
+      if (!form) return { error: "the account page has no delete form" };
+
+      // The password has to be filled in, or the browser's own required-field
+      // validation blocks the submission and no submit event is ever fired,
+      // which would make this check pass without testing anything.
+      const password = form.querySelector('input[name="password"]');
+      password.value = "hunter2hunter2";
+
+      // Typing the wrong name must stop the submission before it leaves.
+      const typed = form.querySelector('input[name="confirm"]');
+      typed.value = "not-my-name";
+      typed.dispatchEvent(new Event("input", { bubbles: true }));
+      await new Promise((r) => setTimeout(r, 60));
+
+      let prevented = null;
+      form.addEventListener("submit", (e) => { prevented = e.defaultPrevented; });
+      form.querySelector('button[type="submit"]').click();
+      await new Promise((r) => setTimeout(r, 200));
+
+      return { prevented, url: location.pathname };
+    `);
+
+    record("a mistyped username blocks account deletion", guard.prevented === true,
+      JSON.stringify(guard));
+    record("and the page does not navigate", guard.url === "/settings/account",
+      `landed on ${guard.url}`);
+
+    // The account is still there, which is the outcome that matters.
+    await page.goto(`${base}/settings/account`);
+    const stillThere = await page.evaluate(`
+      return !!document.querySelector('form[action="/settings/account/delete"]');
+    `);
+    record("the account survived the blocked attempt", stillThere === true);
+
     record("no JavaScript errors during the interactions",
       !page.console.some((m) => m.level === "error"),
       page.console.filter((m) => m.level === "error").map((m) => m.text).join(" | "));

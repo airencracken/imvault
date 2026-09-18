@@ -3,10 +3,12 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
 	"io/fs"
+	"mime/multipart"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -238,3 +240,200 @@ func countStoredObjects(t *testing.T, dataDir string) int {
 
 // itoa64 renders an id for use in a request path.
 func itoa64(v int64) string { return strconv.FormatInt(v, 10) }
+
+// session is an independent browser: its own cookie jar, so that a question
+// like "is this signed in?" has an answer that means something. The harness
+// client is signed in by registerForm, which silently made several sign-in
+// assertions pass for the wrong reason.
+type session struct {
+	t      *testing.T
+	h      *harness
+	client *http.Client
+	jar    *cookiejar.Jar
+	csrf   string
+}
+
+// newSession starts a browser with no session, primed with a CSRF token.
+func (h *harness) newSession(t *testing.T) *session {
+	t.Helper()
+
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		t.Fatalf("cookie jar: %v", err)
+	}
+
+	s := &session{
+		t:   t,
+		h:   h,
+		jar: jar,
+		client: &http.Client{
+			Jar: jar,
+			CheckRedirect: func(*http.Request, []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		},
+	}
+
+	resp, err := s.client.Get(h.server.URL + "/")
+	if err != nil {
+		t.Fatalf("prime session: %v", err)
+	}
+	resp.Body.Close()
+
+	parsed, err := url.Parse(h.server.URL)
+	if err != nil {
+		t.Fatalf("parse base url: %v", err)
+	}
+	for _, cookie := range jar.Cookies(parsed) {
+		if cookie.Name == csrfCookie {
+			s.csrf = cookie.Value
+		}
+	}
+	if s.csrf == "" {
+		t.Fatal("no CSRF cookie was issued to the new session")
+	}
+	return s
+}
+
+func (s *session) get(path string) (*http.Response, string) {
+	s.t.Helper()
+
+	resp, err := s.client.Get(s.h.server.URL + path)
+	if err != nil {
+		s.t.Fatalf("GET %s: %v", path, err)
+	}
+	defer resp.Body.Close()
+	return resp, readAll(s.t, resp.Body)
+}
+
+func (s *session) post(path string, form url.Values) (*http.Response, string) {
+	s.t.Helper()
+
+	form.Set("csrf_token", s.csrf)
+
+	req, err := http.NewRequest(http.MethodPost, s.h.server.URL+path, strings.NewReader(form.Encode()))
+	if err != nil {
+		s.t.Fatalf("build POST %s: %v", path, err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		s.t.Fatalf("POST %s: %v", path, err)
+	}
+	defer resp.Body.Close()
+	return resp, readAll(s.t, resp.Body)
+}
+
+// signedIn reports whether the session can reach an authenticated page.
+func (s *session) signedIn() bool {
+	s.t.Helper()
+
+	resp, _ := s.get("/gallery")
+	return resp.StatusCode == http.StatusOK
+}
+
+// signInTo walks the two sign-in steps, code included.
+func (s *session) signInTo(username, password, code string) (*http.Response, string) {
+	s.t.Helper()
+
+	resp, body := s.post("/login", url.Values{
+		"username": {username},
+		"password": {password},
+	})
+	if resp.StatusCode == http.StatusSeeOther && resp.Header.Get("Location") == "/login/2fa" {
+		if code == "" {
+			return resp, body
+		}
+		return s.post("/login/2fa", url.Values{"code": {code}})
+	}
+	return resp, body
+}
+
+// sessionFor returns a session for an existing account, creating the session
+// row directly. It is how a test acts as somebody who is not the first account,
+// and therefore not the administrator.
+func (h *harness) sessionFor(t *testing.T, userID int64) *session {
+	t.Helper()
+
+	token := ids.Token(32)
+	if err := h.store.CreateSession(t.Context(), hashToken(token), userID, time.Now().Add(time.Hour)); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		t.Fatalf("cookie jar: %v", err)
+	}
+
+	s := &session{
+		t:   t,
+		h:   h,
+		jar: jar,
+		client: &http.Client{
+			Jar: jar,
+			CheckRedirect: func(*http.Request, []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		},
+	}
+
+	parsed, err := url.Parse(h.server.URL)
+	if err != nil {
+		t.Fatalf("parse base url: %v", err)
+	}
+
+	// Seed both the session and a CSRF cookie, as a browser would have.
+	jar.SetCookies(parsed, []*http.Cookie{
+		{Name: sessionCookie, Value: token, Path: "/"},
+		{Name: csrfCookie, Value: ids.Token(32), Path: "/"},
+	})
+	for _, cookie := range jar.Cookies(parsed) {
+		if cookie.Name == csrfCookie {
+			s.csrf = cookie.Value
+		}
+	}
+	return s
+}
+
+// upload posts files as this session, the way the uploader page does.
+func (s *session) upload(fields map[string]string, files []uploadFile) (*http.Response, string) {
+	s.t.Helper()
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+
+	fields["csrf_token"] = s.csrf
+	for name, value := range fields {
+		if err := writer.WriteField(name, value); err != nil {
+			s.t.Fatal(err)
+		}
+	}
+	for _, file := range files {
+		part, err := writer.CreateFormFile("files", file.name)
+		if err != nil {
+			s.t.Fatal(err)
+		}
+		if _, err := part.Write(file.data); err != nil {
+			s.t.Fatal(err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		s.t.Fatal(err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, s.h.server.URL+"/upload", &body)
+	if err != nil {
+		s.t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("X-CSRF-Token", s.csrf)
+	req.Header.Set("HX-Request", "true")
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		s.t.Fatalf("upload: %v", err)
+	}
+	defer resp.Body.Close()
+	return resp, readAll(s.t, resp.Body)
+}

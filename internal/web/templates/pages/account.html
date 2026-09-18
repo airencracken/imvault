@@ -1,0 +1,77 @@
+{{define "content"}}
+<header class="page-head">
+  <div>
+    <h1>Settings</h1>
+    <p class="muted">Signed in as <strong>{{.User.Username}}</strong>.</p>
+  </div>
+  <nav class="subtabs">
+    <a class="btn small" href="/settings/password">Password</a>
+    <a class="btn small" href="/settings/2fa">Two-factor</a>
+    <a class="btn small" href="/settings/account">Account</a>
+    <a class="btn small" href="/settings/api-keys">API keys</a>
+  </nav>
+</header>
+
+{{if .Error}}<p class="flash err">{{.Error}}</p>{{end}}
+{{if .Notice}}<p class="flash ok">{{.Notice}}</p>{{end}}
+
+<section class="panel stack">
+  <h2>Account</h2>
+  <dl class="facts">
+    <dt>Username</dt><dd>{{.Status.User.Username}}</dd>
+    {{if .Status.User.Email}}
+    <dt>Email</dt>
+    <dd>{{.Status.User.Email}}
+      {{if .Status.User.EmailVerified}}<span class="badge">confirmed</span>
+      {{else}}<span class="badge warn">unconfirmed</span>{{end}}
+    </dd>
+    {{end}}
+    <dt>Joined</dt><dd>{{date .Status.User.CreatedAt}}</dd>
+    <dt>Two-factor</dt>
+    <dd>{{if .Status.User.TOTPEnabled}}<span class="badge">on</span>{{else}}<span class="badge private">off</span>{{end}}</dd>
+    <dt>Stored</dt><dd>{{.Status.User.UsageLabel}}</dd>
+  </dl>
+</section>
+
+<section class="panel stack danger-zone">
+  <h2>Delete this account</h2>
+
+  <div class="flash err">
+    <p>
+      <strong>This cannot be undone.</strong>
+    </p>
+    <p>
+      Deleting your account removes
+      {{if .FileCount}}{{.FileCount}} uploaded file{{if ne .FileCount 1}}s{{end}}
+      ({{.Status.User.UsageLabel}}) and{{else}}everything you have uploaded, and{{end}}
+      your albums, tags, API keys and sessions, from this instance.
+    </p>
+  </div>
+
+  {{/* The username goes in a JavaScript string literal. Unquoted it renders as
+       a bare identifier, the expression throws, and the guard silently never
+       blocks anything. Usernames are restricted to [A-Za-z0-9_.-], so a quoted
+       literal is safe here. */}}
+  <form class="stack" method="post" action="/settings/account/delete"
+        x-data="{ typed: '' }"
+        @submit="if (typed !== '{{.Status.User.Username}}') { $event.preventDefault(); }">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+
+    <label>Current password
+      <input name="password" type="password" autocomplete="current-password" required>
+    </label>
+
+    {{if .Status.User.TOTPEnabled}}
+    <label>Code
+      <input name="code" autocomplete="one-time-code" placeholder="123456 or a recovery code" required>
+    </label>
+    {{end}}
+
+    <label>Type <strong>{{.Status.User.Username}}</strong> to confirm
+      <input name="confirm" x-model="typed" autocomplete="off" required>
+    </label>
+
+    <button class="btn danger" type="submit">Delete my account</button>
+  </form>
+</section>
+{{end}}

@@ -245,6 +245,62 @@ func TestQuotaMigrationBackfillsUsageAndLeavesAccountsUnlimited(t *testing.T) {
 	}
 }
 
+func TestTwoFactorMigrationLeavesExistingAccountsAlone(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "pre-2fa.db")
+	buildLegacyDatabase(t, path,
+		"001_init.sql", "002_media_and_api_keys.sql",
+		"003_per_account_tags.sql", "004_quotas_and_admin.sql")
+
+	ctx := context.Background()
+	database, err := Open(ctx, path)
+	if err != nil {
+		t.Fatalf("upgrade database: %v", err)
+	}
+	defer database.Close()
+
+	rows, err := database.QueryContext(ctx, `
+		SELECT username, totp_secret, totp_enabled, totp_last_step
+		FROM users ORDER BY id`)
+	if err != nil {
+		t.Fatalf("read users: %v", err)
+	}
+	defer rows.Close()
+
+	accounts := 0
+	for rows.Next() {
+		var (
+			username             string
+			secret               string
+			enabled, lastStepInt int
+		)
+		if err := rows.Scan(&username, &secret, &enabled, &lastStepInt); err != nil {
+			t.Fatal(err)
+		}
+		accounts++
+
+		// Adding a second factor must not switch one on for anybody.
+		if secret != "" || enabled != 0 || lastStepInt != 0 {
+			t.Errorf("%s gained a second factor from a migration: %q %d %d",
+				username, secret, enabled, lastStepInt)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if accounts != 2 {
+		t.Errorf("found %d accounts, want the two the fixture seeds", accounts)
+	}
+
+	// The recovery code table exists and is empty, and cascades with its owner.
+	var codes int
+	if err := database.QueryRowContext(ctx, `SELECT COUNT(*) FROM recovery_codes`).Scan(&codes); err != nil {
+		t.Fatalf("recovery_codes: %v", err)
+	}
+	if codes != 0 {
+		t.Errorf("%d recovery codes appeared from nowhere", codes)
+	}
+}
+
 func TestMigrationIsIdempotent(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "fresh.db")
 	ctx := context.Background()

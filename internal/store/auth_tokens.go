@@ -20,6 +20,9 @@ const (
 	TokenPasswordReset TokenPurpose = "password_reset"
 	// TokenEmailVerify confirms ownership of an email address.
 	TokenEmailVerify TokenPurpose = "email_verify"
+	// TokenLoginSecondFactor carries a password check through to the code
+	// prompt, so the code step has proof that the password was already given.
+	TokenLoginSecondFactor TokenPurpose = "login_second_factor"
 )
 
 // CreateAuthToken records a one-time token. The caller passes the digest, never
@@ -110,6 +113,16 @@ func (s *Store) AuthTokenValid(ctx context.Context, tokenHash string, purpose To
 		return nil, err
 	}
 	return user, nil
+}
+
+// DeleteAuthToken removes one token by its digest, whatever its purpose.
+func (s *Store) DeleteAuthToken(ctx context.Context, tokenHash string, purpose TokenPurpose) error {
+	if _, err := s.db.ExecContext(ctx,
+		`DELETE FROM auth_tokens WHERE token_hash = ? AND purpose = ?`,
+		tokenHash, string(purpose)); err != nil {
+		return fmt.Errorf("delete auth token: %w", err)
+	}
+	return nil
 }
 
 // DeleteAuthTokensForUser clears an account's outstanding tokens of one kind,

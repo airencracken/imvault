@@ -35,6 +35,12 @@ services:
       # IMVAULT_SMTP_PASSWORD: ""
       # IMVAULT_SMTP_FROM: "imvault <no-reply@example.com>"
       # IMVAULT_SMTP_TLS: "starttls"
+      # IMVAULT_TOTP_ISSUER: "imvault"
+      # Supply the encryption key from your own secret store rather than
+      # letting it be generated into the data directory.
+      # IMVAULT_SECRET_KEY: ""
+      # IMVAULT_LOGIN_RATE_PER_HOUR: "30"
+      # IMVAULT_LOGIN_BURST: "10"
       # IMVAULT_MAIL_MAX_ATTEMPTS: "5"
       # IMVAULT_MAIL_RETRY_INTERVAL: "1m"
       IMVAULT_LOG_LEVEL: "${IMVAULT_LOG_LEVEL:-info}"

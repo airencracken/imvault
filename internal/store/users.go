@@ -71,7 +71,8 @@ func (s *Store) CreateUser(ctx context.Context, in NewUser) (*models.User, error
 }
 
 const userColumns = `id, username, email, password_hash, is_admin, disabled,
-	email_verified, quota_bytes, storage_used, created_at`
+	email_verified, quota_bytes, storage_used, created_at,
+	totp_secret, totp_enabled, totp_last_step`
 
 func scanUser(sc rowScanner) (*models.User, error) {
 	var (
@@ -79,15 +80,20 @@ func scanUser(sc rowScanner) (*models.User, error) {
 		isAdmin       int
 		disabled      int
 		emailVerified int
+		totpEnabled   int
+		totpLastStep  int64
 		created       int64
 	)
 	if err := sc.Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &isAdmin,
-		&disabled, &emailVerified, &u.QuotaBytes, &u.StorageUsed, &created); err != nil {
+		&disabled, &emailVerified, &u.QuotaBytes, &u.StorageUsed, &created,
+		&u.TOTPSecret, &totpEnabled, &totpLastStep); err != nil {
 		return nil, err
 	}
 	u.IsAdmin = isAdmin != 0
 	u.Disabled = disabled != 0
 	u.EmailVerified = emailVerified != 0
+	u.TOTPEnabled = totpEnabled != 0
+	u.TOTPLastStep = uint64(totpLastStep)
 	u.CreatedAt = toTime(created)
 	return &u, nil
 }

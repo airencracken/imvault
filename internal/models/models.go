@@ -29,7 +29,19 @@ type User struct {
 	QuotaBytes int64
 	// StorageUsed is the running total of original bytes owned by the account.
 	StorageUsed int64
+
+	// TOTPEnabled reports whether a second factor is in force. TOTPSecret holds
+	// the shared secret, encrypted: unlike a session or an API key it has to be
+	// readable again to check a code, so it cannot be a digest.
+	TOTPEnabled bool
+	TOTPSecret  string
+	// TOTPLastStep is the last time step accepted, so a code cannot be
+	// replayed for the rest of its window.
+	TOTPLastStep uint64
 }
+
+// TwoFactorRequired reports whether signing in needs a second factor.
+func (u *User) TwoFactorRequired() bool { return u.TOTPEnabled }
 
 // Unlimited reports whether the account has no storage cap.
 func (u *User) Unlimited() bool { return u.QuotaBytes <= 0 }

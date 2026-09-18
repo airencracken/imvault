@@ -24,6 +24,7 @@ import (
 	"imvault/internal/db"
 	"imvault/internal/mail"
 	"imvault/internal/media"
+	"imvault/internal/secrets"
 	"imvault/internal/storage"
 	"imvault/internal/store"
 )
@@ -107,6 +108,8 @@ func newHarnessFull(t *testing.T, mutate func(*config.Config), mode mailMode) *h
 		EmailVerifyTTL:    24 * time.Hour,
 		MailMaxAttempts:   3,
 		MailRetryInterval: time.Minute,
+		TOTPIssuer:        "imvault",
+		LoginRatePerHour:  0, // disabled unless a test asks for it
 	}
 	if mutate != nil {
 		mutate(cfg)
@@ -132,6 +135,12 @@ func newHarnessFull(t *testing.T, mutate func(*config.Config), mode mailMode) *h
 		media.NewFFmpeg(cfg.FFmpegPath, cfg.FFprobePath),
 	)
 
+	// A key in the temporary data directory, as a real instance would have.
+	cipher, err := secrets.Load(filepath.Join(dir, "secret.key"), "")
+	if err != nil {
+		t.Fatalf("secrets: %v", err)
+	}
+
 	mailer := &captureMail{enabled: mode != mailOff}
 
 	var sender mail.Sender = mailer
@@ -139,7 +148,7 @@ func newHarnessFull(t *testing.T, mutate func(*config.Config), mode mailMode) *h
 		sender = NewMailQueue(st, mailer, cfg.MailMaxAttempts, cfg.MailRetryInterval, logger)
 	}
 
-	srv, err := New(cfg, st, objects, processor, sender, logger)
+	srv, err := New(cfg, st, objects, processor, sender, cipher, logger)
 	if err != nil {
 		t.Fatalf("new server: %v", err)
 	}

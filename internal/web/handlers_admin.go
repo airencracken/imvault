@@ -277,17 +277,8 @@ func (s *Server) handleAdminDeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Collect the objects before the rows cascade away: the bytes live outside
-	// the database and would otherwise be orphaned on disk forever.
-	keys, err := s.store.StoredKeysForUser(r.Context(), userID)
+	removed, err := s.deleteAccount(r.Context(), userID)
 	if err != nil {
-		s.log.Error("admin: collect file keys", "user", userID, "error", err)
-		s.adminRespond(w, r, target, adminNotice{},
-			"Could not delete the account.", "/admin/users")
-		return
-	}
-
-	if err := s.store.DeleteUser(r.Context(), userID); err != nil {
 		if errors.Is(err, store.ErrLastAdmin) {
 			s.adminRespond(w, r, target, adminNotice{},
 				"The last administrator cannot be deleted.", "/admin/users")
@@ -299,11 +290,7 @@ func (s *Server) handleAdminDeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	for _, k := range keys {
-		s.deleteKeys([]string{k.Object, k.Thumb, k.Preview})
-	}
-
-	message := fmt.Sprintf("Deleted %s and %d stored file(s).", target.Username, len(keys))
+	message := fmt.Sprintf("Deleted %s and %d stored file(s).", target.Username, removed)
 	s.adminRespond(w, r, nil, adminNotice{Text: message}, "", "/admin/users")
 }
 

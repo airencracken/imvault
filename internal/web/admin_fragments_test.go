@@ -267,3 +267,49 @@ func TestAdminMailRowsAreFragments(t *testing.T) {
 		t.Errorf("the failure reason is not shown in the row: %s", truncate(body))
 	}
 }
+
+func TestPagesUsingAlpineAlsoLoadIt(t *testing.T) {
+	h := newHarness(t)
+
+	// The first account is the administrator, so the admin pages are reachable.
+	h.registerForm("boss")
+
+	// A page with Alpine attributes but no Alpine loaded is silently inert:
+	// the confirmation dialog never opens, the filter never hides anything, and
+	// nothing reports an error. This is the check that catches it.
+	// "/" is not here: it redirects to the gallery once signed in, which is the
+	// state this test needs in order to reach the admin pages.
+	paths := []string{
+		"/gallery", "/upload", "/albums", "/tags",
+		"/settings/password", "/settings/2fa", "/settings/account", "/settings/api-keys",
+		"/admin", "/admin/users", "/admin/mail", "/admin/files",
+	}
+
+	usesAlpine := func(body string) bool {
+		for _, marker := range []string{"x-data", "x-model", "x-show", "x-text", "@submit", "@click"} {
+			if strings.Contains(body, marker) {
+				return true
+			}
+		}
+		return false
+	}
+
+	checked := 0
+	for _, path := range paths {
+		resp, body := h.get(path)
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("GET %s = %d, want 200", path, resp.StatusCode)
+			continue
+		}
+		checked++
+
+		loads := strings.Contains(body, "alpine.min.js")
+		if usesAlpine(body) && !loads {
+			t.Errorf("%s uses Alpine attributes but does not load Alpine", path)
+		}
+	}
+
+	if checked < len(paths) {
+		t.Fatalf("only %d of %d pages rendered", checked, len(paths))
+	}
+}

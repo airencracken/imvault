@@ -1,0 +1,26 @@
+{{define "content"}}
+<section class="narrow">
+  <h1>Two-factor authentication</h1>
+
+  {{if .Error}}<p class="flash err">{{.Error}}</p>{{end}}
+
+  <form class="panel stack" method="post" action="/login/2fa">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <p class="muted">
+      Password accepted for <strong>{{.Username}}</strong>. Enter the code from
+      your authenticator app to finish signing in.
+    </p>
+    <label>Code
+      <input name="code" inputmode="text" autocomplete="one-time-code" autofocus required
+             placeholder="123456 or a recovery code" aria-label="Six-digit code or recovery code">
+    </label>
+    <button class="btn primary" type="submit">Sign in</button>
+  </form>
+
+  <p class="muted">
+    Lost the app? Use a recovery code, or ask an administrator to clear
+    two-factor for your account.
+  </p>
+  <p class="muted"><a href="/login">Start over</a></p>
+</section>
+{{end}}

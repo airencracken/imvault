@@ -79,6 +79,19 @@ type Config struct {
 	PasswordResetTTL time.Duration
 	EmailVerifyTTL   time.Duration
 
+	// TOTPIssuer is the name an authenticator app shows for the account.
+	TOTPIssuer string
+	// SecretKey encrypts data that has to be readable again, which today means
+	// TOTP secrets. SecretKeyFile is where the key is kept when SecretKey is
+	// not supplied directly.
+	SecretKey     string
+	SecretKeyFile string
+
+	// LoginRatePerHour and LoginBurst bound sign-in attempts, which matters
+	// more once a second factor can be brute forced.
+	LoginRatePerHour float64
+	LoginBurst       int
+
 	// MailMaxAttempts and MailRetryInterval govern the outbound queue: how many
 	// times a message is tried before it is parked as failed, and how often the
 	// worker looks for due messages.
@@ -126,6 +139,10 @@ func Load() (*Config, error) {
 		SMTPTLS:               getenv("IMVAULT_SMTP_TLS", "starttls"),
 		PasswordResetTTL:      getDuration("IMVAULT_PASSWORD_RESET_TTL", time.Hour),
 		EmailVerifyTTL:        getDuration("IMVAULT_EMAIL_VERIFY_TTL", 24*time.Hour),
+		TOTPIssuer:            getenv("IMVAULT_TOTP_ISSUER", "imvault"),
+		SecretKey:             getenv("IMVAULT_SECRET_KEY", ""),
+		LoginRatePerHour:      getFloat("IMVAULT_LOGIN_RATE_PER_HOUR", 30),
+		LoginBurst:            int(getInt64("IMVAULT_LOGIN_BURST", 10)),
 		MailMaxAttempts:       int(getInt64("IMVAULT_MAIL_MAX_ATTEMPTS", 5)),
 		MailRetryInterval:     getDuration("IMVAULT_MAIL_RETRY_INTERVAL", time.Minute),
 		SecureCookies:         getBool("IMVAULT_SECURE_COOKIES", false),
@@ -135,6 +152,7 @@ func Load() (*Config, error) {
 	}
 
 	c.DBPath = getenv("IMVAULT_DB", filepath.Join(dataDir, "imvault.db"))
+	c.SecretKeyFile = getenv("IMVAULT_SECRET_KEY_FILE", filepath.Join(dataDir, "secret.key"))
 
 	if c.MaxUploadBytes <= 0 {
 		return nil, fmt.Errorf("IMVAULT_MAX_UPLOAD_BYTES must be positive, got %d", c.MaxUploadBytes)

@@ -54,8 +54,11 @@ The first account you register becomes the administrator.
 
 **Accounts**
 - Multi-user signup; the first account becomes the administrator
+- Two-factor authentication with any TOTP app, plus ten single-use recovery
+  codes for when the app is gone
 - Password reset by email when SMTP is configured, or by an
   administrator-issued one-time link when it is not
+- Self-service account deletion, taking every upload with it
 - Outbound mail is queued and retried, so a relay outage delays a message
   instead of losing it
 - Change your password or email address while signed in
@@ -169,6 +172,11 @@ Everything is environment-driven, and every setting has a working default.
 | `IMVAULT_SMTP_PASSWORD` | *(empty)* | Relay password |
 | `IMVAULT_SMTP_FROM` | `imvault <no-reply@localhost>` | Envelope and header sender |
 | `IMVAULT_SMTP_TLS` | `starttls` | `starttls`, `implicit` (port 465) or `none` |
+| `IMVAULT_TOTP_ISSUER` | `imvault` | Name an authenticator app shows for the account |
+| `IMVAULT_SECRET_KEY` | *(empty)* | Key for encrypting TOTP secrets; overrides the key file |
+| `IMVAULT_SECRET_KEY_FILE` | `<data>/secret.key` | Where that key is kept, created on first run |
+| `IMVAULT_LOGIN_RATE_PER_HOUR` | `30` | Sign-in attempts per hour per address and name; `0` disables |
+| `IMVAULT_LOGIN_BURST` | `10` | Sign-in attempts allowed back to back |
 | `IMVAULT_PASSWORD_RESET_TTL` | `1h` | How long a reset link stays valid |
 | `IMVAULT_EMAIL_VERIFY_TTL` | `24h` | How long a confirmation link stays valid |
 | `IMVAULT_MAIL_MAX_ATTEMPTS` | `5` | Delivery attempts before a message is parked as failed |
@@ -217,6 +225,44 @@ The first account registered is the administrator; the role can be granted and
 revoked from `/admin/users`. Two operations are refused to avoid locking
 everybody out: demoting the last administrator, and deleting the last
 administrator.
+
+### Two-factor authentication
+
+Any TOTP app works: the setup page shows a QR code and the key for typing in by
+hand. Ten single-use recovery codes are issued when it is switched on, and they
+are shown once — only digests of them are stored.
+
+A few decisions worth knowing about:
+
+- **The secret is encrypted, not hashed.** Sessions, API keys and reset tokens
+  are all stored as digests because the server never needs them back. A TOTP
+  secret does have to be read to check a code, so it is encrypted with a key
+  kept in its own file (`secret.key`) beside the database. A leak of the
+  database alone therefore does not yield usable second factors.
+- **Codes cannot be replayed.** The last accepted time step is recorded, so a
+  code seen over a shoulder is not reusable for the rest of its window.
+- **Removing the second factor needs both factors.** Disabling it, or
+  reissuing recovery codes, asks for the password *and* a current code. Losing
+  the app is what recovery codes are for.
+- **An administrator can clear it** from `/admin/users`, which is the way back
+  in for somebody who has lost both the app and the recovery codes.
+
+> **Back up `secret.key` with the database.** They are two halves of the same
+> thing: restoring the database without the key leaves every TOTP secret
+> unreadable, and affected accounts need recovery codes or an administrator to
+> clear their second factor. Set `IMVAULT_SECRET_KEY` instead if you would
+> rather supply the key from your own secret store.
+
+### Deleting an account
+
+Any account can delete itself from `/settings/account`. It asks for the
+password, a second factor when one is set, and the username typed out, because
+it is irreversible and takes every upload with it. Storage keys are collected
+before the database rows cascade away, so the bytes are removed rather than
+orphaned on disk.
+
+The last administrator cannot delete itself: that would leave the instance with
+nobody able to administer it.
 
 ### Password reset
 
@@ -307,6 +353,12 @@ generated placeholder poster.
 | `GET` `POST` | `/reset/{token}` | Choose a new password |
 | `GET` | `/verify/{token}` | Confirm an email address |
 | `GET` `POST` | `/settings/password` | Change password, manage email |
+| `GET` | `/settings/2fa` | Two-factor status and enrolment |
+| `GET` | `/settings/2fa/qr` | Enrolment QR code, while setup is pending |
+| `POST` | `/settings/2fa/begin`, `/confirm` | Start and finish enrolment |
+| `POST` | `/settings/2fa/disable`, `/recovery` | Turn it off, or reissue recovery codes |
+| `GET` `POST` | `/settings/account`, `/settings/account/delete` | Account summary and deletion |
+| `GET` `POST` | `/login/2fa` | The second sign-in step |
 | `POST` | `/settings/email` | Set or clear the email address |
 | `GET` | `/gallery` | Your uploads (supports `?q=` and `?page=`) |
 | `GET` `POST` | `/upload` | Uploader and upload endpoint |
@@ -333,6 +385,7 @@ generated placeholder poster.
 | `POST` | `/admin/users/{id}/disabled` | Disable or enable an account |
 | `POST` | `/admin/users/{id}/delete` | Delete an account and its files |
 | `POST` | `/admin/users/{id}/reset` | Issue a one-time password reset link |
+| `POST` | `/admin/users/{id}/2fa` | Clear an account's second factor |
 | `GET` | `/admin/mail` | Outbound mail queue |
 | `POST` | `/admin/mail/{id}/retry` | Requeue a failed message |
 | `POST` | `/admin/mail/{id}/delete` | Discard a message |
@@ -697,7 +750,6 @@ Worth being upfront about what this deliberately does **not** do yet:
 - Animated WebP thumbnails depend on `golang.org/x/image/webp` decoding the first
   frame; if it cannot, the tile falls back to a placeholder poster.
 - No video streaming beyond HTTP range requests — no HLS or adaptive bitrate.
-- No 2FA, and no self-service account deletion.
 - Tags cannot be applied to anonymous uploads: those files have no owning account
   for a tag to live in.
 - API keys can manage files, albums and tags, but not account settings
@@ -713,6 +765,9 @@ Worth being upfront about what this deliberately does **not** do yet:
   a load balancer gives each its own budget.
 - Storage usage can drift if the process is killed mid-upload; the admin
   dashboard has a button to recalculate it from the files table.
+- Two-factor authentication is TOTP only: no WebAuthn or hardware keys, and the
+  recovery codes are the sole fallback.
+- There is no way for an account to export its own data before deleting it.
 
 ## License
 

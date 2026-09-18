@@ -112,6 +112,18 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// With a second factor on, the password is only half of it: the rest is
+	// proved at /login/2fa, which the pending cookie authorises.
+	if user.TwoFactorRequired() {
+		if err := s.startPendingLogin(r.Context(), w, r, user.ID); err != nil {
+			s.log.Error("login: start pending login", "error", err)
+			http.Error(w, "could not start session", http.StatusInternalServerError)
+			return
+		}
+		http.Redirect(w, r, "/login/2fa", http.StatusSeeOther)
+		return
+	}
+
 	if err := s.startSession(r.Context(), w, r, user.ID); err != nil {
 		s.log.Error("login: start session", "error", err)
 		http.Error(w, "could not start session", http.StatusInternalServerError)

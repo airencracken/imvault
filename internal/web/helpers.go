@@ -68,6 +68,9 @@ func isAPIKeyAuth(ctx context.Context) bool {
 	return ok
 }
 
+// trimSpace is a short alias so form handling reads cleanly.
+func trimSpace(s string) string { return strings.TrimSpace(s) }
+
 // urlQueryEscape escapes a value for use in a query string.
 func urlQueryEscape(s string) string { return url.QueryEscape(s) }
 

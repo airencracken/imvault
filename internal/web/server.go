@@ -7,6 +7,7 @@ package web
 import (
 	"context"
 	"embed"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 	"imvault/internal/mail"
 	"imvault/internal/media"
 	"imvault/internal/ratelimit"
+	"imvault/internal/secrets"
 	"imvault/internal/storage"
 	"imvault/internal/store"
 )
@@ -33,16 +35,18 @@ type Server struct {
 	objects storage.Backend
 	media   *media.Processor
 	mail    mail.Sender
+	secrets *secrets.Cipher
 	log     *slog.Logger
 	render  *renderer
 	uploads *ratelimit.Limiter
+	logins  *ratelimit.Limiter
 	handler http.Handler
 	// mailRetryInterval is how often the outbound queue is swept.
 	mailRetryInterval time.Duration
 }
 
 // New constructs a Server and installs the middleware chain.
-func New(cfg *config.Config, st *store.Store, objects storage.Backend, proc *media.Processor, sender mail.Sender, log *slog.Logger) (*Server, error) {
+func New(cfg *config.Config, st *store.Store, objects storage.Backend, proc *media.Processor, sender mail.Sender, cipher *secrets.Cipher, log *slog.Logger) (*Server, error) {
 	r, err := newRenderer()
 	if err != nil {
 		return nil, err
@@ -54,10 +58,19 @@ func New(cfg *config.Config, st *store.Store, objects storage.Backend, proc *med
 		objects:           objects,
 		media:             proc,
 		mail:              sender,
+		secrets:           cipher,
 		log:               log,
 		render:            r,
 		uploads:           ratelimit.New(cfg.UploadRatePerHour, cfg.UploadBurst),
+		logins:            ratelimit.New(cfg.LoginRatePerHour, cfg.LoginBurst),
 		mailRetryInterval: cfg.MailRetryInterval,
+	}
+
+	// Two-factor authentication cannot work without a key, so a wiring mistake
+	// should stop the process rather than surface as a 500 the first time
+	// somebody tries to enrol.
+	if s.secrets == nil {
+		return nil, errors.New("web: a secret key is required")
 	}
 
 	mux := s.routes()
@@ -99,7 +112,9 @@ func (s *Server) routes() *http.ServeMux {
 	// Authentication
 	mux.HandleFunc("GET /{$}", s.handleHome)
 	mux.HandleFunc("GET /login", s.handleLoginPage)
-	mux.HandleFunc("POST /login", s.handleLogin)
+	mux.HandleFunc("POST /login", s.rateLimitLogins(s.handleLogin))
+	mux.HandleFunc("GET /login/2fa", s.handleLoginTwoFactorPage)
+	mux.HandleFunc("POST /login/2fa", s.rateLimitLogins(s.handleLoginTwoFactor))
 	mux.HandleFunc("GET /register", s.handleRegisterPage)
 	mux.HandleFunc("POST /register", s.handleRegister)
 	mux.HandleFunc("POST /logout", s.handleLogout)
@@ -140,6 +155,14 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /p/{id}", s.handleShortLink)
 
 	// Account settings
+	mux.HandleFunc("GET /settings/account", s.requireUser(s.handleAccountPage))
+	mux.HandleFunc("POST /settings/account/delete", s.requireUser(s.handleAccountDelete))
+	mux.HandleFunc("GET /settings/2fa", s.requireUser(s.handleTwoFactorPage))
+	mux.HandleFunc("GET /settings/2fa/qr", s.requireUser(s.handleTwoFactorQR))
+	mux.HandleFunc("POST /settings/2fa/begin", s.requireUser(s.handleTwoFactorBegin))
+	mux.HandleFunc("POST /settings/2fa/confirm", s.requireUser(s.handleTwoFactorConfirm))
+	mux.HandleFunc("POST /settings/2fa/disable", s.requireUser(s.handleTwoFactorDisable))
+	mux.HandleFunc("POST /settings/2fa/recovery", s.requireUser(s.handleTwoFactorRecovery))
 	mux.HandleFunc("GET /settings/password", s.requireUser(s.handleChangePasswordPage))
 	mux.HandleFunc("POST /settings/password", s.requireUser(s.handleChangePassword))
 	mux.HandleFunc("POST /settings/email", s.requireUser(s.handleChangeEmail))
@@ -155,6 +178,7 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /admin/users/{id}/admin", s.requireAdmin(s.handleAdminSetAdmin))
 	mux.HandleFunc("POST /admin/users/{id}/delete", s.requireAdmin(s.handleAdminDeleteUser))
 	mux.HandleFunc("POST /admin/users/{id}/reset", s.requireAdmin(s.handleAdminIssueReset))
+	mux.HandleFunc("POST /admin/users/{id}/2fa", s.requireAdmin(s.handleAdminClearTwoFactor))
 	mux.HandleFunc("GET /admin/mail", s.requireAdmin(s.handleAdminMail))
 	mux.HandleFunc("POST /admin/mail/{id}/retry", s.requireAdmin(s.handleAdminRetryMail))
 	mux.HandleFunc("POST /admin/mail/{id}/delete", s.requireAdmin(s.handleAdminDeleteMail))
