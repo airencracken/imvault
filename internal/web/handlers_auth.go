@@ -150,7 +150,7 @@ func (s *Server) handleRegisterPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		return
 	}
-	if count > 0 && !s.cfg.AllowSignup {
+	if count > 0 && !s.policy().AllowSignup {
 		s.renderPage(w, http.StatusForbidden, "register", authView{
 			base: s.baseErr(r, "Registration closed",
 				"Registration is disabled on this instance."),
@@ -189,7 +189,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 	// The first user bootstraps the instance and always becomes an admin.
 	firstUser := count == 0
-	if !firstUser && !s.cfg.AllowSignup {
+	if !firstUser && !s.policy().AllowSignup {
 		renderErr(http.StatusForbidden, "Registration is disabled on this instance.")
 		return
 	}

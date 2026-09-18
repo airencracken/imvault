@@ -32,7 +32,7 @@ const (
 // handleUploadPage renders the uploader.
 func (s *Server) handleUploadPage(w http.ResponseWriter, r *http.Request) {
 	user := currentUser(r.Context())
-	if user == nil && !s.cfg.AllowAnonymousUploads {
+	if user == nil && !s.policy().AllowAnonymousUploads {
 		http.Redirect(w, r, "/login?next=%2Fupload", http.StatusSeeOther)
 		return
 	}
@@ -88,7 +88,7 @@ func (s *Server) requestSizeLimit(user *models.User) int64 {
 func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	user := currentUser(r.Context())
 	anonymous := user == nil
-	if anonymous && !s.cfg.AllowAnonymousUploads {
+	if anonymous && !s.policy().AllowAnonymousUploads {
 		http.Error(w, "anonymous uploads are disabled", http.StatusForbidden)
 		return
 	}
@@ -522,7 +522,9 @@ func (s *Server) expiryFor(user *models.User) *time.Time {
 	if user != nil {
 		return nil
 	}
-	e := time.Now().UTC().Add(s.cfg.AnonymousTTL)
+	// Read at upload time, so an administrator changing the window affects new
+	// uploads immediately and existing ones through ApplyAnonymousRetention.
+	e := time.Now().UTC().Add(s.policy().AnonymousTTL)
 	return &e
 }
 

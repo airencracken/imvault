@@ -199,6 +199,22 @@ func (f *File) Dimensions() string {
 	return fmt.Sprintf("%d×%d", f.Width, f.Height)
 }
 
+// Setting keys for the instance-wide policy an administrator can change while
+// the server is running.
+const (
+	SettingAllowSignup           = "allow_signup"
+	SettingAllowAnonymousUploads = "allow_anonymous_uploads"
+	SettingAnonymousTTLSeconds   = "anonymous_ttl_seconds"
+)
+
+// Settings is that policy, resolved: stored values where an administrator has
+// set them, configuration otherwise.
+type Settings struct {
+	AllowSignup           bool
+	AllowAnonymousUploads bool
+	AnonymousTTL          time.Duration
+}
+
 // Blob is one piece of stored content, shared by every file with the same hash.
 //
 // Refcount is maintained by database triggers rather than by callers, so it

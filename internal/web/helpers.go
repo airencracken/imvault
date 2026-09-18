@@ -110,12 +110,16 @@ func isSecureRequest(r *http.Request) bool {
 
 // base builds the common template data for a request.
 func (s *Server) base(r *http.Request, title string) base {
+	// The navigation shows whether signup and anonymous uploads are open, so
+	// the instance policy is read on nearly every render.
+	policy := s.policy()
+
 	return base{
 		Title:       title,
 		User:        currentUser(r.Context()),
 		CSRFToken:   csrfToken(r.Context()),
-		AnonUploads: s.cfg.AllowAnonymousUploads,
-		SignupOpen:  s.cfg.AllowSignup,
+		AnonUploads: policy.AllowAnonymousUploads,
+		SignupOpen:  policy.AllowSignup,
 		SourceURL:   s.cfg.SourceURL,
 		Notice:      strings.TrimSpace(r.URL.Query().Get("notice")),
 		Error:       strings.TrimSpace(r.URL.Query().Get("error")),

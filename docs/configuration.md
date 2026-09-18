@@ -1,9 +1,10 @@
 # Configuration
 
-Every setting is an environment variable, and every one has a working
-default. It can be run with no configuration at all.
+Every setting is an environment variable, and every one has a working default.
+It can be run with no configuration at all.
 
-Everything is environment-driven, and every setting has a working default.
+Three of them are also editable while it is running; see [Instance
+settings](#instance-settings) below.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
@@ -47,6 +48,38 @@ Everything is environment-driven, and every setting has a working default.
 | `IMVAULT_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` |
 
 Durations accept Go syntax (`24h`, `90m`) or a bare number of seconds.
+
+## Instance settings
+
+Three instance-wide policies are editable at `/admin/settings`, because all of
+them are things an operator may need to change in a hurry:
+
+| Setting | Variable it falls back to |
+| --- | --- |
+| Whether new accounts can register | `IMVAULT_ALLOW_SIGNUP` |
+| Whether logged-out visitors may upload | `IMVAULT_ALLOW_ANONYMOUS_UPLOADS` |
+| How long anonymous uploads survive | `IMVAULT_ANONYMOUS_TTL` |
+
+**The variable seeds the setting; the interface takes over once you save.** A row
+is written only when an administrator actually changes something, so a
+configuration variable still applies to anything nobody has touched, and a fresh
+instance behaves exactly as its configuration says. The page states, for each
+setting, whether it is currently coming from the file or from the interface, and
+**Clear stored settings** removes the overrides to hand control back to the
+environment.
+
+The retention window accepts a bare number of hours, or a duration with a unit:
+`24` and `24h` mean the same thing, and `7d` is a week.
+
+Changing the retention window **rewrites the deadline on anonymous uploads that
+already exist**, so shortening it takes effect immediately instead of whenever
+the old deadlines happen to pass. Deadlines stay measured from when each upload
+arrived, so anything older than a newly shortened window becomes collectable on
+the reaper's next pass. Without this, an abuse response would not bite until the
+old deadlines expired.
+
+The retention window must be positive. To stop anonymous uploads altogether,
+turn them off rather than setting the window to zero.
 
 ## Quotas
 

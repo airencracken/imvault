@@ -522,3 +522,42 @@ func TestMigrationIsIdempotent(t *testing.T) {
 		t.Errorf("%d migrations recorded, want %d", applied, want)
 	}
 }
+
+func TestSettingsMigrationLeavesAnExistingInstanceAlone(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "pre-settings.db")
+	buildLegacyDatabase(t, path,
+		"001_init.sql", "002_media_and_api_keys.sql", "003_per_account_tags.sql",
+		"004_quotas_and_admin.sql", "005_auth_tokens.sql", "006_outbound_mail.sql",
+		"007_two_factor.sql", "008_content_addressed_storage.sql", "009_per_file_quota.sql",
+		"010_anonymous_tags.sql")
+
+	ctx := context.Background()
+	database, err := Open(ctx, path)
+	if err != nil {
+		t.Fatalf("upgrade database: %v", err)
+	}
+	defer database.Close()
+
+	// The table arrives empty. That is the point: nothing is stored until an
+	// administrator changes something, so an upgraded instance keeps obeying
+	// the configuration it already had rather than silently adopting a
+	// default that happens to match it.
+	var count int
+	if err := database.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM settings`).Scan(&count); err != nil {
+		t.Fatalf("read settings: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("%d settings rows after upgrading, want none", count)
+	}
+
+	// And the table is usable, with the key acting as the primary key.
+	if _, err := database.ExecContext(ctx,
+		`INSERT INTO settings (key, value, updated_at) VALUES ('allow_signup', 'false', 0)`); err != nil {
+		t.Fatalf("insert setting: %v", err)
+	}
+	if _, err := database.ExecContext(ctx,
+		`INSERT INTO settings (key, value, updated_at) VALUES ('allow_signup', 'true', 0)`); err == nil {
+		t.Error("a duplicate setting key was accepted")
+	}
+}

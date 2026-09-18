@@ -136,7 +136,7 @@ tail -f /var/log/imvault.log | grep 'level=WARN'
 | Nobody can sign in with two-factor | The encryption key changed or was lost. See the top of this page. |
 | `module requires go >= 1.26` when building | The Go toolchain is too old. The dependencies need 1.26. |
 | The service will not start after moving the data directory | `ProtectSystem=strict` makes everything but the data directory read-only. Add the new path to `ReadWritePaths` in the unit. |
-| Anonymous uploads vanish early | That is `IMVAULT_ANONYMOUS_TTL`, and it is deliberate. |
+| Anonymous uploads vanish early | That is the retention window. Edit it at `/admin/settings`, or see `IMVAULT_ANONYMOUS_TTL`. |
 | Mail is queued but never arrives | The relay is unreachable. `/admin/mail` carries the exact error from the relay. |
 
 If you are reporting a bug, the log line and the output of `imvault` started

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"imvault/internal/config"
@@ -40,7 +41,10 @@ type Server struct {
 	render  *renderer
 	uploads *ratelimit.Limiter
 	logins  *ratelimit.Limiter
-	handler http.Handler
+	// settings holds the instance policy, cached because it is read on nearly
+	// every request and only ever written by the admin page.
+	settings atomic.Pointer[settingSource]
+	handler  http.Handler
 	// mailRetryInterval is how often the outbound queue is swept.
 	mailRetryInterval time.Duration
 }
@@ -71,6 +75,10 @@ func New(cfg *config.Config, st *store.Store, objects storage.Backend, proc *med
 	// somebody tries to enrol.
 	if s.secrets == nil {
 		return nil, errors.New("web: a secret key is required")
+	}
+
+	if err := s.installSettings(context.Background()); err != nil {
+		return nil, err
 	}
 
 	mux := s.routes()
@@ -185,6 +193,9 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /admin/mail/{id}/delete", s.requireAdmin(s.handleAdminDeleteMail))
 	mux.HandleFunc("POST /admin/maintenance/storage", s.requireAdmin(s.handleAdminRecomputeStorage))
 	mux.HandleFunc("POST /admin/maintenance/blobs", s.requireAdmin(s.handleAdminRecomputeBlobs))
+	mux.HandleFunc("GET /admin/settings", s.requireAdmin(s.handleAdminSettings))
+	mux.HandleFunc("POST /admin/settings", s.requireAdmin(s.handleAdminSaveSettings))
+	mux.HandleFunc("POST /admin/settings/clear", s.requireAdmin(s.handleAdminClearSettings))
 	mux.HandleFunc("GET /admin/files", s.requireAdmin(s.handleAdminFiles))
 	mux.HandleFunc("POST /admin/files/{id}/delete", s.requireAdmin(s.handleAdminDeleteFile))
 

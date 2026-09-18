@@ -1,0 +1,92 @@
+{{define "content"}}
+<header class="page-head">
+  <div>
+    <h1>Instance settings</h1>
+    <p class="muted">
+      Policy that applies to everybody. Per-account limits live under
+      <a href="/admin/users">Users</a>.
+    </p>
+  </div>
+  <nav class="subtabs">
+    <a class="btn small" href="/admin">Overview</a>
+    <a class="btn small" href="/admin/users">Users</a>
+    <a class="btn small" href="/admin/files">All files</a>
+    <a class="btn small" href="/admin/mail">Mail</a>
+  </nav>
+</header>
+
+{{if .Error}}<p class="flash err">{{.Error}}</p>{{end}}
+{{if .Notice}}<p class="flash ok">{{.Notice}}</p>{{end}}
+
+<form class="panel stack" method="post" action="/admin/settings">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+
+  <h2>Accounts</h2>
+  <label class="row">
+    <input type="checkbox" name="allow_signup" value="1" {{if .AllowSignup}}checked{{end}}>
+    <span>Allow new accounts to register</span>
+  </label>
+  <p class="muted">
+    The first account always becomes the administrator, whatever this says.
+    {{if index .Stored "allow_signup"}}
+      Currently set here. Clearing the settings restores {{if .ConfigSignup}}open{{else}}closed{{end}}.
+    {{else}}
+      Currently from the configuration: {{if .ConfigSignup}}open{{else}}closed{{end}}.
+    {{end}}
+  </p>
+
+  <h2>Anonymous uploads</h2>
+  <label class="row">
+    <input type="checkbox" name="allow_anonymous_uploads" value="1" {{if .AllowAnonymousUploads}}checked{{end}}>
+    <span>Allow uploads without an account</span>
+  </label>
+  <p class="muted">
+    Anonymous uploads are public, and are deleted
+    {{if .AnonymousPending}}along with the {{.AnonymousPending}} already stored{{else}}automatically{{end}}
+    when their window ends.
+    {{if index .Stored "allow_anonymous_uploads"}}
+      Currently set here. Clearing the settings restores
+      {{if .ConfigAnon}}open{{else}}closed{{end}}.
+    {{else}}
+      Currently from the configuration: {{if .ConfigAnon}}open{{else}}closed{{end}}.
+    {{end}}
+  </p>
+
+  <label>Retention window
+    <input name="anonymous_ttl" value="{{.Retention}}" required autocomplete="off"
+           placeholder="24h">
+  </label>
+  <p class="muted">
+    How long an anonymous upload survives. <code>24</code> means 24 hours; a
+    number with a unit also works, such as <code>90m</code> or <code>7d</code>.
+    {{if index .Stored "anonymous_ttl_seconds"}}
+      Currently set here. Clearing the settings restores {{.ConfigRetention}}.
+    {{else}}
+      Currently from the configuration: {{.ConfigRetention}}.
+    {{end}}
+  </p>
+  <p class="muted">
+    Changing this rewrites the deadline on anonymous uploads already stored, so
+    shortening it takes effect immediately rather than whenever the old
+    deadlines pass. Each deadline stays measured from when that upload arrived,
+    so anything older than a shortened window becomes collectable at once.
+  </p>
+
+  <button class="btn primary" type="submit">Save settings</button>
+</form>
+
+{{if .Stored}}
+<section class="panel stack">
+  <h2>Stored overrides</h2>
+  <p class="muted">
+    {{if eq (len .Stored) 1}}One setting is{{else}}{{len .Stored}} settings are{{end}}
+    stored here and taking precedence over the configuration.
+  </p>
+  <form method="post" action="/admin/settings/clear"
+        onsubmit="return confirm('Clear the stored settings and go back to the configuration file?');">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <button class="btn danger" type="submit">Clear stored settings</button>
+  </form>
+</section>
+{{end}}
+{{end}}

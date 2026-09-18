@@ -47,7 +47,10 @@ Everything the server answers.
 | `GET` | `/admin/mail` | Outbound mail queue |
 | `POST` | `/admin/mail/{id}/retry` | Requeue a failed message |
 | `POST` | `/admin/mail/{id}/delete` | Discard a message |
+| `GET` `POST` | `/admin/settings` | Instance-wide policy: signup, anonymous uploads, retention |
+| `POST` | `/admin/settings/clear` | Drop the stored overrides and follow the configuration again |
 | `POST` | `/admin/maintenance/storage` | Recalculate per-account storage usage |
+| `POST` | `/admin/maintenance/blobs` | Recalculate content reference counts |
 | `GET` | `/admin/files` | Every upload, for moderation |
 | `POST` | `/admin/files/{id}/delete` | Delete any file |
 | `GET` | `/healthz` | Liveness probe |
