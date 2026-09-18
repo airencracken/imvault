@@ -1,0 +1,13 @@
+{{define "visibility_button"}}
+<form class="inline" method="post" action="/f/{{.File.ID}}/visibility"
+      hx-post="/f/{{.File.ID}}/visibility" hx-target="this" hx-swap="outerHTML">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  {{if .File.IsPublic}}
+    <input type="hidden" name="public" value="0">
+    <button class="btn" type="submit">Make private</button>
+  {{else}}
+    <input type="hidden" name="public" value="1">
+    <button class="btn primary" type="submit">Make public</button>
+  {{end}}
+</form>
+{{end}}

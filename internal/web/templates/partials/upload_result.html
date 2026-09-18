@@ -1,0 +1,12 @@
+{{define "upload_result"}}
+{{if .Errors}}
+<div class="flash err">
+  <strong>Some files were not uploaded:</strong>
+  <ul>{{range .Errors}}<li>{{.}}</li>{{end}}</ul>
+</div>
+{{end}}
+{{if .Grid.Files}}
+{{if .Anonymous}}<p class="muted">Anonymous uploads are removed automatically when their retention window ends.</p>{{end}}
+{{template "file_grid" .Grid}}
+{{end}}
+{{end}}

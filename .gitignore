@@ -1,0 +1,20 @@
+# Build output
+/bin/
+/imvault
+
+# Runtime data: SQLite database and stored objects
+/data/
+
+# Throwaway instance created by `make demo`
+/demo-data/
+
+# SQLite side files
+*.db
+*.db-shm
+*.db-wal
+
+# Editor / OS noise
+.DS_Store
+.idea/
+.vscode/
+*.swp

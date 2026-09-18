@@ -1,0 +1,19 @@
+{{define "tag_chips"}}
+<div class="chips" id="tag-chips">
+  {{range .Tags}}
+  <span class="chip">
+    <a href="/tags/{{.OwnerSlug}}">{{.Name}}</a>
+    {{if $.CanEdit}}
+    <form class="inline" method="post" action="/f/{{$.File.ID}}/tags/{{.ID}}/delete"
+          hx-post="/f/{{$.File.ID}}/tags/{{.ID}}/delete"
+          hx-target="#tag-chips" hx-swap="outerHTML">
+      <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+      <button class="chip-x" type="submit" title="Remove tag" aria-label="Remove tag">×</button>
+    </form>
+    {{end}}
+  </span>
+  {{else}}
+  <span class="muted">No tags yet.</span>
+  {{end}}
+</div>
+{{end}}

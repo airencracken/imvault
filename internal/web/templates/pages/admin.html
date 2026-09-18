@@ -1,0 +1,95 @@
+{{define "content"}}
+<header class="page-head">
+  <div>
+    <h1>Admin</h1>
+    <p class="muted">Instance-wide totals and the accounts using the most space.</p>
+  </div>
+  <nav class="subtabs">
+    <a class="btn small" href="/admin/users">Users</a>
+    <a class="btn small" href="/admin/files">All files</a>
+    <a class="btn small" href="/admin/mail">
+      Mail{{if .FailedMail}} <span class="badge private">{{.FailedMail}}</span>{{end}}
+    </a>
+  </nav>
+</header>
+
+{{if .Error}}<p class="flash err">{{.Error}}</p>{{end}}
+{{if .Notice}}<p class="flash ok">{{.Notice}}</p>{{end}}
+
+<div class="stat-row">
+  <div class="stat"><span class="stat-value">{{.Stats.Users}}</span><span class="stat-label">accounts</span></div>
+  <div class="stat"><span class="stat-value">{{.Stats.Files}}</span><span class="stat-label">files</span></div>
+  <div class="stat"><span class="stat-value">{{humanSize .Stats.TotalBytes}}</span><span class="stat-label">stored</span></div>
+  <div class="stat"><span class="stat-value">{{.Stats.PublicFiles}}</span><span class="stat-label">public</span></div>
+  <div class="stat"><span class="stat-value">{{.Stats.Admins}}</span><span class="stat-label">admins</span></div>
+  <div class="stat"><span class="stat-value">{{.Stats.ActiveKeys}}</span><span class="stat-label">API keys</span></div>
+  {{if .Stats.Disabled}}
+  <div class="stat"><span class="stat-value warn">{{.Stats.Disabled}}</span><span class="stat-label">disabled</span></div>
+  {{end}}
+</div>
+
+<section class="section">
+  <div class="page-head">
+    <h2>Heaviest accounts</h2>
+    <a class="btn small" href="/admin/users">Manage users</a>
+  </div>
+  {{if .Users}}
+  <table class="keys">
+    <thead><tr><th>Account</th><th>Usage</th><th></th></tr></thead>
+    <tbody>
+      {{range .Users}}
+      <tr>
+        <td>
+          {{.Username}}
+          {{if .IsAdmin}}<span class="badge">admin</span>{{end}}
+          {{if .Disabled}}<span class="badge private">disabled</span>{{end}}
+        </td>
+        <td>
+          <div class="usage">
+            <div class="usage-bar"><span style="width: {{.UsagePercent}}%"></span></div>
+            <span class="muted">{{.UsageLabel}}</span>
+          </div>
+        </td>
+        <td>{{if .OverQuota}}<span class="badge warn">over quota</span>{{end}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p class="empty">No accounts yet.</p>
+  {{end}}
+</section>
+
+{{if .FailedMail}}
+<p class="flash err">
+  {{.FailedMail}} queued message{{if ne .FailedMail 1}}s{{end}} could not be
+  delivered. <a href="/admin/mail">Review them</a>.
+</p>
+{{end}}
+
+<section class="section">
+  <div class="page-head">
+    <h2>Maintenance</h2>
+  </div>
+  <div class="panel stack">
+    <div class="row">
+      <form method="post" action="/admin/maintenance/storage">
+        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+        <button class="btn" type="submit">Recalculate storage usage</button>
+      </form>
+      <span class="muted">
+        Recomputes every account's total from the files table. Only needed if a
+        process was killed mid-upload.
+      </span>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="page-head">
+    <h2>Recent uploads</h2>
+    <a class="btn small" href="/admin/files">All files</a>
+  </div>
+  {{template "file_grid" .Grid}}
+</section>
+{{end}}

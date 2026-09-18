@@ -1,0 +1,53 @@
+{{define "api_keys_panel"}}
+<div id="api-keys" class="panel stack">
+  {{if .NewKey}}
+  <div class="flash ok">
+    <p><strong>Copy this key now.</strong> It is stored hashed and cannot be shown again.</p>
+    <input class="key-reveal" readonly value="{{.NewKey}}" onclick="this.select()">
+  </div>
+  {{end}}
+  {{if .Error}}<p class="flash err">{{.Error}}</p>{{end}}
+
+  <form class="stack" method="post" action="/settings/api-keys"
+        hx-post="/settings/api-keys" hx-target="#api-keys" hx-swap="outerHTML">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <h2>Create a key</h2>
+    <label>Label
+      <input name="name" placeholder="e.g. laptop uploader" maxlength="64" required autocomplete="off">
+    </label>
+    <label>Expires after <span class="muted">(days, leave blank for never)</span>
+      <input name="expires_days" type="number" min="1" max="3650" placeholder="never">
+    </label>
+    <button class="btn primary" type="submit">Create key</button>
+  </form>
+
+  {{if .Keys}}
+  <table class="keys">
+    <thead>
+      <tr><th>Label</th><th>Key</th><th>Last used</th><th>Expires</th><th></th></tr>
+    </thead>
+    <tbody>
+      {{range .Keys}}
+      <tr>
+        <td>{{.Name}}</td>
+        <td><code>{{.Masked}}</code></td>
+        <td>{{.HumanLastUsed}}</td>
+        <td>{{.HumanExpiry}}</td>
+        <td>
+          <form method="post" action="/settings/api-keys/{{.ID}}/delete"
+                hx-post="/settings/api-keys/{{.ID}}/delete"
+                hx-target="#api-keys" hx-swap="outerHTML"
+                onsubmit="return confirm('Revoke this key? Anything using it will stop working.');">
+            <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+            <button class="btn small danger" type="submit">Revoke</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p class="muted">No API keys yet. Create one to upload from a script.</p>
+  {{end}}
+</div>
+{{end}}

@@ -1,0 +1,16 @@
+{{define "pagination"}}
+{{if gt .TotalPages 1}}
+<nav class="pager">
+  {{$pg := .}}
+  {{if .HasPrev}}<a class="page-link" href="?{{.BaseQuery}}page={{sub .Page 1}}">← Previous</a>{{end}}
+  {{range .Pages}}
+    {{if eq . $pg.Page}}
+      <span class="page-link current">{{.}}</span>
+    {{else}}
+      <a class="page-link" href="?{{$pg.BaseQuery}}page={{.}}">{{.}}</a>
+    {{end}}
+  {{end}}
+  {{if .HasNext}}<a class="page-link" href="?{{.BaseQuery}}page={{add .Page 1}}">Next →</a>{{end}}
+</nav>
+{{end}}
+{{end}}

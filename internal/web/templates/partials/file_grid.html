@@ -1,0 +1,9 @@
+{{define "file_grid"}}
+{{if .Files}}
+<div class="grid">
+  {{range .Files}}{{template "file_card" (card $.CSRFToken $.RemovePattern $.Removable $.Selectable .)}}{{end}}
+</div>
+{{else}}
+<p class="empty">{{default "Nothing here yet." .Empty}}</p>
+{{end}}
+{{end}}

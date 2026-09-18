@@ -1,0 +1,52 @@
+{{define "layout"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{.CSRFToken}}">
+  <title>{{if .Title}}{{.Title}} · imvault{{else}}imvault{{end}}</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🖼️</text></svg>">
+  <script src="/static/js/htmx.min.js" defer></script>
+  <script src="/static/js/app.js" defer></script>
+</head>
+<body hx-headers='{"X-CSRF-Token":"{{.CSRFToken}}"}'>
+  <header class="topbar">
+    <a class="brand" href="/">imvault</a>
+    <nav class="nav">
+      {{if .IsAuthed}}
+        <a href="/gallery">Gallery</a>
+        <a href="/albums">Albums</a>
+        <a href="/tags">Tags</a>
+        <a href="/settings/password">Settings</a>
+        {{if .IsAdmin}}<a href="/admin">Admin</a>{{end}}
+        <a class="btn small primary" href="/upload">Upload</a>
+        <span class="who" title="Signed in">{{.User.Username}}{{if .IsAdmin}} <span class="badge">admin</span>{{end}}</span>
+        <form class="inline" method="post" action="/logout">
+          <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+          <button class="link" type="submit">Sign out</button>
+        </form>
+      {{else}}
+        <a href="/tags">Tags</a>
+        {{if .AnonUploads}}<a class="btn small primary" href="/upload">Upload</a>{{end}}
+        <a href="/login">Sign in</a>
+        {{if .SignupOpen}}<a href="/register">Register</a>{{end}}
+      {{end}}
+    </nav>
+  </header>
+
+  <main class="page">
+    {{if .Notice}}<p class="flash ok">{{.Notice}}</p>{{end}}
+    {{if .Error}}<p class="flash err">{{.Error}}</p>{{end}}
+    {{template "content" .}}
+  </main>
+
+  <footer class="foot">
+    <span>imvault</span>
+    <span class="muted">
+      Self-hosted image hosting{{if .SourceURL}} ·
+      <a href="{{.SourceURL}}" rel="noopener">source</a> · AGPLv3{{end}}
+    </span>
+  </footer>
+</body>
+</html>{{end}}

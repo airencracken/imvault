@@ -1,0 +1,46 @@
+# Local stack for trying imvault out.
+#
+#   docker compose up --build -d     (or: make compose-up)
+#
+# Everything below can be overridden from a .env file or the environment.
+services:
+  imvault:
+    build: .
+    image: imvault
+    container_name: imvault
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8080}:8080"
+    volumes:
+      - ./data:/data
+    environment:
+      # Set this to the URL you actually browse, so share links are absolute.
+      IMVAULT_BASE_URL: "${IMVAULT_BASE_URL:-http://localhost:8080}"
+      # Turn this on behind TLS; leave off for plain http://localhost.
+      IMVAULT_SECURE_COOKIES: "${IMVAULT_SECURE_COOKIES:-false}"
+      IMVAULT_ALLOW_SIGNUP: "${IMVAULT_ALLOW_SIGNUP:-true}"
+      IMVAULT_ALLOW_ANONYMOUS_UPLOADS: "${IMVAULT_ALLOW_ANONYMOUS_UPLOADS:-true}"
+      IMVAULT_ANONYMOUS_TTL: "${IMVAULT_ANONYMOUS_TTL:-24h}"
+      IMVAULT_MAX_VIDEO_DURATION: "${IMVAULT_MAX_VIDEO_DURATION:-60s}"
+      # Storage cap for new accounts, in bytes. 0 means unlimited.
+      IMVAULT_DEFAULT_QUOTA_BYTES: "${IMVAULT_DEFAULT_QUOTA_BYTES:-5368709120}"
+      IMVAULT_UPLOAD_RATE_PER_HOUR: "${IMVAULT_UPLOAD_RATE_PER_HOUR:-120}"
+      IMVAULT_UPLOAD_BURST: "${IMVAULT_UPLOAD_BURST:-20}"
+      # Set to true only behind a reverse proxy you control.
+      IMVAULT_TRUST_PROXY_HEADERS: "${IMVAULT_TRUST_PROXY_HEADERS:-false}"
+      # Uncomment to enable email (password reset, address confirmation).
+      # IMVAULT_SMTP_HOST: "smtp.example.com"
+      # IMVAULT_SMTP_PORT: "587"
+      # IMVAULT_SMTP_USERNAME: ""
+      # IMVAULT_SMTP_PASSWORD: ""
+      # IMVAULT_SMTP_FROM: "imvault <no-reply@example.com>"
+      # IMVAULT_SMTP_TLS: "starttls"
+      # IMVAULT_MAIL_MAX_ATTEMPTS: "5"
+      # IMVAULT_MAIL_RETRY_INTERVAL: "1m"
+      IMVAULT_LOG_LEVEL: "${IMVAULT_LOG_LEVEL:-info}"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s

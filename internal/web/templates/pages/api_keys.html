@@ -1,0 +1,91 @@
+{{define "content"}}
+<header class="page-head">
+  <div>
+    <h1>API keys</h1>
+    <p class="muted">Signed in as <strong>{{.User.Username}}</strong>.</p>
+  </div>
+  <nav class="subtabs">
+    <a class="btn small" href="/settings/password">Password</a>
+    <a class="btn small" href="/settings/api-keys">API keys</a>
+  </nav>
+</header>
+
+<p class="muted">
+  Keys authenticate the programmatic API. Send one as
+  <code>Authorization: Bearer &lt;key&gt;</code> or <code>X-API-Key: &lt;key&gt;</code>.
+  Keys act as your account, so keep them secret.
+</p>
+
+{{template "api_keys_panel" .}}
+
+<section class="panel stack">
+  <h2>Uploading from a script</h2>
+  <pre class="code">curl -H "Authorization: Bearer $IMVAULT_KEY" \
+     -F "files=@photo.jpg" \
+     {{.BaseURL}}/api/v1/upload</pre>
+
+  <p class="muted">
+    Add <code>-F "public=1"</code> to make the upload shareable, and
+    <code>-F "album=summer-2026"</code> to drop it into an album. Uploads made
+    through the API are private by default.
+  </p>
+
+  <h2>Albums and tags</h2>
+  <pre class="code"># Create an album and add two uploads to it
+curl -H "Authorization: Bearer $IMVAULT_KEY" -H 'Content-Type: application/json' \
+     -d '{"title":"Summer 2026","public":true}' \
+     {{.BaseURL}}/api/v1/albums
+
+curl -H "Authorization: Bearer $IMVAULT_KEY" -H 'Content-Type: application/json' \
+     -d '{"files":["abc123","def456"]}' \
+     {{.BaseURL}}/api/v1/albums/summer-2026/files
+
+# Tag a file, then find everything carrying that tag
+curl -H "Authorization: Bearer $IMVAULT_KEY" -H 'Content-Type: application/json' \
+     -d '{"name":"beach"}' \
+     {{.BaseURL}}/api/v1/files/abc123/tags
+
+curl -H "Authorization: Bearer $IMVAULT_KEY" \
+     '{{.BaseURL}}/api/v1/files?tag=beach&kind=image'</pre>
+
+  <p class="muted">
+    Write endpoints accept either JSON or ordinary form encoding, and albums can
+    be addressed by slug or numeric id.
+  </p>
+
+  <h2>Plain-text responses</h2>
+  <p class="muted">
+    ShareX and similar tools expect a bare URL. Append <code>?format=text</code>
+    to an upload and the response is one URL per line, or send
+    <code>Accept: text/plain</code>.
+  </p>
+
+  <h2>Endpoints</h2>
+  <table class="keys">
+    <thead><tr><th>Method</th><th>Path</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td><code>GET</code></td><td><code>/api/v1/me</code></td><td>Identify the key</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/v1/upload</code></td><td>Upload one or more files</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/v1/files</code></td><td>List and filter your uploads</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/v1/files/{id}</code></td><td>Metadata for one file</td></tr>
+      <tr><td><code>PATCH</code></td><td><code>/api/v1/files/{id}</code></td><td>Change visibility</td></tr>
+      <tr><td><code>DELETE</code></td><td><code>/api/v1/files/{id}</code></td><td>Delete a file</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/v1/files/{id}/tags</code></td><td>Attach a tag</td></tr>
+      <tr><td><code>DELETE</code></td><td><code>/api/v1/files/{id}/tags/{tag}</code></td><td>Detach a tag by id, slug or name</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/v1/tags</code></td><td>List tags you can see</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/v1/albums</code></td><td>List your albums</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/v1/albums</code></td><td>Create an album</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/v1/albums/{ref}</code></td><td>Album with its files</td></tr>
+      <tr><td><code>PATCH</code></td><td><code>/api/v1/albums/{ref}</code></td><td>Update title, description or visibility</td></tr>
+      <tr><td><code>DELETE</code></td><td><code>/api/v1/albums/{ref}</code></td><td>Delete an album (files are kept)</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/v1/albums/{ref}/files</code></td><td>Add files to an album</td></tr>
+      <tr><td><code>DELETE</code></td><td><code>/api/v1/albums/{ref}/files/{id}</code></td><td>Remove a file from an album</td></tr>
+    </tbody>
+  </table>
+
+  <p class="muted">
+    <code>{ref}</code> is an album slug or numeric id. Keys act as the account
+    that owns them and can only ever reach their owner's files and albums.
+  </p>
+</section>
+{{end}}

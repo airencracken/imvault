@@ -1,0 +1,81 @@
+{{define "content"}}
+<header class="page-head">
+  <div>
+    <h1>Outbound mail</h1>
+    <p class="muted">
+      Messages are queued before delivery, so a relay outage delays them rather
+      than losing them.
+    </p>
+  </div>
+  <nav class="subtabs">
+    <a class="btn small" href="/admin">Overview</a>
+    <a class="btn small" href="/admin/users">Users</a>
+    <a class="btn small" href="/admin/files">All files</a>
+  </nav>
+</header>
+
+{{if .Error}}<p class="flash err">{{.Error}}</p>{{end}}
+{{if .Notice}}<p class="flash ok">{{.Notice}}</p>{{end}}
+
+{{if not .MailEnabled}}
+<p class="flash err">
+  No mail relay is configured, so nothing can be delivered. Messages will not be
+  queued until <code>IMVAULT_SMTP_HOST</code> is set.
+</p>
+{{else if .Failed}}
+<p class="flash err">
+  {{.Failed}} message{{if ne .Failed 1}}s{{end}} gave up after repeated failures
+  and will not be retried without intervention.
+</p>
+{{end}}
+
+<div class="stat-row">
+  <div class="stat"><span class="stat-value">{{.Pending}}</span><span class="stat-label">queued</span></div>
+  <div class="stat"><span class="stat-value{{if .Failed}} warn{{end}}">{{.Failed}}</span><span class="stat-label">given up</span></div>
+</div>
+
+{{if .Messages}}
+<table class="keys">
+  <thead>
+    <tr><th>Recipient</th><th>Subject</th><th>Status</th><th>Tries</th><th>When</th><th></th></tr>
+  </thead>
+  <tbody>
+    {{range .Messages}}
+    <tr>
+      <td>{{.Recipient}}</td>
+      <td>{{.Subject}}</td>
+      <td>
+        {{if eq .MailStatus "sent"}}<span class="badge">sent</span>
+        {{else if eq .MailStatus "failed"}}<span class="badge private">failed</span>
+        {{else}}<span class="badge warn">queued</span>{{end}}
+      </td>
+      <td>{{.Attempts}}</td>
+      <td>
+        {{if .SentAt}}{{humanTime .SentAt}}
+        {{else if .FailedAt}}{{humanTime .FailedAt}}
+        {{else}}next {{humanTime .NextAttemptAt}}{{end}}
+      </td>
+      <td class="row-actions">
+        {{if .Pending}}
+        <form method="post" action="/admin/mail/{{.ID}}/retry">
+          <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+          <button class="btn small" type="submit">Retry now</button>
+        </form>
+        {{end}}
+        <form method="post" action="/admin/mail/{{.ID}}/delete"
+              onsubmit="return confirm('Discard this message?');">
+          <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+          <button class="btn small danger" type="submit">Discard</button>
+        </form>
+      </td>
+    </tr>
+    {{if .LastError}}
+    <tr><td colspan="6" class="muted"><code>{{.LastError}}</code></td></tr>
+    {{end}}
+    {{end}}
+  </tbody>
+</table>
+{{else}}
+<p class="empty">Nothing has been queued.</p>
+{{end}}
+{{end}}

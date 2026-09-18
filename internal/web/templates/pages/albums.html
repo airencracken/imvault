@@ -1,0 +1,35 @@
+{{define "content"}}
+<header class="page-head">
+  <h1>Albums</h1>
+</header>
+
+<form class="panel stack" method="post" action="/albums">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  <h2>New album</h2>
+  <label>Title
+    <input name="title" maxlength="120" required autocomplete="off">
+  </label>
+  <label>Description <span class="muted">(optional)</span>
+    <input name="description" maxlength="500" autocomplete="off">
+  </label>
+  <label class="row">
+    <input type="checkbox" name="public" value="1">
+    <span>Public (anyone with the link can view)</span>
+  </label>
+  <button class="btn primary" type="submit">Create album</button>
+</form>
+
+{{if .Albums}}
+<div class="album-list">
+  {{range .Albums}}
+  <a class="album-card" href="/a/{{.Slug}}">
+    <strong>{{.Title}}</strong>
+    <span class="muted">{{.FileCount}} image{{if ne .FileCount 1}}s{{end}}</span>
+    {{if .IsPublic}}<span class="badge">public</span>{{else}}<span class="badge private">private</span>{{end}}
+  </a>
+  {{end}}
+</div>
+{{else}}
+<p class="empty">No albums yet. Create one above.</p>
+{{end}}
+{{end}}

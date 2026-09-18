@@ -1,0 +1,22 @@
+{{define "content"}}
+<section class="hero">
+  <h1>Your pictures, your server.</h1>
+  <p class="lede">imvault is a small, self-hosted image host. Upload, organise into albums, tag, and share by link.</p>
+  <div class="cta">
+    {{if .AnonUploads}}<a class="btn primary" href="/upload">Upload an image</a>{{end}}
+    {{if .IsAuthed}}
+      <a class="btn" href="/gallery">Go to your gallery</a>
+    {{else}}
+      <a class="btn" href="/login">Sign in</a>
+      {{if .SignupOpen}}<a class="btn" href="/register">Create an account</a>{{end}}
+    {{end}}
+  </div>
+</section>
+
+{{if .Grid.Files}}
+<section class="section">
+  <h2>Recently shared</h2>
+  {{template "file_grid" .Grid}}
+</section>
+{{end}}
+{{end}}

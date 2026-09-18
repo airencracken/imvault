@@ -1,0 +1,27 @@
+{{define "content"}}
+<section class="narrow">
+  <h1>Reset your password</h1>
+
+  {{if .Submitted}}
+  <div class="panel stack">
+    <p>If that account exists and has an email address on file, a reset link is on its way.</p>
+    <p class="muted">The link works once and expires shortly. Check your spam folder if it does not arrive.</p>
+  </div>
+  {{else if not .MailEnabled}}
+  <div class="panel stack">
+    <p>This instance has no mail server configured, so passwords cannot be reset by email.</p>
+    <p class="muted">Ask an administrator to issue a one-time reset link for you.</p>
+  </div>
+  {{else}}
+  <form class="panel stack" method="post" action="/forgot">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <label>Username or email
+      <input name="identifier" autocomplete="username" autofocus required>
+    </label>
+    <button class="btn primary" type="submit">Send reset link</button>
+  </form>
+  {{end}}
+
+  <p class="muted"><a href="/login">Back to sign in</a></p>
+</section>
+{{end}}

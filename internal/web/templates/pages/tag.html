@@ -1,0 +1,14 @@
+{{define "content"}}
+<header class="page-head">
+  <div>
+    <h1>#{{.Tag.Name}}</h1>
+    <p class="muted">
+      {{.Pagination.Total}} image{{if ne .Pagination.Total 1}}s{{end}}
+      tagged by {{default "unknown" .Tag.Username}}
+    </p>
+  </div>
+</header>
+
+{{template "file_grid" .Grid}}
+{{template "pagination" .Pagination}}
+{{end}}

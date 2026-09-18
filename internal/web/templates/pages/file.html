@@ -1,0 +1,88 @@
+{{define "content"}}
+<article class="detail">
+  <div class="preview">
+    {{if .File.IsVideo}}
+      <video class="player" controls autoplay muted loop playsinline preload="metadata"
+             poster="/f/{{.File.ID}}/thumb">
+        <source src="/f/{{.File.ID}}/raw" type="{{.File.Mime}}">
+        Your browser cannot play this clip. <a href="/f/{{.File.ID}}/raw">Download it</a>.
+      </video>
+    {{else}}
+      <a href="/f/{{.File.ID}}/raw" title="Open the original">
+        <img src="/f/{{.File.ID}}/preview" alt="{{.File.OriginalName}}">
+      </a>
+    {{end}}
+  </div>
+
+  <aside class="side">
+    <h1 class="filename">{{.File.OriginalName}}</h1>
+
+    <dl class="facts">
+      <dt>Uploaded</dt>
+      <dd>{{date .File.CreatedAt}}{{if .File.Username}} by {{.File.Username}}{{end}}</dd>
+      <dt>Type</dt>
+      <dd>
+        {{if .File.IsVideo}}Video clip
+        {{else if .File.IsAnimated}}Animation ({{.File.FrameCount}} frames)
+        {{else}}Image{{end}}
+      </dd>
+      {{with .File.Dimensions}}<dt>Dimensions</dt><dd>{{.}}</dd>{{end}}
+      {{with .File.DurationLabel}}<dt>Duration</dt><dd>{{.}}</dd>{{end}}
+      <dt>Size</dt><dd>{{humanSize .File.Size}}</dd>
+      <dt>Views</dt><dd>{{.File.Views}}</dd>
+      <dt>Visibility</dt><dd>{{if .File.IsPublic}}Public{{else}}Private{{end}}</dd>
+      {{with .File.ExpiryLabel}}<dt>Retention</dt><dd class="warn">{{.}}</dd>{{end}}
+    </dl>
+
+    <section class="block">
+      <h2>Links</h2>
+      <label class="copy">Direct
+        <input readonly value="{{.RawURL}}" onclick="this.select()">
+      </label>
+      <label class="copy">Page
+        <input readonly value="{{.ShareURL}}" onclick="this.select()">
+      </label>
+    </section>
+
+    {{if .IsOwner}}
+    <section class="block">
+      <h2>Sharing</h2>
+      {{template "visibility_button" .}}
+    </section>
+    {{end}}
+
+    <section class="block">
+      <h2>Tags</h2>
+      {{template "tag_chips" .TagsFragment}}
+      {{if .IsOwner}}
+      <form class="inline-form" method="post" action="/f/{{.File.ID}}/tags"
+            hx-post="/f/{{.File.ID}}/tags" hx-target="#tag-chips" hx-swap="outerHTML">
+        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+        <input name="name" placeholder="add a tag" autocomplete="off" maxlength="48">
+        <button class="btn small" type="submit">Add</button>
+      </form>
+      {{end}}
+    </section>
+
+    {{if .Albums}}
+    <section class="block">
+      <h2>In albums</h2>
+      <div class="chips">
+        {{range .Albums}}<a class="chip" href="/a/{{.Slug}}">{{.Title}}</a>{{end}}
+      </div>
+    </section>
+    {{end}}
+
+    {{if .IsOwner}}
+    <section class="block">
+      <h2>Danger zone</h2>
+      <form method="post" action="/f/{{.File.ID}}/delete">
+        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+        <input type="hidden" name="next" value="/gallery">
+        <button class="btn danger" type="submit">Delete {{if .File.IsVideo}}clip{{else}}image{{end}}</button>
+      </form>
+    </section>
+    {{end}}
+  </aside>
+</article>
+{{end}}

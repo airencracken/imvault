@@ -1,0 +1,250 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+// Package config loads runtime configuration from the environment.
+//
+// Every knob has a working default so that `imvault` can be started with no
+// configuration at all. Values are read from IMVAULT_* environment variables.
+package config
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
+)
+
+// Config holds all runtime settings for the server.
+type Config struct {
+	// Addr is the host:port the HTTP server listens on.
+	Addr string
+	// DataDir is the root directory for the database and uploaded objects.
+	DataDir string
+	// DBPath is the SQLite database file.
+	DBPath string
+	// BaseURL is an optional absolute prefix used when generating links.
+	BaseURL string
+	// SourceURL is shown in the footer. AGPL section 13 asks that people
+	// interacting with the program over a network be offered its source, so it
+	// defaults to the upstream repository and can be blanked to hide it.
+	SourceURL string
+
+	// AllowSignup controls whether new accounts can register.
+	AllowSignup bool
+	// AllowAnonymousUploads controls whether logged-out visitors may upload.
+	AllowAnonymousUploads bool
+	// AnonymousTTL is how long an anonymous upload survives before the reaper
+	// deletes it.
+	AnonymousTTL time.Duration
+	// SessionTTL is the lifetime of a login session.
+	SessionTTL time.Duration
+	// CleanupInterval is how often the background reaper runs.
+	CleanupInterval time.Duration
+
+	// MaxUploadBytes caps the size of a single still image or animation.
+	MaxUploadBytes int64
+	// MaxVideoBytes caps the size of a single video clip.
+	MaxVideoBytes int64
+	// MaxVideoDuration caps how long a clip may run.
+	MaxVideoDuration time.Duration
+	// DefaultQuotaBytes is the storage cap applied to newly created accounts.
+	// Zero means unlimited.
+	DefaultQuotaBytes int64
+	// UploadRatePerHour and UploadBurst bound how many uploads one identity may
+	// make. A rate of zero disables the limit.
+	UploadRatePerHour float64
+	UploadBurst       int
+	// TrustProxyHeaders makes the rate limiter read the client address from
+	// X-Forwarded-For / X-Real-IP. Only enable it when a reverse proxy you
+	// control sets those headers, since they are otherwise client-supplied.
+	TrustProxyHeaders bool
+	// FFmpegPath and FFprobePath locate the tools used to probe clips and
+	// extract poster frames. If they are missing, video support degrades to
+	// placeholder posters instead of failing outright.
+	FFmpegPath  string
+	FFprobePath string
+
+	// SMTP configures outgoing mail. When the host is empty, mail is disabled
+	// and password resets are issued by an administrator instead.
+	SMTPHost     string
+	SMTPPort     int
+	SMTPUsername string
+	SMTPPassword string
+	SMTPFrom     string
+	SMTPTLS      string
+
+	// PasswordResetTTL and EmailVerifyTTL bound the lifetime of the one-time
+	// tokens those flows issue.
+	PasswordResetTTL time.Duration
+	EmailVerifyTTL   time.Duration
+
+	// MailMaxAttempts and MailRetryInterval govern the outbound queue: how many
+	// times a message is tried before it is parked as failed, and how often the
+	// worker looks for due messages.
+	MailMaxAttempts   int
+	MailRetryInterval time.Duration
+	// SecureCookies sets the Secure flag on cookies. Enable behind TLS.
+	SecureCookies bool
+
+	// ThumbMax is the bounding box (in pixels) for generated thumbnails.
+	ThumbMax int
+	// PreviewMax is the bounding box for generated previews.
+	PreviewMax int
+	// JPEGQuality is the encoder quality for lossy thumbnails/previews.
+	JPEGQuality int
+}
+
+// Load reads configuration from the environment, applying defaults.
+func Load() (*Config, error) {
+	dataDir := getenv("IMVAULT_DATA_DIR", "./data")
+
+	c := &Config{
+		Addr:                  getenv("IMVAULT_ADDR", ":8080"),
+		DataDir:               dataDir,
+		BaseURL:               strings.TrimRight(getenv("IMVAULT_BASE_URL", ""), "/"),
+		SourceURL:             getenv("IMVAULT_SOURCE_URL", "https://github.com/airencracken/imvault"),
+		AllowSignup:           getBool("IMVAULT_ALLOW_SIGNUP", true),
+		AllowAnonymousUploads: getBool("IMVAULT_ALLOW_ANONYMOUS_UPLOADS", true),
+		AnonymousTTL:          getDuration("IMVAULT_ANONYMOUS_TTL", 24*time.Hour),
+		SessionTTL:            getDuration("IMVAULT_SESSION_TTL", 30*24*time.Hour),
+		CleanupInterval:       getDuration("IMVAULT_CLEANUP_INTERVAL", 15*time.Minute),
+		MaxUploadBytes:        getInt64("IMVAULT_MAX_UPLOAD_BYTES", 32<<20),
+		MaxVideoBytes:         getInt64("IMVAULT_MAX_VIDEO_BYTES", 128<<20),
+		MaxVideoDuration:      getDuration("IMVAULT_MAX_VIDEO_DURATION", 60*time.Second),
+		DefaultQuotaBytes:     getInt64("IMVAULT_DEFAULT_QUOTA_BYTES", 5<<30),
+		UploadRatePerHour:     getFloat("IMVAULT_UPLOAD_RATE_PER_HOUR", 120),
+		UploadBurst:           int(getInt64("IMVAULT_UPLOAD_BURST", 20)),
+		TrustProxyHeaders:     getBool("IMVAULT_TRUST_PROXY_HEADERS", false),
+		FFmpegPath:            getenv("IMVAULT_FFMPEG", "ffmpeg"),
+		FFprobePath:           getenv("IMVAULT_FFPROBE", "ffprobe"),
+		SMTPHost:              getenv("IMVAULT_SMTP_HOST", ""),
+		SMTPPort:              int(getInt64("IMVAULT_SMTP_PORT", 587)),
+		SMTPUsername:          getenv("IMVAULT_SMTP_USERNAME", ""),
+		SMTPPassword:          getenv("IMVAULT_SMTP_PASSWORD", ""),
+		SMTPFrom:              getenv("IMVAULT_SMTP_FROM", "imvault <no-reply@localhost>"),
+		SMTPTLS:               getenv("IMVAULT_SMTP_TLS", "starttls"),
+		PasswordResetTTL:      getDuration("IMVAULT_PASSWORD_RESET_TTL", time.Hour),
+		EmailVerifyTTL:        getDuration("IMVAULT_EMAIL_VERIFY_TTL", 24*time.Hour),
+		MailMaxAttempts:       int(getInt64("IMVAULT_MAIL_MAX_ATTEMPTS", 5)),
+		MailRetryInterval:     getDuration("IMVAULT_MAIL_RETRY_INTERVAL", time.Minute),
+		SecureCookies:         getBool("IMVAULT_SECURE_COOKIES", false),
+		ThumbMax:              int(getInt64("IMVAULT_THUMB_MAX", 480)),
+		PreviewMax:            int(getInt64("IMVAULT_PREVIEW_MAX", 1600)),
+		JPEGQuality:           int(getInt64("IMVAULT_JPEG_QUALITY", 82)),
+	}
+
+	c.DBPath = getenv("IMVAULT_DB", filepath.Join(dataDir, "imvault.db"))
+
+	if c.MaxUploadBytes <= 0 {
+		return nil, fmt.Errorf("IMVAULT_MAX_UPLOAD_BYTES must be positive, got %d", c.MaxUploadBytes)
+	}
+	if c.MaxVideoBytes <= 0 {
+		return nil, fmt.Errorf("IMVAULT_MAX_VIDEO_BYTES must be positive, got %d", c.MaxVideoBytes)
+	}
+	if c.MaxVideoDuration <= 0 {
+		return nil, fmt.Errorf("IMVAULT_MAX_VIDEO_DURATION must be positive, got %s", c.MaxVideoDuration)
+	}
+	if c.DefaultQuotaBytes < 0 {
+		return nil, fmt.Errorf("IMVAULT_DEFAULT_QUOTA_BYTES must not be negative, got %d", c.DefaultQuotaBytes)
+	}
+	if c.PasswordResetTTL <= 0 {
+		return nil, fmt.Errorf("IMVAULT_PASSWORD_RESET_TTL must be positive")
+	}
+	if c.EmailVerifyTTL <= 0 {
+		return nil, fmt.Errorf("IMVAULT_EMAIL_VERIFY_TTL must be positive")
+	}
+	if c.MailMaxAttempts <= 0 {
+		return nil, fmt.Errorf("IMVAULT_MAIL_MAX_ATTEMPTS must be positive")
+	}
+	if c.MailRetryInterval <= 0 {
+		return nil, fmt.Errorf("IMVAULT_MAIL_RETRY_INTERVAL must be positive")
+	}
+	switch c.SMTPTLS {
+	case "starttls", "implicit", "none":
+	default:
+		return nil, fmt.Errorf("IMVAULT_SMTP_TLS must be starttls, implicit or none, got %q", c.SMTPTLS)
+	}
+	if c.AnonymousTTL <= 0 {
+		return nil, fmt.Errorf("IMVAULT_ANONYMOUS_TTL must be positive, got %s", c.AnonymousTTL)
+	}
+	if c.ThumbMax <= 0 || c.PreviewMax <= 0 {
+		return nil, fmt.Errorf("thumbnail/preview bounds must be positive")
+	}
+	if c.JPEGQuality < 1 || c.JPEGQuality > 100 {
+		return nil, fmt.Errorf("IMVAULT_JPEG_QUALITY must be within 1..100, got %d", c.JPEGQuality)
+	}
+
+	return c, nil
+}
+
+// EnsureDirs creates the directories the server needs to run.
+func (c *Config) EnsureDirs() error {
+	for _, dir := range []string{
+		c.DataDir,
+		filepath.Join(c.DataDir, "objects"),
+	} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("create %s: %w", dir, err)
+		}
+	}
+	return nil
+}
+
+func getenv(key, fallback string) string {
+	if v, ok := os.LookupEnv(key); ok && v != "" {
+		return v
+	}
+	return fallback
+}
+
+func getBool(key string, fallback bool) bool {
+	raw, ok := os.LookupEnv(key)
+	if !ok || raw == "" {
+		return fallback
+	}
+	v, err := strconv.ParseBool(raw)
+	if err != nil {
+		return fallback
+	}
+	return v
+}
+
+func getInt64(key string, fallback int64) int64 {
+	raw, ok := os.LookupEnv(key)
+	if !ok || raw == "" {
+		return fallback
+	}
+	v, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		return fallback
+	}
+	return v
+}
+
+func getFloat(key string, fallback float64) float64 {
+	raw, ok := os.LookupEnv(key)
+	if !ok || raw == "" {
+		return fallback
+	}
+	v, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return fallback
+	}
+	return v
+}
+
+func getDuration(key string, fallback time.Duration) time.Duration {
+	raw, ok := os.LookupEnv(key)
+	if !ok || raw == "" {
+		return fallback
+	}
+	// Accept both Go durations ("24h") and bare seconds ("86400").
+	if v, err := time.ParseDuration(raw); err == nil {
+		return v
+	}
+	if secs, err := strconv.ParseInt(raw, 10, 64); err == nil {
+		return time.Duration(secs) * time.Second
+	}
+	return fallback
+}

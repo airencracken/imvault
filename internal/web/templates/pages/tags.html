@@ -1,0 +1,23 @@
+{{define "content"}}
+<header class="page-head">
+  <h1>Tags</h1>
+  <p class="muted">
+    Tags belong to the account that owns the image. You are seeing your own,
+    plus tags on other people's public uploads.
+  </p>
+</header>
+
+{{if .Tags}}
+{{$viewer := .ViewerID}}
+<div class="chips large">
+  {{range .Tags}}
+  <a class="chip" href="/tags/{{.OwnerSlug}}" title="Tagged by {{.Username}}">
+    {{.Name}} <span class="count">{{.Count}}</span>
+    {{if ne .UserID $viewer}}<span class="owner">@{{.Username}}</span>{{end}}
+  </a>
+  {{end}}
+</div>
+{{else}}
+<p class="empty">No tags yet. Open an image you own and add one.</p>
+{{end}}
+{{end}}

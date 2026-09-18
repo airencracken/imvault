@@ -1,0 +1,100 @@
+{{define "content"}}
+<header class="page-head">
+  <div>
+    <h1>Users</h1>
+    <p class="muted">{{.Pagination.Total}} account{{if ne .Pagination.Total 1}}s{{end}}</p>
+  </div>
+  <nav class="subtabs">
+    <a class="btn small" href="/admin">Overview</a>
+    <a class="btn small" href="/admin/files">All files</a>
+    <a class="btn small" href="/admin/mail">Mail</a>
+  </nav>
+</header>
+
+{{if .Error}}<p class="flash err">{{.Error}}</p>{{end}}
+{{if .Notice}}<p class="flash ok">{{.Notice}}</p>{{end}}
+
+{{if .ResetLink}}
+<div class="flash ok">
+  <p>
+    <strong>Reset link for {{.ResetFor}}.</strong>
+    Hand it over out of band — it works once and expires in {{.ResetTTL}}.
+    It is shown only here and is not stored anywhere.
+  </p>
+  <input class="key-reveal" readonly value="{{.ResetLink}}" onclick="this.select()">
+</div>
+{{end}}
+
+<table class="keys users">
+  <thead>
+    <tr>
+      <th>Account</th>
+      <th>Usage</th>
+      <th>Quota (MiB)</th>
+      <th>Status</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {{range .Users}}
+    <tr>
+      <td>
+        <strong>{{.Username}}</strong>
+        {{if .IsAdmin}}<span class="badge">admin</span>{{end}}
+        {{if .Email}}<br><span class="muted">{{.Email}}</span>{{end}}
+        <br><span class="muted">joined {{humanTime .CreatedAt}}</span>
+      </td>
+
+      <td>
+        <div class="usage">
+          <div class="usage-bar"><span style="width: {{.UsagePercent}}%"></span></div>
+          <span class="muted">{{.UsageLabel}}</span>
+        </div>
+      </td>
+
+      <td>
+        <form class="inline-form" method="post" action="/admin/users/{{.ID}}/quota">
+          <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+          <input name="quota_mb" type="number" min="0" step="1"
+                 value="{{if .Unlimited}}0{{else}}{{div .QuotaBytes 1048576}}{{end}}"
+                 title="0 means unlimited" aria-label="Quota in MiB">
+          <button class="btn small" type="submit">Set</button>
+        </form>
+        {{if .OverQuota}}<span class="badge warn">over quota</span>{{end}}
+      </td>
+
+      <td>
+        {{if .Disabled}}<span class="badge private">disabled</span>{{else}}<span class="badge">active</span>{{end}}
+      </td>
+
+      <td class="row-actions">
+        <form method="post" action="/admin/users/{{.ID}}/admin">
+          <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+          <input type="hidden" name="admin" value="{{if .IsAdmin}}0{{else}}1{{end}}">
+          <button class="btn small" type="submit">{{if .IsAdmin}}Demote{{else}}Promote{{end}}</button>
+        </form>
+
+        <form method="post" action="/admin/users/{{.ID}}/disabled">
+          <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+          <input type="hidden" name="disabled" value="{{if .Disabled}}0{{else}}1{{end}}">
+          <button class="btn small" type="submit">{{if .Disabled}}Enable{{else}}Disable{{end}}</button>
+        </form>
+
+        <form method="post" action="/admin/users/{{.ID}}/reset">
+          <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+          <button class="btn small" type="submit">Reset link</button>
+        </form>
+
+        <form method="post" action="/admin/users/{{.ID}}/delete"
+              onsubmit="return confirm('Delete {{.Username}} and every file they uploaded? This cannot be undone.');">
+          <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+          <button class="btn small danger" type="submit">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {{end}}
+  </tbody>
+</table>
+
+{{template "pagination" .Pagination}}
+{{end}}

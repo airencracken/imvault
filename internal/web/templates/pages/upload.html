@@ -1,0 +1,51 @@
+{{define "content"}}
+<header class="page-head">
+  <h1>Upload</h1>
+  <p class="muted">
+    Images and animations up to {{.MaxUploadMB}} MiB.
+    {{if .VideoEnabled}}
+      Clips up to {{.MaxVideoMB}} MiB and {{.MaxVideoSeconds}} seconds
+      (WebM, MP4, MOV). GIFs keep their animation.
+    {{else}}
+      GIFs keep their animation. Clip playback needs ffmpeg on the server.
+    {{end}}
+  </p>
+</header>
+
+<form id="upload-form" class="panel"
+      method="post" action="/upload" enctype="multipart/form-data"
+      hx-post="/upload" hx-encoding="multipart/form-data"
+      hx-target="#results" hx-swap="innerHTML"
+      hx-indicator="#upload-progress">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+
+  <div id="dropzone" class="dropzone">
+    <input id="file-input" class="sr-only" type="file" name="files" multiple
+           accept="image/*,video/webm,video/mp4,video/quicktime">
+    <p class="drop-title">Drop images or clips here</p>
+    <p class="muted">or <label class="link" for="file-input">choose files</label> — you can also paste from the clipboard.</p>
+    <p id="file-count" class="muted"></p>
+  </div>
+
+  <div class="stack">
+    <label class="row">
+      <input type="checkbox" name="public" value="1" checked>
+      <span>Make uploads public (anyone with the link can view them)</span>
+    </label>
+
+    {{if .Albums}}
+    <label class="row">Add to album
+      <select name="album_id">
+        <option value="">— none —</option>
+        {{range .Albums}}<option value="{{.ID}}">{{.Title}}</option>{{end}}
+      </select>
+    </label>
+    {{end}}
+
+    <button class="btn primary" type="submit">Upload</button>
+    <span id="upload-progress" class="htmx-indicator muted">Uploading…</span>
+  </div>
+</form>
+
+<div id="results"></div>
+{{end}}

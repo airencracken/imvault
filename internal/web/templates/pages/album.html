@@ -1,0 +1,39 @@
+{{define "content"}}
+<header class="page-head">
+  <div>
+    <h1>{{.Album.Title}}</h1>
+    <p class="muted">
+      {{.Album.FileCount}} image{{if ne .Album.FileCount 1}}s{{end}}
+      · {{if .Album.IsPublic}}Public{{else}}Private{{end}}
+      · by {{default "unknown" .Album.Username}}
+    </p>
+    {{with .Album.Description}}<p>{{.}}</p>{{end}}
+  </div>
+  {{if .IsOwner}}
+  <form method="post" action="/a/{{.Album.Slug}}/delete"
+        onsubmit="return confirm('Delete this album? The images themselves are kept.');">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <button class="btn danger" type="submit">Delete album</button>
+  </form>
+  {{end}}
+</header>
+
+{{template "file_grid" .Grid}}
+
+{{if .IsOwner}}
+<section class="section">
+  <h2>Add images</h2>
+  {{if .Available.Files}}
+  <form id="album-add" method="post" action="/a/{{.Album.Slug}}/files"
+        hx-post="/a/{{.Album.Slug}}/files" hx-target="#album-add" hx-swap="outerHTML">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <p class="muted">Tick the images to add, then save.</p>
+    {{template "file_grid" .Available}}
+    <button class="btn primary" type="submit">Add selected</button>
+  </form>
+  {{else}}
+  <p class="muted">Every image in your gallery is already in this album.</p>
+  {{end}}
+</section>
+{{end}}
+{{end}}

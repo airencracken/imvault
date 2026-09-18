@@ -1,0 +1,37 @@
+{{define "file_card"}}
+<figure class="card{{if .Selectable}} selectable{{end}}" id="file-{{.File.ID}}">
+  {{if .Selectable}}
+  <label class="pick" title="Select">
+    <input type="checkbox" name="files" value="{{.File.ID}}" form="album-add">
+  </label>
+  {{end}}
+
+  <a class="thumb" href="/f/{{.File.ID}}">
+    {{if .File.IsVideo}}<span class="play" aria-hidden="true">▶</span>{{end}}
+    <img src="/f/{{.File.ID}}/thumb" alt="{{.File.OriginalName}}" loading="lazy"
+         {{if .File.IsAnimatedGIF}}data-anim="/f/{{.File.ID}}/preview" data-still="/f/{{.File.ID}}/thumb"{{end}}>
+  </a>
+
+  <figcaption class="caption">
+    <a class="name" href="/f/{{.File.ID}}" title="{{.File.OriginalName}}">{{.File.OriginalName}}</a>
+    <div class="meta">
+      <span>{{humanSize .File.Size}}</span>
+      {{with .File.Dimensions}}<span>{{.}}</span>{{end}}
+      {{with .File.DurationLabel}}<span>{{.}}</span>{{end}}
+      {{if .File.IsAnimated}}<span class="badge">gif</span>{{end}}
+      {{if .File.IsVideo}}<span class="badge">video</span>{{end}}
+      <span>{{humanTime .File.CreatedAt}}</span>
+      {{if not .File.IsPublic}}<span class="badge private">private</span>{{end}}
+      {{with .File.ExpiryLabel}}<span class="badge warn">{{.}}</span>{{end}}
+    </div>
+  </figcaption>
+
+  {{if .Removable}}
+  <form class="card-action" method="post" action="{{.RemoveURL}}"
+        hx-post="{{.RemoveURL}}" hx-target="closest .card" hx-swap="outerHTML swap:150ms">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <button class="icon danger" type="submit" title="Remove" aria-label="Remove">✕</button>
+  </form>
+  {{end}}
+</figure>
+{{end}}

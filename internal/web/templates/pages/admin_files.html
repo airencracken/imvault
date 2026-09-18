@@ -1,0 +1,18 @@
+{{define "content"}}
+<header class="page-head">
+  <div>
+    <h1>All files</h1>
+    <p class="muted">
+      {{.Pagination.Total}} file{{if ne .Pagination.Total 1}}s{{end}} across every account.
+      Deleting here also credits the owner's storage back.
+    </p>
+  </div>
+  <nav class="subtabs">
+    <a class="btn small" href="/admin">Overview</a>
+    <a class="btn small" href="/admin/users">Users</a>
+  </nav>
+</header>
+
+{{template "file_grid" .Grid}}
+{{template "pagination" .Pagination}}
+{{end}}
