@@ -17,6 +17,7 @@ import (
 	"imvault/internal/config"
 	"imvault/internal/mail"
 	"imvault/internal/media"
+	"imvault/internal/oidc"
 	"imvault/internal/ratelimit"
 	"imvault/internal/secrets"
 	"imvault/internal/storage"
@@ -39,6 +40,9 @@ type Server struct {
 	secrets *secrets.Cipher
 	log     *slog.Logger
 	render  *renderer
+	// oidc is the optional identity provider. It resolves on first use, so an
+	// issuer that is briefly unreachable does not need a restart.
+	oidc    *oidc.Lazy
 	uploads *ratelimit.Limiter
 	logins  *ratelimit.Limiter
 	// settings holds the instance policy, cached because it is read on nearly
@@ -68,6 +72,17 @@ func New(cfg *config.Config, st *store.Store, objects storage.Backend, proc *med
 		uploads:           ratelimit.New(cfg.UploadRatePerHour, cfg.UploadBurst),
 		logins:            ratelimit.New(cfg.LoginRatePerHour, cfg.LoginBurst),
 		mailRetryInterval: cfg.MailRetryInterval,
+		// The provider is not contacted here: discovery happens on first use,
+		// so an issuer that is briefly unreachable does not stop the instance
+		// from serving, and does not need a restart once it is back.
+		oidc: oidc.NewLazy(oidc.Config{
+			Issuer:         cfg.OIDCIssuer,
+			ClientID:       cfg.OIDCClientID,
+			ClientSecret:   cfg.OIDCClientSecret,
+			Name:           cfg.OIDCName,
+			Scopes:         cfg.OIDCScopes,
+			AllowedDomains: cfg.OIDCAllowedDomains,
+		}),
 	}
 
 	// Two-factor authentication cannot work without a key, so a wiring mistake
@@ -124,6 +139,10 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /login/2fa", s.handleLoginTwoFactorPage)
 	mux.HandleFunc("POST /login/2fa", s.rateLimitLogins(s.handleLoginTwoFactor))
 	mux.HandleFunc("GET /register", s.handleRegisterPage)
+	mux.HandleFunc("GET /auth/oidc/start", s.handleOIDCStart)
+	mux.HandleFunc("GET /auth/oidc/callback", s.handleOIDCCallback)
+	mux.HandleFunc("GET /auth/oidc/complete", s.handleOIDCComplete)
+	mux.HandleFunc("POST /auth/oidc/complete", s.handleOIDCCompleteSubmit)
 	mux.HandleFunc("POST /register", s.handleRegister)
 	mux.HandleFunc("POST /logout", s.handleLogout)
 	mux.HandleFunc("GET /forgot", s.handleForgotPage)
@@ -172,6 +191,7 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /settings/account", s.requireUser(s.handleAccountPage))
 	mux.HandleFunc("GET /settings/account/export", s.requireUser(s.handleAccountExport))
 	mux.HandleFunc("POST /settings/account/delete", s.requireUser(s.handleAccountDelete))
+	mux.HandleFunc("POST /settings/account/identities/{id}/delete", s.requireUser(s.handleUnlinkIdentity))
 	mux.HandleFunc("GET /settings/2fa", s.requireUser(s.handleTwoFactorPage))
 	mux.HandleFunc("GET /settings/2fa/qr", s.requireUser(s.handleTwoFactorQR))
 	mux.HandleFunc("POST /settings/2fa/begin", s.requireUser(s.handleTwoFactorBegin))

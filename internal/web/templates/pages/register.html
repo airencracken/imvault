@@ -13,6 +13,15 @@
   </p>
   {{end}}
 
+  {{if .OIDCName}}
+  <p>
+    <a class="btn primary wide" href="/auth/oidc/start{{if .Invite}}?invite={{.Invite}}{{end}}">
+      Continue with {{.OIDCName}}
+    </a>
+  </p>
+  <p class="muted center">or choose a password</p>
+  {{end}}
+
   <form class="panel stack" method="post" action="/register">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
 

@@ -48,8 +48,41 @@ settings](#instance-settings) below.
 | `IMVAULT_PREVIEW_MAX` | `1600` | Preview bounding box in pixels |
 | `IMVAULT_SECURE_COOKIES` | `false` | Set the `Secure` flag on cookies |
 | `IMVAULT_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` |
+| `IMVAULT_OIDC_ISSUER` | *(empty)* | OpenID Connect issuer. Empty disables provider sign-in |
+| `IMVAULT_OIDC_CLIENT_ID` | *(empty)* | Client id registered with the provider |
+| `IMVAULT_OIDC_CLIENT_SECRET` | *(empty)* | Client secret, for a confidential client |
+| `IMVAULT_OIDC_NAME` | `Single sign-on` | What the button says |
+| `IMVAULT_OIDC_SCOPES` | `openid profile email` | Comma or space separated scopes |
+| `IMVAULT_OIDC_ALLOWED_DOMAINS` | *(empty)* | Email domains allowed to sign in |
 
 Durations accept Go syntax (`24h`, `90m`) or a bare number of seconds.
+
+## Signing in with a provider
+
+Setting `IMVAULT_OIDC_ISSUER` and `IMVAULT_OIDC_CLIENT_ID` turns on sign-in
+through any OpenID Connect provider — Keycloak, Authentik, Google, Discord, or
+anything else that speaks it. Discovery is automatic from
+`<issuer>/.well-known/openid-configuration`.
+
+```bash
+IMVAULT_BASE_URL=https://img.example.com
+IMVAULT_OIDC_ISSUER=https://auth.example.com/application/o/imvault/
+IMVAULT_OIDC_CLIENT_ID=imvault
+IMVAULT_OIDC_CLIENT_SECRET=…
+IMVAULT_OIDC_NAME="Example sign-in"
+```
+
+Register the redirect URI **`<IMVAULT_BASE_URL>/auth/oidc/callback`** with the
+provider, exactly. `IMVAULT_BASE_URL` is required when a provider is
+configured, because the redirect URI has to match what was registered and
+deriving it from a request's `Host` header would let the caller choose it.
+
+Sign-in is supplementary: passwords keep working, and every account keeps one,
+so a provider being down is an inconvenience rather than a lockout.
+
+An issuer that cannot be reached at startup does **not** stop the instance from
+running. The provider is resolved on first use, so a fix takes effect without a
+restart.
 
 ## Instance settings
 

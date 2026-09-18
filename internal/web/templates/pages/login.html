@@ -1,6 +1,14 @@
 {{define "content"}}
 <section class="narrow">
   <h1>Sign in</h1>
+
+  {{if .OIDCName}}
+  <p>
+    <a class="btn primary wide" href="/auth/oidc/start">Sign in with {{.OIDCName}}</a>
+  </p>
+  <p class="muted center">or use your password</p>
+  {{end}}
+
   <form class="panel stack" method="post" action="/login">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
     <input type="hidden" name="next" value="{{.Next}}">

@@ -53,6 +53,39 @@ means no limit at all. A code's uses are consumed in the same transaction that
 creates the account, so a registration that fails — a username that is already
 taken, say — does not cost the code a use.
 
+## Signing in with a provider
+
+An instance can trust one OpenID Connect provider — Keycloak, Authentik,
+Google, Discord, or anything else that speaks it — configured with
+`IMVAULT_OIDC_ISSUER` and friends. See
+[Configuration](configuration.md#signing-in-with-a-provider) for the settings.
+
+Sign-in is **supplementary**. Passwords keep working, every account keeps one,
+and connecting a provider never removes the ability to sign in without it. A
+provider being down is an inconvenience rather than a lockout.
+
+Three decisions are worth knowing about, because each is a place where trusting
+a provider too readily would hand over an account:
+
+- **An address only links when the provider says it has verified it.** Most
+  providers let an account set any address it likes; `email_verified` is the
+  claim that separates "this is their address" from "this is a string they
+  typed". Without it, a provider that does not check addresses would become a
+  way to sign in as whoever you name.
+- **An ambiguous address links nothing.** Addresses are not unique here, so if
+  two accounts share one, signing in with the provider is refused with an
+  explanation rather than guessing which was meant.
+- **A first sign-in still passes through the instance's own policy.** If
+  registration is closed or invitation-only, the provider does not open a second
+  front door: after the provider verifies the identity, the person is asked for
+  a username and an invitation code, exactly as an ordinary registration would
+  be.
+
+Signing in with a provider whose subject is already linked goes straight
+through, since that is what the link is for. Connecting a provider while signed
+in attaches it to **the account you are signed in as**, never to whoever the
+provider happens to name, so the account page is the safe way to add one.
+
 ## Roles
 
 The first account registered is the administrator. After that, every account has

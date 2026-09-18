@@ -33,6 +33,43 @@
   </dl>
 </section>
 
+{{if .OIDCName}}
+<section class="panel stack">
+  <h2>Connected sign-in</h2>
+
+  {{if .Identities}}
+  <table class="keys">
+    <thead><tr><th>Provider</th><th>Address</th><th>Connected</th><th></th></tr></thead>
+    <tbody>
+      {{range .Identities}}
+      <tr>
+        <td>{{$.OIDCName}}</td>
+        <td>{{default "—" .Email}}</td>
+        <td class="muted">{{humanTime .CreatedAt}}</td>
+        <td>
+          <form method="post" action="/settings/account/identities/{{.ID}}/delete"
+                onsubmit="return confirm('Disconnect this sign-in? You will need your password afterwards.');">
+            <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+            <button class="btn small danger" type="submit">Disconnect</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p class="muted">Nothing is connected yet.</p>
+  {{end}}
+
+  <p><a class="btn" href="/auth/oidc/start?connect=1">Connect {{.OIDCName}}</a></p>
+  <p class="muted">
+    Connecting lets you sign in with {{.OIDCName}} instead of your password. It
+    attaches to the account you are signed in as, never to whoever the provider
+    happens to name.
+  </p>
+</section>
+{{end}}
+
 <section class="panel stack">
   <h2>Export your data</h2>
   <p class="muted">

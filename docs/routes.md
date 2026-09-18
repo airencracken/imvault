@@ -38,6 +38,10 @@ Everything the server answers.
 | `GET` | `/p/{id}` | Short share link (redirects to `/f/{id}`) |
 | `GET` `POST` | `/settings/api-keys` | Manage API keys |
 | `POST` | `/settings/api-keys/{id}/delete` | Revoke a key |
+| `GET` | `/auth/oidc/start` | Begin signing in with the identity provider |
+| `GET` | `/auth/oidc/callback` | Where the provider sends the browser back |
+| `GET` `POST` | `/auth/oidc/complete` | Choose a username after a first provider sign-in |
+| `POST` | `/settings/account/identities/{id}/delete` | Disconnect a provider from your account |
 | `POST` | `/reports` | Report a file or an album (any signed-in member) |
 | `GET` | `/moderation` | The report queue (moderators and administrators) |
 | `GET` | `/moderation/log` | The audit trail of removals and decisions |

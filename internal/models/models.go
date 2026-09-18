@@ -713,6 +713,21 @@ type ModerationEntry struct {
 	CreatedAt   time.Time
 }
 
+// Identity links a local account to one at an identity provider.
+//
+// The subject is what identifies somebody: an email can be reassigned by the
+// provider and a username can change, but a subject is stable and unique within
+// an issuer. The email is kept only for display.
+type Identity struct {
+	ID        int64
+	UserID    int64
+	Issuer    string
+	Subject   string
+	Email     string
+	CreatedAt time.Time
+	LastLogin *time.Time
+}
+
 // AnonymousTagOwner is the path segment standing for the shared namespace that
 // tags on anonymous uploads live in. It cannot collide with a username, which
 // is restricted to letters, digits, dot, dash, and underscore.

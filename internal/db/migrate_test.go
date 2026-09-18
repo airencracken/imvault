@@ -889,6 +889,85 @@ func TestModerationMigrationArrivesEmpty(t *testing.T) {
 	}
 }
 
+func TestIdentityMigrationArrivesEmpty(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "pre-identities.db")
+	buildLegacyDatabase(t, path,
+		"001_init.sql", "002_media_and_api_keys.sql", "003_per_account_tags.sql",
+		"004_quotas_and_admin.sql", "005_auth_tokens.sql", "006_outbound_mail.sql",
+		"007_two_factor.sql", "008_content_addressed_storage.sql", "009_per_file_quota.sql",
+		"010_anonymous_tags.sql")
+
+	raw, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{
+		"011_blobs.sql", "012_settings.sql", "013_visibility.sql", "014_shared_albums.sql",
+		"015_roles.sql", "016_invites.sql", "017_moderation.sql",
+	} {
+		body, err := migrationsFS.ReadFile("migrations/" + name)
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		if _, err := raw.Exec(string(body)); err != nil {
+			t.Fatalf("apply %s: %v", name, err)
+		}
+		if _, err := raw.Exec(
+			`INSERT INTO schema_migrations (version, applied_at) VALUES (?, 0)`, name); err != nil {
+			t.Fatalf("record %s: %v", name, err)
+		}
+	}
+	raw.Close()
+
+	ctx := context.Background()
+	database, err := Open(ctx, path)
+	if err != nil {
+		t.Fatalf("upgrade database: %v", err)
+	}
+	defer database.Close()
+
+	var count int
+	if err := database.QueryRowContext(ctx, `SELECT COUNT(*) FROM user_identities`).Scan(&count); err != nil {
+		t.Fatalf("read identities: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("%d identities after upgrading, want none", count)
+	}
+
+	// One identity per issuer per subject, enforced by the database so two
+	// callbacks cannot both claim it.
+	if _, err := database.ExecContext(ctx, `
+		INSERT INTO user_identities (user_id, issuer, subject, email, created_at)
+		VALUES (1, 'https://id.example', 'subject-1', 'a@example.com', 0)`); err != nil {
+		t.Fatalf("insert identity: %v", err)
+	}
+	if _, err := database.ExecContext(ctx, `
+		INSERT INTO user_identities (user_id, issuer, subject, email, created_at)
+		VALUES (2, 'https://id.example', 'subject-1', 'b@example.com', 0)`); err == nil {
+		t.Error("the same subject was linked to a second account")
+	}
+
+	// The same subject at a different issuer is a different identity, since
+	// two providers may mint the same subject.
+	if _, err := database.ExecContext(ctx, `
+		INSERT INTO user_identities (user_id, issuer, subject, email, created_at)
+		VALUES (2, 'https://other.example', 'subject-1', 'b@example.com', 0)`); err != nil {
+		t.Errorf("a subject from another issuer was refused: %v", err)
+	}
+
+	// Deleting the account takes its identities with it.
+	if _, err := database.ExecContext(ctx, `DELETE FROM users WHERE id = 1`); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM user_identities WHERE user_id = 1`).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Errorf("%d identities outlived their account", count)
+	}
+}
+
 func TestMigrationIsIdempotent(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "fresh.db")
 	ctx := context.Background()

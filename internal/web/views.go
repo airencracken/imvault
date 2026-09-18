@@ -36,6 +36,9 @@ type base struct {
 	// accounts that can act on them, so ordinary browsing does not pay for a
 	// query nobody will look at.
 	OpenReports int
+	// OIDCName is the configured identity provider's name, or empty when there
+	// is none. Templates offer the button only when it is set.
+	OIDCName string
 }
 
 // IsAuthed reports whether a user is signed in. Available to templates.

@@ -39,8 +39,9 @@ uploads with a retention window enforced by a reaper.
 **Accounts.** Multi-user signup, invitation codes so a closed instance is not an
 unreachable one, three roles so moderation can be somebody else's job without
 handing them the instance, two-factor authentication with recovery codes,
-password reset by email or by an administrator-issued link, and self-service
-account deletion. See [Accounts](docs/accounts.md).
+sign-in through any OpenID Connect provider, password reset by email or by an
+administrator-issued link, and self-service account deletion. See
+[Accounts](docs/accounts.md).
 
 **API.** Bearer-token keys with full CRUD over files, albums, and tags, taking
 JSON or form encoding, and returning bare URLs for tools that want them. See

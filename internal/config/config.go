@@ -90,6 +90,16 @@ type Config struct {
 
 	// TOTPIssuer is the name an authenticator app shows for the account.
 	TOTPIssuer string
+
+	// OIDC is an optional OpenID Connect provider. Everything here is off
+	// unless an issuer and a client id are given, and a partial configuration
+	// is refused rather than half-applied.
+	OIDCIssuer         string
+	OIDCClientID       string
+	OIDCClientSecret   string
+	OIDCName           string
+	OIDCScopes         []string
+	OIDCAllowedDomains []string
 	// SecretKey encrypts data that has to be readable again, which today means
 	// TOTP secrets. SecretKeyFile is where the key is kept when SecretKey is
 	// not supplied directly.
@@ -151,6 +161,12 @@ func Load() (*Config, error) {
 		PasswordResetTTL:      getDuration("IMVAULT_PASSWORD_RESET_TTL", time.Hour),
 		EmailVerifyTTL:        getDuration("IMVAULT_EMAIL_VERIFY_TTL", 24*time.Hour),
 		TOTPIssuer:            getenv("IMVAULT_TOTP_ISSUER", "imvault"),
+		OIDCIssuer:            strings.TrimRight(getenv("IMVAULT_OIDC_ISSUER", ""), "/"),
+		OIDCClientID:          getenv("IMVAULT_OIDC_CLIENT_ID", ""),
+		OIDCClientSecret:      getenv("IMVAULT_OIDC_CLIENT_SECRET", ""),
+		OIDCName:              getenv("IMVAULT_OIDC_NAME", ""),
+		OIDCScopes:            getList("IMVAULT_OIDC_SCOPES"),
+		OIDCAllowedDomains:    getList("IMVAULT_OIDC_ALLOWED_DOMAINS"),
 		SecretKey:             getenv("IMVAULT_SECRET_KEY", ""),
 		LoginRatePerHour:      getFloat("IMVAULT_LOGIN_RATE_PER_HOUR", 30),
 		LoginBurst:            int(getInt64("IMVAULT_LOGIN_BURST", 10)),
@@ -205,6 +221,18 @@ func Load() (*Config, error) {
 	if c.AnonymousTTL <= 0 {
 		return nil, fmt.Errorf("IMVAULT_ANONYMOUS_TTL must be positive, got %s", c.AnonymousTTL)
 	}
+
+	// A partly configured provider would be worse than none: the button would
+	// appear and then fail at the provider.
+	if (c.OIDCIssuer == "") != (c.OIDCClientID == "") {
+		return nil, fmt.Errorf("IMVAULT_OIDC_ISSUER and IMVAULT_OIDC_CLIENT_ID must be set together")
+	}
+	if c.OIDCIssuer != "" && c.BaseURL == "" {
+		// The redirect URI is registered with the provider and must match
+		// exactly. Deriving it from the request would let a forged Host header
+		// choose it, and would break the moment a proxy changes the name.
+		return nil, fmt.Errorf("IMVAULT_BASE_URL is required when an OpenID Connect provider is configured")
+	}
 	if c.ThumbMax <= 0 || c.PreviewMax <= 0 {
 		return nil, fmt.Errorf("thumbnail/preview bounds must be positive")
 	}
@@ -226,6 +254,26 @@ func (c *Config) EnsureDirs() error {
 		}
 	}
 	return nil
+}
+
+// getList reads a comma or space separated list, trimming each entry and
+// dropping the empties so a trailing comma is not a value.
+func getList(key string) []string {
+	raw, ok := os.LookupEnv(key)
+	if !ok || strings.TrimSpace(raw) == "" {
+		return nil
+	}
+
+	fields := strings.FieldsFunc(raw, func(r rune) bool {
+		return r == ',' || r == ' ' || r == '\t' || r == '\n'
+	})
+	out := make([]string, 0, len(fields))
+	for _, field := range fields {
+		if value := strings.TrimSpace(field); value != "" {
+			out = append(out, value)
+		}
+	}
+	return out
 }
 
 func getenv(key, fallback string) string {

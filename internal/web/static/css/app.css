@@ -162,6 +162,8 @@ label.link { cursor: pointer; }
 
 /* ---------- forms ---------- */
 
+.btn.wide { display: block; width: 100%; text-align: center; }
+
 label { display: block; color: var(--muted); font-size: .88rem; }
 label.row { display: flex; align-items: center; }
 

@@ -142,6 +142,27 @@ Two things are worth knowing about the record:
 An owner removing their own upload is not recorded. That is housekeeping, not
 moderation, and logging it would bury the entries that matter.
 
+## Signing in through a provider
+
+An identity provider is trusted for exactly one thing: that whoever is at the
+other end controls a given account there. Everything else about the sign-in is
+decided here.
+
+The subject a provider returns is what identifies somebody, and it is what the
+link is keyed on. An email address is used once, when a first sign-in has to
+find an existing account — and only when the provider says `email_verified`, and
+only when exactly one account here uses it. A provider that does not check
+addresses therefore cannot be used to claim an account, and an ambiguous address
+is refused rather than guessed at.
+
+A provider is not a way around the instance's registration policy either: a
+first sign-in by an unknown person still has to satisfy whatever the instance
+requires, including an invitation code on an invitation-only instance.
+
+Accounts created this way are given a random password rather than an empty one,
+so there is no "no password" state for a later code path to misread as "any
+password".
+
 ## Rate limiting
 
 Two budgets, both in memory, both keyed so that one client cannot exhaust

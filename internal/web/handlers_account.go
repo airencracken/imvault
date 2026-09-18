@@ -6,7 +6,9 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strconv"
 
+	"imvault/internal/models"
 	"imvault/internal/store"
 )
 
@@ -18,8 +20,10 @@ type accountView struct {
 	// ExportableBytes is what a download would weigh before compression, which
 	// is the same as the account's stored total.
 	ExportableBytes int64
-	Error           string
-	Notice          string
+	// Identities are the provider accounts connected to this one.
+	Identities []*models.Identity
+	Error      string
+	Notice     string
 }
 
 // handleAccountPage shows the account's own settings, including the way out.
@@ -40,10 +44,16 @@ func (s *Server) handleAccountPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	identities, err := s.store.IdentitiesByUser(r.Context(), user.ID)
+	if err != nil {
+		s.log.Error("account: identities", "user", user.ID, "error", err)
+	}
+
 	view := accountView{
 		Status:          status,
 		FileCount:       count,
 		ExportableBytes: status.User.StorageUsed,
+		Identities:      identities,
 		Error:           r.URL.Query().Get("error"),
 		Notice:          r.URL.Query().Get("notice"),
 	}
@@ -114,4 +124,32 @@ func (s *Server) deleteAccount(ctx context.Context, userID int64) (int, error) {
 
 	s.sweepOrphanedBlobs(ctx)
 	return count, nil
+}
+
+// handleUnlinkIdentity disconnects a provider from the signed-in account.
+//
+// Every account keeps its password, so this never locks anybody out; it only
+// removes one way in.
+func (s *Server) handleUnlinkIdentity(w http.ResponseWriter, r *http.Request) {
+	user := currentUser(r.Context())
+
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid connection", http.StatusBadRequest)
+		return
+	}
+
+	if err := s.store.UnlinkIdentity(r.Context(), id, user.ID); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			redirectNotice(w, r, "/settings/account", "error", "That connection does not exist.")
+			return
+		}
+		s.log.Error("unlink identity", "user", user.ID, "identity", id, "error", err)
+		redirectNotice(w, r, "/settings/account", "error", "Could not disconnect it.")
+		return
+	}
+
+	s.log.Info("identity disconnected", "user", user.ID, "identity", id)
+	redirectNotice(w, r, "/settings/account", "notice",
+		"Disconnected. You can still sign in with your password.")
 }

@@ -136,6 +136,7 @@ func (s *Server) base(r *http.Request, title string) base {
 		Notice:            strings.TrimSpace(r.URL.Query().Get("notice")),
 		Error:             strings.TrimSpace(r.URL.Query().Get("error")),
 		CurrentPath:       r.URL.Path,
+		OIDCName:          s.oidc.Name(),
 	}
 
 	// The report badge is only counted for the people who can act on it, so an

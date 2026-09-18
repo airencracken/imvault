@@ -1,0 +1,34 @@
+{{define "content"}}
+<section class="narrow">
+  <h1>One more step</h1>
+
+  <p class="muted">
+    {{.Provider}} verified the sign-in{{if .Email}} as
+    <strong>{{.Email}}</strong>{{end}}, but there is no account here for it yet.
+    Choose a username and it is yours.
+  </p>
+
+  <form class="panel stack" method="post" action="/auth/oidc/complete">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+
+    <label>Username
+      <input name="username" value="{{.Username}}" required autocomplete="username" autofocus
+             pattern="[A-Za-z0-9_.-]{3,32}" title="3-32 characters: letters, digits, dot, dash, underscore">
+    </label>
+
+    <label>Invitation code
+      {{if .InviteRequired}}<span class="muted">(required)</span>
+      {{else}}<span class="muted">(only if you were given one)</span>{{end}}
+      <input name="invite" value="{{.Invite}}" autocomplete="off" spellcheck="false"
+             placeholder="inv_…" {{if .InviteRequired}}required{{end}}>
+    </label>
+
+    <button class="btn primary" type="submit">Create account and continue</button>
+  </form>
+
+  <p class="muted">
+    This account has no password of its own, so {{.Provider}} is how you sign in.
+    To add one, use <a href="/forgot">Forgot your password?</a> afterwards.
+  </p>
+</section>
+{{end}}

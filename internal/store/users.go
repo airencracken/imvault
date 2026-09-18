@@ -120,6 +120,34 @@ func (s *Store) UserByUsername(ctx context.Context, username string) (*models.Us
 	return u, nil
 }
 
+// UsersByEmail returns every account using an address.
+//
+// It is a list rather than one row because email is not unique: linking a
+// provider assertion by address is only safe when exactly one account matches,
+// and "the first row the database felt like returning" is not that.
+func (s *Store) UsersByEmail(ctx context.Context, email string) ([]*models.User, error) {
+	if strings.TrimSpace(email) == "" {
+		return nil, nil
+	}
+
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT `+userColumns+` FROM users WHERE email = ? COLLATE NOCASE`, email)
+	if err != nil {
+		return nil, fmt.Errorf("users by email: %w", err)
+	}
+	defer rows.Close()
+
+	var users []*models.User
+	for rows.Next() {
+		u, err := scanUser(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan user: %w", err)
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
+}
+
 // UserByEmail looks up an account by its (case-insensitive) email address.
 func (s *Store) UserByEmail(ctx context.Context, email string) (*models.User, error) {
 	if strings.TrimSpace(email) == "" {
