@@ -172,6 +172,10 @@ type adminDashboardView struct {
 	PendingMail int
 	MailEnabled bool
 	Blobs       store.BlobStats
+	// MaxTotalBytes is the instance ceiling, or zero when there is none, so the
+	// dashboard can say "of N" rather than leaving an operator to guess how
+	// much room is left.
+	MaxTotalBytes int64
 	// Notice is reported either inline on a full page load or out of
 	// band when htmx swaps a row.
 	Notice adminNotice

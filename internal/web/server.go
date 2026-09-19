@@ -51,6 +51,9 @@ type Server struct {
 	handler  http.Handler
 	// mailRetryInterval is how often the outbound queue is swept.
 	mailRetryInterval time.Duration
+	// processing bounds how many uploads are worked on at once, across
+	// everybody. Rate limiting is per identity and does not bound the total.
+	processing *gate
 }
 
 // New constructs a Server and installs the middleware chain.
@@ -72,6 +75,7 @@ func New(cfg *config.Config, st *store.Store, objects storage.Backend, proc *med
 		uploads:           ratelimit.New(cfg.UploadRatePerHour, cfg.UploadBurst),
 		logins:            ratelimit.New(cfg.LoginRatePerHour, cfg.LoginBurst),
 		mailRetryInterval: cfg.MailRetryInterval,
+		processing:        newGate(cfg.MaxConcurrentUploads),
 		// The provider is not contacted here: discovery happens on first use,
 		// so an issuer that is briefly unreachable does not stop the instance
 		// from serving, and does not need a restart once it is back.

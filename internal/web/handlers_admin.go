@@ -102,13 +102,14 @@ func (s *Server) handleAdminDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	view := adminDashboardView{
-		Stats:       stats,
-		Users:       users,
-		Grid:        s.grid(r, recent, true, false, "/admin/files/%s/delete", "Nothing has been uploaded yet."),
-		PendingMail: pendingMail,
-		MailEnabled: s.mail.Enabled(),
-		Blobs:       blobs,
-		Notice:      noticeFromQuery(r),
+		Stats:         stats,
+		Users:         users,
+		Grid:          s.grid(r, recent, true, false, "/admin/files/%s/delete", "Nothing has been uploaded yet."),
+		PendingMail:   pendingMail,
+		MailEnabled:   s.mail.Enabled(),
+		Blobs:         blobs,
+		MaxTotalBytes: s.policy().MaxTotalBytes,
+		Notice:        noticeFromQuery(r),
 	}
 	view.base = s.base(r, "Admin")
 	view.FailedMail = failedMail

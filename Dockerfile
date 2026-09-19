@@ -20,14 +20,20 @@ FROM alpine:3.20
 
 RUN apk add --no-cache ca-certificates tzdata ffmpeg \
  && adduser -D -u 10001 -h /data imvault \
- && mkdir -p /data/tmp \
  && chown -R imvault:imvault /data
 
 COPY --from=build /out/imvault /usr/local/bin/imvault
 
+# Temporary files go to /tmp, deliberately not to /data.
+#
+# A multipart body past 8 MiB spills to TMPDIR, and one request may carry up to
+# twenty files. Leaving that on /data put a runaway spill and the SQLite
+# database on the same filesystem, so filling the first took the second with it.
+# Keeping them apart means a spill that runs out of room fails an upload rather
+# than the instance.
 ENV IMVAULT_DATA_DIR=/data \
     IMVAULT_ADDR=:8080 \
-    TMPDIR=/data/tmp
+    TMPDIR=/tmp
 
 VOLUME ["/data"]
 EXPOSE 8080

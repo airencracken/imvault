@@ -20,6 +20,11 @@ var (
 	ErrConflict = errors.New("store: conflict")
 	// ErrQuotaExceeded means an upload would take an account past its storage cap.
 	ErrQuotaExceeded = errors.New("store: storage quota exceeded")
+	// ErrInstanceFull means an upload would take the whole instance past the
+	// operator's ceiling. It is separate from ErrQuotaExceeded because the two
+	// need different advice: one is "delete some of your own files", the other
+	// is "this box is full, and nothing you do will help".
+	ErrInstanceFull = errors.New("store: instance storage ceiling reached")
 	// ErrLastAdmin means an operation would leave the instance with no
 	// administrator, which would lock everybody out of the admin UI.
 	ErrLastAdmin = errors.New("store: the last administrator cannot be removed")

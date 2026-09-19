@@ -12,7 +12,10 @@
 <div class="stat-row">
   <div class="stat"><span class="stat-value">{{.Stats.Users}}</span><span class="stat-label">accounts</span></div>
   <div class="stat"><span class="stat-value">{{.Stats.Files}}</span><span class="stat-label">files</span></div>
-  <div class="stat"><span class="stat-value">{{humanSize .Stats.TotalBytes}}</span><span class="stat-label">stored</span></div>
+  <div class="stat">
+    <span class="stat-value">{{humanSize .Stats.TotalBytes}}</span>
+    <span class="stat-label">stored{{if .MaxTotalBytes}} of {{humanSize .MaxTotalBytes}}{{end}}</span>
+  </div>
   <div class="stat"><span class="stat-value">{{.Stats.PublicFiles}}</span><span class="stat-label">public</span></div>
   <div class="stat"><span class="stat-value">{{.Stats.Admins}}</span><span class="stat-label">admins</span></div>
   {{if .Stats.Moderators}}

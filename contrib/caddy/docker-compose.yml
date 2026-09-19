@@ -15,6 +15,13 @@ services:
     image: imvault
     container_name: imvault
     restart: unless-stopped
+    # Multipart bodies spill here past 8 MiB, so this is sized in RAM rather
+    # than left on the data volume: a runaway spill should fail an upload, not
+    # fill the disk the database lives on. One request may carry
+    # IMVAULT_MAX_UPLOAD_BYTES x 20, so raise this (and your memory) if you
+    # accept large multi-file uploads.
+    tmpfs:
+      - /tmp:size=512m,mode=1777
     volumes:
       - imvault-data:/data
     environment:

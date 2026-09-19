@@ -378,6 +378,7 @@ const (
 	SettingAnonymousTTLSeconds   = "anonymous_ttl_seconds"
 	SettingDefaultVisibility     = "default_visibility"
 	SettingInviteOnly            = "invite_only"
+	SettingMaxTotalBytes         = "max_total_bytes"
 )
 
 // Settings is that policy, resolved: stored values where an administrator has
@@ -390,6 +391,10 @@ type Settings struct {
 	// An invitation always admits, whatever this says, because it is a direct
 	// grant from an administrator.
 	InviteOnly bool
+	// MaxTotalBytes caps what the instance as a whole stores. Zero means
+	// unlimited. It is the "this box has N bytes" ceiling, as opposed to the
+	// per-account quota an administrator sets on one account.
+	MaxTotalBytes int64
 	// DefaultVisibility is what a new upload gets when the uploader does not
 	// choose. It is the single setting that most changes what an instance
 	// feels like: private is a personal host, members is a group, public is a

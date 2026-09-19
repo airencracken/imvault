@@ -118,6 +118,25 @@ backwards.
 
 ## Troubleshooting
 
+### The temporary directory
+
+Multipart bodies spill to a temporary directory once they pass 8 MiB, and one
+request may carry twenty files, so a large multi-file upload needs room
+somewhere. That somewhere should not be the data directory: putting a spill and
+the SQLite database on the same filesystem means filling the first takes the
+second with it.
+
+The container image sets `TMPDIR=/tmp`, and both compose files give `/tmp` a
+512 MiB tmpfs — bounded, and in memory rather than on the disk the database
+lives on. The trade is explicit: if the spill does not fit, the upload fails
+instead of the instance. Raise the size if you accept large multi-file uploads
+and have the memory for it, or lower `IMVAULT_MAX_UPLOAD_BYTES` and
+`IMVAULT_MAX_VIDEO_BYTES` to match what you actually want to accept.
+
+Installed from a package rather than a container, nothing sets `TMPDIR`, so the
+spill follows the system temporary directory. Point it at a separate filesystem
+if the data directory is on a small one.
+
 Start with the log. Every line is logfmt, so `grep` gets you a long way:
 
 ```bash
@@ -138,6 +157,9 @@ tail -f /var/log/imvault.log | grep 'level=WARN'
 | The service will not start after moving the data directory | `ProtectSystem=strict` makes everything but the data directory read-only. Add the new path to `ReadWritePaths` in the unit. |
 | Anonymous uploads vanish early | That is the retention window. Edit it at `/admin/settings`, or see `IMVAULT_ANONYMOUS_TTL`. |
 | Mail is queued but never arrives | The relay is unreachable. `/admin/mail` carries the exact error from the relay. |
+| Uploads are refused as "this instance is full" | The instance ceiling, `IMVAULT_MAX_TOTAL_BYTES`. Delete something, or raise it. |
+| Uploads are refused with a `503` | Every upload slot is busy. `IMVAULT_MAX_CONCURRENT_UPLOADS`; the response carries `Retry-After`. |
+| A large multi-file upload fails while others work | The temporary directory is too small for it. See the note below. |
 
 If you are reporting a bug, the log line and the output of `imvault` started
 with `IMVAULT_LOG_LEVEL=debug` are the two things that make it reproducible.

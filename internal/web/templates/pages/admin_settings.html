@@ -108,6 +108,25 @@
     so anything older than a shortened window becomes collectable at once.
   </p>
 
+  <h2>Storage</h2>
+  <label>Instance ceiling <span class="muted">(MiB, blank for no ceiling)</span>
+    <input name="max_total_mb" type="number" min="0" step="1" inputmode="numeric"
+           value="{{if .MaxTotalMB}}{{.MaxTotalMB}}{{end}}" placeholder="unlimited">
+  </label>
+  <p class="muted">
+    The most this instance will store in total, across every account and
+    anonymous uploads alike. It is the "this box has a fixed amount of disk"
+    control, as opposed to a per-account quota, which is set at
+    <a href="/admin/users">Users</a>. Once it is reached, uploads are refused.
+    {{if index .Stored "max_total_bytes"}}
+      Currently set here. Clearing the settings restores
+      {{if .ConfigMaxTotalMB}}{{.ConfigMaxTotalMB}} MiB{{else}}no ceiling{{end}}.
+    {{else}}
+      Currently from the configuration:
+      {{if .ConfigMaxTotalMB}}{{.ConfigMaxTotalMB}} MiB{{else}}no ceiling{{end}}.
+    {{end}}
+  </p>
+
   <h2>New uploads are visible to</h2>
   <fieldset class="choices">
     {{$current := .Visibility}}

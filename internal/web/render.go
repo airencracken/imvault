@@ -83,6 +83,15 @@ func (r *renderer) partial(w io.Writer, name string, data any) error {
 // renderPartial writes a fragment, buffering first so a template error cannot
 // emit a half-written 200 response.
 func (s *Server) renderPartial(w http.ResponseWriter, name string, data any) {
+	s.renderPartialStatus(w, http.StatusOK, name, data)
+}
+
+// renderPartialStatus writes a fragment under a chosen status.
+//
+// A fragment is not always an answer to something that worked: a busy server
+// returns a 503 that still carries something worth showing. Sending 200 to mean
+// "no" would hide overload from anything watching status codes.
+func (s *Server) renderPartialStatus(w http.ResponseWriter, status int, name string, data any) {
 	var buf bytes.Buffer
 	if err := s.render.partial(&buf, name, data); err != nil {
 		s.log.Error("render partial", "template", name, "error", err)
@@ -90,6 +99,7 @@ func (s *Server) renderPartial(w http.ResponseWriter, name string, data any) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
 	w.Write(buf.Bytes())
 }
 

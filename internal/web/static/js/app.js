@@ -108,6 +108,15 @@
     }
   });
 
+  // htmx leaves the page alone on a 5xx, which is right for a crash and wrong
+  // for "the server is busy, here is what to say about it". A 503 from an
+  // upload carries a fragment meant to be shown.
+  document.body.addEventListener("htmx:beforeSwap", function (e) {
+    if (!e.detail.xhr || e.detail.xhr.status !== 503) return;
+    e.detail.shouldSwap = true;
+    e.detail.isError = false;
+  });
+
   // Hovering an animated tile swaps the still thumbnail for the animation, and
   // leaving it swaps back so the grid stays cheap to scroll.
   document.body.addEventListener("mouseover", function (e) {

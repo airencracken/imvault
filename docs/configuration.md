@@ -23,6 +23,8 @@ settings](#instance-settings) below.
 | `IMVAULT_MAX_VIDEO_BYTES` | `134217728` (128 MiB) | Per-file limit for clips |
 | `IMVAULT_MAX_VIDEO_DURATION` | `60s` | Longest accepted clip |
 | `IMVAULT_DEFAULT_QUOTA_BYTES` | `5368709120` (5 GiB) | Storage cap given to new accounts; `0` for unlimited |
+| `IMVAULT_MAX_TOTAL_BYTES` | `0` | Ceiling for the whole instance; `0` for none |
+| `IMVAULT_MAX_CONCURRENT_UPLOADS` | one per CPU, minimum 2 | Uploads processed at once, across everybody |
 | `IMVAULT_SMTP_HOST` | *(empty)* | Mail relay. Empty disables email entirely |
 | `IMVAULT_SMTP_PORT` | `587` | Relay port |
 | `IMVAULT_SMTP_USERNAME` | *(empty)* | Skip authentication when empty, for a local relay |
@@ -96,6 +98,7 @@ them are things an operator may need to change in a hurry:
 | Whether logged-out visitors may upload | `IMVAULT_ALLOW_ANONYMOUS_UPLOADS` |
 | How long anonymous uploads survive | `IMVAULT_ANONYMOUS_TTL` |
 | What a new upload is visible to | `IMVAULT_DEFAULT_VISIBILITY` |
+| How much the instance will store in total | `IMVAULT_MAX_TOTAL_BYTES` |
 
 The same page offers the three ways of running an instance as one-click
 profiles, because personal, group, and public hosts are the same program at
@@ -107,9 +110,11 @@ different settings rather than three programs:
 | **Group** | by invitation | off | members |
 | **Public** | open | allowed, expiring | public |
 
-Applying a profile deliberately leaves the retention window alone. That setting
-reaches backwards over uploads already stored, and a button labelled "Public"
-should not quietly purge somebody's files.
+Applying a profile deliberately leaves the retention window and the storage
+ceiling alone. The first reaches backwards over uploads already stored, and a
+button labelled "Public" should not quietly purge somebody's files; the second
+is a fact about the machine rather than a shape of instance, and a profile has
+no business guessing how much disk the operator has.
 
 Read and closed are not the same thing. An invitation **always** admits, even
 when registration is switched off entirely, because it is a deliberate grant by
@@ -139,9 +144,20 @@ old deadlines expired.
 The retention window must be positive. To stop anonymous uploads altogether,
 turn them off rather than setting the window to zero.
 
-## Quotas
+## Storage ceilings
 
-Two ceilings exist per account, and both are set together at `/admin/users`:
+There are two separate ceilings, and they answer different questions.
+
+The **instance ceiling** (`IMVAULT_MAX_TOTAL_BYTES`, or the same field under
+Instance settings) is how much the machine will hold in total: every account's
+uploads and every anonymous upload added together. Once it is reached, uploads
+are refused with a message saying so. It is measured against the stored
+originals, which is the same number the dashboard shows as "stored", and it is
+derived from the files table rather than kept as a running counter, so it cannot
+drift out of step with what is actually there.
+
+The **per-account quota** is the other ceiling, and it is set one account at a
+time at `/admin/users`:
 
 | | |
 | --- | --- |
@@ -176,6 +192,23 @@ both fit into room that exists only once. Every failure path — a failed
 rendition, a failed insert, a rejected request — releases what was claimed, and
 the total is clamped at zero so a double release cannot drive it negative.
 Deleting a file credits the owner back.
+
+## Concurrency
+
+`IMVAULT_MAX_CONCURRENT_UPLOADS` bounds how many uploads are being processed at
+once, across everybody. It defaults to one per CPU, with a floor of two.
+
+This is a different control from rate limiting and an instance needs both. A
+token bucket bounds how many uploads one identity may start per hour, but its
+burst allowance still lets that identity start several at the same instant, and
+every identity gets its own bucket. What neither bounds is the total, and a
+video upload runs ffmpeg inside the request, so the sum of simultaneous
+invocations was (identities × burst) with no ceiling at all. On a small machine
+that is a one-person outage.
+
+A request that cannot get a slot within ten seconds is refused with a `503` and
+a `Retry-After`, rather than being queued indefinitely. A browser uploading
+photos sees the same message in place instead of a failed page.
 
 ## Rate limiting
 

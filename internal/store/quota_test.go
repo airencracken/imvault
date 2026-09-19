@@ -16,7 +16,7 @@ func TestStorageReservationHonoursQuota(t *testing.T) {
 	alice := mustUser(t, s, ctx, "alice")
 
 	// A new account is unlimited, so anything fits.
-	if err := s.ReserveStorage(ctx, alice.ID, 10_000); err != nil {
+	if err := s.ReserveStorage(ctx, alice.ID, 10_000, 0); err != nil {
 		t.Fatalf("reserve on an unlimited account: %v", err)
 	}
 	if got := mustLoadUser(t, s, ctx, alice.ID).StorageUsed; got != 10_000 {
@@ -39,10 +39,10 @@ func TestStorageReservationHonoursQuota(t *testing.T) {
 		t.Errorf("usage = %d%%, want 100", user.UsagePercent())
 	}
 
-	if err := s.CheckQuota(ctx, alice.ID, 1); !errors.Is(err, ErrQuotaExceeded) {
+	if err := s.CheckQuota(ctx, alice.ID, 1, 0); !errors.Is(err, ErrQuotaExceeded) {
 		t.Errorf("check over quota = %v, want ErrQuotaExceeded", err)
 	}
-	if err := s.ReserveStorage(ctx, alice.ID, 1); !errors.Is(err, ErrQuotaExceeded) {
+	if err := s.ReserveStorage(ctx, alice.ID, 1, 0); !errors.Is(err, ErrQuotaExceeded) {
 		t.Errorf("reserve over quota = %v, want ErrQuotaExceeded", err)
 	}
 
@@ -53,10 +53,10 @@ func TestStorageReservationHonoursQuota(t *testing.T) {
 	if got := mustLoadUser(t, s, ctx, alice.ID).StorageUsed; got != 500 {
 		t.Fatalf("storage_used = %d, want 500", got)
 	}
-	if err := s.ReserveStorage(ctx, alice.ID, 500); err != nil {
+	if err := s.ReserveStorage(ctx, alice.ID, 500, 0); err != nil {
 		t.Errorf("reserving exactly the remaining room failed: %v", err)
 	}
-	if err := s.ReserveStorage(ctx, alice.ID, 1); !errors.Is(err, ErrQuotaExceeded) {
+	if err := s.ReserveStorage(ctx, alice.ID, 1, 0); !errors.Is(err, ErrQuotaExceeded) {
 		t.Errorf("reserving past the boundary = %v, want ErrQuotaExceeded", err)
 	}
 
@@ -72,7 +72,7 @@ func TestStorageReservationHonoursQuota(t *testing.T) {
 	if err := s.SetUserQuota(ctx, alice.ID, 0); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.ReserveStorage(ctx, alice.ID, 1<<40); err != nil {
+	if err := s.ReserveStorage(ctx, alice.ID, 1<<40, 0); err != nil {
 		t.Errorf("an unlimited account was refused: %v", err)
 	}
 }
@@ -102,7 +102,7 @@ func TestConcurrentReservationsCannotOversubscribe(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := s.ReserveStorage(ctx, alice.ID, claim); err == nil {
+			if err := s.ReserveStorage(ctx, alice.ID, claim, 0); err == nil {
 				mu.Lock()
 				succeeded++
 				mu.Unlock()
@@ -127,7 +127,7 @@ func TestRecomputeStorageUsageRepairsDrift(t *testing.T) {
 	mustFile(t, s, ctx, "two", &alice.ID, models.VisibilityPrivate, nil)
 
 	// Simulate a crash that reserved bytes without recording a file.
-	if err := s.ReserveStorage(ctx, alice.ID, 500_000); err != nil {
+	if err := s.ReserveStorage(ctx, alice.ID, 500_000, 0); err != nil {
 		t.Fatal(err)
 	}
 	if got := mustLoadUser(t, s, ctx, alice.ID).StorageUsed; got != 500_000 {
@@ -271,4 +271,93 @@ func mustLoadUser(t *testing.T, s *Store, ctx context.Context, id int64) *models
 		t.Fatalf("load user %d: %v", id, err)
 	}
 	return user
+}
+
+func TestTotalStoredBytesCountsAnonymousToo(t *testing.T) {
+	s, ctx := newTestStore(t)
+	alice := mustUser(t, s, ctx, "alice")
+
+	if total, err := s.TotalStoredBytes(ctx); err != nil || total != 0 {
+		t.Fatalf("empty instance total = %d (%v), want 0", total, err)
+	}
+
+	// mustFile writes 1024 bytes each, and the anonymous one has no account to
+	// be counted under. A ceiling that ignored anonymous uploads would be no
+	// ceiling at all on a public instance, where they are the bulk of the
+	// traffic.
+	mustFile(t, s, ctx, "owned", &alice.ID, models.VisibilityPrivate, nil)
+	mustFile(t, s, ctx, "anon", nil, models.VisibilityPublic, nil)
+
+	total, err := s.TotalStoredBytes(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 2048 {
+		t.Errorf("total = %d, want 2048 including the anonymous upload", total)
+	}
+
+	// It is derived, so it follows a delete without anything having to remember
+	// to decrement it.
+	if err := s.DeleteFile(ctx, "anon"); err != nil {
+		t.Fatal(err)
+	}
+	if total, err := s.TotalStoredBytes(ctx); err != nil || total != 1024 {
+		t.Errorf("total after a delete = %d (%v), want 1024", total, err)
+	}
+}
+
+func TestCheckQuotaRefusesAtTheInstanceCeiling(t *testing.T) {
+	s, ctx := newTestStore(t)
+	alice := mustUser(t, s, ctx, "alice")
+	mustFile(t, s, ctx, "one", &alice.ID, models.VisibilityPrivate, nil) // 1024 bytes
+
+	// A ceiling of exactly the total plus one more file.
+	if err := s.CheckQuota(ctx, alice.ID, 1024, 2048); err != nil {
+		t.Errorf("a file that just fits was refused: %v", err)
+	}
+	if err := s.CheckQuota(ctx, alice.ID, 1025, 2048); !errors.Is(err, ErrInstanceFull) {
+		t.Errorf("a file past the ceiling = %v, want ErrInstanceFull", err)
+	}
+
+	// Zero means the operator set no ceiling, and then nothing here applies.
+	if err := s.CheckQuota(ctx, alice.ID, 1<<40, 0); err != nil {
+		t.Errorf("an instance with no ceiling refused a file: %v", err)
+	}
+
+	// The instance ceiling and the account quota are different refusals, and the
+	// message depends on telling them apart.
+	if err := s.SetUserQuota(ctx, alice.ID, 100); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CheckQuota(ctx, alice.ID, 200, 0); !errors.Is(err, ErrQuotaExceeded) {
+		t.Errorf("an account over its own quota = %v, want ErrQuotaExceeded", err)
+	}
+}
+
+func TestReserveStorageNamesWhichCeilingWasHit(t *testing.T) {
+	s, ctx := newTestStore(t)
+	alice := mustUser(t, s, ctx, "alice")
+
+	// The account's own cap, with no instance ceiling in play.
+	if err := s.SetUserQuota(ctx, alice.ID, 100); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ReserveStorage(ctx, alice.ID, 200, 0); !errors.Is(err, ErrQuotaExceeded) {
+		t.Errorf("account cap = %v, want ErrQuotaExceeded", err)
+	}
+
+	// The instance ceiling, with the account unlimited.
+	if err := s.SetUserQuota(ctx, alice.ID, 0); err != nil {
+		t.Fatal(err)
+	}
+	mustFile(t, s, ctx, "one", &alice.ID, models.VisibilityPrivate, nil)
+	if err := s.ReserveStorage(ctx, alice.ID, 2000, 2048); !errors.Is(err, ErrInstanceFull) {
+		t.Errorf("instance ceiling = %v, want ErrInstanceFull", err)
+	}
+
+	// And it still reserves when there is room, so the ceiling is a ceiling and
+	// not a blanket refusal.
+	if err := s.ReserveStorage(ctx, alice.ID, 1024, 2048); err != nil {
+		t.Errorf("a file that fits was refused: %v", err)
+	}
 }

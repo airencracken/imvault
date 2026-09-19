@@ -132,3 +132,56 @@ func TestOIDCListsAreSplitAndTrimmed(t *testing.T) {
 		t.Errorf("allowed domains = %#v", got)
 	}
 }
+
+func TestConcurrentUploadsSelfTunesAndValidates(t *testing.T) {
+	// Unset means "work it out": a one-core box and a sixteen-core one want
+	// different answers, and the number only has to be low enough that the
+	// simultaneous ffmpeg invocations fit.
+	t.Setenv("IMVAULT_DATA_DIR", t.TempDir())
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.MaxConcurrentUploads < 2 {
+		t.Errorf("default concurrency = %d, want at least 2", cfg.MaxConcurrentUploads)
+	}
+
+	t.Setenv("IMVAULT_MAX_CONCURRENT_UPLOADS", "3")
+	cfg, err = Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.MaxConcurrentUploads != 3 {
+		t.Errorf("concurrency = %d, want the configured 3", cfg.MaxConcurrentUploads)
+	}
+
+	t.Setenv("IMVAULT_MAX_CONCURRENT_UPLOADS", "-1")
+	if _, err := Load(); err == nil {
+		t.Error("a negative concurrency was accepted")
+	}
+}
+
+func TestTheInstanceCeilingDefaultsToNone(t *testing.T) {
+	t.Setenv("IMVAULT_DATA_DIR", t.TempDir())
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.MaxTotalBytes != 0 {
+		t.Errorf("default ceiling = %d, want none", cfg.MaxTotalBytes)
+	}
+
+	t.Setenv("IMVAULT_MAX_TOTAL_BYTES", "1073741824")
+	cfg, err = Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.MaxTotalBytes != 1<<30 {
+		t.Errorf("ceiling = %d, want 1 GiB", cfg.MaxTotalBytes)
+	}
+
+	t.Setenv("IMVAULT_MAX_TOTAL_BYTES", "-1")
+	if _, err := Load(); err == nil {
+		t.Error("a negative ceiling was accepted")
+	}
+}

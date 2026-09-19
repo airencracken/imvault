@@ -51,11 +51,13 @@ JSON or form encoding, and returning bare URLs for tools that want them. See
 moderator works, and every removal of somebody else's content is recorded with
 who did it, when, and why. See [Accounts](docs/accounts.md).
 
-**Operations.** Per-account storage quotas and single-file limits, identical
-uploads stored once, an export of everything an account holds, upload and
-sign-in rate limiting, an admin area for usage, quotas, user management, and content moderation, and
-outbound mail that is queued and retried rather than dropped. See
-[Configuration](docs/configuration.md) and [Operations](docs/operations.md).
+**Operations.** Per-account storage quotas and single-file limits, an
+instance-wide storage ceiling, a bound on how many uploads are processed at
+once, identical uploads stored once, an export of everything an account holds,
+upload and sign-in rate limiting, an admin area for usage, quotas, user
+management, and content moderation, and outbound mail that is queued and
+retried rather than dropped. See [Configuration](docs/configuration.md) and
+[Operations](docs/operations.md).
 
 ## Quick start
 

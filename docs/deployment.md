@@ -167,6 +167,14 @@ journalctl -u imvault -n 20       # or: tail /var/log/imvault.log
 The service runs as an unprivileged account, keeps everything but its data
 directory read-only, and shares no temporary space with the rest of the system.
 
+## Temporary space
+
+The server spills multipart uploads past 8 MiB into `TMPDIR`. The container sets
+it to `/tmp` and both compose files mount a 512 MiB tmpfs there, so a runaway
+spill fails an upload rather than filling the filesystem the database is on. See
+[Operations](operations.md#the-temporary-directory) for the arithmetic and how
+to size it.
+
 ## Logs
 
 Every line is logfmt — a flat sequence of `key=value` pairs, one record per

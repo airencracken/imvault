@@ -93,6 +93,17 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// One of a small number of upload slots, held for the whole request so that
+	// the work, the temporary spill, and any ffmpeg are all covered. Taken
+	// before the body is read: reading first would let a slow uploader hold
+	// temporary space without holding a slot.
+	release, ok := s.processing.acquire(r.Context())
+	if !ok {
+		s.uploadBusy(w, r)
+		return
+	}
+	defer release()
+
 	r.Body = http.MaxBytesReader(w, r.Body, s.requestSizeLimit(user))
 
 	if err := r.ParseMultipartForm(multipartMemory); err != nil {
@@ -205,7 +216,7 @@ func (s *Server) ingest(ctx context.Context, header *multipart.FileHeader, user 
 	// Cheap pre-flight: reject an upload that cannot possibly fit before
 	// decoding and writing anything.
 	if owner != nil {
-		if err := s.store.CheckQuota(ctx, *owner, header.Size); err != nil {
+		if err := s.store.CheckQuota(ctx, *owner, header.Size, s.policy().MaxTotalBytes); err != nil {
 			return nil, quotaError(err, user)
 		}
 	}
@@ -217,10 +228,18 @@ func (s *Server) ingest(ctx context.Context, header *multipart.FileHeader, user 
 }
 
 // quotaError turns a store quota failure into a message worth showing a user.
+//
+// The two refusals are kept apart because the advice differs: an account over
+// its own quota can delete something and try again, whereas an instance at its
+// ceiling cannot be helped by anything the uploader does.
 func quotaError(err error, user *models.User) error {
-	if !errors.Is(err, store.ErrQuotaExceeded) {
+	switch {
+	case errors.Is(err, store.ErrInstanceFull):
+		return errors.New("this instance is full and is not accepting more uploads")
+	case !errors.Is(err, store.ErrQuotaExceeded):
 		return err
 	}
+
 	if user == nil || user.Unlimited() {
 		return errors.New("storage quota exceeded")
 	}
@@ -290,7 +309,7 @@ func (s *Server) storeStill(
 	// Claim the bytes before recording the file, so two concurrent uploads
 	// cannot both fit into room that only exists once.
 	if owner != nil {
-		if err := s.store.ReserveStorage(ctx, *owner, size); err != nil {
+		if err := s.store.ReserveStorage(ctx, *owner, size, s.policy().MaxTotalBytes); err != nil {
 			return nil, quotaError(err, nil)
 		}
 	}
@@ -377,7 +396,7 @@ func (s *Server) storeVideo(
 	// Claim the bytes before probing, so an over-quota upload does not pay for
 	// a poster frame it will never use.
 	if owner != nil {
-		if err := s.store.ReserveStorage(ctx, *owner, size); err != nil {
+		if err := s.store.ReserveStorage(ctx, *owner, size, s.policy().MaxTotalBytes); err != nil {
 			return nil, quotaError(err, nil)
 		}
 	}

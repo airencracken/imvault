@@ -86,6 +86,9 @@ type settingsView struct {
 	// Retention is the window as written for a person, for example "24h" or
 	// "7d0h".
 	Retention string
+	// MaxTotalMB is the instance-wide ceiling, in MiB, for the form. Zero means
+	// unlimited.
+	MaxTotalMB int64
 	// Visibility is the level a new upload gets.
 	Visibility models.Visibility
 	// Levels is every level, in the order they are offered.
@@ -101,6 +104,7 @@ type settingsView struct {
 	ConfigAnon       bool
 	ConfigRetention  string
 	ConfigVisibility models.Visibility
+	ConfigMaxTotalMB int64
 	AnonymousPending int
 	Error            string
 	Notice           string
@@ -176,6 +180,7 @@ func (s *Server) handleAdminSettings(w http.ResponseWriter, r *http.Request) {
 		InviteOnly:            policy.InviteOnly,
 		AllowAnonymousUploads: policy.AllowAnonymousUploads,
 		Retention:             formatRetention(policy.AnonymousTTL),
+		MaxTotalMB:            policy.MaxTotalBytes >> 20,
 		Visibility:            policy.DefaultVisibility,
 		Levels:                models.VisibilityLevels(),
 		Profiles:              instanceProfiles(),
@@ -185,6 +190,7 @@ func (s *Server) handleAdminSettings(w http.ResponseWriter, r *http.Request) {
 		ConfigAnon:            s.cfg.AllowAnonymousUploads,
 		ConfigRetention:       formatRetention(s.cfg.AnonymousTTL),
 		ConfigVisibility:      s.cfg.DefaultVisibility,
+		ConfigMaxTotalMB:      s.cfg.MaxTotalBytes >> 20,
 		AnonymousPending:      pending,
 		Error:                 r.URL.Query().Get("error"),
 		Notice:                r.URL.Query().Get("notice"),
@@ -203,6 +209,12 @@ func (s *Server) handleAdminSaveSettings(w http.ResponseWriter, r *http.Request)
 
 	previous := s.policy()
 
+	maxTotal, err := parseMegabytes(r.FormValue("max_total_mb"))
+	if err != nil {
+		redirectNotice(w, r, "/admin/settings", "error", err.Error())
+		return
+	}
+
 	next := models.Settings{
 		// Absent checkboxes mean off, which is what a form sends.
 		AllowSignup:           r.FormValue("allow_signup") == "1",
@@ -210,6 +222,7 @@ func (s *Server) handleAdminSaveSettings(w http.ResponseWriter, r *http.Request)
 		AllowAnonymousUploads: r.FormValue("allow_anonymous_uploads") == "1",
 		AnonymousTTL:          previous.AnonymousTTL,
 		DefaultVisibility:     models.ParseVisibility(r.FormValue("default_visibility")),
+		MaxTotalBytes:         maxTotal,
 	}
 
 	applied := ""
@@ -226,6 +239,7 @@ func (s *Server) handleAdminSaveSettings(w http.ResponseWriter, r *http.Request)
 		next.InviteOnly = profile.InviteOnly
 		next.AllowAnonymousUploads = profile.Anonymous
 		next.DefaultVisibility = profile.Visibility
+		next.MaxTotalBytes = previous.MaxTotalBytes
 		applied = profile.Name
 	} else {
 		window, err := parseRetention(r.FormValue("anonymous_ttl"))
@@ -255,6 +269,7 @@ func (s *Server) handleAdminSaveSettings(w http.ResponseWriter, r *http.Request)
 		"allow_anonymous_uploads", next.AllowAnonymousUploads,
 		"anonymous_ttl", next.AnonymousTTL.String(),
 		"default_visibility", string(next.DefaultVisibility),
+		"max_total_bytes", next.MaxTotalBytes,
 	)
 
 	notice := "Settings saved."
@@ -341,6 +356,23 @@ func parseRetention(raw string) (time.Duration, error) {
 		return 0, fmt.Errorf("The retention window must be positive.")
 	}
 	return window, nil
+}
+
+// parseMegabytes reads a size in MiB, where zero means no ceiling. A profile
+// leaves it alone for the same reason it leaves the retention window alone:
+// it is an operator's decision about this particular box, not a shape of
+// instance.
+func parseMegabytes(raw string) (int64, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0, nil
+	}
+
+	megabytes, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || megabytes < 0 {
+		return 0, fmt.Errorf("The storage ceiling must be a whole number of MiB, or blank for no ceiling.")
+	}
+	return megabytes << 20, nil
 }
 
 // formatRetention renders a window the way the form accepts it back: hours

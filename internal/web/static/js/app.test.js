@@ -173,3 +173,51 @@ test("accepting without a pending form is harmless", () => {
   assert.equal(confirm.open, false);
   assert.equal(confirm.form, null);
 });
+
+// The body-level listeners are registered against document.body, so they are
+// captured the same way the Alpine registrations are: by running the script
+// against a shim that records them.
+function loadBodyListeners() {
+  const listeners = new Map();
+  const document = {
+    getElementById: () => null,
+    addEventListener: () => {},
+    body: { addEventListener: (name, handler) => listeners.set(name, handler) },
+  };
+
+  const context = {
+    document,
+    window: {},
+    setTimeout,
+    console,
+    Alpine: { store() {}, data() {} },
+  };
+  vm.runInNewContext(SOURCE, context);
+  return listeners;
+}
+
+test("a 503 from htmx is shown rather than swallowed", () => {
+  const handler = loadBodyListeners().get("htmx:beforeSwap");
+  assert.ok(handler, "expected an htmx:beforeSwap listener");
+
+  // htmx's default is to leave the page alone on a 5xx, which is right for a
+  // crash. A busy server sends a fragment meant to be read, so that one has to
+  // be swapped or the uploader page silently does nothing.
+  const busy = { detail: { xhr: { status: 503 }, shouldSwap: false, isError: true } };
+  handler(busy);
+  assert.equal(busy.detail.shouldSwap, true);
+  assert.equal(busy.detail.isError, false);
+
+  // Every other status is left exactly as htmx decided.
+  const crash = { detail: { xhr: { status: 500 }, shouldSwap: false, isError: true } };
+  handler(crash);
+  assert.equal(crash.detail.shouldSwap, false);
+  assert.equal(crash.detail.isError, true);
+
+  const fine = { detail: { xhr: { status: 200 }, shouldSwap: true, isError: false } };
+  handler(fine);
+  assert.equal(fine.detail.shouldSwap, true);
+
+  // A detail without an xhr must not throw: the listener runs for every swap.
+  handler({ detail: {} });
+});

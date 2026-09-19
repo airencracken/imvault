@@ -169,6 +169,15 @@ func (s *Server) apiUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The same slot the web uploader takes: the bound is on the instance, not
+	// on one way in.
+	release, ok := s.processing.acquire(r.Context())
+	if !ok {
+		s.uploadBusy(w, r)
+		return
+	}
+	defer release()
+
 	r.Body = http.MaxBytesReader(w, r.Body, s.requestSizeLimit(user))
 
 	if err := r.ParseMultipartForm(multipartMemory); err != nil {

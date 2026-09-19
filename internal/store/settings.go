@@ -66,6 +66,12 @@ func (s *Store) LoadSettings(ctx context.Context, defaults models.Settings) (mod
 			sources[models.SettingInviteOnly] = true
 		}
 	}
+	if raw, ok := stored[models.SettingMaxTotalBytes]; ok {
+		if bytes, err := strconv.ParseInt(raw, 10, 64); err == nil && bytes >= 0 {
+			resolved.MaxTotalBytes = bytes
+			sources[models.SettingMaxTotalBytes] = true
+		}
+	}
 	if raw, ok := stored[models.SettingDefaultVisibility]; ok {
 		if visibility := models.ParseVisibility(raw); visibility.Valid() {
 			resolved.DefaultVisibility = visibility
@@ -92,6 +98,7 @@ func (s *Store) SaveSettings(ctx context.Context, settings models.Settings) erro
 			models.SettingAnonymousTTLSeconds:   strconv.FormatInt(int64(settings.AnonymousTTL/time.Second), 10),
 			models.SettingDefaultVisibility:     string(settings.DefaultVisibility),
 			models.SettingInviteOnly:            strconv.FormatBool(settings.InviteOnly),
+			models.SettingMaxTotalBytes:         strconv.FormatInt(settings.MaxTotalBytes, 10),
 		} {
 			_, err := tx.ExecContext(ctx, `
 				INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)

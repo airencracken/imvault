@@ -149,7 +149,7 @@ func (s *Server) recordReused(
 	size := existing.Size
 
 	if owner != nil {
-		if err := s.store.ReserveStorage(ctx, *owner, size); err != nil {
+		if err := s.store.ReserveStorage(ctx, *owner, size, s.policy().MaxTotalBytes); err != nil {
 			return nil, quotaError(err, nil)
 		}
 	}

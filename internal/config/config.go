@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -60,6 +61,14 @@ type Config struct {
 	// DefaultQuotaBytes is the storage cap applied to newly created accounts.
 	// Zero means unlimited.
 	DefaultQuotaBytes int64
+	// MaxTotalBytes caps what the instance as a whole will store. Zero means
+	// unlimited. It is the "this box has N bytes" ceiling, as opposed to the
+	// per-account cap, and it is the one that matters on a small host.
+	MaxTotalBytes int64
+	// MaxConcurrentUploads bounds how many uploads are processed at once.
+	// Rate limiting bounds the rate per identity, which does not bound
+	// concurrency, and a video upload shells out to ffmpeg inside the request.
+	MaxConcurrentUploads int
 	// UploadRatePerHour and UploadBurst bound how many uploads one identity may
 	// make. A rate of zero disables the limit.
 	UploadRatePerHour float64
@@ -147,6 +156,8 @@ func Load() (*Config, error) {
 		MaxVideoBytes:         getInt64("IMVAULT_MAX_VIDEO_BYTES", 128<<20),
 		MaxVideoDuration:      getDuration("IMVAULT_MAX_VIDEO_DURATION", 60*time.Second),
 		DefaultQuotaBytes:     getInt64("IMVAULT_DEFAULT_QUOTA_BYTES", 5<<30),
+		MaxTotalBytes:         getInt64("IMVAULT_MAX_TOTAL_BYTES", 0),
+		MaxConcurrentUploads:  int(getInt64("IMVAULT_MAX_CONCURRENT_UPLOADS", 0)),
 		UploadRatePerHour:     getFloat("IMVAULT_UPLOAD_RATE_PER_HOUR", 120),
 		UploadBurst:           int(getInt64("IMVAULT_UPLOAD_BURST", 20)),
 		TrustProxyHeaders:     getBool("IMVAULT_TRUST_PROXY_HEADERS", false),
@@ -200,6 +211,18 @@ func Load() (*Config, error) {
 	}
 	if c.DefaultQuotaBytes < 0 {
 		return nil, fmt.Errorf("IMVAULT_DEFAULT_QUOTA_BYTES must not be negative, got %d", c.DefaultQuotaBytes)
+	}
+	if c.MaxTotalBytes < 0 {
+		return nil, fmt.Errorf("IMVAULT_MAX_TOTAL_BYTES must not be negative, got %d", c.MaxTotalBytes)
+	}
+	if c.MaxConcurrentUploads < 0 {
+		return nil, fmt.Errorf("IMVAULT_MAX_CONCURRENT_UPLOADS must not be negative, got %d", c.MaxConcurrentUploads)
+	}
+	if c.MaxConcurrentUploads == 0 {
+		// Self-tuning rather than a fixed number: a single-core box and a
+		// sixteen-core one want different answers, and the number only has to
+		// be low enough that the sum of ffmpeg invocations fits.
+		c.MaxConcurrentUploads = max(2, runtime.NumCPU())
 	}
 	if c.PasswordResetTTL <= 0 {
 		return nil, fmt.Errorf("IMVAULT_PASSWORD_RESET_TTL must be positive")

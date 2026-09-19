@@ -380,7 +380,7 @@ func TestAdminRecomputesStorageUsage(t *testing.T) {
 	}
 
 	// Drift the total, as a crash part-way through an upload would.
-	if err := h.store.ReserveStorage(t.Context(), alice.ID, 999_999); err != nil {
+	if err := h.store.ReserveStorage(t.Context(), alice.ID, 999_999, 0); err != nil {
 		t.Fatal(err)
 	}
 	drifting, err := h.store.UserByID(t.Context(), alice.ID)

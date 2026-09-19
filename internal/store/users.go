@@ -307,19 +307,32 @@ func (s *Store) DeleteUser(ctx context.Context, userID int64) error {
 }
 
 // ReserveStorage atomically claims size bytes for an account, refusing when the
-// claim would exceed its quota.
+// claim would exceed its quota or the instance's ceiling.
 //
 // Doing this in a single UPDATE is what makes the check safe under concurrent
 // uploads: two requests cannot both observe room that only exists once.
-func (s *Store) ReserveStorage(ctx context.Context, userID, size int64) error {
+//
+// totalLimit of zero means the instance has no ceiling, and then the statement
+// is the plain per-account one. The extra condition costs a scan of the files
+// table, which an instance that does not want a ceiling should not pay for on
+// every upload.
+func (s *Store) ReserveStorage(ctx context.Context, userID, size, totalLimit int64) error {
 	if size <= 0 {
 		return nil
 	}
 
-	res, err := s.db.ExecContext(ctx, `
+	query := `
 		UPDATE users SET storage_used = storage_used + ?
-		WHERE id = ? AND (quota_bytes = 0 OR storage_used + ? <= quota_bytes)`,
-		size, userID, size)
+		WHERE id = ? AND (quota_bytes = 0 OR storage_used + ? <= quota_bytes)`
+	args := []any{size, userID, size}
+
+	if totalLimit > 0 {
+		query += `
+		  AND (SELECT COALESCE(SUM(size), 0) FROM files) + ? <= ?`
+		args = append(args, size, totalLimit)
+	}
+
+	res, err := s.db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("reserve storage: %w", err)
 	}
@@ -329,9 +342,35 @@ func (s *Store) ReserveStorage(ctx context.Context, userID, size int64) error {
 		return fmt.Errorf("reserve storage rows: %w", err)
 	}
 	if affected == 0 {
-		return ErrQuotaExceeded
+		return s.refusalReason(ctx, userID, size, totalLimit)
 	}
 	return nil
+}
+
+// refusalReason works out which ceiling a refused reservation hit, so the
+// message can say something useful. It only runs on the refusal path.
+func (s *Store) refusalReason(ctx context.Context, userID, size, totalLimit int64) error {
+	if totalLimit > 0 {
+		if total, err := s.TotalStoredBytes(ctx); err == nil && total+size > totalLimit {
+			return ErrInstanceFull
+		}
+	}
+	return ErrQuotaExceeded
+}
+
+// TotalStoredBytes is every stored original, which is what the instance ceiling
+// is measured against, and what the dashboard reports as "stored".
+//
+// It is derived from the files table rather than kept as a counter, so it
+// cannot drift: there is no second source of truth to fall out of step with,
+// and no path — a cascade delete, say — that could forget to decrement it.
+func (s *Store) TotalStoredBytes(ctx context.Context) (int64, error) {
+	var total int64
+	if err := s.db.QueryRowContext(ctx,
+		`SELECT COALESCE(SUM(size), 0) FROM files`).Scan(&total); err != nil {
+		return 0, fmt.Errorf("total stored bytes: %w", err)
+	}
+	return total, nil
 }
 
 // ReleaseStorage gives size bytes back to an account.
@@ -355,7 +394,7 @@ func (s *Store) ReleaseStorage(ctx context.Context, userID, size int64) error {
 // CheckQuota reports whether an account could store size more bytes, without
 // claiming anything. It is a cheap pre-flight so an oversized upload is
 // rejected before the work of decoding and writing it.
-func (s *Store) CheckQuota(ctx context.Context, userID, size int64) error {
+func (s *Store) CheckQuota(ctx context.Context, userID, size, totalLimit int64) error {
 	if size <= 0 {
 		return nil
 	}
@@ -373,6 +412,16 @@ func (s *Store) CheckQuota(ctx context.Context, userID, size int64) error {
 	}
 	if quota > 0 && used+size > quota {
 		return ErrQuotaExceeded
+	}
+
+	if totalLimit > 0 {
+		total, err := s.TotalStoredBytes(ctx)
+		if err != nil {
+			return err
+		}
+		if total+size > totalLimit {
+			return ErrInstanceFull
+		}
 	}
 	return nil
 }
