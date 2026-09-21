@@ -69,10 +69,23 @@
         {{end}}
       </select>
     </label>
+    <label>Metadata in this album
+      <select name="metadata">
+        {{$currentMeta := .Album.Metadata}}
+        {{range .MetadataLevels}}
+        <option value="{{.}}" {{if eq . $currentMeta}}selected{{end}}>{{.Label}} — {{.Explain}}</option>
+        {{end}}
+      </select>
+    </label>
     <p class="muted">
       A shared album has to be visible to members. Contributors can add their own
       images and take them back; only you can change the album itself, or remove
       somebody else's image from it.
+    </p>
+    <p class="muted">
+      Metadata in this album is a ceiling rather than a setting: it can hide
+      metadata that a file would otherwise show, and can never reveal what a
+      file hides.
     </p>
     <button class="btn primary" type="submit">Save album</button>
   </form>

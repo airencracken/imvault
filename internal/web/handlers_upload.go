@@ -126,7 +126,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	visibility := s.uploadVisibility(r, user)
+	options := s.uploadOptions(r, user)
 	albumID := int64(queryInt(r, "album_id", 0))
 	tags := r.FormValue("tags")
 
@@ -136,7 +136,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	)
 
 	for _, header := range parts {
-		file, err := s.ingest(r.Context(), header, user, visibility)
+		file, err := s.ingest(r.Context(), header, user, options)
 		if err != nil {
 			failures = append(failures, fmt.Sprintf("%s: %s", header.Filename, err))
 			continue
@@ -192,7 +192,7 @@ func (s *Server) attachUploadsToAlbum(r *http.Request, user *models.User, albumI
 
 // ingest validates, stores and records a single upload, dispatching on the
 // classified media format.
-func (s *Server) ingest(ctx context.Context, header *multipart.FileHeader, user *models.User, visibility models.Visibility) (*models.File, error) {
+func (s *Server) ingest(ctx context.Context, header *multipart.FileHeader, user *models.User, options uploadOptions) (*models.File, error) {
 	src, err := header.Open()
 	if err != nil {
 		return nil, fmt.Errorf("could not open the upload")
@@ -222,9 +222,9 @@ func (s *Server) ingest(ctx context.Context, header *multipart.FileHeader, user 
 	}
 
 	if format.IsVideo() {
-		return s.storeVideo(ctx, src, format, header, owner, visibility, expires, now)
+		return s.storeVideo(ctx, src, format, header, owner, options, expires, now)
 	}
-	return s.storeStill(ctx, src, format, header, owner, visibility, expires, now)
+	return s.storeStill(ctx, src, format, header, owner, options, expires, now)
 }
 
 // quotaError turns a store quota failure into a message worth showing a user.
@@ -272,7 +272,7 @@ func (s *Server) storeStill(
 	format media.Format,
 	header *multipart.FileHeader,
 	owner *int64,
-	visibility models.Visibility,
+	options uploadOptions,
 	expires *time.Time,
 	now time.Time,
 ) (*models.File, error) {
@@ -284,7 +284,7 @@ func (s *Server) storeStill(
 	// Identical bytes are already stored: point at them rather than decoding,
 	// resizing, and writing a second copy.
 	if existing, ok := s.reusableUpload(ctx, sha); ok {
-		return s.recordReused(ctx, existing, header, owner, visibility, expires, now)
+		return s.recordReused(ctx, existing, header, owner, options, expires, now)
 	}
 
 	result, err := s.media.ProcessStill(src, format)
@@ -348,7 +348,8 @@ func (s *Server) storeStill(
 		PreviewKey:   keys.preview,
 		Kind:         result.Kind,
 		FrameCount:   result.FrameCount,
-		Visibility:   visibility,
+		Visibility:   options.Visibility,
+		Metadata:     options.Metadata,
 		CreatedAt:    now,
 		ExpiresAt:    expires,
 	}
@@ -372,7 +373,7 @@ func (s *Server) storeVideo(
 	format media.Format,
 	header *multipart.FileHeader,
 	owner *int64,
-	visibility models.Visibility,
+	options uploadOptions,
 	expires *time.Time,
 	now time.Time,
 ) (*models.File, error) {
@@ -382,7 +383,7 @@ func (s *Server) storeVideo(
 	}
 
 	if existing, ok := s.reusableUpload(ctx, sha); ok {
-		return s.recordReused(ctx, existing, header, owner, visibility, expires, now)
+		return s.recordReused(ctx, existing, header, owner, options, expires, now)
 	}
 
 	// The original goes to its content-addressed key before probing, because
@@ -451,7 +452,8 @@ func (s *Server) storeVideo(
 		PreviewKey:   keys.preview,
 		Kind:         result.Kind,
 		DurationMS:   result.DurationMS,
-		Visibility:   visibility,
+		Visibility:   options.Visibility,
+		Metadata:     options.Metadata,
 		CreatedAt:    now,
 		ExpiresAt:    expires,
 	}
@@ -547,6 +549,26 @@ func (s *Server) expiryFor(user *models.User) *time.Time {
 	return &e
 }
 
+// uploadOptions is how an upload should be stored: who may see it, and what
+// happens to its metadata. They travel together because every store path needs
+// both, and two parallel parameters of different types is how a caller ends up
+// passing one where the other belongs.
+type uploadOptions struct {
+	Visibility models.Visibility
+	Metadata   models.MetadataPolicy
+}
+
+// metadataFor resolves the metadata setting for an upload. An anonymous
+// uploader has no account to hang a preference on, and their upload is public
+// whatever else is true, so the default follows visibility and resolves to
+// hidden.
+func (s *Server) metadataFor(r *http.Request, owner *models.User) models.MetadataPolicy {
+	if owner == nil {
+		return models.MetadataInherit
+	}
+	return models.ParseMetadataPolicy(r.FormValue("metadata"))
+}
+
 // uploadVisibility resolves the level an upload should be stored at.
 //
 // Anonymous uploads are always public. There is no owner to scope a closed
@@ -571,6 +593,14 @@ func (s *Server) uploadVisibility(r *http.Request, owner *models.User) models.Vi
 		return models.VisibilityPrivate
 	}
 	return s.policy().DefaultVisibility
+}
+
+// uploadOptions resolves both settings an upload needs.
+func (s *Server) uploadOptions(r *http.Request, owner *models.User) uploadOptions {
+	return uploadOptions{
+		Visibility: s.uploadVisibility(r, owner),
+		Metadata:   s.metadataFor(r, owner),
+	}
 }
 
 // uploadFailure reports a whole-request upload error.

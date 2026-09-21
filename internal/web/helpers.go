@@ -136,6 +136,7 @@ func (s *Server) base(r *http.Request, title string) base {
 		Notice:            strings.TrimSpace(r.URL.Query().Get("notice")),
 		Error:             strings.TrimSpace(r.URL.Query().Get("error")),
 		CurrentPath:       r.URL.Path,
+		MetadataLevels:    models.MetadataLevels(),
 		OIDCName:          s.oidc.Name(),
 	}
 

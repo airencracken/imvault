@@ -968,6 +968,88 @@ func TestIdentityMigrationArrivesEmpty(t *testing.T) {
 	}
 }
 
+func TestMetadataPolicyMigrationDefaultsToInherit(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "pre-metadata.db")
+	buildLegacyDatabase(t, path,
+		"001_init.sql", "002_media_and_api_keys.sql", "003_per_account_tags.sql",
+		"004_quotas_and_admin.sql", "005_auth_tokens.sql", "006_outbound_mail.sql",
+		"007_two_factor.sql", "008_content_addressed_storage.sql", "009_per_file_quota.sql",
+		"010_anonymous_tags.sql")
+
+	raw, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{
+		"011_blobs.sql", "012_settings.sql", "013_visibility.sql", "014_shared_albums.sql",
+		"015_roles.sql", "016_invites.sql", "017_moderation.sql", "018_user_identities.sql",
+	} {
+		body, err := migrationsFS.ReadFile("migrations/" + name)
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		if _, err := raw.Exec(string(body)); err != nil {
+			t.Fatalf("apply %s: %v", name, err)
+		}
+		if _, err := raw.Exec(
+			`INSERT INTO schema_migrations (version, applied_at) VALUES (?, 0)`, name); err != nil {
+			t.Fatalf("record %s: %v", name, err)
+		}
+	}
+	raw.Close()
+
+	ctx := context.Background()
+	database, err := Open(ctx, path)
+	if err != nil {
+		t.Fatalf("upgrade database: %v", err)
+	}
+	defer database.Close()
+
+	// Existing files and albums change meaning in no way at all. Inherit is
+	// what they already did, and a migration that started hiding metadata
+	// would be a silent change to somebody's pictures.
+	for _, table := range []string{"files", "albums"} {
+		var count int
+		if err := database.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM `+table+` WHERE metadata <> 'inherit'`).Scan(&count); err != nil {
+			t.Fatalf("read %s: %v", table, err)
+		}
+		if count != 0 {
+			t.Errorf("%d rows in %s changed meaning", count, table)
+		}
+	}
+
+	// A file inserted without naming the column inherits, and a blob starts
+	// with no clean copy recorded.
+	if _, err := database.ExecContext(ctx, `
+		INSERT INTO files (id, user_id, original_name, ext, mime, size, width, height,
+			sha256, visibility, kind, created_at)
+		VALUES ('newone', 1, 'n.png', 'png', 'image/png', 1, 1, 1, 'aa', 'public', 'image', 0)`); err != nil {
+		t.Fatal(err)
+	}
+	var metadata string
+	if err := database.QueryRowContext(ctx,
+		`SELECT metadata FROM files WHERE id = 'newone'`).Scan(&metadata); err != nil {
+		t.Fatal(err)
+	}
+	if metadata != "inherit" {
+		t.Errorf("a new file got metadata = %q, want inherit", metadata)
+	}
+
+	if _, err := database.ExecContext(ctx, `
+		INSERT INTO blobs (sha256, size, object_key, created_at) VALUES ('bb', 1, 'o/bb', 0)`); err != nil {
+		t.Fatal(err)
+	}
+	var cleanKey string
+	if err := database.QueryRowContext(ctx,
+		`SELECT clean_key FROM blobs WHERE sha256 = 'bb'`).Scan(&cleanKey); err != nil {
+		t.Fatal(err)
+	}
+	if cleanKey != "" {
+		t.Errorf("a new blob has clean_key = %q, want empty", cleanKey)
+	}
+}
+
 func TestMigrationIsIdempotent(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "fresh.db")
 	ctx := context.Background()

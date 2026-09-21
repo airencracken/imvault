@@ -11,7 +11,7 @@ import (
 	"imvault/internal/models"
 )
 
-const albumColumns = `a.id, a.user_id, a.title, a.slug, a.description, a.visibility, a.access, a.created_at,
+const albumColumns = `a.id, a.user_id, a.title, a.slug, a.description, a.visibility, a.access, a.metadata, a.created_at,
 	COALESCE(u.username, ''), (SELECT COUNT(*) FROM album_files WHERE album_id = a.id)`
 
 func scanAlbum(sc rowScanner) (*models.Album, error) {
@@ -19,33 +19,62 @@ func scanAlbum(sc rowScanner) (*models.Album, error) {
 		a          models.Album
 		visibility string
 		access     string
+		metadata   string
 		created    int64
 	)
 	if err := sc.Scan(&a.ID, &a.UserID, &a.Title, &a.Slug, &a.Description,
-		&visibility, &access, &created, &a.Username, &a.FileCount); err != nil {
+		&visibility, &access, &metadata, &created, &a.Username, &a.FileCount); err != nil {
 		return nil, err
 	}
 	a.Visibility = models.ParseVisibility(visibility)
 	a.Access = models.ParseAlbumAccess(access)
+	a.Metadata = models.ParseMetadataPolicy(metadata)
 	a.CreatedAt = toTime(created)
 	return &a, nil
 }
 
+// AlbumInput is the mutable shape of an album: what it takes to create one, and
+// what changing one changes.
+//
+// It is a struct rather than a parameter list because several of the fields are
+// the same type, and a caller who swapped two of them would compile and be
+// wrong.
+type AlbumInput struct {
+	Title       string
+	Description string
+	Visibility  models.Visibility
+	Access      models.AlbumAccess
+	Metadata    models.MetadataPolicy
+}
+
+// normalised fills in anything the caller left out with the closed, cautious
+// answer rather than the zero value.
+func (in AlbumInput) normalised() AlbumInput {
+	in.Title = models.Truncate(strings.TrimSpace(in.Title), 120)
+	if !in.Visibility.Valid() {
+		in.Visibility = models.VisibilityPrivate
+	}
+	if !in.Access.Valid() {
+		in.Access = models.AlbumAccessOwner
+	}
+	if !in.Metadata.Valid() {
+		in.Metadata = models.MetadataInherit
+	}
+	return in
+}
+
 // CreateAlbum inserts an album, deriving a unique slug from the title.
-func (s *Store) CreateAlbum(ctx context.Context, userID int64, title, description string, visibility models.Visibility, access models.AlbumAccess) (*models.Album, error) {
-	title = strings.TrimSpace(title)
-	if title == "" {
+func (s *Store) CreateAlbum(ctx context.Context, userID int64, in AlbumInput) (*models.Album, error) {
+	in = in.normalised()
+	if in.Title == "" {
 		return nil, fmt.Errorf("album title is empty")
 	}
-	if len(title) > 120 {
-		title = models.Truncate(title, 120)
-	}
-	if !visibility.Valid() {
-		visibility = models.VisibilityPrivate
-	}
-	if !access.Valid() {
-		access = models.AlbumAccessOwner
-	}
+
+	title := in.Title
+	description := in.Description
+	visibility := in.Visibility
+	access := in.Access
+	metadata := in.Metadata
 
 	base := ids.Slug(title)
 	created := nowUnix()
@@ -58,9 +87,9 @@ func (s *Store) CreateAlbum(ctx context.Context, userID int64, title, descriptio
 		}
 
 		res, err := s.db.ExecContext(ctx, `
-			INSERT INTO albums (user_id, title, slug, description, visibility, access, created_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?)`,
-			userID, title, slug, description, string(visibility), string(access), created,
+			INSERT INTO albums (user_id, title, slug, description, visibility, access, metadata, created_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			userID, title, slug, description, string(visibility), string(access), string(metadata), created,
 		)
 		if err != nil {
 			if ok, col := isUniqueViolation(err); ok && strings.Contains(col, "slug") {
@@ -81,6 +110,7 @@ func (s *Store) CreateAlbum(ctx context.Context, userID int64, title, descriptio
 			Description: description,
 			Visibility:  visibility,
 			Access:      access,
+			Metadata:    metadata,
 			CreatedAt:   toTime(created),
 		}
 		return &album, nil
@@ -135,23 +165,17 @@ func (s *Store) AlbumsByUser(ctx context.Context, userID int64) ([]*models.Album
 }
 
 // UpdateAlbum changes an album's mutable fields.
-func (s *Store) UpdateAlbum(ctx context.Context, id int64, title, description string, visibility models.Visibility, access models.AlbumAccess) error {
-	title = strings.TrimSpace(title)
-	if title == "" {
+func (s *Store) UpdateAlbum(ctx context.Context, id int64, in AlbumInput) error {
+	in = in.normalised()
+	if in.Title == "" {
 		return fmt.Errorf("album title is empty")
 	}
-	if len(title) > 120 {
-		title = models.Truncate(title, 120)
-	}
-	if !visibility.Valid() {
-		visibility = models.VisibilityPrivate
-	}
-	if !access.Valid() {
-		access = models.AlbumAccessOwner
-	}
+
 	if _, err := s.db.ExecContext(ctx, `
-		UPDATE albums SET title = ?, description = ?, visibility = ?, access = ? WHERE id = ?`,
-		title, description, string(visibility), string(access), id); err != nil {
+		UPDATE albums SET title = ?, description = ?, visibility = ?, access = ?, metadata = ?
+		WHERE id = ?`,
+		in.Title, in.Description, string(in.Visibility), string(in.Access),
+		string(in.Metadata), id); err != nil {
 		return fmt.Errorf("update album: %w", err)
 	}
 	return nil
@@ -260,4 +284,42 @@ func (s *Store) AlbumsVisibleTo(ctx context.Context, viewerID int64) ([]*models.
 		albums = append(albums, a)
 	}
 	return albums, rows.Err()
+}
+
+// EffectiveMetadataPolicy answers what actually happens to a file's metadata.
+//
+// It is the most restrictive of the file's own setting resolved against its
+// visibility, and the explicit opinion of every album the file is in. An
+// album set to "inherit" has no opinion and is skipped, because inheriting
+// means deferring to the file, and an album is not where that decision lives.
+//
+// The arithmetic is deliberately one-directional. Combining never yields
+// something more open than any input, so belonging to an album can add caution
+// to a file but never remove it. That matters because a shared album's owner
+// and a file's owner need not be the same person.
+func (s *Store) EffectiveMetadataPolicy(ctx context.Context, file *models.File) (models.MetadataPolicy, error) {
+	// The file's own answer, with inherit settled by its visibility.
+	opinions := []models.MetadataPolicy{file.Metadata.Resolve(file.Visibility)}
+
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT a.metadata FROM albums a
+		JOIN album_files af ON af.album_id = a.id
+		WHERE af.file_id = ?`, file.ID)
+	if err != nil {
+		return models.MetadataInherit, fmt.Errorf("album metadata policies: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var raw string
+		if err := rows.Scan(&raw); err != nil {
+			return models.MetadataInherit, fmt.Errorf("scan album metadata: %w", err)
+		}
+		opinions = append(opinions, models.ParseMetadataPolicy(raw))
+	}
+	if err := rows.Err(); err != nil {
+		return models.MetadataInherit, fmt.Errorf("album metadata policies: %w", err)
+	}
+
+	return models.Strictest(opinions...), nil
 }

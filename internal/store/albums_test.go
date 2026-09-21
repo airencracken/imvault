@@ -12,8 +12,11 @@ func TestAlbumAccessRoundTrips(t *testing.T) {
 	s, ctx := newTestStore(t)
 	alice := mustUser(t, s, ctx, "alice")
 
-	album, err := s.CreateAlbum(ctx, alice.ID, "Shared", "d",
-		models.VisibilityMembers, models.AlbumAccessMembers)
+	album, err := s.CreateAlbum(ctx, alice.ID, AlbumInput{
+		Title:      "Shared",
+		Visibility: models.VisibilityMembers,
+		Access:     models.AlbumAccessMembers,
+	})
 	if err != nil {
 		t.Fatalf("create album: %v", err)
 	}
@@ -30,8 +33,12 @@ func TestAlbumAccessRoundTrips(t *testing.T) {
 	}
 
 	// Close it again, and the change sticks.
-	if err := s.UpdateAlbum(ctx, album.ID, "Shared", "d",
-		models.VisibilityMembers, models.AlbumAccessOwner); err != nil {
+	if err := s.UpdateAlbum(ctx, album.ID, AlbumInput{
+		Title:       "Shared",
+		Description: "d",
+		Visibility:  models.VisibilityMembers,
+		Access:      models.AlbumAccessOwner,
+	}); err != nil {
 		t.Fatalf("update album: %v", err)
 	}
 	reloaded, err = s.AlbumBySlug(ctx, album.Slug)
@@ -43,7 +50,11 @@ func TestAlbumAccessRoundTrips(t *testing.T) {
 	}
 
 	// An unknown value does not widen anything.
-	if _, err := s.CreateAlbum(ctx, alice.ID, "Odd", "", models.VisibilityMembers, models.AlbumAccess("anybody")); err != nil {
+	if _, err := s.CreateAlbum(ctx, alice.ID, AlbumInput{
+		Title:      "Odd",
+		Visibility: models.VisibilityMembers,
+		Access:     models.AlbumAccess("anybody"),
+	}); err != nil {
 		t.Fatalf("create album: %v", err)
 	}
 	odd, err := s.AlbumBySlug(ctx, "odd")
@@ -69,8 +80,11 @@ func TestAlbumsVisibleToListOthersAlbumsWithinTheirLevel(t *testing.T) {
 		{"Members", models.VisibilityMembers},
 		{"Private", models.VisibilityPrivate},
 	} {
-		if _, err := s.CreateAlbum(ctx, alice.ID, album.title, "",
-			album.visibility, models.AlbumAccessMembers); err != nil {
+		if _, err := s.CreateAlbum(ctx, alice.ID, AlbumInput{
+			Title:      album.title,
+			Visibility: album.visibility,
+			Access:     models.AlbumAccessMembers,
+		}); err != nil {
 			t.Fatalf("create %s: %v", album.title, err)
 		}
 	}
@@ -94,7 +108,11 @@ func TestAlbumsVisibleToListOthersAlbumsWithinTheirLevel(t *testing.T) {
 
 	// A caller's own albums belong to a different listing, so they must not be
 	// here as well.
-	if _, err := s.CreateAlbum(ctx, bob.ID, "Bobs", "", models.VisibilityPublic, models.AlbumAccessOwner); err != nil {
+	if _, err := s.CreateAlbum(ctx, bob.ID, AlbumInput{
+		Title:      "Bobs",
+		Visibility: models.VisibilityPublic,
+		Access:     models.AlbumAccessOwner,
+	}); err != nil {
 		t.Fatal(err)
 	}
 	visible, err = s.AlbumsVisibleTo(ctx, bob.ID)

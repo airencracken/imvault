@@ -167,6 +167,7 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /f/{id}/thumb", s.handleFileThumb)
 	mux.HandleFunc("GET /f/{id}/preview", s.handleFilePreview)
 	mux.HandleFunc("POST /f/{id}/visibility", s.requireUser(s.handleFileVisibility))
+	mux.HandleFunc("POST /f/{id}/metadata", s.requireUser(s.handleFileMetadata))
 	mux.HandleFunc("POST /f/{id}/delete", s.requireUser(s.handleFileDelete))
 	mux.HandleFunc("POST /f/{id}/tags", s.requireUser(s.handleTagAdd))
 	mux.HandleFunc("POST /f/{id}/tags/{tagID}/delete", s.requireUser(s.handleTagRemove))

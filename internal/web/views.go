@@ -25,6 +25,9 @@ type base struct {
 	// DefaultVisibility is what a new upload gets unless the uploader picks
 	// something, so the forms can preselect it.
 	DefaultVisibility models.Visibility
+	// MetadataLevels is every metadata setting, for the controls that offer a
+	// choice.
+	MetadataLevels []models.MetadataPolicy
 	// UseAlpine pulls in Alpine.js. Only the admin pages need it: it carries
 	// client-side UI state (a confirmation dialog, table filtering, copy
 	// feedback) that htmx is not the right tool for.

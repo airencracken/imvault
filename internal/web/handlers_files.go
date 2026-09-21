@@ -28,8 +28,13 @@ func (s *Server) handleFileRaw(w http.ResponseWriter, r *http.Request) {
 		s.log.Error("increment views", "id", file.ID, "error", err)
 	}
 
+	key, ok := s.objectFor(w, r, file, file.ObjectKey)
+	if !ok {
+		return
+	}
+
 	disposition := mime.FormatMediaType("inline", map[string]string{"filename": file.OriginalName})
-	s.serveObject(w, r, file, file.ObjectKey, file.Mime, disposition)
+	s.serveObject(w, r, file, key, file.Mime, disposition)
 }
 
 // handleFileThumb streams the generated thumbnail.
@@ -51,6 +56,17 @@ func (s *Server) handleFilePreview(w http.ResponseWriter, r *http.Request) {
 	}
 
 	key := file.PreviewKeyOrObject()
+	// A rendition has already been re-encoded and carries nothing, so the
+	// policy only has anything to say when the preview is the stored object,
+	// which is how animations and clips are served.
+	if key == file.ObjectKey {
+		resolved, ok := s.objectFor(w, r, file, key)
+		if !ok {
+			return
+		}
+		key = resolved
+	}
+
 	contentType := file.PreviewMime()
 	if contentType == "" {
 		contentType = mimeForKey(key)
@@ -59,6 +75,44 @@ func (s *Server) handleFilePreview(w http.ResponseWriter, r *http.Request) {
 }
 
 // serveObject writes a stored object with HTTP caching metadata.
+// objectFor resolves which stored object should be sent, writing the refusal
+// itself when the metadata cannot be removed.
+func (s *Server) objectFor(w http.ResponseWriter, r *http.Request, file *models.File, original string) (string, bool) {
+	key, err := s.scopedObjectKey(r.Context(), file, original)
+	if err != nil {
+		s.metadataUnavailable(w, r, file, err)
+		return "", false
+	}
+	return key, true
+}
+
+// metadataUnavailable reports content whose metadata should have been removed
+// and could not be.
+//
+// It refuses rather than serving the original, because serving it would be
+// indistinguishable from success — the file would look clean and the
+// coordinates would be in it. Refusing is also not a dead end: the owner can
+// set the file's metadata to Shown, which is an explicit decision to accept the
+// exposure, and until they do the interface says what is wrong.
+func (s *Server) metadataUnavailable(w http.ResponseWriter, r *http.Request, file *models.File, err error) {
+	s.log.Warn("metadata could not be removed, so the file is not being served",
+		"id", file.ID, "ext", file.Ext, "error", err)
+
+	message := "This file is set to hide its metadata, but it could not be removed. " +
+		"It is not being served. Set its metadata to \"Shown\" to accept the exposure, " +
+		"or upload it as JPEG, PNG, WebP, GIF, or BMP."
+	if gap := s.MetadataGap(file); gap != "" {
+		message = "This file is set to hide its metadata, but it could not be removed. " + gap +
+			" It is not being served. Set its metadata to \"Shown\" to accept the exposure."
+	}
+
+	s.renderPage(w, http.StatusBadGateway, "notfound", errorView{
+		base:    s.base(r, "Metadata could not be removed"),
+		Code:    "Not served",
+		Message: message,
+	})
+}
+
 func (s *Server) serveObject(w http.ResponseWriter, r *http.Request, file *models.File, key, contentType, disposition string) {
 	if key == "" {
 		http.NotFound(w, r)
@@ -69,6 +123,13 @@ func (s *Server) serveObject(w http.ResponseWriter, r *http.Request, file *model
 	if err != nil {
 		if errors.Is(err, storage.ErrNotFound) {
 			s.log.Error("object missing from storage", "id", file.ID, "key", key)
+			// A metadata-free copy that has gone missing is rebuilt on the next
+			// request instead of failing this file for good. The original is
+			// not a substitute for it, which is why this forgets rather than
+			// falls back.
+			if key != file.ObjectKey {
+				s.forgetCleanObject(r.Context(), file.SHA256)
+			}
 			http.NotFound(w, r)
 			return
 		}
@@ -122,6 +183,31 @@ func (s *Server) handleFileVisibility(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	redirectNotice(w, r, "/f/"+file.ID, "notice", "Visibility updated.")
+}
+
+// handleFileMetadata changes what happens to a file's metadata.
+func (s *Server) handleFileMetadata(w http.ResponseWriter, r *http.Request) {
+	file, ok := s.loadChangeableFile(w, r)
+	if !ok {
+		return
+	}
+
+	policy := models.ParseMetadataPolicy(r.FormValue("metadata"))
+	if err := s.store.SetFileMetadata(r.Context(), file.ID, policy); err != nil {
+		s.log.Error("set metadata policy", "id", file.ID, "error", err)
+		http.Error(w, "could not update the metadata setting", http.StatusInternalServerError)
+		return
+	}
+	file.Metadata = policy
+
+	if isHTMX(r) {
+		s.renderPartial(w, "metadata_button", fileView{
+			base: s.base(r, file.OriginalName),
+			File: file,
+		})
+		return
+	}
+	redirectNotice(w, r, "/f/"+file.ID, "notice", "Metadata setting updated.")
 }
 
 // handleFileDelete removes a file and its stored objects.

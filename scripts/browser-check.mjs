@@ -401,6 +401,27 @@ async function main() {
     const persisted = await page.evaluate(readPressed);
     record("the new level persisted", persisted === "Private", `showed "${persisted}"`);
 
+    // --- the metadata control ---
+    const metadataBefore = await page.evaluate(`
+      const select = document.querySelector('.meta-control select[name="metadata"]');
+      return select ? select.value : "";
+    `);
+    record("the file page offers a metadata setting", metadataBefore !== "",
+      `value "${metadataBefore}"`);
+
+    const metadataAfter = await page.evaluate(`
+      const form = document.querySelector(".meta-control");
+      if (!form) return { error: "no metadata control" };
+      const select = form.querySelector('select[name="metadata"]');
+      select.value = "hidden";
+      form.querySelector('button[type="submit"]').click();
+      await new Promise((r) => setTimeout(r, 400));
+      const after = document.querySelector('.meta-control select[name="metadata"]');
+      return { value: after ? after.value : "" };
+    `);
+    record("changing it swaps in place over htmx", metadataAfter.value === "hidden",
+      JSON.stringify(metadataAfter));
+
     // --- a shared album ---
     await page.goto(`${base}/albums`);
 

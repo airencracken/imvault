@@ -142,7 +142,7 @@ func (s *Server) recordReused(
 	existing *models.File,
 	header *multipart.FileHeader,
 	owner *int64,
-	visibility models.Visibility,
+	options uploadOptions,
 	expires *time.Time,
 	now time.Time,
 ) (*models.File, error) {
@@ -171,7 +171,8 @@ func (s *Server) recordReused(
 			Kind:         existing.Kind,
 			FrameCount:   existing.FrameCount,
 			DurationMS:   existing.DurationMS,
-			Visibility:   visibility,
+			Visibility:   options.Visibility,
+			Metadata:     options.Metadata,
 			CreatedAt:    now,
 			ExpiresAt:    expires,
 		}

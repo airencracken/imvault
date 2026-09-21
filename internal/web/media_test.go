@@ -247,19 +247,26 @@ func TestVideoClipUpload(t *testing.T) {
 		t.Errorf("poster is not decodable: %v", err)
 	}
 
-	// The original is served untouched, as video.
-	rawResp, _ := h.get("/f/" + id + "/raw")
+	// The clip is served as video. This one is public, so it is remuxed without
+	// its container metadata before it goes out, which is why the length is not
+	// the uploaded one: what matters here is that it is still the same clip in
+	// the same container. That a public clip really has lost its metadata is
+	// checked on its own in metadata_test.go.
+	rawResp, raw := h.get("/f/" + id + "/raw")
 	if rawResp.StatusCode != http.StatusOK {
 		t.Fatalf("raw = %d, want 200", rawResp.StatusCode)
 	}
 	if ct := rawResp.Header.Get("Content-Type"); ct != "video/webm" {
 		t.Errorf("raw content type = %q, want video/webm", ct)
 	}
-	if got := rawResp.Header.Get("Content-Length"); got != "" {
-		// Content-Length is set; make sure it matches what we uploaded.
-		if got != strconv.Itoa(len(clip)) {
-			t.Errorf("content length = %s, want %d", got, len(clip))
-		}
+	if !strings.HasPrefix(raw, "\x1a\x45\xdf\xa3") {
+		t.Error("the served clip does not begin with the WebM signature")
+	}
+	if len(raw) > len(clip) {
+		t.Errorf("the served clip grew: %d bytes then %d", len(clip), len(raw))
+	}
+	if got := rawResp.Header.Get("Content-Length"); got != "" && got != strconv.Itoa(len(raw)) {
+		t.Errorf("content length = %s, want %d", got, len(raw))
 	}
 
 	// Range requests must work, or browsers cannot scrub the clip.

@@ -17,6 +17,80 @@ Thumbnails are fitted within `IMVAULT_THUMB_MAX` (480px by default) and previews
 within `IMVAULT_PREVIEW_MAX` (1600px). Both are bounded on their longest edge,
 and an image smaller than the bound is left at its original size.
 
+## Metadata
+
+A photo carries more than pixels: the camera, the date, and often the
+coordinates it was taken at. The last of those is a home address in the
+majority of phone photos, and it travels with the file wherever the file goes.
+
+Every upload has a **metadata setting**, and so does every album:
+
+| Setting | What it does |
+| --- | --- |
+| **Follow visibility** | The default. Public files hide their metadata; members-only and private files keep it |
+| **Shown** | Always keep it, however the file is shared |
+| **Hidden** | Never serve it |
+
+Following visibility is the default because the audience usually answers the
+question: the group a file was shared with is the people who took the picture,
+and the public is not. The explicit settings are there because the default is a
+good rule and a poor ceiling — people have opinions about individual pictures.
+
+**An album can only ever tighten.** The setting that applies is the most
+restrictive of the file's own, its visibility's default, and every album it is
+in. Albums do not change who can see a file, and they must not change what it
+reveals either, in either direction: a shared album's owner is often not the
+file's owner, and one person must not be able to loosen another's privacy, nor
+to make their file more exposed than they chose.
+
+### What is removed
+
+Whole metadata segments are dropped, and **the pixels are never re-encoded**.
+Orientation is applied to renditions, so a rotated phone photo still looks
+right; the file keeps the tag that says so until the metadata goes.
+
+| Format | What is removed |
+| --- | --- |
+| JPEG | The Exif segment, including its embedded thumbnail, plus XMP, IPTC, Photoshop resources, and comments |
+| PNG | `tEXt`, `zTXt`, `iTXt`, `eXIf`, and `tIME` |
+| WebP | The `EXIF` and `XMP ` chunks, with the VP8X flags cleared and the RIFF size repaired |
+| GIF | Comment, plain text, and application extensions — except the loop block, which is how an animation says what it does |
+| BMP | Nothing: it has no metadata to begin with |
+| WebM, MP4, MOV | The container's tags, including QuickTime's location atom, by remuxing |
+
+The embedded thumbnail inside a JPEG's Exif is worth naming. It is a second,
+usually smaller copy of the image, and it is frequently left un-stripped by
+implementations that remove the Exif they can see — which is how a file ends up
+"cleaned" and still carrying its location.
+
+Clips are remuxed with `ffmpeg -c copy` rather than rewritten by hand. Removing
+an atom shifts every absolute sample offset after it, so the container has to be
+rebuilt rather than edited, and no re-encoding is involved: the streams are
+copied bit for bit.
+
+### What happens when it cannot be removed
+
+Two cases exist. A clip on an instance without ffmpeg, and any image format not
+in the table above. In both, the metadata stays where it is and **the file is
+not served** to an audience that asked for it to be hidden. The refusal says
+what is wrong and how to proceed.
+
+Refusing rather than serving is deliberate. Serving it would be
+indistinguishable from success — the page would look exactly like a clean file —
+and the one outcome this feature cannot produce is a false sense of safety. It
+is also not a dead end: setting the file's metadata to **Shown** is an explicit
+decision to accept the exposure, and the file is served from then on.
+
+### Where the metadata-free copy lives
+
+It is stored beside the original, named after the content hash, and built the
+first time something needs it. It belongs to the content rather than to a file:
+two files with the same bytes share one copy, and it is removed when the last
+file referring to those bytes goes.
+
+Originals are never replaced. The account export contains the original, because
+the export is the owner's own data going back to the owner.
+
 ## De-duplication
 
 Uploads are stored under keys derived from their content hash, so the same bytes

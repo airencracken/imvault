@@ -31,7 +31,9 @@ type apiFileJSON struct {
 	// keep working. It is true only at the public level.
 	Public bool `json:"public"`
 	// Visibility is the level itself: public, members, or private.
-	Visibility string       `json:"visibility"`
+	Visibility string `json:"visibility"`
+	// Metadata is what happens to the camera details, date, and location.
+	Metadata   string       `json:"metadata"`
 	DurationMS int64        `json:"duration_ms,omitempty"`
 	FrameCount int          `json:"frame_count,omitempty"`
 	CreatedAt  string       `json:"created_at"`
@@ -72,6 +74,7 @@ func newAPIFile(r *http.Request, s *Server, f *models.File) apiFileJSON {
 		Views:      f.Views,
 		Public:     f.Visibility.IsPublic(),
 		Visibility: string(f.Visibility),
+		Metadata:   string(f.Metadata),
 		DurationMS: f.DurationMS,
 		FrameCount: f.FrameCount,
 		CreatedAt:  f.CreatedAt.UTC().Format(time.RFC3339),
@@ -215,7 +218,7 @@ func (s *Server) apiUpload(w http.ResponseWriter, r *http.Request) {
 	// boolean, then the instance default. The default matters more than it
 	// looks: on an instance configured for members, a script that says nothing
 	// uploads for members rather than for the world.
-	visibility := s.uploadVisibility(r, user)
+	options := s.uploadOptions(r, user)
 
 	var (
 		created  []apiFileJSON
@@ -223,7 +226,7 @@ func (s *Server) apiUpload(w http.ResponseWriter, r *http.Request) {
 	)
 
 	for _, header := range parts {
-		file, err := s.ingest(r.Context(), header, user, visibility)
+		file, err := s.ingest(r.Context(), header, user, options)
 		if err != nil {
 			failures = append(failures, fmt.Sprintf("%s: %s", header.Filename, err))
 			continue
@@ -295,23 +298,46 @@ func (s *Server) apiPatchFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	visibility, present, err := params.visibility()
+	visibility, hasVisibility, err := params.visibility()
 	if err != nil {
 		writeAPIError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if !present {
+
+	metadata := file.Metadata
+	hasMetadata := false
+	if raw := params.str("metadata"); raw != "" {
+		metadata = models.MetadataPolicy(strings.ToLower(strings.TrimSpace(raw)))
+		if !metadata.Valid() {
+			writeAPIError(w, http.StatusBadRequest,
+				fmt.Sprintf("%q is not a metadata setting (use shown, inherit, or hidden)", raw))
+			return
+		}
+		hasMetadata = true
+	}
+
+	if !hasVisibility && !hasMetadata {
 		writeAPIError(w, http.StatusBadRequest,
-			"no supported fields were provided (supported: visibility, public)")
+			"no supported fields were provided (supported: visibility, public, metadata)")
 		return
 	}
 
-	if err := s.store.SetFileVisibility(r.Context(), file.ID, visibility); err != nil {
-		s.log.Error("api: set visibility", "id", file.ID, "error", err)
-		writeAPIError(w, http.StatusInternalServerError, "could not update the file")
-		return
+	if hasVisibility {
+		if err := s.store.SetFileVisibility(r.Context(), file.ID, visibility); err != nil {
+			s.log.Error("api: set visibility", "id", file.ID, "error", err)
+			writeAPIError(w, http.StatusInternalServerError, "could not update the file")
+			return
+		}
+		file.Visibility = visibility
 	}
-	file.Visibility = visibility
+	if hasMetadata {
+		if err := s.store.SetFileMetadata(r.Context(), file.ID, metadata); err != nil {
+			s.log.Error("api: set metadata", "id", file.ID, "error", err)
+			writeAPIError(w, http.StatusInternalServerError, "could not update the file")
+			return
+		}
+		file.Metadata = metadata
+	}
 
 	noStore(w)
 	writeJSON(w, http.StatusOK, newAPIFile(r, s, file))

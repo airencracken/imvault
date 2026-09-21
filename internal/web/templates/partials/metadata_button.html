@@ -1,0 +1,19 @@
+{{define "metadata_button"}}
+{{/*
+  The metadata control. It is a select rather than a button because there are
+  three answers and only one of them is "the opposite of what it does now".
+*/}}
+<form class="inline meta-control" method="post" action="/f/{{.File.ID}}/metadata"
+      hx-post="/f/{{.File.ID}}/metadata" hx-target="this" hx-swap="outerHTML">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  <label class="row">Metadata
+    <select name="metadata" aria-label="Metadata setting for {{.File.OriginalName}}">
+      {{$current := .File.Metadata}}
+      {{range .MetadataLevels}}
+      <option value="{{.}}" {{if eq . $current}}selected{{end}} title="{{.Explain}}">{{.Label}}</option>
+      {{end}}
+    </select>
+    <button class="btn small" type="submit">Set</button>
+  </label>
+</form>
+{{end}}

@@ -32,6 +32,45 @@ type VideoTool interface {
 	// Poster renders a single frame at the given offset as PNG bytes, scaled
 	// so its longest edge is at most max. A zero offset means "first frame".
 	Poster(ctx context.Context, path string, at time.Duration, max int) ([]byte, error)
+	// Scrub writes a copy of a clip at dst with its container metadata removed.
+	Scrub(ctx context.Context, src, dst string) error
+}
+
+// Scrub remuxes a clip without its metadata.
+//
+// It copies the streams rather than re-encoding them, so the picture is bit for
+// bit what it was and only the container is rebuilt. That is the part that
+// makes this worth shelling out for: a metadata atom sits in the middle of the
+// file, and removing it shifts every absolute sample offset that follows, so a
+// hand-written rewrite would have to find and repair all of them. ffmpeg
+// already knows how.
+//
+// -map_metadata -1 clears the container's own tags, including the QuickTime
+// location atom an iPhone writes, and -map_chapters -1 drops chapter titles
+// that can name places. Stream-level tags are cleared too, since a title is as
+// identifying as a comment.
+func (f *FFmpeg) Scrub(ctx context.Context, src, dst string) error {
+	ctx, cancel := context.WithTimeout(ctx, f.timeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, f.ffmpegPath,
+		"-v", "error",
+		"-i", src,
+		"-map", "0",
+		"-c", "copy",
+		"-map_metadata", "-1",
+		"-map_metadata:s", "-1",
+		"-map_chapters", "-1",
+		"-y",
+		dst,
+	)
+
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("scrub clip: %w: %s", err, strings.TrimSpace(stderr.String()))
+	}
+	return nil
 }
 
 // ffmpegTimeout bounds a single ffmpeg or ffprobe invocation.

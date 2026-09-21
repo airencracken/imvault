@@ -110,8 +110,11 @@ func TestDeletingOneCopyKeepsTheSharedBytes(t *testing.T) {
 	if resp, _ := h.get("/f/" + secondID + "/raw"); resp.StatusCode != http.StatusOK {
 		t.Errorf("the surviving copy's bytes were removed: %d", resp.StatusCode)
 	}
-	if objects := countStoredObjects(t, h.dataDir); objects != 3 {
-		t.Errorf("%d objects remain, want 3: the second file still needs them", objects)
+	// Three for the shared content — the original, the thumbnail, and the
+	// preview — plus the metadata-free copy the public fetch above produced.
+	// That copy belongs to the content, so it survives while either file does.
+	if objects := countStoredObjects(t, h.dataDir); objects != 4 {
+		t.Errorf("%d objects remain, want 4: the second file still needs them", objects)
 	}
 
 	// Deleting the last referrer does remove them.
@@ -261,8 +264,11 @@ func TestExpiringAnonymousUploadDoesNotStrandAnOwnersCopy(t *testing.T) {
 	if resp, _ := h.get("/f/" + ownedID + "/raw"); resp.StatusCode != http.StatusOK {
 		t.Errorf("the reaper removed bytes an owner still needs: %d", resp.StatusCode)
 	}
-	if objects := countStoredObjects(t, h.dataDir); objects != 3 {
-		t.Errorf("%d objects remain, want 3", objects)
+	// As above: three for the content, plus the metadata-free copy that the
+	// owner's public fetch produced, which must not have been stranded by the
+	// anonymous copy expiring.
+	if objects := countStoredObjects(t, h.dataDir); objects != 4 {
+		t.Errorf("%d objects remain, want 4", objects)
 	}
 }
 

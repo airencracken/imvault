@@ -163,6 +163,23 @@ Accounts created this way are given a random password rather than an empty one,
 so there is no "no password" state for a later code path to misread as "any
 password".
 
+## Photograph metadata
+
+Coordinates are the most commonly leaked personal data in a photo, and they are
+not in the picture: they are in the file, next to it. Every upload carries a
+metadata setting and so does every album, the default follows visibility, and
+albums can only tighten.
+
+It is described in full under [Media handling](media.md#metadata). The part that
+belongs here is the failure mode. When metadata cannot be removed — a clip on an
+instance without ffmpeg, or a format whose metadata is intrinsic to it — the file
+is **not served** to an audience that asked for it to be hidden. It is never
+served quietly while claiming otherwise, because a page that looks clean while
+the bytes are not is worse than an error.
+
+The account export is the exception, and deliberately so: it is the owner's own
+data going to the owner, so it contains the original.
+
 ## Rate limiting
 
 Two budgets, both in memory, both keyed so that one client cannot exhaust

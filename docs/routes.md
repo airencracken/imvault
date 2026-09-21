@@ -26,6 +26,7 @@ Everything the server answers.
 | `GET` | `/f/{id}/thumb` | Thumbnail or clip poster |
 | `GET` | `/f/{id}/preview` | Preview, or the original for animations and clips |
 | `POST` | `/f/{id}/visibility` | Set the level: public, members, or private |
+| `POST` | `/f/{id}/metadata` | Set what happens to the file's metadata |
 | `POST` | `/f/{id}/delete` | Delete the file |
 | `POST` | `/f/{id}/tags`, `/f/{id}/tags/{tagID}/delete` | Attach or detach a tag |
 | `GET` `POST` | `/albums` | List and create albums; lists the ones others shared too |

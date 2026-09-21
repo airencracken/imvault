@@ -40,6 +40,18 @@
       {{end}}
       <p class="muted">You can change this later on each file.</p>
     </fieldset>
+
+    <label>Metadata
+      <select name="metadata">
+        {{range .MetadataLevels}}
+        <option value="{{.}}" {{if eq . "inherit"}}selected{{end}}>{{.Label}} — {{.Explain}}</option>
+        {{end}}
+      </select>
+    </label>
+    <p class="muted">
+      Camera details, the date, and any location the file carries. The default
+      follows what you chose above.
+    </p>
     {{else}}
     <p class="muted">
       Anonymous uploads are public, and are deleted when their window ends.

@@ -18,7 +18,7 @@ import (
 const fileColumns = `f.id, f.user_id, f.original_name, f.ext, f.mime, f.size,
 	f.width, f.height, f.sha256,
 	COALESCE(b.object_key, ''), COALESCE(b.thumb_key, ''), COALESCE(b.preview_key, ''),
-	f.visibility, f.kind, f.duration_ms, f.frame_count, f.views, f.created_at, f.expires_at,
+	f.visibility, f.metadata, f.kind, f.duration_ms, f.frame_count, f.views, f.created_at, f.expires_at,
 	COALESCE(u.username, '')`
 
 const fileFrom = `FROM files f
@@ -31,13 +31,14 @@ func scanFile(sc rowScanner) (*models.File, error) {
 		userID     sql.NullInt64
 		expires    sql.NullInt64
 		visibility string
+		metadata   string
 		kind       string
 		created    int64
 	)
 	if err := sc.Scan(
 		&f.ID, &userID, &f.OriginalName, &f.Ext, &f.Mime, &f.Size,
 		&f.Width, &f.Height, &f.SHA256, &f.ObjectKey, &f.ThumbKey, &f.PreviewKey,
-		&visibility, &kind, &f.DurationMS, &f.FrameCount, &f.Views, &created, &expires, &f.Username,
+		&visibility, &metadata, &kind, &f.DurationMS, &f.FrameCount, &f.Views, &created, &expires, &f.Username,
 	); err != nil {
 		return nil, err
 	}
@@ -46,6 +47,7 @@ func scanFile(sc rowScanner) (*models.File, error) {
 		f.UserID = &id
 	}
 	f.Visibility = models.ParseVisibility(visibility)
+	f.Metadata = models.ParseMetadataPolicy(metadata)
 	f.Kind = models.ParseKind(kind)
 	f.CreatedAt = toTime(created)
 	f.ExpiresAt = timePtr(expires)
@@ -63,17 +65,20 @@ func (s *Store) CreateFile(ctx context.Context, f *models.File) error {
 	if !f.Visibility.Valid() {
 		f.Visibility = models.VisibilityPrivate
 	}
+	if !f.Metadata.Valid() {
+		f.Metadata = models.MetadataInherit
+	}
 
 	// The blob has to exist first: the trigger that counts references fires on
 	// this insert and has nothing to update otherwise.
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO files (
 			id, user_id, original_name, ext, mime, size, width, height, sha256,
-			visibility, kind, duration_ms, frame_count, views, created_at, expires_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			visibility, metadata, kind, duration_ms, frame_count, views, created_at, expires_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		f.ID, nullableInt64(f.UserID), f.OriginalName, f.Ext, f.Mime, f.Size,
 		f.Width, f.Height, f.SHA256,
-		string(f.Visibility), kind, f.DurationMS, f.FrameCount, f.Views,
+		string(f.Visibility), string(f.Metadata), kind, f.DurationMS, f.FrameCount, f.Views,
 		ts(f.CreatedAt), nullableTime(f.ExpiresAt),
 	)
 	if err != nil {
@@ -286,6 +291,18 @@ func (s *Store) attachTags(ctx context.Context, files []*models.File) error {
 func (s *Store) DeleteFile(ctx context.Context, id string) error {
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM files WHERE id = ?`, id); err != nil {
 		return fmt.Errorf("delete file: %w", err)
+	}
+	return nil
+}
+
+// SetFileMetadata changes what happens to a file's metadata.
+func (s *Store) SetFileMetadata(ctx context.Context, id string, policy models.MetadataPolicy) error {
+	if !policy.Valid() {
+		return fmt.Errorf("set file metadata: %q is not a setting", policy)
+	}
+	if _, err := s.db.ExecContext(ctx,
+		`UPDATE files SET metadata = ? WHERE id = ?`, string(policy), id); err != nil {
+		return fmt.Errorf("set file metadata: %w", err)
 	}
 	return nil
 }

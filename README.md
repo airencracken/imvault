@@ -25,7 +25,9 @@ and short WebM, MP4, or MOV clips. Uploads are classified from their magic
 bytes, not their filenames, and validated by actually decoding them. Thumbnails
 and previews are generated once, with EXIF orientation applied and transparency
 preserved. Animations are never re-encoded and clips are never transcoded: the
-originals are served, with range requests. ffmpeg is optional, and without it
+originals are served, with range requests. Photograph metadata — the camera, the
+date, and the coordinates a phone writes — is removed from what a public file
+serves, per file and per album, without re-encoding the picture. ffmpeg is optional, and without it
 clips get a placeholder poster rather than failing. See
 [Media handling](docs/media.md).
 

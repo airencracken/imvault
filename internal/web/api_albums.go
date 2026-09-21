@@ -24,7 +24,10 @@ type apiAlbumJSON struct {
 	// Visibility is the level itself: public, members, or private.
 	Visibility string `json:"visibility"`
 	// Access is who may add their own files: "owner" or "members".
-	Access    string `json:"access"`
+	Access string `json:"access"`
+	// Metadata is the album's ceiling on metadata visibility: "shown",
+	// "inherit", or "hidden".
+	Metadata  string `json:"metadata"`
 	FileCount int    `json:"file_count"`
 	CreatedAt string `json:"created_at"`
 	PageURL   string `json:"page_url"`
@@ -45,6 +48,7 @@ func newAPIAlbum(r *http.Request, s *Server, a *models.Album) apiAlbumJSON {
 		Public:      a.Visibility.IsPublic(),
 		Visibility:  string(a.Visibility),
 		Access:      string(a.Access),
+		Metadata:    string(a.Metadata),
 		FileCount:   a.FileCount,
 		CreatedAt:   a.CreatedAt.UTC().Format(time.RFC3339),
 		PageURL:     s.absoluteURL(r, "/a/"+a.Slug),
@@ -112,7 +116,13 @@ func (s *Server) apiCreateAlbum(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	album, err := s.store.CreateAlbum(r.Context(), user.ID, title, params.str("description"), visibility, access)
+	album, err := s.store.CreateAlbum(r.Context(), user.ID, store.AlbumInput{
+		Title:       title,
+		Description: params.str("description"),
+		Visibility:  visibility,
+		Access:      access,
+		Metadata:    models.ParseMetadataPolicy(params.str("metadata")),
+	})
 	if err != nil {
 		s.log.Error("api: create album", "error", err)
 		writeAPIError(w, http.StatusInternalServerError, "could not create the album")
@@ -214,7 +224,23 @@ func (s *Server) apiPatchAlbum(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.store.UpdateAlbum(r.Context(), album.ID, title, description, visibility, access); err != nil {
+	metadata := album.Metadata
+	if raw := params.str("metadata"); raw != "" {
+		metadata = models.MetadataPolicy(strings.ToLower(strings.TrimSpace(raw)))
+		if !metadata.Valid() {
+			writeAPIError(w, http.StatusBadRequest,
+				fmt.Sprintf("%q is not a metadata setting (use shown, inherit, or hidden)", raw))
+			return
+		}
+	}
+
+	if err := s.store.UpdateAlbum(r.Context(), album.ID, store.AlbumInput{
+		Title:       title,
+		Description: description,
+		Visibility:  visibility,
+		Access:      access,
+		Metadata:    metadata,
+	}); err != nil {
 		s.log.Error("api: update album", "album", album.ID, "error", err)
 		writeAPIError(w, http.StatusInternalServerError, "could not update the album")
 		return

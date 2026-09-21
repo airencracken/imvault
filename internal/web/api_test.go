@@ -383,7 +383,11 @@ func TestAPIUploadIntoAlbum(t *testing.T) {
 	user := h.seedUser("alice")
 	key := h.seedKey(user.ID, "laptop", nil)
 
-	album, err := h.store.CreateAlbum(h.t.Context(), user.ID, "Summer 2026", "", models.VisibilityPublic, models.AlbumAccessOwner)
+	album, err := h.store.CreateAlbum(h.t.Context(), user.ID, store.AlbumInput{
+		Title:      "Summer 2026",
+		Visibility: models.VisibilityPublic,
+		Access:     models.AlbumAccessOwner,
+	})
 	if err != nil {
 		t.Fatalf("create album: %v", err)
 	}

@@ -11,7 +11,7 @@ import (
 	"imvault/internal/models"
 )
 
-const blobColumns = `sha256, size, object_key, thumb_key, preview_key, refcount, created_at`
+const blobColumns = `sha256, size, object_key, thumb_key, preview_key, clean_key, refcount, created_at`
 
 func scanBlob(sc rowScanner) (*models.Blob, error) {
 	var (
@@ -19,7 +19,7 @@ func scanBlob(sc rowScanner) (*models.Blob, error) {
 		created int64
 	)
 	if err := sc.Scan(&b.SHA256, &b.Size, &b.ObjectKey, &b.ThumbKey,
-		&b.PreviewKey, &b.Refcount, &created); err != nil {
+		&b.PreviewKey, &b.CleanKey, &b.Refcount, &created); err != nil {
 		return nil, err
 	}
 	b.CreatedAt = toTime(created)
@@ -40,6 +40,31 @@ func (s *Store) EnsureBlob(ctx context.Context, sha string, size int64, objectKe
 		sha, size, objectKey, thumbKey, previewKey, nowUnix())
 	if err != nil {
 		return fmt.Errorf("ensure blob: %w", err)
+	}
+	return nil
+}
+
+// SetBlobCleanKey records where a metadata-free copy of some content lives.
+//
+// It only ever writes when the row has no clean key yet, so two requests racing
+// to produce the same copy agree on whichever finished first and neither
+// overwrites a key that already points at real bytes.
+func (s *Store) SetBlobCleanKey(ctx context.Context, sha, key string) error {
+	if _, err := s.db.ExecContext(ctx,
+		`UPDATE blobs SET clean_key = ? WHERE sha256 = ? AND clean_key = ''`,
+		key, sha); err != nil {
+		return fmt.Errorf("set blob clean key: %w", err)
+	}
+	return nil
+}
+
+// ClearBlobCleanKey forgets a metadata-free copy, so the next request builds it
+// again. It is how a copy that was never written, or was removed behind the
+// server's back, repairs itself.
+func (s *Store) ClearBlobCleanKey(ctx context.Context, sha string) error {
+	if _, err := s.db.ExecContext(ctx,
+		`UPDATE blobs SET clean_key = '' WHERE sha256 = ?`, sha); err != nil {
+		return fmt.Errorf("clear blob clean key: %w", err)
 	}
 	return nil
 }
