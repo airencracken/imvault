@@ -34,6 +34,21 @@
       {{with .File.ExpiryLabel}}<dt>Retention</dt><dd class="warn">{{.}}</dd>{{end}}
     </dl>
 
+    {{with .Details}}
+    <details class="panel stack file-details">
+      <summary>Photo details</summary>
+      <dl class="facts">
+        {{range .Fields}}<dt>{{.Label}}</dt><dd>{{.Value}}</dd>{{end}}
+      </dl>
+      {{if .Withheld}}
+      <p class="muted">
+        Where it was taken, and who by, are not shown while this file is not
+        showing its metadata.
+      </p>
+      {{end}}
+    </details>
+    {{end}}
+
     <section class="block">
       <h2>Links</h2>
       <label class="copy">Direct

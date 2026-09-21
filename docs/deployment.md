@@ -146,10 +146,31 @@ the last hop.
 
 The Alpine package has been built, installed, and run on Alpine 3.24: `abuild`
 produces `imvault-0.1.0-r0.apk`, the pre-install creates the service account,
-and the packaged binary serves. Note that the Go dependencies need **Go 1.26**,
-so it builds on Alpine **3.24 or later**; older releases stop with "module
-requires go >= 1.26". The APKBUILD needs `abuild checksum` run once against the
-release tarball to fill in the checksum.
+and the packaged binary serves.
+
+Building from source needs **Go 1.26**, which is not the language level of the
+code but the declared requirement of the pinned dependencies: `x/crypto`,
+`x/sys`, `x/image`, and `x/oauth2` all ask for 1.26.0 in their own `go.mod`, and
+a toolchain below that refuses before it compiles anything. A stable Alpine
+branch keeps the Go major it shipped with rather than tracking new ones, so the
+floor is fixed at release time:
+
+| Alpine | Released | Go | `abuild` with the packaged toolchain |
+| --- | --- | --- | --- |
+| 3.24 | June 2026 | 1.26.8 | yes |
+| 3.23 | December 2025 | 1.25.10 | no, "module requires go >= 1.26" |
+
+That is a choice of dependency versions rather than a requirement of the program.
+Holding the four modules back to their 1.25-era releases would lower the floor
+and bring 3.23 into range, at the cost of pinning the security-critical ones to
+older code. The trade taken here is to track them.
+
+Only a native build is affected. The container compiles with the upstream
+`golang` image, and **running needs no Go at all**, so any Alpine runs the
+static binary: the supplied Dockerfile runs it on 3.20.
+
+The APKBUILD needs `abuild checksum` run once against the release tarball to fill
+in the checksum.
 
 **The Gentoo ebuild has not been built on Gentoo.** Its `EGO_SUM` matches
 `go.sum` line for line and it parses as shell, but the eclass usage is

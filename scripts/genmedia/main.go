@@ -8,13 +8,16 @@
 package main
 
 import (
+	"bytes"
 	"flag"
+
 	"fmt"
 	"image"
 	"image/color"
 	"image/gif"
 	"image/jpeg"
 	"image/png"
+	"imvault/internal/exifwrite"
 	"math"
 	"os"
 	"path/filepath"
@@ -33,6 +36,7 @@ func main() {
 		write func(string) error
 	}{
 		{"gradient.jpg", writeGradientJPEG},
+		{"holiday.jpg", writePhotoWithMetadata},
 		{"transparent.png", writeTransparentPNG},
 		{"animation.gif", writeAnimationGIF},
 	}
@@ -77,6 +81,61 @@ func writeGradientJPEG(path string) error {
 
 	return writeFile(path, func(f *os.File) error {
 		return jpeg.Encode(f, img, &jpeg.Options{Quality: 90})
+	})
+}
+
+// writePhotoWithMetadata produces a photograph that carries the metadata a
+// phone would write, including a location.
+//
+// It exists so the demo has something whose details section is worth opening,
+// and so a public copy of it is worth checking: the same file is what shows
+// whether coordinates are being kept out of what strangers are served.
+func writePhotoWithMetadata(path string) error {
+	const (
+		width  = 1200
+		height = 800
+	)
+
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	for y := 0; y < height; y++ {
+		fy := float64(y) / float64(height-1)
+		for x := 0; x < width; x++ {
+			fx := float64(x) / float64(width-1)
+			// A warm sky over water, so it reads as a holiday photograph.
+			img.Set(x, y, color.RGBA{
+				R: clamp(240 - fy*120 + 10*math.Sin(fx*8)),
+				G: clamp(170 - fy*60 + 20*math.Sin(fx*5+fy*3)),
+				B: clamp(90 + fy*140),
+				A: 255,
+			})
+		}
+	}
+
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 88}); err != nil {
+		return err
+	}
+
+	withMetadata := exifwrite.Attach(buf.Bytes(), exifwrite.Tags{
+		Make:        "Example Camera Co.",
+		Model:       "Example One",
+		Software:    "Example Camera Firmware 1.2",
+		Artist:      "The Photographer",
+		Copyright:   "(c) 2026 The Photographer",
+		LensModel:   "Example 35mm f/1.8",
+		Taken:       "2026:06:14 19:42:10",
+		Exposure:    [2]uint32{1, 500},
+		Aperture:    [2]uint32{18, 10},
+		FocalLength: [2]uint32{35, 1},
+		ISO:         100,
+		Latitude:    51.5007,
+		Longitude:   -0.1246,
+		Altitude:    12,
+	})
+
+	return writeFile(path, func(f *os.File) error {
+		_, err := f.Write(withMetadata)
+		return err
 	})
 }
 

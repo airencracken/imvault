@@ -27,6 +27,12 @@ curl -H "Authorization: Bearer $IMVAULT_KEY" \
 | `files` | One or more files. `file`, `image`, and `uploads` are accepted as aliases |
 | `visibility` | `public`, `members`, or `private`. Defaults to the instance default |
 | `metadata` | `shown`, `inherit`, or `hidden`. Defaults to `inherit`, which follows visibility |
+
+The file response carries a `details` object with whatever the file said about
+itself — `taken`, `camera`, `lens`, `exposure`, `aperture`, `iso`, `focal`,
+`software`, and the identifying `artist`, `copyright`, `serial`, `latitude`,
+`longitude`, and `altitude`. It is omitted when there is nothing to report. The
+API is not masked: it returns an account's own files to that account.
 | `public` | The older boolean. `1` means `visibility=public`, `0` means `private` |
 | `album` | Album slug or id to add the uploads to |
 | `tags` | Comma-separated tag names to apply to the uploads |

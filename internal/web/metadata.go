@@ -190,6 +190,59 @@ func (s *Server) forgetCleanObject(ctx context.Context, sha string) {
 	}
 }
 
+// detailsView is the metadata section of a file page.
+type detailsView struct {
+	Fields []metadata.Field
+	// Withheld reports that identifying fields are present and not being
+	// shown, so the page can say so rather than looking like a file that never
+	// had any.
+	Withheld bool
+}
+
+// detailsFor builds the metadata section for a file, as seen by one viewer.
+//
+// The owner and administrators see everything: it is their picture, they made
+// the choice, and the policy is about what other people are told. For anybody
+// else it follows the same rule as the bytes, because a page and a download are
+// two ways of disclosing the same thing.
+//
+// What stays is what a family archive is for — when it was taken, and with
+// what. What goes is where it was taken and who by. The two are separated
+// rather than bundled because "do not tell the public where my house is" and
+// "do not tell me when my own photograph was taken" are different requests, and
+// only the first one was made.
+func (s *Server) detailsFor(ctx context.Context, file *models.File, viewer *models.User) *detailsView {
+	details := metadata.DecodeDetails(file.Details)
+	if details == nil {
+		return nil
+	}
+	if canChangeFile(viewer, file) {
+		return &detailsView{Fields: details.Fields()}
+	}
+
+	policy, err := s.store.EffectiveMetadataPolicy(ctx, file)
+	if err != nil {
+		// Closing on doubt: this is the path that decides whether to disclose
+		// somebody's location.
+		s.log.Error("metadata policy", "id", file.ID, "error", err)
+		policy = models.MetadataHidden
+	}
+
+	view := &detailsView{}
+	for _, field := range details.Fields() {
+		if policy != models.MetadataShown && field.Identifying {
+			view.Withheld = true
+			continue
+		}
+		view.Fields = append(view.Fields, field)
+	}
+
+	if len(view.Fields) == 0 && !view.Withheld {
+		return nil
+	}
+	return view
+}
+
 // MetadataGap describes why a file's metadata cannot be removed, or is empty
 // when there is no gap.
 //

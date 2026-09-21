@@ -81,6 +81,34 @@ and the one outcome this feature cannot produce is a false sense of safety. It
 is also not a dead end: setting the file's metadata to **Shown** is an explicit
 decision to accept the exposure, and the file is served from then on.
 
+### What the page shows
+
+The details are read out of a file **once, at upload**, and stored against the
+content. Nothing re-reads an original to display them.
+
+They appear on the file page behind a **collapsed** disclosure, so a wall of
+camera settings does not sit above the picture. What is inside depends on who is
+looking and on the setting:
+
+| Viewer | What they see |
+| --- | --- |
+| The owner, and administrators | Everything, always. It is their photograph, and the setting is about what other people are told |
+| Anybody else, setting **shown** | Everything |
+| Anybody else, setting **hidden** | When it was taken and with what. Location, artist, copyright, and serial number are withheld, and the page says so |
+
+The split is deliberate rather than cautious for its own sake. "Do not tell the
+public where my house is" and "do not tell me when my own photograph was taken"
+are different requests, and only the first one was made: the date is the reason
+a family archive exists, and the coordinates are the reason it is private. A
+single setting should not have to choose between losing one and leaking the
+other.
+
+Withholding is stated rather than silent, so a masked file does not look like
+one that never had any metadata.
+
+The API is unmasked. It returns an account's own files to that account, and
+hiding somebody's data from themselves in their own tool helps nobody.
+
 ### Where the metadata-free copy lives
 
 It is stored beside the original, named after the content hash, and built the

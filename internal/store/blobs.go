@@ -11,7 +11,7 @@ import (
 	"imvault/internal/models"
 )
 
-const blobColumns = `sha256, size, object_key, thumb_key, preview_key, clean_key, refcount, created_at`
+const blobColumns = `sha256, size, object_key, thumb_key, preview_key, clean_key, details_json, refcount, created_at`
 
 func scanBlob(sc rowScanner) (*models.Blob, error) {
 	var (
@@ -19,7 +19,7 @@ func scanBlob(sc rowScanner) (*models.Blob, error) {
 		created int64
 	)
 	if err := sc.Scan(&b.SHA256, &b.Size, &b.ObjectKey, &b.ThumbKey,
-		&b.PreviewKey, &b.CleanKey, &b.Refcount, &created); err != nil {
+		&b.PreviewKey, &b.CleanKey, &b.Details, &b.Refcount, &created); err != nil {
 		return nil, err
 	}
 	b.CreatedAt = toTime(created)
@@ -32,12 +32,12 @@ func scanBlob(sc rowScanner) (*models.Blob, error) {
 // The reference count is not touched: a trigger increments it when the file row
 // that references the blob is inserted, so the only caller obligation is that
 // the blob exists before the file does.
-func (s *Store) EnsureBlob(ctx context.Context, sha string, size int64, objectKey, thumbKey, previewKey string) error {
+func (s *Store) EnsureBlob(ctx context.Context, sha string, size int64, objectKey, thumbKey, previewKey, details string) error {
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO blobs (sha256, size, object_key, thumb_key, preview_key, refcount, created_at)
-		VALUES (?, ?, ?, ?, ?, 0, ?)
+		INSERT INTO blobs (sha256, size, object_key, thumb_key, preview_key, details_json, refcount, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, 0, ?)
 		ON CONFLICT (sha256) DO NOTHING`,
-		sha, size, objectKey, thumbKey, previewKey, nowUnix())
+		sha, size, objectKey, thumbKey, previewKey, details, nowUnix())
 	if err != nil {
 		return fmt.Errorf("ensure blob: %w", err)
 	}

@@ -285,6 +285,10 @@ type fileView struct {
 	// ReportForm is present when the viewer may report this, which is a
 	// signed-in member looking at somebody else's upload.
 	ReportForm *reportFormView
+	// Details is the photograph's own description: when it was taken, with
+	// what, and where. It is collapsed on the page and absent when there is
+	// nothing to say.
+	Details *detailsView
 	// IsOwner is the right to change what the file is: its visibility and its
 	// tags. A moderator may remove a file but not republish it, so this is
 	// narrower than CanDelete.

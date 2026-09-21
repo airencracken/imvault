@@ -1050,6 +1050,70 @@ func TestMetadataPolicyMigrationDefaultsToInherit(t *testing.T) {
 	}
 }
 
+func TestBlobDetailsMigrationArrivesEmpty(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "pre-details.db")
+	buildLegacyDatabase(t, path,
+		"001_init.sql", "002_media_and_api_keys.sql", "003_per_account_tags.sql",
+		"004_quotas_and_admin.sql", "005_auth_tokens.sql", "006_outbound_mail.sql",
+		"007_two_factor.sql", "008_content_addressed_storage.sql", "009_per_file_quota.sql",
+		"010_anonymous_tags.sql")
+
+	raw, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{
+		"011_blobs.sql", "012_settings.sql", "013_visibility.sql", "014_shared_albums.sql",
+		"015_roles.sql", "016_invites.sql", "017_moderation.sql", "018_user_identities.sql",
+		"019_metadata_policy.sql",
+	} {
+		body, err := migrationsFS.ReadFile("migrations/" + name)
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		if _, err := raw.Exec(string(body)); err != nil {
+			t.Fatalf("apply %s: %v", name, err)
+		}
+		if _, err := raw.Exec(
+			`INSERT INTO schema_migrations (version, applied_at) VALUES (?, 0)`, name); err != nil {
+			t.Fatalf("record %s: %v", name, err)
+		}
+	}
+	raw.Close()
+
+	ctx := context.Background()
+	database, err := Open(ctx, path)
+	if err != nil {
+		t.Fatalf("upgrade database: %v", err)
+	}
+	defer database.Close()
+
+	// Every existing blob has nothing to say, which is what it already did.
+	var described int
+	if err := database.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM blobs WHERE details_json <> ''`).Scan(&described); err != nil {
+		t.Fatalf("read blobs: %v", err)
+	}
+	if described != 0 {
+		t.Errorf("%d blobs gained details they never had", described)
+	}
+
+	// The column takes a JSON document, and the old rows keep working.
+	if _, err := database.ExecContext(ctx, `
+		INSERT INTO blobs (sha256, size, object_key, details_json, created_at)
+		VALUES ('cc', 1, 'o/cc', '{"camera":"TestCam"}', 0)`); err != nil {
+		t.Fatal(err)
+	}
+	var details string
+	if err := database.QueryRowContext(ctx,
+		`SELECT details_json FROM blobs WHERE sha256 = 'cc'`).Scan(&details); err != nil {
+		t.Fatal(err)
+	}
+	if details != `{"camera":"TestCam"}` {
+		t.Errorf("details came back as %q", details)
+	}
+}
+
 func TestMigrationIsIdempotent(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "fresh.db")
 	ctx := context.Background()

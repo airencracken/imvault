@@ -132,6 +132,8 @@ func (s *Server) handleFilePage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	view.Details = s.detailsFor(r.Context(), file, user)
+
 	if view.IsOwner {
 		albums, err := s.store.AlbumsForFile(r.Context(), file.ID)
 		if err != nil {

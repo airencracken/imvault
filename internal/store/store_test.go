@@ -59,7 +59,7 @@ func mustFile(t *testing.T, s *Store, ctx context.Context, id string, owner *int
 
 	// Content is recorded before the file that refers to it, as the upload path
 	// does: the trigger that counts references has nothing to update otherwise.
-	if err := s.EnsureBlob(ctx, f.SHA256, f.Size, f.ObjectKey, f.ThumbKey, f.PreviewKey); err != nil {
+	if err := s.EnsureBlob(ctx, f.SHA256, f.Size, f.ObjectKey, f.ThumbKey, f.PreviewKey, ""); err != nil {
 		t.Fatalf("ensure blob for %s: %v", id, err)
 	}
 	if err := s.CreateFile(ctx, f); err != nil {

@@ -16,6 +16,7 @@ import (
 
 	"imvault/internal/ids"
 	"imvault/internal/media"
+	"imvault/internal/metadata"
 	"imvault/internal/models"
 	"imvault/internal/storage"
 	"imvault/internal/store"
@@ -209,6 +210,12 @@ func (s *Server) ingest(ctx context.Context, header *multipart.FileHeader, user 
 			limit>>20, kindNoun(format))
 	}
 
+	// Read what the file says about itself, once, while the stream is at the
+	// start. It is stored rather than re-read later, which is what lets a file
+	// whose metadata is no longer served still describe itself to the people
+	// allowed to see it.
+	details := s.extractDetails(src)
+
 	owner := userIDPtr(user)
 	expires := s.expiryFor(user)
 	now := time.Now().UTC()
@@ -222,9 +229,9 @@ func (s *Server) ingest(ctx context.Context, header *multipart.FileHeader, user 
 	}
 
 	if format.IsVideo() {
-		return s.storeVideo(ctx, src, format, header, owner, options, expires, now)
+		return s.storeVideo(ctx, src, format, header, owner, options, details, expires, now)
 	}
-	return s.storeStill(ctx, src, format, header, owner, options, expires, now)
+	return s.storeStill(ctx, src, format, header, owner, options, details, expires, now)
 }
 
 // quotaError turns a store quota failure into a message worth showing a user.
@@ -273,6 +280,7 @@ func (s *Server) storeStill(
 	header *multipart.FileHeader,
 	owner *int64,
 	options uploadOptions,
+	details string,
 	expires *time.Time,
 	now time.Time,
 ) (*models.File, error) {
@@ -327,7 +335,7 @@ func (s *Server) storeStill(
 
 	// The blob has to exist before the file row: the trigger that counts
 	// references fires on that insert.
-	if err := s.store.EnsureBlob(ctx, sha, size, keys.object, keys.thumb, keys.preview); err != nil {
+	if err := s.store.EnsureBlob(ctx, sha, size, keys.object, keys.thumb, keys.preview, details); err != nil {
 		s.releaseStorage(ctx, owner, size)
 		s.discardFailedUpload(ctx, sha, keys.all())
 		return nil, fmt.Errorf("could not record the content")
@@ -374,6 +382,7 @@ func (s *Server) storeVideo(
 	header *multipart.FileHeader,
 	owner *int64,
 	options uploadOptions,
+	details string,
 	expires *time.Time,
 	now time.Time,
 ) (*models.File, error) {
@@ -431,7 +440,7 @@ func (s *Server) storeVideo(
 		return nil, fmt.Errorf("could not store the poster frame")
 	}
 
-	if err := s.store.EnsureBlob(ctx, sha, size, keys.object, keys.thumb, ""); err != nil {
+	if err := s.store.EnsureBlob(ctx, sha, size, keys.object, keys.thumb, "", details); err != nil {
 		s.releaseStorage(ctx, owner, size)
 		s.discardFailedUpload(ctx, sha, keys.all())
 		return nil, fmt.Errorf("could not record the content")
@@ -547,6 +556,29 @@ func (s *Server) expiryFor(user *models.User) *time.Time {
 	// uploads immediately and existing ones through ApplyAnonymousRetention.
 	e := time.Now().UTC().Add(s.policy().AnonymousTTL)
 	return &e
+}
+
+// extractDetails reads a file's descriptive metadata, leaving the stream where
+// it started so the rest of the upload is unaffected.
+//
+// A file with none, or one the parser cannot make sense of, is the ordinary
+// case rather than a failure: most of what this accepts carries nothing, and
+// the upload is about the picture.
+func (s *Server) extractDetails(src io.ReadSeeker) string {
+	details, err := metadata.Extract(src)
+	if err != nil {
+		s.log.Debug("no readable metadata", "error", err)
+	}
+
+	// Whether or not anything was found, the stream has to go back for the
+	// hashing and the renditions that follow.
+	if _, err := src.Seek(0, io.SeekStart); err != nil {
+		s.log.Error("rewind after reading metadata", "error", err)
+	}
+	if details == nil {
+		return ""
+	}
+	return details.Encode()
 }
 
 // uploadOptions is how an upload should be stored: who may see it, and what

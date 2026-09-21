@@ -18,6 +18,7 @@ import (
 const fileColumns = `f.id, f.user_id, f.original_name, f.ext, f.mime, f.size,
 	f.width, f.height, f.sha256,
 	COALESCE(b.object_key, ''), COALESCE(b.thumb_key, ''), COALESCE(b.preview_key, ''),
+	COALESCE(b.details_json, ''),
 	f.visibility, f.metadata, f.kind, f.duration_ms, f.frame_count, f.views, f.created_at, f.expires_at,
 	COALESCE(u.username, '')`
 
@@ -37,7 +38,7 @@ func scanFile(sc rowScanner) (*models.File, error) {
 	)
 	if err := sc.Scan(
 		&f.ID, &userID, &f.OriginalName, &f.Ext, &f.Mime, &f.Size,
-		&f.Width, &f.Height, &f.SHA256, &f.ObjectKey, &f.ThumbKey, &f.PreviewKey,
+		&f.Width, &f.Height, &f.SHA256, &f.ObjectKey, &f.ThumbKey, &f.PreviewKey, &f.Details,
 		&visibility, &metadata, &kind, &f.DurationMS, &f.FrameCount, &f.Views, &created, &expires, &f.Username,
 	); err != nil {
 		return nil, err

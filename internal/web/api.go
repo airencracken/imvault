@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"imvault/internal/metadata"
 	"imvault/internal/models"
 	"imvault/internal/store"
 )
@@ -33,12 +34,15 @@ type apiFileJSON struct {
 	// Visibility is the level itself: public, members, or private.
 	Visibility string `json:"visibility"`
 	// Metadata is what happens to the camera details, date, and location.
-	Metadata   string       `json:"metadata"`
-	DurationMS int64        `json:"duration_ms,omitempty"`
-	FrameCount int          `json:"frame_count,omitempty"`
-	CreatedAt  string       `json:"created_at"`
-	ExpiresAt  *string      `json:"expires_at"`
-	Tags       []apiTagJSON `json:"tags"`
+	Metadata string `json:"metadata"`
+	// Details is what the file says about itself. The API returns an account's
+	// own files to that account, so nothing is withheld here.
+	Details    *metadata.Details `json:"details,omitempty"`
+	DurationMS int64             `json:"duration_ms,omitempty"`
+	FrameCount int               `json:"frame_count,omitempty"`
+	CreatedAt  string            `json:"created_at"`
+	ExpiresAt  *string           `json:"expires_at"`
+	Tags       []apiTagJSON      `json:"tags"`
 
 	PageURL  string `json:"page_url"`
 	RawURL   string `json:"raw_url"`
@@ -75,6 +79,7 @@ func newAPIFile(r *http.Request, s *Server, f *models.File) apiFileJSON {
 		Public:     f.Visibility.IsPublic(),
 		Visibility: string(f.Visibility),
 		Metadata:   string(f.Metadata),
+		Details:    metadata.DecodeDetails(f.Details),
 		DurationMS: f.DurationMS,
 		FrameCount: f.FrameCount,
 		CreatedAt:  f.CreatedAt.UTC().Format(time.RFC3339),

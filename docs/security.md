@@ -178,7 +178,14 @@ served quietly while claiming otherwise, because a page that looks clean while
 the bytes are not is worse than an error.
 
 The account export is the exception, and deliberately so: it is the owner's own
-data going to the owner, so it contains the original.
+data going to the owner, so it contains the original. So is the API, which only
+ever returns an account's own files to that account, and so is the file page for
+the owner and for administrators — a setting decides what *other people* are
+told, and the person who made the choice should still be able to see what is
+theirs.
+
+What the page shows is described under [Media
+handling](media.md#what-the-page-shows).
 
 ## Rate limiting
 

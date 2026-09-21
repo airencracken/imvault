@@ -27,7 +27,9 @@ and previews are generated once, with EXIF orientation applied and transparency
 preserved. Animations are never re-encoded and clips are never transcoded: the
 originals are served, with range requests. Photograph metadata — the camera, the
 date, and the coordinates a phone writes — is removed from what a public file
-serves, per file and per album, without re-encoding the picture. ffmpeg is optional, and without it
+serves, per file and per album, without re-encoding the picture, and what
+survives is shown behind a collapsed disclosure with the location withheld from
+anybody the file is not shared with. ffmpeg is optional, and without it
 clips get a placeholder poster rather than failing. See
 [Media handling](docs/media.md).
 

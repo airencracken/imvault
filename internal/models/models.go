@@ -311,6 +311,10 @@ type File struct {
 	// Populated by list queries that join for display.
 	Username string
 	Tags     []Tag
+	// Details is the descriptive metadata of the content, as stored JSON. It
+	// comes from the blob, because it belongs to the bytes rather than to this
+	// file.
+	Details string
 }
 
 // Expired reports whether the file has passed its retention deadline.
@@ -418,7 +422,10 @@ type Blob struct {
 	// CleanKey is where a metadata-free copy lives, or empty when one has
 	// never been needed. It is derived from the content, so every file with
 	// these bytes shares it.
-	CleanKey  string
+	CleanKey string
+	// Details is the descriptive metadata read out at upload, as stored JSON.
+	// It is a property of the bytes, so every file with this content shares it.
+	Details   string
 	Refcount  int
 	CreatedAt time.Time
 }
