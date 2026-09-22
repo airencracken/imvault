@@ -19,7 +19,7 @@ Public for an audience, members-only for your people, private for the
 
 ![The imvault recent feed with the keeper, images, an animation, a clip, and visibility labels](docs/images/recent.png)
 
-*The actual local demo, stocked with generated test media. [Refresh this screenshot](docs/images/README.md).*
+*The actual local demo, stocked with sample media.*
 
 ## Come on in
 
