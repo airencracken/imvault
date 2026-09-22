@@ -34,7 +34,7 @@ settings](#instance-settings) below.
 | `IMVAULT_TOTP_ISSUER` | `imvault` | Name an authenticator app shows for the account |
 | `IMVAULT_SECRET_KEY` | *(empty)* | Key for encrypting TOTP secrets; overrides the key file |
 | `IMVAULT_SECRET_KEY_FILE` | `<data>/secret.key` | Where that key is kept, created on first run |
-| `IMVAULT_LOGIN_RATE_PER_HOUR` | `30` | Sign-in attempts per hour per address and name; `0` disables |
+| `IMVAULT_LOGIN_RATE_PER_HOUR` | `30` | Sign-in attempts per hour per address, shared by password and second-factor steps; `0` disables |
 | `IMVAULT_LOGIN_BURST` | `10` | Sign-in attempts allowed back to back |
 | `IMVAULT_PASSWORD_RESET_TTL` | `1h` | How long a reset link stays valid |
 | `IMVAULT_EMAIL_VERIFY_TTL` | `24h` | How long a confirmation link stays valid |

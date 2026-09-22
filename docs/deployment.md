@@ -190,7 +190,7 @@ static binary: the supplied Dockerfile runs it on 3.20.
 The APKBUILD needs `abuild checksum` run once against the release tarball to fill
 in the checksum.
 
-**The Gentoo ebuild is a live one and has not been built on Gentoo.** It builds
+**The Gentoo ebuild is a live one.** It builds
 the `master` branch through `git-r3` and vendors the modules with
 `go-module_live_vendor`, so there is no version to bump, no manifest to
 regenerate, and no `EGO_SUM` to keep in step with `go.sum` — which the eclass now
@@ -199,14 +199,34 @@ covers imvault and every module linked into the binary, worked out from
 `go list -deps` rather than from the module graph, so it does not list the
 test-only dependencies that never end up in it.
 
-What is unverified is the eclass usage itself, which needs a Gentoo system to
-exercise. Treat it as a starting point. The OpenRC script it installs is the same
-one Alpine uses and that one is tested.
+Copy all three packages into an overlay already configured in Portage:
 
-A versioned ebuild belongs at release time, and it is a different shape: it needs
-`EGO_SUM` regenerated from **that tag's** `go.sum` rather than from master's, a
-manifest, and the checksum filled in. The live ebuild exists so that deploying
-your own tree needs none of that.
+```bash
+sudo install -d /var/db/repos/local/app-admin/imvault
+sudo install -m644 contrib/gentoo/imvault-9999.ebuild contrib/gentoo/metadata.xml \
+  /var/db/repos/local/app-admin/imvault/
+sudo cp -R contrib/gentoo/acct-user contrib/gentoo/acct-group /var/db/repos/local/
+sudo emerge -av app-admin/imvault
+```
+
+The account packages use Gentoo's `acct-user` and `acct-group` eclasses with
+dynamically allocated IDs for a private overlay. The package installs both init
+scripts and the binary at `/usr/bin/imvault`; OpenRC exports the default
+`/var/lib/imvault` data directory even when the config file contains only comments.
+Enable the `ffmpeg` USE flag for clip posters and duration checks.
+
+The recipes pass `pkgcheck` against the local Gentoo tree. The Go build and
+OpenRC environment checks run locally, but a full `emerge` installation and
+service start on mordor remain deployment checks.
+
+A versioned ebuild needs a release source tarball, a dependency tarball, and a
+manifest. The live ebuild vendors modules during unpack instead.
+
+Before exposing the service, bind it to loopback, configure the TLS proxy, and
+register your administrator account. Under **Admin → Settings → Anonymous
+uploads**, uncheck **Allow uploads without an account** and save to turn them
+off. The switch applies immediately and survives restarts. Set an instance
+storage ceiling and upload concurrency appropriate to the machine.
 
 ## Verifying a deployment
 

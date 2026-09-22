@@ -20,6 +20,11 @@ curl -H "Authorization: Bearer $IMVAULT_KEY" \
 
 `X-API-Key: <key>` works anywhere `Authorization: Bearer` does.
 
+Keys authenticate `/api/v1/...` and media downloads (`GET`/`HEAD` on
+`/f/{id}/raw`, `/thumb`, and `/preview`). Account settings and administration
+require a browser session. Non-upload request bodies are limited to 1 MiB;
+multipart uploads use the configured upload limits.
+
 **Upload options** (multipart form fields)
 
 | Field | Meaning |
@@ -27,15 +32,15 @@ curl -H "Authorization: Bearer $IMVAULT_KEY" \
 | `files` | One or more files. `file`, `image`, and `uploads` are accepted as aliases |
 | `visibility` | `public`, `members`, or `private`. Defaults to the instance default |
 | `metadata` | `shown`, `inherit`, or `hidden`. Defaults to `inherit`, which follows visibility |
+| `public` | The older boolean. `1` means `visibility=public`, `0` means `private` |
+| `album` | Album slug or id to add the uploads to |
+| `tags` | Comma-separated tag names to apply to the uploads |
 
 The file response carries a `details` object with whatever the file said about
 itself — `taken`, `camera`, `lens`, `exposure`, `aperture`, `iso`, `focal`,
 `software`, and the identifying `artist`, `copyright`, `serial`, `latitude`,
 `longitude`, and `altitude`. It is omitted when there is nothing to report. The
 API is not masked: it returns an account's own files to that account.
-| `public` | The older boolean. `1` means `visibility=public`, `0` means `private` |
-| `album` | Album slug or id to add the uploads to |
-| `tags` | Comma-separated tag names to apply to the uploads |
 
 **Visibility has three levels**, not two: `public` is anyone with the link,
 `members` is any signed-in account, and `private` is the uploader. An upload
