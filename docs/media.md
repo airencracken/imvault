@@ -88,20 +88,32 @@ content. Nothing re-reads an original to display them.
 
 They appear on the file page behind a **collapsed** disclosure, so a wall of
 camera settings does not sit above the picture. What is inside depends on who is
-looking and on the setting:
+looking, and on the setting:
 
-| Viewer | What they see |
-| --- | --- |
-| The owner, and administrators | Everything, always. It is their photograph, and the setting is about what other people are told |
-| Anybody else, setting **shown** | Everything |
-| Anybody else, setting **hidden** | When it was taken and with what. Location, artist, copyright, and serial number are withheld, and the page says so |
+| Viewer | Following visibility | **Shown** | **Hidden** |
+| --- | --- | --- | --- |
+| The owner, and administrators | Everything | Everything | Everything |
+| A member, on a members-visible file | Everything | Everything | Date and camera |
+| Anybody, on a public file | Date and camera | Everything | Date and camera |
 
-The split is deliberate rather than cautious for its own sake. "Do not tell the
-public where my house is" and "do not tell me when my own photograph was taken"
-are different requests, and only the first one was made: the date is the reason
-a family archive exists, and the coordinates are the reason it is private. A
-single setting should not have to choose between losing one and leaking the
-other.
+**The audience decides, not the field.** The location is family value — "here is
+where we were" is much of the point of a holiday photograph — and it is the
+public that turns the same coordinates into a liability. So nothing is thrown
+away: the identifying fields are withheld from the wrong audience, and a file
+shared with a group shows them to that group. That is what makes this a policy
+rather than a strip. "Share the coordinates with my family" and "do not tell the
+internet" are one setting, not two, and the setting is really a question about
+who is looking.
+
+The owner and administrators are the exception, and always see everything: it is
+their photograph, they made the choice, and the setting is about what other
+people are told. Reading it as "this file has no location" would be wrong for
+exactly the case the feature exists for.
+
+The withheld fields are the ones that say *where* and *who by*: location,
+altitude, artist, copyright, and camera serial. What remains is what a
+photograph was taken with and when, which is the part a stranger can do nothing
+with.
 
 Withholding is stated rather than silent, so a masked file does not look like
 one that never had any metadata.

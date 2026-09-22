@@ -206,11 +206,14 @@ type detailsView struct {
 // else it follows the same rule as the bytes, because a page and a download are
 // two ways of disclosing the same thing.
 //
-// What stays is what a family archive is for — when it was taken, and with
-// what. What goes is where it was taken and who by. The two are separated
-// rather than bundled because "do not tell the public where my house is" and
-// "do not tell me when my own photograph was taken" are different requests, and
-// only the first one was made.
+// The audience decides, not the field. A location is family value — "here is
+// where we were" is much of the point of a holiday photograph — and it is the
+// public that turns the same coordinates into a liability. So nothing is
+// discarded: the identifying fields are withheld from the wrong audience, and a
+// file shared with a group shows them to that group. That is what makes this a
+// policy rather than a strip. "Share the coordinates with my family" and "do
+// not tell the internet" are one setting, not two, and the setting is really a
+// question about who is looking.
 func (s *Server) detailsFor(ctx context.Context, file *models.File, viewer *models.User) *detailsView {
 	details := metadata.DecodeDetails(file.Details)
 	if details == nil {

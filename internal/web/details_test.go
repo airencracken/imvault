@@ -219,3 +219,45 @@ func TestDetailsSurviveAReloadOfThePage(t *testing.T) {
 		t.Error("the details did not survive a second read")
 	}
 }
+
+// TestTheFamilySeesWhereThePhotographWasTaken names the case the whole feature
+// exists for.
+//
+// Nothing is configured here: this is the default. A file shared with a group
+// shows that group its coordinates, while the same coordinates stay out of what
+// the public is served and shown. The answer is not "strip it and show
+// nothing", because where the photograph was taken is much of what there is to
+// share — the axis is the audience, not the field.
+func TestTheFamilySeesWhereThePhotographWasTaken(t *testing.T) {
+	h := newHarness(t)
+	h.registerForm("boss")
+	family := h.seedUser("family")
+
+	shared := uploadPlain(t, h, map[string]string{"visibility": "members"})
+	seedDetails(t, h, shared, storedDetails)
+
+	// The group sees it, coordinates and all, and is not told anything is
+	// being withheld, because nothing is.
+	_, page := h.sessionFor(t, family.ID).get("/f/" + shared)
+	if !strings.Contains(page, "51.50740, -0.12730") {
+		t.Error("the group was not shown where the photograph was taken")
+	}
+	if strings.Contains(page, "not shown while this file is not") {
+		t.Error("the group is told something is withheld, and nothing is")
+	}
+
+	// The public does not, and keeps the parts a stranger can do nothing with.
+	public := uploadPlain(t, h, map[string]string{"visibility": "public"})
+	seedDetails(t, h, public, storedDetails)
+
+	_, page = h.newSession(t).get("/f/" + public)
+	if strings.Contains(page, "51.50740") {
+		t.Error("a stranger was shown where a public photograph was taken")
+	}
+	if !strings.Contains(page, "21 September 2026 at 14:30") {
+		t.Error("a stranger lost the date as well, which is not the point")
+	}
+	if !strings.Contains(page, "TestCam One") {
+		t.Error("a stranger lost the camera as well, which is not the point")
+	}
+}
