@@ -58,7 +58,7 @@ later; so can an administrator, including anonymous ones.
 
 **Response formats**
 
-- Default: JSON with `files[]` (id, name, mime, kind, dimensions, tags, `page_url`,
+- Default: JSON with `files[]` (id, name, description, mime, kind, dimensions, tags, `page_url`,
   `raw_url`, `thumb_url`, `url`) and any per-file `errors[]`.
 - `?format=text`, or `Accept: text/plain`: one bare URL per line, which is what
   ShareX-style custom uploaders expect.
@@ -72,6 +72,28 @@ A ready-to-paste ShareX custom uploader configuration:
 | Body | `Form data (multipart/form-data)` |
 | File form name | `files` |
 | Headers | `Authorization: Bearer <key>` |
+
+## File descriptions
+
+File JSON includes `description`, an empty string until one is added. After
+uploading, use `PATCH /api/v1/files/{id}` to set or clear it:
+
+```bash
+curl -X PATCH -H "Authorization: Bearer $IMVAULT_KEY" \
+     -H 'Content-Type: application/json' \
+     -d '{"description":"The summer picnic.\nSomebody brought three cakes."}' \
+     https://img.example.com/api/v1/files/abc123
+```
+
+Descriptions are plain text, limited to 1,000 Unicode characters. Surrounding
+whitespace is trimmed and CRLF line endings become LF. Send `"description":""`
+to clear it; omitting the field preserves it. `null` and non-string values are
+errors. Ordinary form encoding works too. Descriptions follow file visibility,
+independently of the camera metadata policy.
+
+You can send `description`, `visibility`, and `metadata` together. All supplied
+fields are validated and saved together; an invalid value leaves the file
+unchanged.
 
 ## Albums and tags
 
@@ -144,7 +166,7 @@ which is what callers written against two levels meant by it.
 | `POST` | `/api/v1/upload` | Upload one or more files |
 | `GET` | `/api/v1/files` | List and filter your uploads |
 | `GET` | `/api/v1/files/{id}` | Metadata for one file |
-| `PATCH` | `/api/v1/files/{id}` | Change `visibility`, `metadata`, or the older `public` |
+| `PATCH` | `/api/v1/files/{id}` | Change `description`, `visibility`, `metadata`, or the older `public` |
 | `DELETE` | `/api/v1/files/{id}` | Delete a file and its bytes |
 | `POST` | `/api/v1/files/{id}/tags` | Attach a tag |
 | `DELETE` | `/api/v1/files/{id}/tags/{ref}` | Detach a tag by id, slug or name |

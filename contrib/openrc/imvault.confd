@@ -11,6 +11,7 @@
 # IMVAULT_GROUP=imvault
 # IMVAULT_BIN=/usr/bin/imvault
 # IMVAULT_DATA_DIR=/var/lib/imvault
+# Match this path in /etc/logrotate.d/imvault if you change it.
 # IMVAULT_LOG_FILE=/var/log/imvault.log
 
 # --- server ----------------------------------------------------------------

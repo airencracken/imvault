@@ -29,6 +29,8 @@ Everything the server answers.
 | `POST` | `/f/{id}/favorite` | Save (`favorite=1`) or remove (`favorite=0`) your favorite; session and CSRF required |
 | `POST` | `/f/{id}/visibility` | Set the level: public, members, or private |
 | `POST` | `/f/{id}/metadata` | Set what happens to the file's metadata |
+| `POST` | `/f/{id}/rename` | Rename an upload (owner or administrator) |
+| `POST` | `/f/{id}/description` | Set or clear a plain-text description (owner or administrator) |
 | `POST` | `/f/{id}/delete` | Delete the file |
 | `POST` | `/f/{id}/tags`, `/f/{id}/tags/{tagID}/delete` | Attach or detach a tag |
 | `GET` `POST` | `/albums` | List and create albums; lists the ones others shared too |

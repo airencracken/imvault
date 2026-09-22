@@ -20,14 +20,15 @@ import (
 
 // apiFileJSON is the wire representation of a stored file.
 type apiFileJSON struct {
-	ID     string `json:"id"`
-	Name   string `json:"name"`
-	Mime   string `json:"mime"`
-	Kind   string `json:"kind"`
-	Size   int64  `json:"size"`
-	Width  int    `json:"width"`
-	Height int    `json:"height"`
-	Views  int64  `json:"views"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Mime        string `json:"mime"`
+	Kind        string `json:"kind"`
+	Size        int64  `json:"size"`
+	Width       int    `json:"width"`
+	Height      int    `json:"height"`
+	Views       int64  `json:"views"`
 	// Public is the older boolean, kept so clients written against two levels
 	// keep working. It is true only at the public level.
 	Public bool `json:"public"`
@@ -68,25 +69,26 @@ type apiUploadResponse struct {
 
 func newAPIFile(r *http.Request, s *Server, f *models.File) apiFileJSON {
 	out := apiFileJSON{
-		ID:         f.ID,
-		Name:       f.OriginalName,
-		Mime:       f.Mime,
-		Kind:       string(f.Kind),
-		Size:       f.Size,
-		Width:      f.Width,
-		Height:     f.Height,
-		Views:      f.Views,
-		Public:     f.Visibility.IsPublic(),
-		Visibility: string(f.Visibility),
-		Metadata:   string(f.Metadata),
-		Details:    metadata.DecodeDetails(f.Details),
-		DurationMS: f.DurationMS,
-		FrameCount: f.FrameCount,
-		CreatedAt:  f.CreatedAt.UTC().Format(time.RFC3339),
-		Tags:       newAPITags(f.Tags),
-		PageURL:    s.absoluteURL(r, "/f/"+f.ID),
-		RawURL:     s.absoluteURL(r, "/f/"+f.ID+"/raw"),
-		ThumbURL:   s.absoluteURL(r, "/f/"+f.ID+"/thumb"),
+		ID:          f.ID,
+		Name:        f.OriginalName,
+		Description: f.Description,
+		Mime:        f.Mime,
+		Kind:        string(f.Kind),
+		Size:        f.Size,
+		Width:       f.Width,
+		Height:      f.Height,
+		Views:       f.Views,
+		Public:      f.Visibility.IsPublic(),
+		Visibility:  string(f.Visibility),
+		Metadata:    string(f.Metadata),
+		Details:     metadata.DecodeDetails(f.Details),
+		DurationMS:  f.DurationMS,
+		FrameCount:  f.FrameCount,
+		CreatedAt:   f.CreatedAt.UTC().Format(time.RFC3339),
+		Tags:        newAPITags(f.Tags),
+		PageURL:     s.absoluteURL(r, "/f/"+f.ID),
+		RawURL:      s.absoluteURL(r, "/f/"+f.ID+"/raw"),
+		ThumbURL:    s.absoluteURL(r, "/f/"+f.ID+"/thumb"),
 	}
 	out.URL = out.RawURL
 	if f.ExpiresAt != nil {
@@ -279,8 +281,7 @@ func (s *Server) apiFile(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, newAPIFile(r, s, file))
 }
 
-// apiPatchFile updates a file's mutable fields. Only visibility is supported
-// today.
+// apiPatchFile updates supplied fields together, after validating the payload.
 func (s *Server) apiPatchFile(w http.ResponseWriter, r *http.Request) {
 	file, ok := s.apiOwnedFile(w, r, currentUser(r.Context()))
 	if !ok {
@@ -293,49 +294,43 @@ func (s *Server) apiPatchFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	visibility, hasVisibility, err := params.visibility()
+	update, err := parseFileUpdate(params)
 	if err != nil {
 		writeAPIError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-
-	metadata := file.Metadata
-	hasMetadata := false
-	if raw := params.str("metadata"); raw != "" {
-		metadata = models.MetadataPolicy(strings.ToLower(strings.TrimSpace(raw)))
-		if !metadata.Valid() {
-			writeAPIError(w, http.StatusBadRequest,
-				fmt.Sprintf("%q is not a metadata setting (use shown, inherit, or hidden)", raw))
-			return
-		}
-		hasMetadata = true
-	}
-
-	if !hasVisibility && !hasMetadata {
-		writeAPIError(w, http.StatusBadRequest,
-			"no supported fields were provided (supported: visibility, public, metadata)")
+	if err := s.store.UpdateFile(r.Context(), file.ID, update); err != nil {
+		s.log.Error("api: update file", "id", file.ID, "error", err)
+		writeAPIError(w, http.StatusInternalServerError, "could not update the file")
 		return
 	}
+	s.apiFile(w, r)
+}
 
+func parseFileUpdate(params *params) (store.FileUpdate, error) {
+	var update store.FileUpdate
+	visibility, hasVisibility, err := params.visibility()
+	if err != nil {
+		return update, err
+	}
 	if hasVisibility {
-		if err := s.store.SetFileVisibility(r.Context(), file.ID, visibility); err != nil {
-			s.log.Error("api: set visibility", "id", file.ID, "error", err)
-			writeAPIError(w, http.StatusInternalServerError, "could not update the file")
-			return
-		}
-		file.Visibility = visibility
+		update.Visibility = &visibility
 	}
-	if hasMetadata {
-		if err := s.store.SetFileMetadata(r.Context(), file.ID, metadata); err != nil {
-			s.log.Error("api: set metadata", "id", file.ID, "error", err)
-			writeAPIError(w, http.StatusInternalServerError, "could not update the file")
-			return
+	if raw := params.str("metadata"); raw != "" {
+		metadata := models.MetadataPolicy(strings.ToLower(strings.TrimSpace(raw)))
+		if !metadata.Valid() {
+			return update, fmt.Errorf("%q is not a metadata setting (use shown, inherit, or hidden)", raw)
 		}
-		file.Metadata = metadata
+		update.Metadata = &metadata
 	}
-
-	noStore(w)
-	writeJSON(w, http.StatusOK, newAPIFile(r, s, file))
+	update.Description, err = params.description()
+	if err != nil {
+		return update, err
+	}
+	if update.Visibility == nil && update.Metadata == nil && update.Description == nil {
+		return update, errors.New("no supported fields were provided (supported: visibility, public, metadata, description)")
+	}
+	return update, nil
 }
 
 // apiListFiles returns the caller's own uploads, newest first, with optional

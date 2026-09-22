@@ -3,6 +3,43 @@
 Keeping an instance running: what to back up, what maintains itself, and what
 to look at when something is wrong.
 
+## Log rotation
+
+The OpenRC service writes to `/var/log/imvault.log` by default. Its installer
+and the Gentoo ebuild include `/etc/logrotate.d/imvault`. To add the rule to an
+existing source install:
+
+```bash
+sudo emerge --ask app-admin/logrotate       # Gentoo, if not already installed
+sudo make install-logrotate
+sudo logrotate --debug /etc/logrotate.d/imvault
+```
+
+The debug check does not change logs or rotation state. Both `install-logrotate`
+and `install-openrc` preserve an existing rule, including symlinks, so your
+local changes survive reinstalling. `DESTDIR` and `LOGROTATEDIR` support staged
+installs. If you change `IMVAULT_LOG_FILE` in `/etc/conf.d/imvault`, change the
+path inside the rule to match.
+
+The rule rotates daily, or when the log exceeds 10 MiB, and keeps 14 numbered
+archives. The latest archive stays uncompressed; older archives use gzip.
+Missing and empty logs are ignored. Size is checked **when logrotate runs**;
+10 MiB is not a hard size cap. Run it more often if that matters for your volume.
+
+Ensure logrotate is scheduled. Gentoo's default `cron` USE flag installs
+`/etc/cron.daily/logrotate`, which needs a running cron daemon configured to run
+the daily jobs. A systemd host can use `logrotate.timer`. Installing the rule
+alone does not schedule it.
+
+OpenRC redirects stdout and stderr to an open file descriptor, and imvault has
+no signal handler to reopen it. The rule uses `copytruncate` to preserve that
+descriptor, ownership, and permissions without a service restart. A few lines
+can be lost between copying and truncating; this is the documented
+[logrotate tradeoff](https://github.com/logrotate/logrotate/blob/main/logrotate.8.in).
+
+The supplied systemd service logs to the journal, whose retention is managed
+by journald. It does not need this file-based rule.
+
 ## Back up two things, not one
 
 imvault keeps its state in two places:

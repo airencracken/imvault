@@ -9,7 +9,10 @@ imvault is a small, self-hosted image host in the spirit of MLKSHK, Picsur,
 [Chibisafe](https://github.com/chibisafe/chibisafe), and
 [Imgur](https://imgur.com): part personal library, part clubhouse noticeboard.
 
-Built for personal collections and small communities. **Familyware. Friendware.**
+**Familyware, cozyware, friendware, software for your tribe.**
+
+Built for dozens or hundreds of people who know why they're there, not millions
+of strangers who don't.
 A cozy place to swap family photos, save the group chat's finest screenshots,
 and keep the little things your friends would appreciate.
 
@@ -50,7 +53,7 @@ Members and sample content come through the same HTTP routes people use.
 | --- | --- |
 | **Pictures that stay pictures** | JPEG, PNG, WebP, BMP, TIFF, animated GIFs and WebPs. Thumbnails and previews are made once, with orientation and transparency handled. |
 | **A home for little movies** | WebM, MP4, and MOV clips, served with range requests. Optional ffmpeg supplies posters and duration checks; originals are never transcoded. |
-| **A library, not a pile** | Galleries, albums, tags, private favorites, and a recent feed. Shared albums let members contribute their own uploads. Identical uploads share stored bytes. |
+| **A library, not a pile** | Galleries, albums, tags, private favorites, and a recent feed. Add a little description to a photo or clip. Shared albums let members contribute their own uploads. Identical uploads share stored bytes. |
 | **Your audience, your call** | Public, members-only, and private visibility. Photograph metadata controls help keep camera details and location out of public downloads. |
 | **Keys for people and scripts** | Invitations, member/moderator/admin roles, TOTP two-factor authentication, OpenID Connect, password resets, and a bearer-token API. |
 | **A broom cupboard** | Reports, a moderation log, account exports and deletion, storage quotas, upload limits, rate limiting, anonymous-upload expiry, and queued mail with retries. |
@@ -106,6 +109,8 @@ sudo make install-openrc
 Create the service account and configure `/etc/conf.d/imvault` before starting
 it. `contrib/gentoo/` contains a live ebuild and its account packages for an
 overlay. A systemd unit and Alpine APKBUILD are included too.
+The OpenRC installer includes a logrotate rule; install logrotate and enable
+its regular cron or timer job. See [log rotation](docs/operations.md#log-rotation).
 [Deployment](docs/deployment.md) covers the full setup, service paths, and TLS.
 
 For a source install with systemd:

@@ -84,6 +84,13 @@ reads from its environment. The init script re-reads that file with `allexport`
 set, so any `IMVAULT_*` value written there reaches the daemon without the
 script having to know the option's name. Logs go to `/var/log/imvault.log`.
 
+`make install-openrc` also installs `/etc/logrotate.d/imvault`, preserving an
+existing rule. On Gentoo, install `app-admin/logrotate` and make sure its cron
+job or timer runs regularly. Existing installs can add just the rule with
+`sudo make install-logrotate`; no imvault restart is needed. If you change
+`IMVAULT_LOG_FILE`, update the rule's path too. See
+[log rotation](operations.md#log-rotation) for the policy and validation command.
+
 Two things that are easy to miss on a host rather than in a container:
 
 - **ffmpeg is optional but not free.** Without it clips still upload, but they

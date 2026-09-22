@@ -16,6 +16,7 @@
 
   <aside class="side">
     <h1 class="filename">{{.File.OriginalName}}</h1>
+    {{with .File.Description}}<p class="file-description">{{.}}</p>{{end}}
 
     {{if .IsOwner}}
     <details class="panel stack">
@@ -27,6 +28,17 @@
         </label>
         <p class="muted">Used in your gallery and downloads. Links stay the same.</p>
         <button class="btn small" type="submit">Save name</button>
+      </form>
+    </details>
+    <details class="panel stack">
+      <summary>{{if .File.Description}}Edit description{{else}}Add description{{end}}</summary>
+      <form class="stack" method="post" action="/f/{{.File.ID}}/description">
+        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+        <label>Description <span class="muted">(optional)</span>
+          <textarea name="description" rows="4" maxlength="1000" aria-describedby="description-help">{{.File.Description}}</textarea>
+        </label>
+        <p id="description-help" class="muted">Plain text, up to 1,000 characters. Visible to anyone who can view this file. Leave empty to remove.</p>
+        <button class="btn small" type="submit">Save description</button>
       </form>
     </details>
     {{end}}

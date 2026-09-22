@@ -289,6 +289,7 @@ type File struct {
 	ID           string
 	UserID       *int64
 	OriginalName string
+	Description  string
 	Ext          string
 	Mime         string
 	Size         int64
