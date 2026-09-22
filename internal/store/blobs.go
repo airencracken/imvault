@@ -44,6 +44,36 @@ func (s *Store) EnsureBlob(ctx context.Context, sha string, size int64, objectKe
 	return nil
 }
 
+// SetBlobDetails replaces derived metadata without changing any stored bytes
+// or file-level visibility settings. Identical uploads share these details.
+func (s *Store) SetBlobDetails(ctx context.Context, sha, details string) error {
+	if _, err := s.db.ExecContext(ctx,
+		`UPDATE blobs SET details_json = ? WHERE sha256 = ?`, details, sha); err != nil {
+		return fmt.Errorf("set blob details: %w", err)
+	}
+	return nil
+}
+
+// BlobsAfter pages through unique originals for metadata maintenance without
+// keeping a database cursor open while their contents are read.
+func (s *Store) BlobsAfter(ctx context.Context, sha string, limit int) ([]*models.Blob, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT `+blobColumns+` FROM blobs WHERE sha256 > ? ORDER BY sha256 LIMIT ?`, sha, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list blobs: %w", err)
+	}
+	defer rows.Close()
+	var blobs []*models.Blob
+	for rows.Next() {
+		blob, err := scanBlob(rows)
+		if err != nil {
+			return nil, err
+		}
+		blobs = append(blobs, blob)
+	}
+	return blobs, rows.Err()
+}
+
 // SetBlobCleanKey records where a metadata-free copy of some content lives.
 //
 // It only ever writes when the row has no clean key yet, so two requests racing

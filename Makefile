@@ -90,6 +90,7 @@ install: build ## Install the binary under $(PREFIX)/bin
 	install -d "$(DESTDIR)$(PREFIX)/bin"
 	install -m755 bin/$(BINARY) "$(DESTDIR)$(PREFIX)/bin/$(BINARY)"
 	@printf '\nInstalled to %s%s/bin/%s\n' "$(DESTDIR)" "$(PREFIX)" "$(BINARY)"
+	@if [ -z "$(DESTDIR)" ]; then sh scripts/check-video-tools.sh; fi
 
 install-systemd: ## Install the systemd unit and its environment file
 	install -d "$(DESTDIR)$(UNITDIR)" "$(DESTDIR)$(SYSCONFDIR)/imvault"

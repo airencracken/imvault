@@ -5,7 +5,7 @@
     <p class="muted">The ones worth coming back to. Only you can see this list.</p>
   </div>
   <form class="search" method="get" action="/favorites">
-    <input name="q" value="{{.Query}}" placeholder="Search favorites by name or id" autocomplete="off">
+    <input name="q" value="{{.Query}}" placeholder="Search favorites by name, tag or id" autocomplete="off">
     <button class="btn small" type="submit">Search</button>
     {{if .Query}}<a class="btn small" href="/favorites">Clear</a>{{end}}
   </form>

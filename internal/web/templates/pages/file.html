@@ -17,6 +17,20 @@
   <aside class="side">
     <h1 class="filename">{{.File.OriginalName}}</h1>
 
+    {{if .IsOwner}}
+    <details class="panel stack">
+      <summary>Rename</summary>
+      <form class="stack" method="post" action="/f/{{.File.ID}}/rename">
+        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+        <label>Filename
+          <input name="name" value="{{.File.OriginalName}}" maxlength="200" required>
+        </label>
+        <p class="muted">Used in your gallery and downloads. Links stay the same.</p>
+        <button class="btn small" type="submit">Save name</button>
+      </form>
+    </details>
+    {{end}}
+
     {{if .IsAuthed}}{{template "favorite_button" .}}{{end}}
 
     <dl class="facts">

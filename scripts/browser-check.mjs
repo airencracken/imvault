@@ -400,6 +400,23 @@ async function main() {
 
     await page.goto(`${base}/f/${fileID}`);
 
+    // --- rename through the ordinary HTML form ---
+    await page.evaluate(`
+      const form = document.querySelector('form[action$="/rename"]');
+      form.closest('details').open = true;
+      form.querySelector('input[name="name"]').value = 'Family picnic.png';
+      form.requestSubmit();
+    `);
+    await page.waitFor(`document.querySelector('h1.filename')?.textContent === 'Family picnic.png'`);
+    record("renaming updates the photo page", await page.evaluate(`
+      return location.pathname === '/f/${fileID}' && document.title.includes('Family picnic.png');
+    `));
+    await page.goto(`${base}/gallery?q=picnic`);
+    record("the new filename is searchable", await page.evaluate(`
+      return !!document.getElementById('file-${fileID}');
+    `));
+    await page.goto(`${base}/f/${fileID}`);
+
     const readPressed = `
       const pressed = document.querySelector(".vis-control button[aria-pressed='true']");
       return pressed ? pressed.textContent.trim() : "";

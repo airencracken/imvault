@@ -143,10 +143,17 @@ func (s *Server) recordReused(
 	header *multipart.FileHeader,
 	owner *int64,
 	options uploadOptions,
+	details string,
 	expires *time.Time,
 	now time.Time,
 ) (*models.File, error) {
 	size := existing.Size
+	if details != "" && details != existing.Details {
+		if err := s.store.SetBlobDetails(ctx, existing.SHA256, details); err != nil {
+			return nil, err
+		}
+		existing.Details = details
+	}
 
 	if owner != nil {
 		if err := s.store.ReserveStorage(ctx, *owner, size, s.policy().MaxTotalBytes); err != nil {
@@ -173,6 +180,7 @@ func (s *Server) recordReused(
 			DurationMS:   existing.DurationMS,
 			Visibility:   options.Visibility,
 			Metadata:     options.Metadata,
+			Details:      existing.Details,
 			CreatedAt:    now,
 			ExpiresAt:    expires,
 		}
