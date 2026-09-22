@@ -39,7 +39,7 @@ build: ## Build the server into bin/imvault
 run: ## Run on :8080 using ./data (override PORT=, DATA_DIR=)
 	IMVAULT_ADDR=$(ADDR) IMVAULT_DATA_DIR=$(DATA_DIR) go run $(GOFLAGS) $(PKG)
 
-demo: ## Boot a throwaway instance seeded with sample media
+demo: ## Boot a throwaway instance seeded with a representative one
 	@./scripts/demo.sh
 
 test: ## Run the Go test suite
@@ -107,6 +107,14 @@ install-openrc: ## Install the OpenRC service (Alpine, Gentoo)
 	@printf '  adduser -S -D -H -h /var/lib/imvault -s /sbin/nologin imvault   # Alpine\n'
 	@printf '  useradd --system --home-dir /var/lib/imvault -s /sbin/nologin imvault  # Gentoo\n'
 	@printf '  rc-update add imvault default && rc-service imvault start\n'
+# The init script looks in /usr/bin, which is where a package puts it. An
+# install that lands anywhere else needs to say so, or the service starts and
+# immediately stops with nothing but "command not found" in the log.
+	@if [ "$(PREFIX)" != "/usr" ]; then \
+		printf '\n  The service looks for the binary at /usr/bin/%s, but this\n' "$(BINARY)"; \
+		printf '  installed it under %s/bin. Either reinstall with PREFIX=/usr,\n' "$(PREFIX)"; \
+		printf '  or set IMVAULT_BIN=%s/bin/%s in /etc/conf.d/imvault.\n' "$(PREFIX)" "$(BINARY)"; \
+	fi
 
 dist: ## Build a release tarball in dist/
 	@rm -rf "$(DIST)/$(BINARY)-$(VERSION)"

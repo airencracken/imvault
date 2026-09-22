@@ -52,6 +52,8 @@ Both are covered by the same init script; they differ only in how the service
 account is created.
 
 ```bash
+# Install the binary where the service looks for it.
+sudo make install PREFIX=/usr
 sudo make install-openrc
 
 # Alpine
@@ -65,10 +67,26 @@ sudo rc-update add imvault default
 sudo rc-service imvault start
 ```
 
+`PREFIX` defaults to `/usr/local`, but the init script looks for the binary at
+`/usr/bin/imvault`, which is where a package installs it. Either pass
+`PREFIX=/usr` as above, or set `IMVAULT_BIN` in `/etc/conf.d/imvault`;
+`make install-openrc` says so when the two disagree, because the alternative is
+a service that starts and immediately stops.
+
 Settings in `/etc/conf.d/imvault` use the same `IMVAULT_*` names the server
 reads from its environment. The init script re-reads that file with `allexport`
 set, so any `IMVAULT_*` value written there reaches the daemon without the
 script having to know the option's name. Logs go to `/var/log/imvault.log`.
+
+Two things that are easy to miss on a host rather than in a container:
+
+- **ffmpeg is optional but not free.** Without it clips still upload, but they
+  get a placeholder poster and the duration limit cannot be enforced, so set
+  `IMVAULT_MAX_VIDEO_DURATION` down or accept unmeasured clips.
+- **Temporary space.** Multipart bodies spill past 8 MiB into `TMPDIR`, and one
+  request may carry twenty files. The container gets a sized tmpfs for that; on
+  a host it is `/tmp`, so either give it room or point `TMPDIR` at a filesystem
+  with some. See [Operations](operations.md#the-temporary-directory).
 
 ## TLS with Caddy
 
@@ -142,7 +160,7 @@ the last hop.
 | `contrib/systemd/` | The unit and its environment file |
 | `contrib/openrc/` | The OpenRC script and its configuration file |
 | `contrib/alpine/APKBUILD` | An Alpine package recipe, with a `pre-install` that creates the account |
-| `contrib/gentoo/imvault-0.1.0.ebuild` | A Gentoo ebuild with `EGO_SUM` filled in from `go.sum` |
+| `contrib/gentoo/imvault-9999.ebuild` | A live Gentoo ebuild that builds master, for an overlay |
 
 The Alpine package has been built, installed, and run on Alpine 3.24: `abuild`
 produces `imvault-0.1.0-r0.apk`, the pre-install creates the service account,
@@ -172,10 +190,23 @@ static binary: the supplied Dockerfile runs it on 3.20.
 The APKBUILD needs `abuild checksum` run once against the release tarball to fill
 in the checksum.
 
-**The Gentoo ebuild has not been built on Gentoo.** Its `EGO_SUM` matches
-`go.sum` line for line and it parses as shell, but the eclass usage is
-unverified: treat it as a starting point. The OpenRC script it installs is the
-same one Alpine uses and is tested.
+**The Gentoo ebuild is a live one and has not been built on Gentoo.** It builds
+the `master` branch through `git-r3` and vendors the modules with
+`go-module_live_vendor`, so there is no version to bump, no manifest to
+regenerate, and no `EGO_SUM` to keep in step with `go.sum` — which the eclass now
+deprecates in favour of a dependency tarball in any case. The `LICENSE` line
+covers imvault and every module linked into the binary, worked out from
+`go list -deps` rather than from the module graph, so it does not list the
+test-only dependencies that never end up in it.
+
+What is unverified is the eclass usage itself, which needs a Gentoo system to
+exercise. Treat it as a starting point. The OpenRC script it installs is the same
+one Alpine uses and that one is tested.
+
+A versioned ebuild belongs at release time, and it is a different shape: it needs
+`EGO_SUM` regenerated from **that tag's** `go.sum` rather than from master's, a
+manifest, and the checksum filled in. The live ebuild exists so that deploying
+your own tree needs none of that.
 
 ## Verifying a deployment
 

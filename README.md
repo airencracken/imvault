@@ -133,14 +133,19 @@ make compose-down
 ### On a server, without Docker
 
 ```bash
-make dist                       # dist/imvault-<version>.tar.gz
-sudo make install               # /usr/local/bin/imvault
-sudo make install-systemd       # or: install-openrc
+make dist                        # dist/imvault-<version>.tar.gz
+sudo make install PREFIX=/usr    # /usr/bin/imvault
+sudo make install-systemd        # or: install-openrc
 ```
 
-Both init systems are supported, with an APKBUILD and a Gentoo ebuild alongside
-them. For TLS, `contrib/caddy/` has a Caddy configuration that obtains and
-renews certificates on its own. See [Deployment](docs/deployment.md).
+`PREFIX` defaults to `/usr/local`, but the OpenRC script looks for the binary at
+`/usr/bin/imvault`, which is where a package installs it; `make install-openrc`
+says so when the two disagree.
+
+Both init systems are supported, with an APKBUILD for Alpine and a live ebuild
+for Gentoo alongside them. For TLS, `contrib/caddy/` has a Caddy configuration
+that obtains and renews certificates on its own. See
+[Deployment](docs/deployment.md).
 
 ## Before you run this
 
