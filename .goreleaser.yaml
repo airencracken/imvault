@@ -20,6 +20,7 @@ archives:
     files:
       - LICENSE
       - README.md
+      - docs/*
       - docs/**/*
       - contrib/**/*
       - src: .release/THIRD_PARTY_NOTICES.txt
