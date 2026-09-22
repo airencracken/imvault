@@ -49,6 +49,8 @@ start_pre() {
 		. "/etc/conf.d/${RC_SVCNAME}"
 		set +a
 	fi
+	# Defaults are shell variables too; the unchanged config is all comments.
+	export IMVAULT_DATA_DIR
 
 	# The data directory holds the database and the uploaded bytes.
 	checkpath --directory --mode 0750 \

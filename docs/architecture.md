@@ -118,11 +118,18 @@ are still access-checked rather than relying on that.
 make help          # list every target
 make test-js       # JavaScript unit tests (needs node)
 make test-browser  # drives a real browser against a throwaway instance
-make check        # gofmt + go vet + go test, which is what CI should run
+make check        # formatting, vet, Go and JS tests, and complexity
+make check-complexity # production Go functions must score 15 or below
 make test-race
 make build
 make demo         # a seeded instance to click around in
 ```
+
+`make check` checks formatting without rewriting source. Run `make fmt` to
+format edits. Complexity is measured with pinned `gocyclo` v0.6.0; its first run
+downloads the development tool through Go's module cache. Test functions are
+excluded from the complexity ceiling. JavaScript failures propagate to make;
+missing optional tools are reported separately.
 
 The test suite covers the image pipeline (including the header-rewind path and
 transparency handling), media classification and GIF frame counting, API key

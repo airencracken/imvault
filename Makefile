@@ -20,7 +20,7 @@ DIST_FILES := cmd internal docs go.mod go.sum Makefile README.md LICENSE \
 	contrib scripts Dockerfile docker-compose.yml .dockerignore
 
 .DEFAULT_GOAL := help
-.PHONY: help all build run demo test test-race test-js check check-js vet fmt tidy \
+.PHONY: help all build run demo test test-race test-js check check-fmt check-js check-complexity vet fmt tidy \
 	install install-systemd install-openrc dist clean clean-demo docker \
 	compose-up compose-down test-browser
 
@@ -49,14 +49,14 @@ test-race: ## Run the Go test suite under the race detector
 	go test $(GOFLAGS) -race ./...
 
 test-browser: ## Drive a real browser against a throwaway instance (needs node + chromium)
-	@command -v node >/dev/null 2>&1 \
-		&& node scripts/browser-check.mjs \
-		|| echo "node is not installed; skipping the browser checks"
+	@if command -v node >/dev/null 2>&1; then \
+		node scripts/browser-check.mjs; \
+	else echo "node is not installed; skipping the browser checks"; fi
 
 test-js: ## Run the JavaScript tests (needs node)
-	@command -v node >/dev/null 2>&1 \
-		&& node --test internal/web/static/js/ \
-		|| echo "node is not installed; skipping the JavaScript tests"
+	@if command -v node >/dev/null 2>&1; then \
+		node --test internal/web/static/js/*.test.js; \
+	else echo "node is not installed; skipping the JavaScript tests"; fi
 
 vet: ## Run go vet
 	go vet ./...
@@ -68,13 +68,21 @@ tidy: ## Tidy go.mod and go.sum
 	go mod tidy
 
 check-js: ## Check the JavaScript syntax (needs node)
-	@command -v node >/dev/null 2>&1 \
-		&& for f in internal/web/static/js/app.js internal/web/static/js/app.test.js; do \
-			node --check "$$f" && echo "  $$f: OK"; \
-		done \
-		|| echo "node is not installed; skipping"
+	@if command -v node >/dev/null 2>&1; then \
+		for f in internal/web/static/js/app.js internal/web/static/js/app.test.js scripts/*.mjs; do \
+			node --check "$$f" || exit $$?; \
+			echo "  $$f: OK"; \
+		done; \
+	else echo "node is not installed; skipping"; fi
 
-check: fmt vet test check-js ## What CI should run
+check-fmt: ## Verify Go formatting without changing files
+	@files=$$(gofmt -l .) || exit $$?; \
+		if [ -n "$$files" ]; then printf 'Run make fmt:\n%s\n' "$$files"; exit 1; fi
+
+check-complexity: ## Keep production Go functions at cyclomatic complexity 15 or below
+	go run github.com/fzipp/gocyclo/cmd/gocyclo@v0.6.0 -over 15 -ignore '_test\.go$$' cmd internal
+
+check: check-fmt vet test check-js test-js check-complexity ## What CI should run
 
 # --- installing on a server -------------------------------------------------
 
@@ -85,7 +93,9 @@ install: build ## Install the binary under $(PREFIX)/bin
 
 install-systemd: ## Install the systemd unit and its environment file
 	install -d "$(DESTDIR)$(UNITDIR)" "$(DESTDIR)$(SYSCONFDIR)/imvault"
-	install -m644 contrib/systemd/imvault.service "$(DESTDIR)$(UNITDIR)/imvault.service"
+	sed 's|/usr/local/bin/imvault|$(PREFIX)/bin/imvault|' contrib/systemd/imvault.service \
+		> "$(DESTDIR)$(UNITDIR)/imvault.service"
+	chmod 644 "$(DESTDIR)$(UNITDIR)/imvault.service"
 	@if [ -e "$(DESTDIR)$(SYSCONFDIR)/imvault/imvault.env" ]; then \
 		echo "  keeping the existing $(DESTDIR)$(SYSCONFDIR)/imvault/imvault.env"; \
 	else \
