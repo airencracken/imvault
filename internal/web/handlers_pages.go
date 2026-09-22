@@ -120,6 +120,16 @@ func (s *Server) handleFilePage(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
+	if user != nil {
+		favorite, err := s.store.IsFavorite(r.Context(), user.ID, file.ID)
+		if err != nil {
+			s.log.Error("file page: favorite", "error", err)
+			http.Error(w, "database error", http.StatusInternalServerError)
+			return
+		}
+		view.Favorited = favorite
+	}
+
 	// Reporting is for a signed-in member looking at somebody else's upload. A
 	// moderator can remove it instead, and an owner has Delete.
 	if user != nil && !ownsFile(user, file) && !canModerateContent(user) {

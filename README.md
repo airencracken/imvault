@@ -46,7 +46,7 @@ Members and sample content come through the same HTTP routes people use.
 | --- | --- |
 | **Pictures that stay pictures** | JPEG, PNG, WebP, BMP, TIFF, animated GIFs and WebPs. Thumbnails and previews are made once, with orientation and transparency handled. |
 | **A home for little movies** | WebM, MP4, and MOV clips, served with range requests. Optional ffmpeg supplies posters and duration checks; originals are never transcoded. |
-| **A library, not a pile** | Galleries, albums, tags, and a recent feed. Shared albums let members contribute their own uploads. Identical uploads share stored bytes. |
+| **A library, not a pile** | Galleries, albums, tags, private favorites, and a recent feed. Shared albums let members contribute their own uploads. Identical uploads share stored bytes. |
 | **Your audience, your call** | Public, members-only, and private visibility. Photograph metadata controls help keep camera details and location out of public downloads. |
 | **Keys for people and scripts** | Invitations, member/moderator/admin roles, TOTP two-factor authentication, OpenID Connect, password resets, and a bearer-token API. |
 | **A broom cupboard** | Reports, a moderation log, account exports and deletion, storage quotas, upload limits, rate limiting, anonymous-upload expiry, and queued mail with retries. |
@@ -64,6 +64,9 @@ Anonymous uploads have a plain on/off control:
 **Admin → Settings → Anonymous uploads → Allow uploads without an account**.
 Check or uncheck it and save. It takes effect immediately and survives restarts.
 Anonymous files are public and expire after the configured retention window.
+
+Found a keeper? Open a photo and choose **Favorite**. Your **Favorites** page
+keeps those little discoveries together, just for you.
 
 Create your administrator locally with `imvault create-admin --username NAME
 --password-stdin`. Public registration always creates members and respects the

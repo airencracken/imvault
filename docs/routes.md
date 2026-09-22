@@ -19,12 +19,14 @@ Everything the server answers.
 | `GET` `POST` | `/login/2fa` | The second sign-in step |
 | `POST` | `/settings/email` | Set or clear the email address |
 | `GET` | `/gallery` | Your uploads (supports `?q=` and `?page=`) |
+| `GET` | `/favorites` | Your private favorites (supports `?q=` and `?page=`) |
 | `GET` | `/recent` | The instance feed: what everybody has shared (supports `?page=`) |
 | `GET` `POST` | `/upload` | Uploader and upload endpoint |
 | `GET` | `/f/{id}` | Asset detail page |
 | `GET` | `/f/{id}/raw` | Original file (range requests supported) |
 | `GET` | `/f/{id}/thumb` | Thumbnail or clip poster |
 | `GET` | `/f/{id}/preview` | Preview, or the original for animations and clips |
+| `POST` | `/f/{id}/favorite` | Save (`favorite=1`) or remove (`favorite=0`) your favorite; session and CSRF required |
 | `POST` | `/f/{id}/visibility` | Set the level: public, members, or private |
 | `POST` | `/f/{id}/metadata` | Set what happens to the file's metadata |
 | `POST` | `/f/{id}/delete` | Delete the file |

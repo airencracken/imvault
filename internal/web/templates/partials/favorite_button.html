@@ -1,0 +1,12 @@
+{{define "favorite_button"}}
+<form id="favorite-control" method="post" action="/f/{{.File.ID}}/favorite"
+      hx-post="/f/{{.File.ID}}/favorite" hx-target="#favorite-control" hx-swap="outerHTML">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  <input type="hidden" name="favorite" value="{{if .Favorited}}0{{else}}1{{end}}">
+  <button class="btn{{if .Favorited}} primary{{end}}" type="submit"
+          aria-pressed="{{if .Favorited}}true{{else}}false{{end}}"
+          aria-label="{{if .Favorited}}Remove from favorites{{else}}Add to favorites{{end}}">
+    {{if .Favorited}}Favorited{{else}}Favorite{{end}}
+  </button>
+</form>
+{{end}}

@@ -57,6 +57,18 @@ Public registration always creates ordinary members. Closed and invitation-only
 registration apply even when the database has no accounts; there is no first
 signup exception. Valid invitations continue to admit ordinary members.
 
+## Favorites
+
+Signed-in users can choose **Favorite** on a photo, animation, or clip to save
+it to their **Favorites** page at `/favorites`. Choose **Favorited** again to
+remove it. The page supports search and pagination, with the most recently
+saved items first. Both controls work with or without JavaScript.
+
+Favorites are private to the account. They store a reference, not a copy, and
+do not change the file's visibility or expiry. If a file becomes inaccessible
+or expires, it disappears from the list. Deleting a file or an account also
+removes its favorite records. Removing a favorite never deletes the upload.
+
 ## Exporting an account
 
 `/settings/account` downloads a zip of everything the account has uploaded,

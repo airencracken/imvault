@@ -442,6 +442,30 @@ async function main() {
     record("changing it swaps in place over htmx", metadataAfter.value === "hidden",
       JSON.stringify(metadataAfter));
 
+    // --- private favorites ---
+    record("the photo starts unfavorited", await page.evaluate(`
+      return document.querySelector('#favorite-control button').getAttribute('aria-pressed') === 'false';
+    `));
+    await page.evaluate(`document.querySelector('#favorite-control button').click();`);
+    await page.waitFor(`document.querySelector('#favorite-control button[aria-pressed="true"]')`);
+    record("favoriting updates the control in place", await page.evaluate(`
+      return document.querySelector('#favorite-control button').textContent.trim() === 'Favorited';
+    `));
+    await page.goto(`${base}/favorites`);
+    record("the photo appears in Favorites", await page.evaluate(`
+      return !!document.getElementById('file-${fileID}');
+    `));
+    await page.goto(`${base}/f/${fileID}`);
+    record("the favorite survives a reload", await page.evaluate(`
+      return document.querySelector('#favorite-control button').getAttribute('aria-pressed') === 'true';
+    `));
+    await page.evaluate(`document.querySelector('#favorite-control button').click();`);
+    await page.waitFor(`document.querySelector('#favorite-control button[aria-pressed="false"]')`);
+    await page.goto(`${base}/favorites`);
+    record("unfavoriting removes it from Favorites", await page.evaluate(`
+      return !document.getElementById('file-${fileID}') && !!document.querySelector('.empty');
+    `));
+
     // --- a shared album ---
     await page.goto(`${base}/albums`);
 

@@ -279,6 +279,7 @@ type adminFilesView struct {
 
 type fileView struct {
 	base
+	Favorited    bool
 	File         *models.File
 	Albums       []*models.Album
 	TagsFragment tagsFragmentView
