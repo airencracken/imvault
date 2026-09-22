@@ -72,10 +72,16 @@ make demo
 ```
 
 Builds the server, boots it on <http://localhost:8080> against a throwaway
-`./demo-data` directory, creates a `demo` account, and uploads a few generated
-samples: a large JPEG, a transparent PNG, an animated GIF, and a WebM clip when
-ffmpeg is available. It prints the sign-in details and an API key, then runs in
-the foreground until you press Ctrl-C. `make clean-demo` removes the data.
+`./demo-data` directory, and seeds a small instance: three accounts with
+different roles, photographs at each visibility, an album two of them have
+contributed to, tags, an invitation, and a report in the queue alongside one a
+moderator has already dealt with. It prints the sign-ins, an API key, and a
+short list of what is worth looking at, then runs in the foreground until you
+press Ctrl-C. `make clean-demo` removes the data.
+
+Everything is seeded through the same HTTP surface a person or a script uses —
+the signup form, the API, the report form, the admin pages — so what you see is
+what those paths actually do.
 
 ```bash
 PORT=9000 make demo      # if 8080 is taken
