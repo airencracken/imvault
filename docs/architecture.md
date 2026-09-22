@@ -35,6 +35,15 @@ A few decisions worth knowing about:
   from what the routes serving the bytes will allow. Retention is folded into the
   same predicate: a lapsed upload disappears the moment it expires, not whenever
   the reaper next runs.
+- **A bare semicolon in a form value is percent-encoded before anything parses
+  it.** Go's form parser refuses to guess whether a semicolon was meant as a
+  separator — it was once accepted as one, and treating it that way was a
+  vulnerability — so it reports an error and **drops the whole setting**. A
+  report note reading "spam; and there is a lot of it" would arrive empty, a
+  search for a filename containing one would match nothing, and a password
+  containing one could not be signed in with, which is a lockout for somebody who
+  chose it legitimately. Rewriting one into `%3B` says what the caller meant
+  rather than losing it, and it is exactly what they should have sent.
 - **The audit trail snapshots names rather than joining them.** A moderation
   entry stores the actor's and the target's names as they were when the action
   happened, alongside nullable references to the rows. Deleting the moderator's
