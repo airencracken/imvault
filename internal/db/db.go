@@ -95,30 +95,37 @@ func migrate(ctx context.Context, sqlDB *sql.DB) error {
 		if applied[name] {
 			continue
 		}
-		body, err := migrationsFS.ReadFile("migrations/" + name)
-		if err != nil {
-			return fmt.Errorf("read migration %s: %w", name, err)
-		}
-
-		tx, err := sqlDB.BeginTx(ctx, nil)
-		if err != nil {
-			return fmt.Errorf("begin migration %s: %w", name, err)
-		}
-		if _, err := tx.ExecContext(ctx, string(body)); err != nil {
-			tx.Rollback()
-			return fmt.Errorf("apply migration %s: %w", name, err)
-		}
-		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)`,
-			name, time.Now().UTC().Unix(),
-		); err != nil {
-			tx.Rollback()
-			return fmt.Errorf("record migration %s: %w", name, err)
-		}
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("commit migration %s: %w", name, err)
+		if err := applyMigration(ctx, sqlDB, name); err != nil {
+			return err
 		}
 	}
+	return nil
+}
 
+// applyMigration commits both the schema change and its version atomically.
+func applyMigration(ctx context.Context, sqlDB *sql.DB, name string) error {
+	body, err := migrationsFS.ReadFile("migrations/" + name)
+	if err != nil {
+		return fmt.Errorf("read migration %s: %w", name, err)
+	}
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin migration %s: %w", name, err)
+	}
+	if _, err := tx.ExecContext(ctx, string(body)); err != nil {
+		tx.Rollback()
+		return fmt.Errorf("apply migration %s: %w", name, err)
+	}
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)`,
+		name, time.Now().UTC().Unix(),
+	); err != nil {
+		tx.Rollback()
+		return fmt.Errorf("record migration %s: %w", name, err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit migration %s: %w", name, err)
+	}
 	return nil
 }

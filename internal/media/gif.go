@@ -44,11 +44,8 @@ func gifFrameCount(src io.ReadSeeker) (int, error) {
 	if _, err := io.ReadFull(br, descriptor); err != nil {
 		return 0, fmt.Errorf("read gif descriptor: %w", err)
 	}
-	if descriptor[4]&gifColorTable != 0 {
-		skip := 3 * (1 << (uint(descriptor[4]&gifColorTableLn) + 1))
-		if _, err := io.CopyN(io.Discard, br, int64(skip)); err != nil {
-			return 0, fmt.Errorf("skip global colour table: %w", err)
-		}
+	if err := skipGIFColorTable(br, descriptor[4]); err != nil {
+		return 0, fmt.Errorf("skip global colour table: %w", err)
 	}
 
 	frames := 0
@@ -74,22 +71,7 @@ func gifFrameCount(src io.ReadSeeker) (int, error) {
 
 		case gifImageDesc:
 			frames++
-
-			desc := make([]byte, 9)
-			if _, err := io.ReadFull(br, desc); err != nil {
-				return frames, nil
-			}
-			if desc[8]&gifColorTable != 0 {
-				skip := 3 * (1 << (uint(desc[8]&gifColorTableLn) + 1))
-				if _, err := io.CopyN(io.Discard, br, int64(skip)); err != nil {
-					return frames, nil
-				}
-			}
-			// LZW minimum code size, then the compressed image data.
-			if _, err := br.ReadByte(); err != nil {
-				return frames, nil
-			}
-			if err := skipSubBlocks(br); err != nil {
+			if err := skipGIFImage(br); err != nil {
 				return frames, nil
 			}
 
@@ -99,6 +81,30 @@ func gifFrameCount(src io.ReadSeeker) (int, error) {
 	}
 
 	return frames, nil
+}
+
+// skipGIFImage consumes a descriptor, its optional palette and LZW data.
+func skipGIFImage(br *bufio.Reader) error {
+	var desc [9]byte
+	if _, err := io.ReadFull(br, desc[:]); err != nil {
+		return err
+	}
+	if err := skipGIFColorTable(br, desc[8]); err != nil {
+		return err
+	}
+	if _, err := br.ReadByte(); err != nil {
+		return err
+	}
+	return skipSubBlocks(br)
+}
+
+func skipGIFColorTable(r io.Reader, packed byte) error {
+	if packed&gifColorTable == 0 {
+		return nil
+	}
+	size := 3 * (1 << (uint(packed&gifColorTableLn) + 1))
+	_, err := io.CopyN(io.Discard, r, int64(size))
+	return err
 }
 
 // skipSubBlocks consumes a chain of length-prefixed data sub-blocks, which is

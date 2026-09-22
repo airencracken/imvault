@@ -94,19 +94,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// One of a small number of upload slots, held for the whole request so that
-	// the work, the temporary spill, and any ffmpeg are all covered. Taken
-	// before the body is read: reading first would let a slow uploader hold
-	// temporary space without holding a slot.
-	release, ok := s.processing.acquire(r.Context())
-	if !ok {
-		s.uploadBusy(w, r)
-		return
-	}
-	defer release()
-
-	r.Body = http.MaxBytesReader(w, r.Body, s.requestSizeLimit(user))
-
+	// requestLimitsMW holds the upload slot and bounds the body before CSRF.
 	if err := r.ParseMultipartForm(multipartMemory); err != nil {
 		s.uploadFailure(w, r, "Could not read the upload: "+uploadErrMessage(err))
 		return
@@ -225,6 +213,14 @@ func (s *Server) ingest(ctx context.Context, header *multipart.FileHeader, user 
 	if owner != nil {
 		if err := s.store.CheckQuota(ctx, *owner, header.Size, s.policy().MaxTotalBytes); err != nil {
 			return nil, quotaError(err, user)
+		}
+	} else if limit := s.policy().MaxTotalBytes; limit > 0 {
+		total, err := s.store.TotalStoredBytes(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("could not check storage usage")
+		}
+		if total+header.Size > limit {
+			return nil, quotaError(store.ErrInstanceFull, nil)
 		}
 	}
 
@@ -362,9 +358,12 @@ func (s *Server) storeStill(
 		ExpiresAt:    expires,
 	}
 
-	if err := s.store.CreateFile(ctx, file); err != nil {
+	if err := s.store.CreateFileWithLimit(ctx, file, s.policy().MaxTotalBytes); err != nil {
 		s.releaseStorage(ctx, owner, size)
 		s.discardFailedUpload(ctx, sha, keys.all())
+		if errors.Is(err, store.ErrInstanceFull) {
+			return nil, quotaError(err, nil)
+		}
 		return nil, fmt.Errorf("could not record the file")
 	}
 
@@ -467,9 +466,12 @@ func (s *Server) storeVideo(
 		ExpiresAt:    expires,
 	}
 
-	if err := s.store.CreateFile(ctx, file); err != nil {
+	if err := s.store.CreateFileWithLimit(ctx, file, s.policy().MaxTotalBytes); err != nil {
 		s.releaseStorage(ctx, owner, size)
 		s.discardFailedUpload(ctx, sha, keys.all())
+		if errors.Is(err, store.ErrInstanceFull) {
+			return nil, quotaError(err, nil)
+		}
 		return nil, fmt.Errorf("could not record the clip")
 	}
 	return file, nil

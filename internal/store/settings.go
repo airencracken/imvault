@@ -42,28 +42,20 @@ func (s *Store) LoadSettings(ctx context.Context, defaults models.Settings) (mod
 	resolved := defaults
 	sources := map[string]bool{}
 
-	if raw, ok := stored[models.SettingAllowSignup]; ok {
-		if parsed, err := strconv.ParseBool(raw); err == nil {
-			resolved.AllowSignup = parsed
-			sources[models.SettingAllowSignup] = true
-		}
-	}
-	if raw, ok := stored[models.SettingAllowAnonymousUploads]; ok {
-		if parsed, err := strconv.ParseBool(raw); err == nil {
-			resolved.AllowAnonymousUploads = parsed
-			sources[models.SettingAllowAnonymousUploads] = true
+	for key, target := range map[string]*bool{
+		models.SettingAllowSignup:           &resolved.AllowSignup,
+		models.SettingAllowAnonymousUploads: &resolved.AllowAnonymousUploads,
+		models.SettingInviteOnly:            &resolved.InviteOnly,
+	} {
+		if parsed, err := strconv.ParseBool(stored[key]); err == nil {
+			*target = parsed
+			sources[key] = true
 		}
 	}
 	if raw, ok := stored[models.SettingAnonymousTTLSeconds]; ok {
 		if seconds, err := strconv.ParseInt(raw, 10, 64); err == nil && seconds > 0 {
 			resolved.AnonymousTTL = time.Duration(seconds) * time.Second
 			sources[models.SettingAnonymousTTLSeconds] = true
-		}
-	}
-	if raw, ok := stored[models.SettingInviteOnly]; ok {
-		if parsed, err := strconv.ParseBool(raw); err == nil {
-			resolved.InviteOnly = parsed
-			sources[models.SettingInviteOnly] = true
 		}
 	}
 	if raw, ok := stored[models.SettingMaxTotalBytes]; ok {

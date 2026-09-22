@@ -35,6 +35,31 @@ type gate struct {
 // the connection open is itself a resource.
 const uploadWait = 10 * time.Second
 
+// requestLimitsMW runs before any middleware can read a request body. CSRF
+// tokens may arrive in multipart fields, so protecting only the upload handler
+// leaves the earlier CSRF parser unbounded.
+func (s *Server) requestLimitsMW(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		limit := int64(formRewriteLimit)
+		if r.Method == http.MethodPost && (r.URL.Path == "/upload" || r.URL.Path == "/api/v1/upload") {
+			release, ok := s.processing.acquire(r.Context())
+			if !ok {
+				s.uploadBusy(w, r)
+				return
+			}
+			defer release()
+			limit = s.requestSizeLimit(currentUser(r.Context()))
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, limit)
+		defer func() {
+			if r.MultipartForm != nil {
+				r.MultipartForm.RemoveAll()
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
+}
+
 func newGate(limit int) *gate {
 	if limit < 1 {
 		limit = 1

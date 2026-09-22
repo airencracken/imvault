@@ -177,17 +177,7 @@ func (s *Server) apiUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The same slot the web uploader takes: the bound is on the instance, not
-	// on one way in.
-	release, ok := s.processing.acquire(r.Context())
-	if !ok {
-		s.uploadBusy(w, r)
-		return
-	}
-	defer release()
-
-	r.Body = http.MaxBytesReader(w, r.Body, s.requestSizeLimit(user))
-
+	// requestLimitsMW holds the shared upload slot and bounds the body.
 	if err := r.ParseMultipartForm(multipartMemory); err != nil {
 		writeAPIError(w, http.StatusBadRequest, "could not read the upload: "+uploadErrMessage(err))
 		return
@@ -392,31 +382,9 @@ func (s *Server) apiListFiles(w http.ResponseWriter, r *http.Request) {
 		filter.AlbumID = &albumID
 	}
 
-	// Visibility filtering: an exact level, with the older public boolean kept
-	// as a synonym. public=false means "anything not public", which is what
-	// callers written against two levels meant by it.
-	if raw := strings.TrimSpace(query.Get("visibility")); raw != "" {
-		level, err := parseVisibilityStrict(raw)
-		if err != nil {
-			writeAPIError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		filter.Visibility = &level
-	} else if raw := strings.TrimSpace(query.Get("public")); raw != "" {
-		if apiBool(raw) {
-			filter.PublicOnly = true
-		} else {
-			filter.NotPublic = true
-		}
-	}
-
-	if raw := strings.TrimSpace(query.Get("kind")); raw != "" {
-		kind, err := parseKindFilter(raw)
-		if err != nil {
-			writeAPIError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		filter.Kind = &kind
+	if err := applyMediaFilters(query, &filter); err != nil {
+		writeAPIError(w, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	total, err := s.store.CountFiles(r.Context(), filter)
@@ -445,6 +413,29 @@ func (s *Server) apiListFiles(w http.ResponseWriter, r *http.Request) {
 		"limit":  limit,
 		"offset": offset,
 	})
+}
+
+// applyMediaFilters validates the scalar filters independently of resolving
+// account-owned tags and albums. An explicit visibility wins over public.
+func applyMediaFilters(query url.Values, filter *store.FileQuery) error {
+	if raw := strings.TrimSpace(query.Get("visibility")); raw != "" {
+		level, err := parseVisibilityStrict(raw)
+		if err != nil {
+			return err
+		}
+		filter.Visibility = &level
+	} else if raw := strings.TrimSpace(query.Get("public")); raw != "" {
+		filter.PublicOnly = apiBool(raw)
+		filter.NotPublic = !filter.PublicOnly
+	}
+	if raw := strings.TrimSpace(query.Get("kind")); raw != "" {
+		kind, err := parseKindFilter(raw)
+		if err != nil {
+			return err
+		}
+		filter.Kind = &kind
+	}
+	return nil
 }
 
 // parseKindFilter accepts the friendly names scripts tend to use.

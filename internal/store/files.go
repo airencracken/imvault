@@ -57,6 +57,13 @@ func scanFile(sc rowScanner) (*models.File, error) {
 
 // CreateFile inserts a file record.
 func (s *Store) CreateFile(ctx context.Context, f *models.File) error {
+	return s.CreateFileWithLimit(ctx, f, 0)
+}
+
+// CreateFileWithLimit checks the instance ceiling in the same statement that
+// records the file. Account reservations alone cannot enforce it: anonymous
+// uploads have no account, and concurrent reservations precede file inserts.
+func (s *Store) CreateFileWithLimit(ctx context.Context, f *models.File, totalLimit int64) error {
 	kind := string(f.Kind)
 	if kind == "" {
 		kind = string(models.KindImage)
@@ -72,21 +79,34 @@ func (s *Store) CreateFile(ctx context.Context, f *models.File) error {
 
 	// The blob has to exist first: the trigger that counts references fires on
 	// this insert and has nothing to update otherwise.
-	_, err := s.db.ExecContext(ctx, `
+	query := `
 		INSERT INTO files (
 			id, user_id, original_name, ext, mime, size, width, height, sha256,
 			visibility, metadata, kind, duration_ms, frame_count, views, created_at, expires_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?`
+	args := []any{
 		f.ID, nullableInt64(f.UserID), f.OriginalName, f.Ext, f.Mime, f.Size,
 		f.Width, f.Height, f.SHA256,
 		string(f.Visibility), string(f.Metadata), kind, f.DurationMS, f.FrameCount, f.Views,
 		ts(f.CreatedAt), nullableTime(f.ExpiresAt),
-	)
+	}
+	if totalLimit > 0 {
+		query += ` WHERE (SELECT COALESCE(SUM(size), 0) FROM files) + ? <= ?`
+		args = append(args, f.Size, totalLimit)
+	}
+	res, err := s.db.ExecContext(ctx, query, args...)
 	if err != nil {
 		if ok, _ := isUniqueViolation(err); ok {
 			return fmt.Errorf("%w: file %s", ErrConflict, f.ID)
 		}
 		return fmt.Errorf("insert file: %w", err)
+	}
+	count, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("insert file rows: %w", err)
+	}
+	if count == 0 {
+		return ErrInstanceFull
 	}
 	return nil
 }

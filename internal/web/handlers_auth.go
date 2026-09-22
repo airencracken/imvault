@@ -279,18 +279,8 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	view.InviteOnly = !firstUser && s.policy().InviteOnly
 	view.RegisterClosed = !firstUser && !s.policy().AllowSignup
 
-	switch {
-	case !usernameRe.MatchString(username):
-		renderErr(http.StatusBadRequest, "Username must be 3-32 characters, using letters, digits, dot, dash or underscore.")
-		return
-	}
-	if err := validatePassword(password); err != nil {
+	if err := validateRegistration(username, email, password); err != nil {
 		renderErr(http.StatusBadRequest, err.Error())
-		return
-	}
-	switch {
-	case email != "" && !validEmail(email):
-		renderErr(http.StatusBadRequest, "That email address does not look valid.")
 		return
 	}
 
@@ -336,7 +326,23 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		s.log.Info("account registered with an invitation",
 			"user", user.ID, "invite", decision.Invite.ID, "prefix", decision.Invite.Prefix)
 	}
+	s.finishRegistration(w, r, user, firstUser)
+}
 
+func validateRegistration(username, email, password string) error {
+	if !usernameRe.MatchString(username) {
+		return errors.New("Username must be 3-32 characters, using letters, digits, dot, dash or underscore.")
+	}
+	if err := validatePassword(password); err != nil {
+		return err
+	}
+	if email != "" && !validEmail(email) {
+		return errors.New("That email address does not look valid.")
+	}
+	return nil
+}
+
+func (s *Server) finishRegistration(w http.ResponseWriter, r *http.Request, user *models.User, firstUser bool) {
 	if err := s.startSession(r.Context(), w, r, user.ID); err != nil {
 		s.log.Error("register: start session", "error", err)
 		http.Error(w, "account created, but sign-in failed", http.StatusInternalServerError)

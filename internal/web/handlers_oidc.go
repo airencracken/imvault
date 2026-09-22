@@ -211,7 +211,12 @@ func (s *Server) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 		s.oidcFailed(w, r, "The identity provider's answer could not be verified.")
 		return
 	}
+	s.resolveOIDCIdentity(w, r, attempt, identity)
+}
 
+// resolveOIDCIdentity links, signs in, or starts registration only after the
+// callback's state and provider assertion have been verified.
+func (s *Server) resolveOIDCIdentity(w http.ResponseWriter, r *http.Request, attempt oidcAttempt, identity *oidc.Identity) {
 	// Connecting to the account that asked for it.
 	if attempt.LinkTo != 0 {
 		user := currentUser(r.Context())

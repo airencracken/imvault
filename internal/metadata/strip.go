@@ -85,19 +85,11 @@ func stripJPEG(data []byte) ([]byte, bool) {
 
 	i := 2
 	for i < len(data) {
-		// A segment starts with a marker, which is 0xFF followed by anything
-		// that is not 0x00 or another 0xFF. Padding FF bytes are legal.
-		if data[i] != 0xFF {
-			return nil, false // not where a marker should be
-		}
-		for i < len(data) && data[i] == 0xFF {
-			i++
-		}
-		if i >= len(data) {
+		marker, next, ok := readJPEGMarker(data, i)
+		if !ok {
 			return nil, false
 		}
-		marker := data[i]
-		i++
+		i = next
 
 		// Standalone markers carry no length or payload.
 		switch {
@@ -146,6 +138,20 @@ func stripJPEG(data []byte) ([]byte, bool) {
 
 	// Ran out of data without a scan or an end marker.
 	return nil, false
+}
+
+// readJPEGMarker skips legal FF padding and locates the marker's payload.
+func readJPEGMarker(data []byte, i int) (byte, int, bool) {
+	if i >= len(data) || data[i] != 0xFF {
+		return 0, i, false
+	}
+	for i < len(data) && data[i] == 0xFF {
+		i++
+	}
+	if i >= len(data) {
+		return 0, i, false
+	}
+	return data[i], i + 1, true
 }
 
 func hasPrefix(data []byte, prefix string) bool {

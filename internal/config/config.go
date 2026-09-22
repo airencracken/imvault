@@ -199,71 +199,80 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("IMVAULT_DEFAULT_VISIBILITY must be public, members or private, got %q",
 			c.DefaultVisibility)
 	}
-
-	if c.MaxUploadBytes <= 0 {
-		return nil, fmt.Errorf("IMVAULT_MAX_UPLOAD_BYTES must be positive, got %d", c.MaxUploadBytes)
-	}
-	if c.MaxVideoBytes <= 0 {
-		return nil, fmt.Errorf("IMVAULT_MAX_VIDEO_BYTES must be positive, got %d", c.MaxVideoBytes)
-	}
-	if c.MaxVideoDuration <= 0 {
-		return nil, fmt.Errorf("IMVAULT_MAX_VIDEO_DURATION must be positive, got %s", c.MaxVideoDuration)
-	}
-	if c.DefaultQuotaBytes < 0 {
-		return nil, fmt.Errorf("IMVAULT_DEFAULT_QUOTA_BYTES must not be negative, got %d", c.DefaultQuotaBytes)
-	}
-	if c.MaxTotalBytes < 0 {
-		return nil, fmt.Errorf("IMVAULT_MAX_TOTAL_BYTES must not be negative, got %d", c.MaxTotalBytes)
-	}
-	if c.MaxConcurrentUploads < 0 {
-		return nil, fmt.Errorf("IMVAULT_MAX_CONCURRENT_UPLOADS must not be negative, got %d", c.MaxConcurrentUploads)
-	}
 	if c.MaxConcurrentUploads == 0 {
-		// Self-tuning rather than a fixed number: a single-core box and a
-		// sixteen-core one want different answers, and the number only has to
-		// be low enough that the sum of ffmpeg invocations fits.
 		c.MaxConcurrentUploads = max(2, runtime.NumCPU())
 	}
+	if err := c.validateMedia(); err != nil {
+		return nil, err
+	}
+	if err := c.validateAccounts(); err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
+func (c *Config) validateMedia() error {
+	if c.MaxUploadBytes <= 0 {
+		return fmt.Errorf("IMVAULT_MAX_UPLOAD_BYTES must be positive, got %d", c.MaxUploadBytes)
+	}
+	if c.MaxVideoBytes <= 0 {
+		return fmt.Errorf("IMVAULT_MAX_VIDEO_BYTES must be positive, got %d", c.MaxVideoBytes)
+	}
+	if c.MaxVideoDuration <= 0 {
+		return fmt.Errorf("IMVAULT_MAX_VIDEO_DURATION must be positive, got %s", c.MaxVideoDuration)
+	}
+	if c.DefaultQuotaBytes < 0 {
+		return fmt.Errorf("IMVAULT_DEFAULT_QUOTA_BYTES must not be negative, got %d", c.DefaultQuotaBytes)
+	}
+	if c.MaxTotalBytes < 0 {
+		return fmt.Errorf("IMVAULT_MAX_TOTAL_BYTES must not be negative, got %d", c.MaxTotalBytes)
+	}
+	if c.MaxConcurrentUploads < 0 {
+		return fmt.Errorf("IMVAULT_MAX_CONCURRENT_UPLOADS must not be negative, got %d", c.MaxConcurrentUploads)
+	}
+	if c.AnonymousTTL <= 0 {
+		return fmt.Errorf("IMVAULT_ANONYMOUS_TTL must be positive, got %s", c.AnonymousTTL)
+	}
+	if c.ThumbMax <= 0 || c.PreviewMax <= 0 {
+		return fmt.Errorf("thumbnail/preview bounds must be positive")
+	}
+	if c.JPEGQuality < 1 || c.JPEGQuality > 100 {
+		return fmt.Errorf("IMVAULT_JPEG_QUALITY must be within 1..100, got %d", c.JPEGQuality)
+	}
+	return nil
+}
+
+func (c *Config) validateAccounts() error {
 	if c.PasswordResetTTL <= 0 {
-		return nil, fmt.Errorf("IMVAULT_PASSWORD_RESET_TTL must be positive")
+		return fmt.Errorf("IMVAULT_PASSWORD_RESET_TTL must be positive")
 	}
 	if c.EmailVerifyTTL <= 0 {
-		return nil, fmt.Errorf("IMVAULT_EMAIL_VERIFY_TTL must be positive")
+		return fmt.Errorf("IMVAULT_EMAIL_VERIFY_TTL must be positive")
 	}
 	if c.MailMaxAttempts <= 0 {
-		return nil, fmt.Errorf("IMVAULT_MAIL_MAX_ATTEMPTS must be positive")
+		return fmt.Errorf("IMVAULT_MAIL_MAX_ATTEMPTS must be positive")
 	}
 	if c.MailRetryInterval <= 0 {
-		return nil, fmt.Errorf("IMVAULT_MAIL_RETRY_INTERVAL must be positive")
+		return fmt.Errorf("IMVAULT_MAIL_RETRY_INTERVAL must be positive")
 	}
 	switch c.SMTPTLS {
 	case "starttls", "implicit", "none":
 	default:
-		return nil, fmt.Errorf("IMVAULT_SMTP_TLS must be starttls, implicit or none, got %q", c.SMTPTLS)
-	}
-	if c.AnonymousTTL <= 0 {
-		return nil, fmt.Errorf("IMVAULT_ANONYMOUS_TTL must be positive, got %s", c.AnonymousTTL)
+		return fmt.Errorf("IMVAULT_SMTP_TLS must be starttls, implicit or none, got %q", c.SMTPTLS)
 	}
 
 	// A partly configured provider would be worse than none: the button would
 	// appear and then fail at the provider.
 	if (c.OIDCIssuer == "") != (c.OIDCClientID == "") {
-		return nil, fmt.Errorf("IMVAULT_OIDC_ISSUER and IMVAULT_OIDC_CLIENT_ID must be set together")
+		return fmt.Errorf("IMVAULT_OIDC_ISSUER and IMVAULT_OIDC_CLIENT_ID must be set together")
 	}
 	if c.OIDCIssuer != "" && c.BaseURL == "" {
 		// The redirect URI is registered with the provider and must match
 		// exactly. Deriving it from the request would let a forged Host header
 		// choose it, and would break the moment a proxy changes the name.
-		return nil, fmt.Errorf("IMVAULT_BASE_URL is required when an OpenID Connect provider is configured")
+		return fmt.Errorf("IMVAULT_BASE_URL is required when an OpenID Connect provider is configured")
 	}
-	if c.ThumbMax <= 0 || c.PreviewMax <= 0 {
-		return nil, fmt.Errorf("thumbnail/preview bounds must be positive")
-	}
-	if c.JPEGQuality < 1 || c.JPEGQuality > 100 {
-		return nil, fmt.Errorf("IMVAULT_JPEG_QUALITY must be within 1..100, got %d", c.JPEGQuality)
-	}
-
-	return c, nil
+	return nil
 }
 
 // EnsureDirs creates the directories the server needs to run.

@@ -177,11 +177,14 @@ func (s *Server) recordReused(
 			ExpiresAt:    expires,
 		}
 
-		if err := s.store.CreateFile(ctx, file); err != nil {
+		if err := s.store.CreateFileWithLimit(ctx, file, s.policy().MaxTotalBytes); err != nil {
 			if errors.Is(err, store.ErrConflict) {
 				continue // id collision: try again with a fresh id
 			}
 			s.releaseStorage(ctx, owner, size)
+			if errors.Is(err, store.ErrInstanceFull) {
+				return nil, quotaError(err, nil)
+			}
 			return nil, fmt.Errorf("could not record the file")
 		}
 		return file, nil

@@ -95,6 +95,10 @@ func rational(tag uint16, pairs ...[2]uint32) entry {
 // Block returns an APP1 payload: the Exif identifier followed by a TIFF block,
 // which is exactly what a camera writes.
 func Block(tags Tags) []byte {
+	return append([]byte("Exif\x00\x00"), layout(cameraDirectory(tags), exposureDirectory(tags), locationDirectory(tags))...)
+}
+
+func cameraDirectory(tags Tags) *dir {
 	ifd0 := &dir{}
 	if tags.Make != "" {
 		ifd0.entries = append(ifd0.entries, ascii(0x010F, tags.Make))
@@ -114,7 +118,10 @@ func Block(tags Tags) []byte {
 	// The pointers to the other two directories; the offsets are patched in.
 	ifd0.entries = append(ifd0.entries, entry{tag: 0x8769, fieldType: typeLong, count: 1})
 	ifd0.entries = append(ifd0.entries, entry{tag: 0x8825, fieldType: typeLong, count: 1})
+	return ifd0
+}
 
+func exposureDirectory(tags Tags) *dir {
 	exifIFD := &dir{}
 	if tags.Exposure != [2]uint32{} {
 		exifIFD.entries = append(exifIFD.entries, rational(0x829A, tags.Exposure))
@@ -134,7 +141,10 @@ func Block(tags Tags) []byte {
 	if tags.LensModel != "" {
 		exifIFD.entries = append(exifIFD.entries, ascii(0xA434, tags.LensModel))
 	}
+	return exifIFD
+}
 
+func locationDirectory(tags Tags) *dir {
 	gps := &dir{}
 	if tags.Latitude != 0 || tags.Longitude != 0 {
 		latRef, lonRef := "N", "E"
@@ -157,10 +167,7 @@ func Block(tags Tags) []byte {
 		}
 	}
 
-	if len(ifd0.entries) == 0 && len(exifIFD.entries) == 0 && len(gps.entries) == 0 {
-		return nil
-	}
-	return append([]byte("Exif\x00\x00"), layout(ifd0, exifIFD, gps)...)
+	return gps
 }
 
 // Attach inserts an Exif block into a JPEG immediately after the start of image,

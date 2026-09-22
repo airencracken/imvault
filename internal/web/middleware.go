@@ -142,8 +142,23 @@ func (s *Server) csrfMW(next http.Handler) http.Handler {
 		if isMutating(r.Method) && !isAPIKeyAuth(r.Context()) && !isAPIPath(r) {
 			provided := r.Header.Get(csrfHeader)
 			if provided == "" {
-				// Small forms carry the token in the body; this also parses
-				// multipart bodies, which net/http caches for the handler.
+				// Limits and upload slots are installed before any form parser.
+				// Do not use FormValue alone: it hides body-limit errors.
+				var err error
+				if isFormEncoded(r) {
+					err = r.ParseForm()
+				} else {
+					err = r.ParseMultipartForm(multipartMemory)
+				}
+				if err != nil && !errors.Is(err, http.ErrNotMultipart) {
+					status := http.StatusBadRequest
+					var tooLarge *http.MaxBytesError
+					if errors.As(err, &tooLarge) {
+						status = http.StatusRequestEntityTooLarge
+					}
+					http.Error(w, "could not read form", status)
+					return
+				}
 				provided = r.FormValue(csrfField)
 			}
 			if subtle.ConstantTimeCompare([]byte(provided), []byte(token)) != 1 {
@@ -194,6 +209,12 @@ func (s *Server) requireUser(next http.HandlerFunc) http.HandlerFunc {
 // proceeds unauthenticated, and the requireAPIKey wrapper produces the 401.
 func (s *Server) apiAuthMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Keys may use the API and download media, but cannot authenticate
+		// account settings or administrator operations.
+		if !isAPIPath(r) && !isMediaDownload(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
 		presented := apiKeyFromRequest(r)
 		if presented == "" {
 			next.ServeHTTP(w, r)
@@ -245,6 +266,22 @@ func (s *Server) apiAuthMW(next http.Handler) http.Handler {
 		ctx := withAPIKeyAuth(withUser(r.Context(), user))
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+func isMediaDownload(r *http.Request) bool {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		return false
+	}
+	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/"), "/")
+	if len(parts) != 3 || parts[0] != "f" || parts[1] == "" {
+		return false
+	}
+	switch parts[2] {
+	case "raw", "thumb", "preview":
+		return true
+	default:
+		return false
+	}
 }
 
 // apiKeyFromRequest extracts a bearer token from either accepted header.
@@ -370,14 +407,10 @@ func (s *Server) rateLimitLogins(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		// Keyed by address and the name being tried, so one client cannot work
-		// through a list of accounts unimpeded.
+		// Every authentication step shares the address budget. A supplied
+		// username is not an identity, particularly on the second-factor form,
+		// and changing it must not create a fresh budget.
 		key := "login:" + s.clientIP(r)
-		if err := r.ParseForm(); err == nil {
-			if username := strings.TrimSpace(r.FormValue("username")); username != "" {
-				key += ":" + strings.ToLower(username)
-			}
-		}
 
 		if ok, retryAfter := s.logins.Allow(key); !ok {
 			seconds := int(retryAfter.Seconds()) + 1

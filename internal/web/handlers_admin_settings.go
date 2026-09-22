@@ -53,9 +53,11 @@ func (s *Server) reloadSettings(ctx context.Context) error {
 func (s *Server) configDefaults() models.Settings {
 	return models.Settings{
 		AllowSignup:           s.cfg.AllowSignup,
+		InviteOnly:            s.cfg.InviteOnly,
 		AllowAnonymousUploads: s.cfg.AllowAnonymousUploads,
 		AnonymousTTL:          s.cfg.AnonymousTTL,
 		DefaultVisibility:     s.cfg.DefaultVisibility,
+		MaxTotalBytes:         s.cfg.MaxTotalBytes,
 	}
 }
 

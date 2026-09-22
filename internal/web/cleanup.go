@@ -39,13 +39,21 @@ func (s *Server) cleanupLoop(ctx context.Context) {
 // runCleanup deletes expired files, then prunes orphaned tags and sessions.
 func (s *Server) runCleanup(ctx context.Context) {
 	now := time.Now()
+	files, ok := s.reapExpiredFiles(ctx, now)
+	if !ok {
+		return
+	}
+	s.pruneExpiredRecords(ctx, now, files)
+}
+
+func (s *Server) reapExpiredFiles(ctx context.Context, now time.Time) (int, bool) {
 	files := 0
 
 	for round := 0; round < maxCleanupRounds; round++ {
 		batch, err := s.store.ExpiredFiles(ctx, now, cleanupBatch)
 		if err != nil {
 			s.log.Error("cleanup: list expired files", "error", err)
-			return
+			return files, false
 		}
 		if len(batch) == 0 {
 			break
@@ -66,10 +74,13 @@ func (s *Server) runCleanup(ctx context.Context) {
 			break
 		}
 		if ctx.Err() != nil {
-			return
+			return files, false
 		}
 	}
+	return files, true
+}
 
+func (s *Server) pruneExpiredRecords(ctx context.Context, now time.Time, files int) {
 	// Content nothing refers to any more. Deletions release their bytes as they
 	// go, so this normally finds nothing; it is the net under the cases that do
 	// not, such as rows removed by a cascade.

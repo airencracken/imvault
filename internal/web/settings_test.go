@@ -63,6 +63,58 @@ func TestInstanceSettingsOverrideTheEnvironment(t *testing.T) {
 	}
 }
 
+func TestConfiguredAdmissionAndStorageLimitsApply(t *testing.T) {
+	h := newHarnessWith(t, func(cfg *config.Config) {
+		cfg.InviteOnly = true
+		cfg.MaxTotalBytes = 1
+	})
+	h.registerForm("boss")
+	resp, _ := h.postForm("/register", url.Values{
+		"csrf_token": {h.csrf()}, "username": {"uninvited"}, "password": {testPassword},
+	})
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("registration without invitation = %d, want 403", resp.StatusCode)
+	}
+	_, body := h.uploadFiles(map[string]string{}, []uploadFile{{name: "photo.png", data: pngFixture(t, 16, 16)}})
+	if countStoredFiles(t, h) != 0 || !strings.Contains(body, "instance is full") {
+		t.Fatalf("configured storage ceiling was ignored: %s", truncate(body))
+	}
+}
+
+func TestAdminCanSwitchAnonymousUploadsOffAndOn(t *testing.T) {
+	h := newHarness(t)
+	h.registerForm("boss")
+	anon := h.newSession(t)
+	for _, enabled := range []bool{false, true} {
+		form := url.Values{"csrf_token": {h.csrf()}, "anonymous_ttl": {"1h"},
+			"default_visibility": {"members"}}
+		if enabled {
+			form.Set("allow_anonymous_uploads", "1")
+		}
+		resp, _ := h.postForm("/admin/settings", form)
+		if resp.StatusCode != http.StatusSeeOther {
+			t.Fatalf("save switch = %d", resp.StatusCode)
+		}
+		// Reload from persistent storage, as startup does.
+		if err := h.srv.installSettings(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		_, page := h.get("/admin/settings")
+		checked := strings.Contains(page, `name="allow_anonymous_uploads" value="1" checked`)
+		if checked != enabled {
+			t.Errorf("switch checked=%t, want %t", checked, enabled)
+		}
+		resp, _ = anon.upload(map[string]string{}, []uploadFile{{name: "anon.png", data: pngFixture(t, 16, 16)}})
+		want := http.StatusForbidden
+		if enabled {
+			want = http.StatusOK
+		}
+		if resp.StatusCode != want {
+			t.Errorf("anonymous upload with enabled=%t = %d, want %d", enabled, resp.StatusCode, want)
+		}
+	}
+}
+
 func TestStoredSettingsActuallyGovern(t *testing.T) {
 	h := newHarnessWith(t, func(cfg *config.Config) {
 		cfg.AllowSignup = true

@@ -5,11 +5,47 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"imvault/internal/models"
 )
+
+func TestConcurrentFileInsertsRespectInstanceCeiling(t *testing.T) {
+	s, ctx := newTestStore(t)
+	owner := mustUser(t, s, ctx, "owner")
+	var wg sync.WaitGroup
+	results := make(chan error, 20)
+	for i := 0; i < 20; i++ {
+		wg.Go(func() {
+			f := &models.File{ID: fmt.Sprintf("file-%d", i), Size: 100, Ext: "png",
+				Mime: "image/png", CreatedAt: time.Now()}
+			if i%2 == 0 {
+				f.UserID = &owner.ID
+			}
+			results <- s.CreateFileWithLimit(ctx, f, 1000)
+		})
+	}
+	wg.Wait()
+	close(results)
+	accepted := 0
+	for err := range results {
+		if err == nil {
+			accepted++
+		} else if !errors.Is(err, ErrInstanceFull) {
+			t.Fatal(err)
+		}
+	}
+	if accepted != 10 {
+		t.Fatalf("accepted %d files, want exactly 10", accepted)
+	}
+	total, err := s.TotalStoredBytes(ctx)
+	if err != nil || total != 1000 {
+		t.Fatalf("stored bytes = %d, error=%v", total, err)
+	}
+}
 
 func TestStorageReservationHonoursQuota(t *testing.T) {
 	s, ctx := newTestStore(t)

@@ -108,7 +108,7 @@ func New(cfg *config.Config, st *store.Store, objects storage.Backend, proc *med
 	// The semicolon rewrite runs before the CSRF middleware, which parses the
 	// form to find its token, and therefore before anything else can read a
 	// field and find it missing.
-	s.handler = s.recoverMW(s.logMW(s.semicolonMW(s.sessionMW(s.apiAuthMW(s.csrfMW(mux))))))
+	s.handler = s.recoverMW(s.logMW(s.sessionMW(s.apiAuthMW(s.requestLimitsMW(s.semicolonMW(s.csrfMW(mux)))))))
 	return s, nil
 }
 

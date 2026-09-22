@@ -89,23 +89,9 @@ func (s *SMTP) Send(ctx context.Context, msg Message) error {
 		return err
 	}
 
-	address := net.JoinHostPort(s.cfg.Host, strconv.Itoa(s.cfg.Port))
-
-	conn, err := (&net.Dialer{Timeout: s.timeout}).DialContext(ctx, "tcp", address)
+	conn, err := s.dial(ctx)
 	if err != nil {
-		return fmt.Errorf("smtp: dial %s: %w", address, err)
-	}
-
-	if s.cfg.Mode == TLSImplicit {
-		tlsConn := tls.Client(conn, &tls.Config{
-			ServerName: s.cfg.Host,
-			MinVersion: tls.VersionTLS12,
-		})
-		if err := tlsConn.HandshakeContext(ctx); err != nil {
-			conn.Close()
-			return fmt.Errorf("smtp: handshake: %w", err)
-		}
-		conn = tlsConn
+		return err
 	}
 
 	client, err := smtp.NewClient(conn, s.cfg.Host)
@@ -166,6 +152,26 @@ func (s *SMTP) Send(ctx context.Context, msg Message) error {
 	}
 
 	return client.Quit()
+}
+
+func (s *SMTP) dial(ctx context.Context) (net.Conn, error) {
+	address := net.JoinHostPort(s.cfg.Host, strconv.Itoa(s.cfg.Port))
+	conn, err := (&net.Dialer{Timeout: s.timeout}).DialContext(ctx, "tcp", address)
+	if err != nil {
+		return nil, fmt.Errorf("smtp: dial %s: %w", address, err)
+	}
+	if s.cfg.Mode != TLSImplicit {
+		return conn, nil
+	}
+	tlsConn := tls.Client(conn, &tls.Config{
+		ServerName: s.cfg.Host,
+		MinVersion: tls.VersionTLS12,
+	})
+	if err := tlsConn.HandshakeContext(ctx); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("smtp: handshake: %w", err)
+	}
+	return tlsConn, nil
 }
 
 // Disabled is a Sender for instances with no relay configured. It logs what it
