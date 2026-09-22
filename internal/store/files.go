@@ -158,6 +158,9 @@ type FileQuery struct {
 	AlbumID *int64
 	// TagID restricts results to files carrying a tag.
 	TagID *int64
+	// FavoritedBy restricts results to an account's private favorites. Combine
+	// with the appropriate visibility scope; a favorite never grants access.
+	FavoritedBy *int64
 	// Search matches against the file id and original filename.
 	Search string
 	// Limit caps the number of rows; defaults to 60.
@@ -166,7 +169,7 @@ type FileQuery struct {
 	Offset int
 }
 
-func (q FileQuery) where() (string, []any) {
+func (q FileQuery) relations() ([]string, []any) {
 	var (
 		clauses []string
 		args    []any
@@ -180,6 +183,15 @@ func (q FileQuery) where() (string, []any) {
 		clauses = append(clauses, `f.id IN (SELECT file_id FROM file_tags WHERE tag_id = ?)`)
 		args = append(args, *q.TagID)
 	}
+	if q.FavoritedBy != nil {
+		clauses = append(clauses, `f.id IN (SELECT file_id FROM favorites WHERE user_id = ?)`)
+		args = append(args, *q.FavoritedBy)
+	}
+	return clauses, args
+}
+
+func (q FileQuery) where() (string, []any) {
+	clauses, args := q.relations()
 	if q.OwnerID != nil {
 		clauses = append(clauses, `f.user_id = ?`)
 		args = append(args, *q.OwnerID)
@@ -223,16 +235,22 @@ func (q FileQuery) where() (string, []any) {
 	return " WHERE " + strings.Join(clauses, " AND "), args
 }
 
-// ListFiles returns files matching q, ordered newest first.
+// ListFiles returns files matching q, ordered newest first. Favorites are
+// ordered by when they were saved rather than when the file was uploaded.
 func (s *Store) ListFiles(ctx context.Context, q FileQuery) ([]*models.File, error) {
 	if q.Limit <= 0 {
 		q.Limit = 60
 	}
 	where, args := q.where()
+	order := `f.created_at DESC, f.id DESC`
+	if q.FavoritedBy != nil {
+		order = `(SELECT created_at FROM favorites WHERE user_id = ? AND file_id = f.id) DESC, f.id DESC`
+		args = append(args, *q.FavoritedBy)
+	}
 	args = append(args, q.Limit, q.Offset)
 
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT `+fileColumns+` `+fileFrom+where+` ORDER BY f.created_at DESC, f.id DESC LIMIT ? OFFSET ?`,
+		`SELECT `+fileColumns+` `+fileFrom+where+` ORDER BY `+order+` LIMIT ? OFFSET ?`,
 		args...,
 	)
 	if err != nil {

@@ -17,6 +17,8 @@
   <aside class="side">
     <h1 class="filename">{{.File.OriginalName}}</h1>
 
+    {{if .IsAuthed}}{{template "favorite_button" .}}{{end}}
+
     <dl class="facts">
       <dt>Uploaded</dt>
       <dd>{{date .File.CreatedAt}}{{if .File.Username}} by {{.File.Username}}{{end}}</dd>

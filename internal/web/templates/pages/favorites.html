@@ -1,0 +1,16 @@
+{{define "content"}}
+<header class="page-head">
+  <div>
+    <h1>Your favorites</h1>
+    <p class="muted">The ones worth coming back to. Only you can see this list.</p>
+  </div>
+  <form class="search" method="get" action="/favorites">
+    <input name="q" value="{{.Query}}" placeholder="Search favorites by name or id" autocomplete="off">
+    <button class="btn small" type="submit">Search</button>
+    {{if .Query}}<a class="btn small" href="/favorites">Clear</a>{{end}}
+  </form>
+</header>
+
+{{template "file_grid" .Grid}}
+{{template "pagination" .Pagination}}
+{{end}}

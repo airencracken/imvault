@@ -243,6 +243,10 @@ if [[ -n "$TRANSPARENT_ID" ]]; then
     -d '{"name":"graphic"}'
 fi
 
+if [[ -n "$HOLIDAY_ID" ]]; then
+  web "$JAR" "/f/$HOLIDAY_ID/favorite" "favorite=1"
+fi
+
 say "Issuing an invitation"
 curl -sS -c "$JAR" -b "$JAR" -o "$WORK/invite.html" -X POST "$BASE/admin/invites" \
   -H 'HX-Request: true' -d "csrf_token=$(csrf "$JAR")" \
@@ -288,6 +292,7 @@ printf '\n  %s\n\n' "$(bold 'Worth looking at')"
 cat <<EOF
     /recent           what everybody shared, newest first
     /gallery          your own uploads
+    /favorites        your private collection of keepers
     /albums           yours, and the ones shared with you
     /a/summer         an album two accounts have put things into
     /tags             a per-account tag index

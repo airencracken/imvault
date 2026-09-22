@@ -160,6 +160,7 @@ func (s *Server) routes() *http.ServeMux {
 
 	// Library
 	mux.HandleFunc("GET /gallery", s.requireUser(s.handleGallery))
+	mux.HandleFunc("GET /favorites", s.requireUser(s.handleFavorites))
 	mux.HandleFunc("GET /recent", s.requireUser(s.handleRecent))
 	mux.HandleFunc("GET /upload", s.handleUploadPage)
 	mux.HandleFunc("POST /upload", s.rateLimitUploads(s.handleUpload))
@@ -169,6 +170,7 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /f/{id}/raw", s.handleFileRaw)
 	mux.HandleFunc("GET /f/{id}/thumb", s.handleFileThumb)
 	mux.HandleFunc("GET /f/{id}/preview", s.handleFilePreview)
+	mux.HandleFunc("POST /f/{id}/favorite", s.requireUser(s.handleFavorite))
 	mux.HandleFunc("POST /f/{id}/visibility", s.requireUser(s.handleFileVisibility))
 	mux.HandleFunc("POST /f/{id}/metadata", s.requireUser(s.handleFileMetadata))
 	mux.HandleFunc("POST /f/{id}/delete", s.requireUser(s.handleFileDelete))
