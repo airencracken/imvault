@@ -1,0 +1,25 @@
+#!/bin/sh
+# SPDX-License-Identifier: AGPL-3.0-or-later
+case "$1" in
+	configure)
+		if ! getent group imvault >/dev/null; then
+			addgroup --system imvault || exit 1
+		fi
+		if ! getent passwd imvault >/dev/null; then
+			adduser --system --ingroup imvault --home /var/lib/imvault \
+				--no-create-home --shell /usr/sbin/nologin imvault || exit 1
+		fi
+		if [ "$(id -u imvault)" = 0 ] || [ "$(getent group imvault | cut -d: -f3)" = 0 ]; then
+			echo 'Refusing to run imvault with a root service account or group.' >&2
+			exit 1
+		fi
+		install -d -o imvault -g imvault -m 0700 /var/lib/imvault || exit 1
+		if [ -d /run/systemd/system ]; then
+			systemctl daemon-reload || exit 1
+			# Restart an already-running board on upgrade; never start or enable
+			# a new installation before the operator has configured it.
+			deb-systemd-invoke try-restart imvault.service || exit 1
+		fi
+		;;
+esac
+exit 0

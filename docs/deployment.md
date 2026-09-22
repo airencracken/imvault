@@ -2,11 +2,14 @@
 
 Running imvault on a server, without Docker.
 
-A release is a single static binary, a data directory, and an optional
-configuration file. Nothing else is needed.
+GitHub Releases provide static Linux binaries and Debian packages for amd64
+and arm64. See [binary releases](releases.md) for downloads, installation,
+checksums, and upgrades. Install ffmpeg for video thumbnails and duration checks.
+
+To produce a source archive for building yourself:
 
 ```bash
-make dist                      # dist/imvault-<version>.tar.gz
+make dist                      # source only: dist/imvault-<version>.tar.gz
 ```
 
 Or build in place and install:

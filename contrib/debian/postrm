@@ -1,0 +1,11 @@
+#!/bin/sh
+# SPDX-License-Identifier: AGPL-3.0-or-later
+case "$1" in
+	remove|purge)
+		if [ -d /run/systemd/system ]; then
+			systemctl daemon-reload || exit 1
+		fi
+		;;
+esac
+# Preserve the account and all application data, even on purge.
+exit 0

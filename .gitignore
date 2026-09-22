@@ -1,6 +1,7 @@
 # Build output
 /bin/
 /dist/
+/.release/
 /imvault
 
 # Runtime data: SQLite database and stored objects
