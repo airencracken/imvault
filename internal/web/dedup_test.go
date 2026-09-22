@@ -157,7 +157,7 @@ func TestDifferentImagesAreStoredSeparately(t *testing.T) {
 
 func TestDeduplicationAcrossAccounts(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	// A second account, so the two uploads have different owners.
 	alice := h.seedUser("alice")

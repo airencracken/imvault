@@ -12,6 +12,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	"imvault/internal/accounts"
 	"imvault/internal/mail"
 	"imvault/internal/models"
 	"imvault/internal/store"
@@ -183,7 +184,7 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	if err := validatePassword(password); err != nil {
+	if err := accounts.ValidatePassword(password); err != nil {
 		renderErr(http.StatusBadRequest, err.Error())
 		return
 	}
@@ -245,7 +246,7 @@ func (s *Server) handleChangeEmail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	email := strings.TrimSpace(r.FormValue("email"))
-	if email != "" && !validEmail(email) {
+	if email != "" && !accounts.ValidEmail(email) {
 		renderErr(http.StatusBadRequest, "That email address does not look valid.")
 		return
 	}
@@ -338,7 +339,7 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		renderErr(http.StatusForbidden, "That is not your current password.")
 		return
 	}
-	if err := validatePassword(password); err != nil {
+	if err := accounts.ValidatePassword(password); err != nil {
 		renderErr(http.StatusBadRequest, err.Error())
 		return
 	}

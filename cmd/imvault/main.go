@@ -30,7 +30,7 @@ import (
 )
 
 func main() {
-	if err := run(); err != nil {
+	if err := runCommand(os.Args[1:], os.Stdin, os.Stdout); err != nil {
 		// Goes through slog so that every line this process emits, including
 		// its last, is a logfmt record.
 		slog.Error("imvault", "error", err)

@@ -51,7 +51,7 @@ func uploadPlain(t *testing.T, h *harness, fields map[string]string) string {
 
 func TestTheOwnerSeesTheWholeDetail(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 	// A public file, so the policy resolves to hidden for everybody else.
 	id := uploadPlain(t, h, map[string]string{"visibility": "public"})
 	seedDetails(t, h, id, storedDetails)
@@ -75,7 +75,7 @@ func TestTheOwnerSeesTheWholeDetail(t *testing.T) {
 
 func TestAPublicPhotoHidesWhereItWasTakenFromEverybodyElse(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 	other := h.seedUser("other")
 
 	id := uploadPlain(t, h, map[string]string{"visibility": "public"})
@@ -109,7 +109,7 @@ func TestAPublicPhotoHidesWhereItWasTakenFromEverybodyElse(t *testing.T) {
 
 func TestShowingMetadataShowsItToEverybodyWhoCanSeeTheFile(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 	other := h.seedUser("other")
 
 	id := uploadPlain(t, h, map[string]string{
@@ -130,7 +130,7 @@ func TestShowingMetadataShowsItToEverybodyWhoCanSeeTheFile(t *testing.T) {
 
 func TestAnAlbumCanHideWhatAFileWouldShow(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 	other := h.seedUser("other")
 
 	// A members-only file, which on its own would show everything to a member.
@@ -166,7 +166,7 @@ func TestAnAlbumCanHideWhatAFileWouldShow(t *testing.T) {
 
 func TestAFileWithNothingToSayHasNoSection(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	id := uploadPlain(t, h, map[string]string{"visibility": "members"})
 	_, page := h.get("/f/" + id)
@@ -206,7 +206,7 @@ func TestTheAPIReportsDetailsToTheirOwner(t *testing.T) {
 
 func TestDetailsSurviveAReloadOfThePage(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	id := uploadPlain(t, h, map[string]string{"visibility": "members"})
 	seedDetails(t, h, id, storedDetails)
@@ -230,7 +230,7 @@ func TestDetailsSurviveAReloadOfThePage(t *testing.T) {
 // share — the axis is the audience, not the field.
 func TestTheFamilySeesWhereThePhotographWasTaken(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 	family := h.seedUser("family")
 
 	shared := uploadPlain(t, h, map[string]string{"visibility": "members"})

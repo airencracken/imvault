@@ -223,15 +223,30 @@ async function main() {
     return 1;
   }
 
+  const serverEnv = {
+    ...process.env,
+    IMVAULT_DATA_DIR: dataDir,
+    IMVAULT_ADDR: `127.0.0.1:${port}`,
+    IMVAULT_BASE_URL: base,
+    IMVAULT_LOG_LEVEL: "error",
+  };
+  const admin = spawn(join(dataDir, "imvault"), [
+    "create-admin", "--username", "boss", "--email", "boss@example.com", "--password-stdin",
+  ], { cwd: root, env: serverEnv, stdio: ["pipe", "ignore", "inherit"] });
+  admin.stdin.end("hunter2hunter2\n");
+  const adminCode = await new Promise((resolve, reject) => {
+    admin.on("exit", resolve);
+    admin.on("error", reject);
+  });
+  if (adminCode !== 0) {
+    console.error("could not provision the browser-test administrator");
+    await rm(dataDir, { recursive: true, force: true });
+    return 1;
+  }
+
   const server = spawn(join(dataDir, "imvault"), [], {
     cwd: root,
-    env: {
-      ...process.env,
-      IMVAULT_DATA_DIR: dataDir,
-      IMVAULT_ADDR: `127.0.0.1:${port}`,
-      IMVAULT_BASE_URL: base,
-      IMVAULT_LOG_LEVEL: "error",
-    },
+    env: serverEnv,
     stdio: ["ignore", "ignore", "inherit"],
   });
 
@@ -254,9 +269,8 @@ async function main() {
   try {
     if (!(await waitForHttp(`${base}/healthz`))) throw new Error("the server did not start");
 
-    // An administrator (the first account registered) plus a few accounts for
-    // the filter and the delete check to work on.
-    await seed(base, "boss", "boss@example.com", true);
+    // The administrator was provisioned locally. Register ordinary accounts
+    // for the filter and delete checks through the public form.
     await seed(base, "alice", "alice@example.com");
     await seed(base, "bob", "bob@example.com");
     await seed(base, "carol", "carol@example.com");
@@ -266,6 +280,10 @@ async function main() {
 
     // --- the admin page loads and wires itself up ---
     await page.goto(`${base}/admin/users`);
+
+    record("the admin page has no empty notice", await page.evaluate(`
+      return document.querySelectorAll(".flash").length === 0;
+    `));
 
     record("Alpine initialises on the admin page", await page.evaluate(`
       return typeof window.Alpine !== "undefined";
@@ -760,7 +778,7 @@ async function signInBasic(page, base, username) {
   if (!ok) throw new Error(`signing in as ${username} did not take`);
 }
 
-async function seed(base, username, email, admin = false) {
+async function seed(base, username, email) {
   const jar = new Map();
 
   const request = async (path, options = {}) => {

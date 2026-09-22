@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"imvault/internal/models"
+	"imvault/internal/store"
 )
 
 // uploadFile is one file in a multipart upload.
@@ -92,6 +93,29 @@ func (h *harness) registerForm(username string) *models.User {
 }
 
 const testPassword = "hunter2hunter2"
+
+// provisionAdmin creates an administrator locally and signs in through the real
+// login form. Public registration must never grant this role.
+func (h *harness) provisionAdmin(username string) *models.User {
+	h.t.Helper()
+	user, err := h.store.CreateUser(h.t.Context(), store.NewUser{
+		Username:     username,
+		PasswordHash: mustHashPassword(h.t, testPassword),
+		Role:         models.RoleAdmin,
+		QuotaBytes:   h.srv.cfg.DefaultQuotaBytes,
+	})
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	h.get("/login")
+	resp, _ := h.postForm("/login", map[string][]string{
+		"username": {username}, "password": {testPassword},
+	})
+	if resp.StatusCode != http.StatusSeeOther {
+		h.t.Fatalf("admin login = %d, want 303", resp.StatusCode)
+	}
+	return user
+}
 
 // firstFileID extracts the id from the first card in an upload response.
 func firstFileID(t *testing.T, body string) string {

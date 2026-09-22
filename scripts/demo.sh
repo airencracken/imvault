@@ -9,9 +9,8 @@
 #   make demo
 #   PORT=9000 make demo
 #
-# Everything is seeded through the same HTTP surface a person or a script uses:
-# the signup form, the API, the report form, and the admin pages. Nothing writes
-# to the database directly, so what you see is what those paths actually do.
+# The administrator is provisioned with the local CLI. Members and content are
+# seeded through the signup form, API, report form, and admin pages.
 #
 set -euo pipefail
 
@@ -58,6 +57,11 @@ rm -rf "$DATA_DIR"
 say "Building imvault"
 go build -o "$BINARY" ./cmd/imvault
 
+say "Provisioning the demo administrator"
+printf '%s\n' "$PASSWORD" | IMVAULT_DATA_DIR="$DATA_DIR" \
+  "$BINARY" create-admin --username "$ADMIN" --password-stdin \
+  || die "could not provision the demo administrator"
+
 say "Starting the server on $BASE"
 IMVAULT_ADDR="127.0.0.1:$PORT" \
 IMVAULT_DATA_DIR="$DATA_DIR" \
@@ -76,13 +80,13 @@ curl -fsS -o /dev/null "$BASE/healthz" 2>/dev/null || die "the server did not st
 
 csrf() { awk '/imvault_csrf/ {print $7}' "$1" | tail -1; }
 
-# register signs an account up and leaves the session in the named jar.
-register() { # register <username> <jar>
-  local user="$1" jar="$2"
+# account_form signs in or registers and leaves the session in the named jar.
+account_form() { # account_form <login|register> <username> <jar>
+  local action="$1" user="$2" jar="$3"
   rm -f "$jar"
   curl -sS -c "$jar" -b "$jar" -o /dev/null "$BASE/"
-  curl -sS -c "$jar" -b "$jar" -o /dev/null -X POST "$BASE/register" \
-    -d "csrf_token=$(csrf "$jar")" -d "username=$user" -d "password=$PASSWORD"
+  curl -sS -c "$jar" -b "$jar" -o /dev/null -X POST "$BASE/$action" \
+    -d "csrf_token=$(csrf "$jar")" --data-urlencode "username=$user" --data-urlencode "password=$PASSWORD"
 }
 
 # mint_key creates an API key through the settings page, the way a person does.
@@ -132,20 +136,20 @@ web() { # web <jar> <path> [form fields...]
 
 # --- the instance -----------------------------------------------------------
 
-say "Creating $ADMIN, who becomes the administrator"
-register "$ADMIN" "$JAR"
+say "Signing in as $ADMIN, the administrator"
+account_form login "$ADMIN" "$JAR"
 ADMIN_KEY="$(mint_key "$JAR" 'demo script')"
 [[ -n "$ADMIN_KEY" ]] || die "could not mint an API key for $ADMIN"
 
 say "Creating $MEMBER, an ordinary member"
 MEMBER_JAR="$WORK/member.jar"
-register "$MEMBER" "$MEMBER_JAR"
+account_form register "$MEMBER" "$MEMBER_JAR"
 MEMBER_KEY="$(mint_key "$MEMBER_JAR" 'demo script')"
 [[ -n "$MEMBER_KEY" ]] || die "could not mint an API key for $MEMBER"
 
 say "Creating $MODERATOR, who will be given the moderator role"
 MOD_JAR="$WORK/mod.jar"
-register "$MODERATOR" "$MOD_JAR"
+account_form register "$MODERATOR" "$MOD_JAR"
 MOD_KEY="$(mint_key "$MOD_JAR" 'demo script')"
 [[ -n "$MOD_KEY" ]] || die "could not mint an API key for $MODERATOR"
 
@@ -308,8 +312,8 @@ if [[ -n "$INVITE" ]]; then
   printf '                      register with it at %s/register\n\n' "$BASE"
 fi
 printf '    API key           %s\n' "$ADMIN_KEY"
-printf '\n  Everything was seeded through the HTTP surface, as a person or a\n'
-printf '  script would. Data lives in %s; "make clean-demo" removes it.\n' "$DATA_DIR"
+printf '\n  The admin was provisioned locally; members and content used HTTP.\n'
+printf '  Data lives in %s; "make clean-demo" removes it.\n' "$DATA_DIR"
 printf '\n  Press Ctrl-C to stop.\n\n'
 
 wait "$SERVER_PID"

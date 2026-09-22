@@ -147,8 +147,8 @@ func TestAnonymousUploadsDoNotCountAgainstAnybody(t *testing.T) {
 func TestAdminAreaRequiresAdministrator(t *testing.T) {
 	h := newHarness(t)
 
-	// The first account is the administrator.
-	h.registerForm("boss")
+	// Provision the administrator locally.
+	h.provisionAdmin("boss")
 	for _, path := range []string{"/admin", "/admin/users", "/admin/files"} {
 		if resp, _ := h.get(path); resp.StatusCode != http.StatusOK {
 			t.Errorf("admin GET %s = %d, want 200", path, resp.StatusCode)
@@ -202,7 +202,7 @@ func TestAdminAreaRequiresAdministrator(t *testing.T) {
 
 func TestAdminSetsAQuota(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	target := h.seedUser("alice")
 	path := "/admin/users/" + itoa64(target.ID) + "/limits"
@@ -262,7 +262,7 @@ func TestAdminSetsAQuota(t *testing.T) {
 
 func TestDisablingAnAccountRevokesItsAccess(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	victim := h.seedUser("alice")
 	key := h.seedKey(victim.ID, "laptop", nil)
@@ -333,7 +333,7 @@ func TestDisabledAccountCannotSignInAgain(t *testing.T) {
 
 func TestAdminDeletingAnAccountRemovesItsBytes(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	victim := h.seedUser("alice")
 	key := h.seedKey(victim.ID, "laptop", nil)
@@ -369,7 +369,7 @@ func TestAdminDeletingAnAccountRemovesItsBytes(t *testing.T) {
 
 func TestAdminRecomputesStorageUsage(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	alice := h.seedUser("alice")
 	key := h.seedKey(alice.ID, "laptop", nil)
@@ -427,7 +427,7 @@ func TestAdminRecomputesStorageUsage(t *testing.T) {
 
 func TestAdminCannotRemoveTheLastAdministrator(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	boss, err := h.store.UserByUsername(t.Context(), "boss")
 	if err != nil {
@@ -455,7 +455,7 @@ func TestAdminCannotRemoveTheLastAdministrator(t *testing.T) {
 
 func TestAdminCanDeleteAnyFile(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	victim := h.seedUser("alice")
 	key := h.seedKey(victim.ID, "laptop", nil)

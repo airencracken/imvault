@@ -5,40 +5,18 @@ package web
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
-	"net/mail"
-	"regexp"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"golang.org/x/crypto/bcrypt"
 
+	"imvault/internal/accounts"
 	"imvault/internal/ids"
 	"imvault/internal/invites"
 	"imvault/internal/models"
 	"imvault/internal/store"
 )
-
-var usernameRe = regexp.MustCompile(`^[A-Za-z0-9_.-]{3,32}$`)
-
-const minPasswordLen = 8
-
-// maxPasswordLen bounds the input to bcrypt, which silently truncates beyond 72
-// bytes; refusing is friendlier than quietly ignoring the tail.
-const maxPasswordLen = 72
-
-// validatePassword applies the rules every password-setting path shares.
-func validatePassword(password string) error {
-	if utf8.RuneCountInString(password) < minPasswordLen {
-		return fmt.Errorf("Password must be at least %d characters.", minPasswordLen)
-	}
-	if len(password) > maxPasswordLen {
-		return fmt.Errorf("Password must be at most %d bytes.", maxPasswordLen)
-	}
-	return nil
-}
 
 // handleHome is the landing page; signed-in users go straight to their gallery.
 func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
@@ -156,12 +134,7 @@ type admission struct {
 // invite the people you want" work: a closed instance is not an unreachable
 // one, and without this the only way to add somebody to a closed instance was
 // to edit the database by hand.
-func (s *Server) admit(ctx context.Context, firstUser bool, code string) admission {
-	// The first account bootstraps the instance and is always allowed.
-	if firstUser {
-		return admission{}
-	}
-
+func (s *Server) admit(ctx context.Context, code string) admission {
 	policy := s.policy()
 	code = strings.TrimSpace(code)
 
@@ -213,14 +186,6 @@ func (s *Server) handleRegisterPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The very first account can always be created; it becomes the admin.
-	count, err := s.store.CountUsers(r.Context())
-	if err != nil {
-		s.log.Error("register: count users", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
-		return
-	}
-
 	policy := s.policy()
 
 	// The page is shown even when registration is closed, because an invitation
@@ -228,8 +193,8 @@ func (s *Server) handleRegisterPage(w http.ResponseWriter, r *http.Request) {
 	view := authView{
 		base:           s.base(r, "Create account"),
 		Invite:         strings.TrimSpace(r.URL.Query().Get("invite")),
-		InviteOnly:     count > 0 && policy.InviteOnly,
-		RegisterClosed: count > 0 && !policy.AllowSignup,
+		InviteOnly:     policy.InviteOnly,
+		RegisterClosed: !policy.AllowSignup,
 	}
 	s.renderPage(w, http.StatusOK, "register", view)
 }
@@ -245,41 +210,27 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	password := r.FormValue("password")
 
 	view := authView{
-		base:     s.base(r, "Create account"),
-		Username: username,
-		Email:    email,
-		Invite:   strings.TrimSpace(r.FormValue("invite")),
+		base:           s.base(r, "Create account"),
+		Username:       username,
+		Email:          email,
+		Invite:         strings.TrimSpace(r.FormValue("invite")),
+		InviteOnly:     s.policy().InviteOnly,
+		RegisterClosed: !s.policy().AllowSignup,
 	}
 	renderErr := func(status int, message string) {
 		view.Error = message
 		s.renderPage(w, status, "register", view)
 	}
 
-	count, err := s.store.CountUsers(r.Context())
-	if err != nil {
-		s.log.Error("register: count users", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
-		return
-	}
-	// The first user bootstraps the instance and always becomes an admin.
-	firstUser := count == 0
-	role := models.RoleMember
-	if firstUser {
-		role = models.RoleAdmin
-	}
-
 	// Whether this attempt may proceed at all, and against which invitation.
 	// An invitation always admits, so this replaces the old plain check on the
 	// signup switch.
-	decision := s.admit(r.Context(), firstUser, r.FormValue("invite"))
+	decision := s.admit(r.Context(), r.FormValue("invite"))
 	if decision.Refusal != "" {
 		renderErr(http.StatusForbidden, decision.Refusal)
 		return
 	}
-	view.InviteOnly = !firstUser && s.policy().InviteOnly
-	view.RegisterClosed = !firstUser && !s.policy().AllowSignup
-
-	if err := validateRegistration(username, email, password); err != nil {
+	if err := accounts.ValidateRegistration(username, email, password); err != nil {
 		renderErr(http.StatusBadRequest, err.Error())
 		return
 	}
@@ -295,7 +246,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		Username:     username,
 		Email:        email,
 		PasswordHash: string(hash),
-		Role:         role,
+		Role:         models.RoleMember,
 		QuotaBytes:   s.cfg.DefaultQuotaBytes,
 	}
 
@@ -326,23 +277,10 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		s.log.Info("account registered with an invitation",
 			"user", user.ID, "invite", decision.Invite.ID, "prefix", decision.Invite.Prefix)
 	}
-	s.finishRegistration(w, r, user, firstUser)
+	s.finishRegistration(w, r, user)
 }
 
-func validateRegistration(username, email, password string) error {
-	if !usernameRe.MatchString(username) {
-		return errors.New("Username must be 3-32 characters, using letters, digits, dot, dash or underscore.")
-	}
-	if err := validatePassword(password); err != nil {
-		return err
-	}
-	if email != "" && !validEmail(email) {
-		return errors.New("That email address does not look valid.")
-	}
-	return nil
-}
-
-func (s *Server) finishRegistration(w http.ResponseWriter, r *http.Request, user *models.User, firstUser bool) {
+func (s *Server) finishRegistration(w http.ResponseWriter, r *http.Request, user *models.User) {
 	if err := s.startSession(r.Context(), w, r, user.ID); err != nil {
 		s.log.Error("register: start session", "error", err)
 		http.Error(w, "account created, but sign-in failed", http.StatusInternalServerError)
@@ -357,11 +295,7 @@ func (s *Server) finishRegistration(w http.ResponseWriter, r *http.Request, user
 		}
 	}
 
-	notice := "Welcome to imvault."
-	if firstUser {
-		notice = "Welcome. As the first account, you are the administrator."
-	}
-	redirectNotice(w, r, "/gallery", "notice", notice)
+	redirectNotice(w, r, "/gallery", "notice", "Welcome to imvault.")
 }
 
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
@@ -410,11 +344,6 @@ func safeNext(next string) string {
 		return ""
 	}
 	return next
-}
-
-func validEmail(addr string) bool {
-	parsed, err := mail.ParseAddress(addr)
-	return err == nil && parsed.Address == addr && strings.Contains(addr, ".")
 }
 
 // canViewVisibility reports whether a viewer may see content at a given level,

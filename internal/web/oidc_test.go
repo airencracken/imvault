@@ -324,7 +324,7 @@ func TestOIDCRequestsAPKCEChallenge(t *testing.T) {
 func TestOIDCSignsInALinkedAccount(t *testing.T) {
 	idp := newFakeIDP(t)
 	h := oidcHarness(t, idp)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	// An account already linked to this subject.
 	boss, err := h.store.UserByUsername(t.Context(), "boss")
@@ -356,7 +356,7 @@ func TestOIDCSignsInALinkedAccount(t *testing.T) {
 func TestOIDCLinksByAVerifiedAddress(t *testing.T) {
 	idp := newFakeIDP(t)
 	h := oidcHarness(t, idp)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	boss, err := h.store.UserByUsername(t.Context(), "boss")
 	if err != nil {
@@ -388,7 +388,7 @@ func TestOIDCLinksByAVerifiedAddress(t *testing.T) {
 func TestOIDCDoesNotLinkAnUnverifiedAddress(t *testing.T) {
 	idp := newFakeIDP(t)
 	h := oidcHarness(t, idp)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	boss, err := h.store.UserByUsername(t.Context(), "boss")
 	if err != nil {
@@ -452,7 +452,7 @@ func TestOIDCRefusesAnAmbiguousAddress(t *testing.T) {
 func TestOIDCCompletionRespectsTheRegistrationPolicy(t *testing.T) {
 	idp := newFakeIDP(t)
 	h := oidcHarness(t, idp)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 	h.setPolicy(t, models.Settings{
 		AllowSignup:           true,
 		InviteOnly:            true,
@@ -521,7 +521,7 @@ func TestOIDCCompletionRespectsTheRegistrationPolicy(t *testing.T) {
 func TestOIDCCompletionAsksForAUsernameOnAnOpenInstance(t *testing.T) {
 	idp := newFakeIDP(t)
 	h := oidcHarness(t, idp)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	// The provider's idea of a username is a display name full of spaces.
 	idp.setIdentity("subject-2", "new@example.com", true, "Ada Lovelace")
@@ -565,7 +565,7 @@ func TestOIDCCompletionAsksForAUsernameOnAnOpenInstance(t *testing.T) {
 func TestOIDCRejectsAWrongStateOrNonce(t *testing.T) {
 	idp := newFakeIDP(t)
 	h := oidcHarness(t, idp)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	// A callback whose state did not come from an attempt this server started.
 	client := h.newSession(t)
@@ -600,7 +600,7 @@ func TestOIDCRejectsADisallowedDomain(t *testing.T) {
 		cfg.OIDCClientSecret = idp.clientSecret
 		cfg.OIDCAllowedDomains = []string{"allowed.example"}
 	})
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	idp.setIdentity("subject-out", "stranger@elsewhere.example", true, "stranger")
 
@@ -622,7 +622,7 @@ func TestOIDCRejectsADisallowedDomain(t *testing.T) {
 func TestOIDCCanBeConnectedAndDisconnected(t *testing.T) {
 	idp := newFakeIDP(t)
 	h := oidcHarness(t, idp)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	idp.setIdentity("subject-connect", "boss@example.com", true, "boss")
 
@@ -666,7 +666,7 @@ func TestOIDCCanBeConnectedAndDisconnected(t *testing.T) {
 
 func TestOIDCIsAbsentWhenNotConfigured(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	if resp, _ := h.get("/auth/oidc/start"); resp.StatusCode != http.StatusNotFound {
 		t.Errorf("start = %d with no provider configured, want 404", resp.StatusCode)
