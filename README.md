@@ -16,7 +16,8 @@ of strangers who don't.
 A cozy place to swap family photos, save the group chat's finest screenshots,
 and keep the little things your friends would appreciate.
 
-One Go binary. One data directory. A small blue keeper with no opinions about
+One Go binary. Local storage by default, with optional S3-compatible buckets.
+A small blue keeper with no opinions about
 how many pictures of your cat you upload.
 
 Public for an audience, members-only for your people, private for the
@@ -57,6 +58,7 @@ Members and sample content come through the same HTTP routes people use.
 | **Your audience, your call** | Public, members-only, and private visibility. Photograph metadata controls help keep camera details and location out of public downloads. |
 | **Keys for people and scripts** | Invitations, member/moderator/admin roles, TOTP two-factor authentication, OpenID Connect, password resets, and a bearer-token API. |
 | **A broom cupboard** | Reports, a moderation log, account exports and deletion, storage quotas, upload limits, rate limiting, anonymous-upload expiry, and queued mail with retries. |
+| **Room to grow** | Local disk or a private S3-compatible bucket. Verified storage migration, backup and restore commands, and a way to rebuild missing video posters. |
 
 The front end is server-rendered Go templates with htmx. No JavaScript build
 step, no framework bundle to assemble, no external service required to get
@@ -186,6 +188,7 @@ metadata handling, and the limits of those protections.
 | [Routes](docs/routes.md) | Every URL the server answers |
 | [Deployment](docs/deployment.md) | Gentoo, Alpine, init scripts, containers, and TLS |
 | [Operations](docs/operations.md) | Backups, maintenance, upgrades, and troubleshooting |
+| [Storage](docs/storage.md) | S3 setup, migration, thumbnail repair, and verified backup/restore |
 | [Security](docs/security.md) | The security model and its edges |
 | [Architecture](docs/architecture.md) | Internals, tests, and contributing changes |
 

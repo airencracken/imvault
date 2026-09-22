@@ -212,6 +212,8 @@ func (p *Processor) ProcessVideo(ctx context.Context, src io.ReadSeeker, path st
 		res.Warnings = append(res.Warnings, "poster frame extraction failed: "+err.Error())
 	} else if thumb := renditionFromImage(raw, p.ThumbMax, p.JPEGQuality); thumb != nil {
 		res.Thumb = thumb
+	} else {
+		res.Warnings = append(res.Warnings, "poster frame could not be decoded")
 	}
 
 	if res.Thumb == nil {

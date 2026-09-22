@@ -121,7 +121,7 @@ func (s *Server) serveObject(w http.ResponseWriter, r *http.Request, file *model
 		return
 	}
 
-	f, err := s.objects.Open(key)
+	f, err := s.objects.Open(r.Context(), key)
 	if err != nil {
 		if errors.Is(err, storage.ErrNotFound) {
 			s.log.Error("object missing from storage", "id", file.ID, "key", key)

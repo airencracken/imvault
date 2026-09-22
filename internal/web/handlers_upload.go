@@ -284,6 +284,11 @@ func (s *Server) storeStill(
 	if err != nil {
 		return nil, err
 	}
+	unlock, err := s.content.acquire(ctx, sha)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
 
 	// Identical bytes are already stored: point at them rather than decoding,
 	// resizing, and writing a second copy.
@@ -318,12 +323,12 @@ func (s *Server) storeStill(
 		}
 	}
 
-	if err := s.storeObject(keys.object, src); err != nil {
+	if err := s.storeObject(ctx, keys.object, src); err != nil {
 		s.releaseStorage(ctx, owner, size)
 		return nil, fmt.Errorf("could not store the file")
 	}
 
-	if !s.saveRenditions(keys, result) {
+	if !s.saveRenditions(ctx, keys, result) {
 		s.releaseStorage(ctx, owner, size)
 		s.discardFailedUpload(ctx, sha, keys.all())
 		return nil, fmt.Errorf("could not store the renditions")
@@ -390,6 +395,11 @@ func (s *Server) storeVideo(
 	if err != nil {
 		return nil, err
 	}
+	unlock, err := s.content.acquire(ctx, sha)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
 
 	if existing, ok := s.reusableUpload(ctx, sha); ok {
 		return s.recordReused(ctx, existing, header, owner, options, details, expires, now)
@@ -411,7 +421,7 @@ func (s *Server) storeVideo(
 		}
 	}
 
-	if err := s.storeObject(objectKey, src); err != nil {
+	if err := s.storeObject(ctx, objectKey, src); err != nil {
 		s.releaseStorage(ctx, owner, size)
 		return nil, fmt.Errorf("could not store the clip")
 	}
@@ -434,7 +444,7 @@ func (s *Server) storeVideo(
 	}
 	keys := s.contentKeys(sha, result.Ext, thumbExt, "")
 
-	if !s.saveRenditions(keys, result) {
+	if !s.saveRenditions(ctx, keys, result) {
 		s.releaseStorage(ctx, owner, size)
 		s.discardFailedUpload(ctx, sha, keys.all())
 		return nil, fmt.Errorf("could not store the poster frame")
@@ -496,30 +506,31 @@ func (k objectKeys) all() []string {
 	return out
 }
 
-// saveRenditions writes the thumbnail and preview. On failure it removes
-// anything it already wrote and reports false.
-func (s *Server) saveRenditions(keys objectKeys, result *media.Result) bool {
+// saveRenditions writes the thumbnail and preview. The caller cleans up failed
+// uploads after checking whether another file still references their content.
+func (s *Server) saveRenditions(ctx context.Context, keys objectKeys, result *media.Result) bool {
 	if result.Thumb != nil && keys.thumb != "" {
-		if _, err := s.objects.Save(keys.thumb, bytes.NewReader(result.Thumb.Data)); err != nil {
-			s.deleteKeys(keys.all())
+		if _, err := s.objects.Save(ctx, keys.thumb, bytes.NewReader(result.Thumb.Data)); err != nil {
 			return false
 		}
 	}
 	if result.Preview != nil && keys.preview != "" {
-		if _, err := s.objects.Save(keys.preview, bytes.NewReader(result.Preview.Data)); err != nil {
-			s.deleteKeys(keys.all())
+		if _, err := s.objects.Save(ctx, keys.preview, bytes.NewReader(result.Preview.Data)); err != nil {
 			return false
 		}
 	}
 	return true
 }
 
-func (s *Server) deleteKeys(keys []string) {
+func (s *Server) deleteKeys(ctx context.Context, keys []string) bool {
+	ok := true
 	for _, key := range keys {
-		if err := s.objects.Delete(key); err != nil && !errors.Is(err, storage.ErrNotFound) {
+		if err := s.objects.Delete(ctx, key); err != nil && !errors.Is(err, storage.ErrNotFound) {
 			s.log.Error("delete object", "key", key, "error", err)
+			ok = false
 		}
 	}
+	return ok
 }
 
 // logWarnings surfaces non-fatal media problems.

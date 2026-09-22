@@ -11,10 +11,12 @@ import (
 	"io"
 	"mime/multipart"
 	"path"
+	"strings"
 	"time"
 
 	"imvault/internal/ids"
 	"imvault/internal/models"
+	"imvault/internal/storage"
 	"imvault/internal/store"
 )
 
@@ -84,8 +86,8 @@ func (s *Server) renditionTag() string {
 // reusableUpload finds an identical upload whose stored objects this one can
 // share, so the decode and the resize can be skipped entirely.
 //
-// A row stored by an older version has keys that do not match the current
-// scheme, and is declined: reusing it would work, but it would not deduplicate.
+// Rebuilt renditions remain reusable. Other rows from older settings are
+// processed again using the current rendition settings.
 func (s *Server) reusableUpload(ctx context.Context, sha string) (*models.File, bool) {
 	existing, err := s.store.FileBySHA256(ctx, sha)
 	if err != nil {
@@ -101,6 +103,9 @@ func (s *Server) reusableUpload(ctx context.Context, sha string) (*models.File, 
 	}
 
 	want := s.contentKeys(sha, existing.Ext, thumbExt, previewExt)
+	if existing.ObjectKey == want.object && strings.HasPrefix(existing.ThumbKey, "thumb/rebuilt/") {
+		return existing, true
+	}
 	if existing.ObjectKey != want.object ||
 		existing.ThumbKey != want.thumb ||
 		existing.PreviewKey != want.preview {
@@ -117,19 +122,6 @@ func trimExt(key string) string {
 		return ""
 	}
 	return ext[1:]
-}
-
-// objectExists reports whether a stored object is already present.
-//
-// Used to skip rewriting identical bytes, which matters most for clips, where
-// the second copy would be tens of megabytes of pointless I/O.
-func (s *Server) objectExists(key string) bool {
-	reader, err := s.objects.Open(key)
-	if err != nil {
-		return false
-	}
-	reader.Close()
-	return true
 }
 
 // recordReused files an upload that shares its content with an existing one.
@@ -211,20 +203,41 @@ func (s *Server) recordReused(
 //
 // Called after the file row is gone: the trigger on that delete has already
 // brought the count down.
-func (s *Server) releaseBlob(ctx context.Context, sha string) {
+func (s *Server) releaseBlob(ctx context.Context, sha string) bool {
+	unlock, err := s.content.acquire(ctx, sha)
+	if err != nil {
+		return false
+	}
+	defer unlock()
+	return s.releaseBlobLocked(ctx, sha)
+}
+
+func (s *Server) releaseBlobLocked(ctx context.Context, sha string) bool {
 	if sha == "" {
-		return
+		return true
 	}
 
-	blob, err := s.store.DeleteBlobIfUnreferenced(ctx, sha)
+	blob, err := s.store.BlobBySHA(ctx, sha)
 	if err != nil {
 		if !errors.Is(err, store.ErrNotFound) {
 			s.log.Error("release blob", "sha256", sha, "error", err)
 		}
-		return
+		return errors.Is(err, store.ErrNotFound)
 	}
-
-	s.deleteKeys(blob.Keys())
+	if !blob.Orphaned() {
+		return true
+	}
+	// Retain the orphan record until every remote deletion succeeds, so a
+	// storage outage can be retried by the ordinary cleanup worker.
+	if !s.deleteKeys(ctx, blob.Keys()) {
+		return false
+	}
+	_, err = s.store.DeleteBlobIfUnreferenced(ctx, sha)
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		s.log.Error("remove deleted blob record", "sha256", sha, "error", err)
+		return false
+	}
+	return true
 }
 
 // discardFailedUpload removes objects written for an upload that then failed,
@@ -238,12 +251,12 @@ func (s *Server) discardFailedUpload(ctx context.Context, sha string, keys []str
 		if !blob.Orphaned() {
 			return // shared with an existing file; leave it alone
 		}
-		s.releaseBlob(ctx, sha)
+		s.releaseBlobLocked(ctx, sha)
 		return
 	}
 
 	// No blob record, so nothing else can be referring to these.
-	s.deleteKeys(keys)
+	s.deleteKeys(ctx, keys)
 }
 
 // sweepOrphanedBlobs removes content that nothing refers to.
@@ -263,17 +276,9 @@ func (s *Server) sweepOrphanedBlobs(ctx context.Context) {
 		}
 
 		for _, blob := range orphans {
-			// Delete the row first: if that fails, the bytes are still
-			// accounted for and can be retried, whereas removing the bytes
-			// first would strand a row pointing at nothing.
-			removed, err := s.store.DeleteBlobIfUnreferenced(ctx, blob.SHA256)
-			if err != nil {
-				if !errors.Is(err, store.ErrNotFound) {
-					s.log.Error("sweep: delete blob", "sha256", blob.SHA256, "error", err)
-				}
-				continue
+			if !s.releaseBlob(ctx, blob.SHA256) {
+				return
 			}
-			s.deleteKeys(removed.Keys())
 		}
 
 		if len(orphans) < 100 {
@@ -289,11 +294,15 @@ func (s *Server) sweepOrphanedBlobs(ctx context.Context) {
 //
 // With content-addressed keys a repeat write would be byte-for-byte the same
 // file, and for a clip that is tens of megabytes of pointless I/O.
-func (s *Server) storeObject(key string, src io.Reader) error {
-	if s.objectExists(key) {
+func (s *Server) storeObject(ctx context.Context, key string, src io.Reader) error {
+	_, err := s.objects.Stat(ctx, key)
+	if err == nil {
 		return nil
 	}
-	if _, err := s.objects.Save(key, src); err != nil {
+	if !errors.Is(err, storage.ErrNotFound) {
+		return err
+	}
+	if _, err := s.objects.Save(ctx, key, src); err != nil {
 		return err
 	}
 	return nil

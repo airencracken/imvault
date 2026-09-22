@@ -188,7 +188,7 @@ func (s *Server) reportRowFor(r *http.Request, report *models.Report) reportRow 
 		}
 		row.TargetLabel = file.OriginalName
 		row.TargetURL = "/f/" + file.ID
-		row.TargetThumb = "/f/" + file.ID + "/thumb"
+		row.TargetThumb = file.ThumbURL()
 		row.Owner = file.Username
 	}
 	return row

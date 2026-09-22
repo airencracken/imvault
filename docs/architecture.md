@@ -9,7 +9,9 @@ internal/logging     the logfmt logger
 internal/db          SQLite connection + embedded migrations
 internal/models      shared data types
 internal/store       all SQL; one file per aggregate
-internal/storage     object storage behind a Backend interface (disk today)
+internal/storage     disk and S3 storage behind a cancellable Backend interface
+internal/maintenance verified migration, rendition rebuilding, backup/restore
+internal/instance    process locks coordinating the server and maintenance
 internal/imaging     decode, orient, downscale, encode still images
 internal/media       classify uploads; animation and video handling
 internal/ratelimit   in-memory token bucket for upload limiting
@@ -78,16 +80,22 @@ A few decisions worth knowing about:
   one place.
 - **ffmpeg is optional by design.** Anything that depends on it degrades to a
   placeholder and a logged warning rather than a failed upload.
-- **Row first, then bytes.** Deletes remove the database row before the objects, so
-  a crash leaves harmless orphaned files rather than dangling references.
+- **File row first, then bytes.** Deletes remove the file record first. The blob
+  record remains until object deletion succeeds, so network failures can be
+  retried. Per-content locks prevent deletion racing an upload of the same bytes.
 - **Content-addressed storage with a trigger-maintained reference count.**
   Identical bytes are stored once however many accounts upload them, and a
   `blobs` table carries a count the database keeps itself rather than one
   application code maintains. The triggers fire for `ON DELETE CASCADE` too, so
   removing an account decrements every count it should; a counter kept by callers
   would leak there, because those rows disappear inside the database.
-- **Storage is an interface.** Swapping the disk backend for S3 means implementing
-  `storage.Backend`; no handler changes.
+- **Storage is an interface.** Disk and S3 implement cancellable reads, writes,
+  stats, and deletes. S3's seekable reader issues bounded ranges and pins reads
+  to an ETag. ffmpeg uses temporary files when storage has no local path.
+- **Maintenance requires exclusive access.** The server and ordinary local
+  commands share an instance lock; migration, backup, and rendition repair take
+  it exclusively. Backups verify the database, media, and encryption key as one
+  stopped-instance snapshot. Restores publish a new directory after validation.
 
 ## Data layout
 

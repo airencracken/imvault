@@ -8,8 +8,8 @@
 
   <a class="thumb" href="/f/{{.File.ID}}">
     {{if .File.IsVideo}}<span class="play" aria-hidden="true">▶</span>{{end}}
-    <img src="/f/{{.File.ID}}/thumb" alt="{{.File.OriginalName}}" loading="lazy"
-         {{if .File.IsAnimatedGIF}}data-anim="/f/{{.File.ID}}/preview" data-still="/f/{{.File.ID}}/thumb"{{end}}>
+    <img src="{{.File.ThumbURL}}" alt="{{.File.OriginalName}}" loading="lazy"
+         {{if .File.IsAnimatedGIF}}data-anim="{{.File.PreviewURL}}" data-still="{{.File.ThumbURL}}"{{end}}>
   </a>
 
   <figcaption class="caption">

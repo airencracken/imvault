@@ -25,7 +25,8 @@ type Config struct {
 	// DataDir is the root directory for the database and uploaded objects.
 	DataDir string
 	// DBPath is the SQLite database file.
-	DBPath string
+	DBPath  string
+	Storage Storage
 	// BaseURL is an optional absolute prefix used when generating links.
 	BaseURL string
 	// SourceURL is shown in the footer. AGPL section 13 asks that people
@@ -191,6 +192,11 @@ func Load() (*Config, error) {
 
 	c.DBPath = getenv("IMVAULT_DB", filepath.Join(dataDir, "imvault.db"))
 	c.SecretKeyFile = getenv("IMVAULT_SECRET_KEY_FILE", filepath.Join(dataDir, "secret.key"))
+	var err error
+	c.Storage, err = LoadStorage("IMVAULT_", filepath.Join(dataDir, "objects"))
+	if err != nil {
+		return nil, err
+	}
 
 	// Normalised before validation so that "Public" is accepted, and a typo is
 	// reported rather than silently becoming the closed level.
@@ -277,10 +283,15 @@ func (c *Config) validateAccounts() error {
 
 // EnsureDirs creates the directories the server needs to run.
 func (c *Config) EnsureDirs() error {
-	for _, dir := range []string{
-		c.DataDir,
-		filepath.Join(c.DataDir, "objects"),
-	} {
+	dirs := []string{c.DataDir}
+	if c.Storage.Driver == "disk" || c.Storage.Driver == "" {
+		directory := c.Storage.Directory
+		if directory == "" {
+			directory = filepath.Join(c.DataDir, "objects")
+		}
+		dirs = append(dirs, directory)
+	}
+	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return fmt.Errorf("create %s: %w", dir, err)
 		}

@@ -14,12 +14,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 
 	"imvault/internal/config"
 	"imvault/internal/db"
+	"imvault/internal/instance"
 	"imvault/internal/logging"
 	"imvault/internal/mail"
 	"imvault/internal/media"
@@ -55,6 +55,11 @@ func run() error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	lock, err := instance.AcquireServer(cfg.DBPath)
+	if err != nil {
+		return err
+	}
+	defer lock.Close()
 
 	database, err := db.Open(ctx, cfg.DBPath)
 	if err != nil {
@@ -62,7 +67,7 @@ func run() error {
 	}
 	defer database.Close()
 
-	objects, err := storage.NewDisk(filepath.Join(cfg.DataDir, "objects"))
+	objects, err := storage.New(ctx, cfg.Storage)
 	if err != nil {
 		return err
 	}
