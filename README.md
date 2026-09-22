@@ -20,6 +20,10 @@ One Go binary. Local storage by default, with optional S3-compatible buckets.
 A small blue keeper with no opinions about
 how many pictures of your cat you upload.
 
+Keep the lights low or let the daylight in: choose **System**, **Light**, or
+**Dark** in the header. System follows your device; an explicit choice stays in
+this browser, including before you sign in.
+
 Public for an audience, members-only for your people, private for the
 “I'll organise these later” collection. You decide who gets in.
 

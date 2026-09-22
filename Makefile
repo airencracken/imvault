@@ -79,7 +79,7 @@ tidy: ## Tidy go.mod and go.sum
 
 check-js: ## Check the JavaScript syntax (needs node)
 	@if command -v node >/dev/null 2>&1; then \
-		for f in internal/web/static/js/app.js internal/web/static/js/app.test.js scripts/*.mjs; do \
+		for f in internal/web/static/js/app.js internal/web/static/js/theme.js internal/web/static/js/*.test.js scripts/*.mjs; do \
 			node --check "$$f" || exit $$?; \
 			echo "  $$f: OK"; \
 		done; \

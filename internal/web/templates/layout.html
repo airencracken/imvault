@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="{{.CSRFToken}}">
   <title>{{if .Title}}{{.Title}} · imvault{{else}}imvault{{end}}</title>
+  <script src="/static/js/theme.js"></script>
   <link rel="stylesheet" href="/static/css/app.css">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/img/favicon-32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/static/img/favicon-16.png">
@@ -38,6 +39,13 @@
         <a href="/login">Sign in</a>
         {{if .SignupOpen}}<a href="/register">Register</a>{{end}}
       {{end}}
+      <label class="theme-picker" hidden>Theme
+        <select data-theme-select aria-label="Color theme">
+          <option value="system">System</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </label>
     </nav>
   </header>
 
