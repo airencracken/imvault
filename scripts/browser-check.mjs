@@ -19,6 +19,7 @@ import { mkdtemp, rm, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { checkThemes } from "./browser-themes.mjs";
 
 const BROWSER_CANDIDATES = [
   process.env.CHROME,
@@ -276,7 +277,22 @@ async function main() {
     await seed(base, "carol", "carol@example.com");
 
     page = await Page.connect(debugPort);
+    await checkThemes(page, base);
+    record("themes follow the system, persist across pages, and work without JavaScript", true);
     await signIn(page, base, "boss");
+    await page.goto(`${base}/gallery`);
+    for (const width of [320, 390, 768]) {
+      await page.send("Emulation.setDeviceMetricsOverride", {
+        width, height: 844, deviceScaleFactor: 1, mobile: false,
+      });
+      record(`the signed-in theme switch fits at ${width}px`, await page.evaluate(`
+        const picker = document.querySelector('[data-theme-select]');
+        const bounds = picker.getBoundingClientRect();
+        return document.documentElement.scrollWidth <= innerWidth && bounds.width > 0 &&
+          bounds.left >= 0 && bounds.right <= innerWidth;
+      `));
+    }
+    await page.send("Emulation.clearDeviceMetricsOverride");
 
     // --- the admin page loads and wires itself up ---
     await page.goto(`${base}/admin/users`);
