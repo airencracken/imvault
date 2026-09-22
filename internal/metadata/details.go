@@ -207,6 +207,9 @@ func Extract(r io.ReadSeeker) (*Details, error) {
 			details.Altitude = &altitude
 		}
 	}
+	if gps, handled := jpegLocation(r); handled {
+		details.Latitude, details.Longitude, details.Altitude = gps.latitude, gps.longitude, gps.altitude
+	}
 
 	if details.Empty() {
 		return nil, nil

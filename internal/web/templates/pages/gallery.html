@@ -2,7 +2,7 @@
 <header class="page-head">
   <h1>Your gallery</h1>
   <form class="search" method="get" action="/gallery">
-    <input name="q" value="{{.Query}}" placeholder="Search by name or id" autocomplete="off">
+    <input name="q" value="{{.Query}}" placeholder="Search by name, tag or id" autocomplete="off">
     <button class="btn small" type="submit">Search</button>
     {{if .Query}}<a class="btn small" href="/gallery">Clear</a>{{end}}
   </form>

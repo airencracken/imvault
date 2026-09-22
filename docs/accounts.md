@@ -57,12 +57,24 @@ Public registration always creates ordinary members. Closed and invitation-only
 registration apply even when the database has no accounts; there is no first
 signup exception. Valid invitations continue to admit ordinary members.
 
+## Renaming uploads
+
+Open a photo, animation, or clip and expand **Rename** beneath its name. The
+new filename appears in galleries, search results, downloads, and the API.
+Its links, tags, albums, and stored content stay the same, and identical uploads
+owned by other people keep their own names. Owners and administrators can
+rename; other members and moderators cannot rename somebody else's files.
+
 ## Favorites
 
 Signed-in users can choose **Favorite** on a photo, animation, or clip to save
 it to their **Favorites** page at `/favorites`. Choose **Favorited** again to
 remove it. The page supports search and pagination, with the most recently
 saved items first. Both controls work with or without JavaScript.
+
+Gallery and Favorites search matches filenames, file IDs, and attached tag
+names or slugs. Matching several tags lists a file only once. Clicking a tag
+still opens that tag's collection.
 
 Favorites are private to the account. They store a reference, not a copy, and
 do not change the file's visibility or expiry. If a file becomes inaccessible

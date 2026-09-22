@@ -288,7 +288,7 @@ func (s *Server) storeStill(
 	// Identical bytes are already stored: point at them rather than decoding,
 	// resizing, and writing a second copy.
 	if existing, ok := s.reusableUpload(ctx, sha); ok {
-		return s.recordReused(ctx, existing, header, owner, options, expires, now)
+		return s.recordReused(ctx, existing, header, owner, options, details, expires, now)
 	}
 
 	result, err := s.media.ProcessStill(src, format)
@@ -354,6 +354,7 @@ func (s *Server) storeStill(
 		FrameCount:   result.FrameCount,
 		Visibility:   options.Visibility,
 		Metadata:     options.Metadata,
+		Details:      details,
 		CreatedAt:    now,
 		ExpiresAt:    expires,
 	}
@@ -391,7 +392,7 @@ func (s *Server) storeVideo(
 	}
 
 	if existing, ok := s.reusableUpload(ctx, sha); ok {
-		return s.recordReused(ctx, existing, header, owner, options, expires, now)
+		return s.recordReused(ctx, existing, header, owner, options, details, expires, now)
 	}
 
 	// The original goes to its content-addressed key before probing, because
@@ -462,6 +463,7 @@ func (s *Server) storeVideo(
 		DurationMS:   result.DurationMS,
 		Visibility:   options.Visibility,
 		Metadata:     options.Metadata,
+		Details:      details,
 		CreatedAt:    now,
 		ExpiresAt:    expires,
 	}

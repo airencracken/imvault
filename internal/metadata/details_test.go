@@ -4,6 +4,7 @@ package metadata
 
 import (
 	"bytes"
+	"encoding/binary"
 	"math"
 	"strings"
 	"testing"
@@ -88,6 +89,42 @@ func TestExtractReadsWhatAPhoneWouldWrite(t *testing.T) {
 	}
 	if details.Altitude == nil || math.Abs(*details.Altitude-35) > 0.1 {
 		t.Errorf("altitude = %v, want 35", details.Altitude)
+	}
+}
+
+func TestExtractGPSValuesBeforeTheirDirectory(t *testing.T) {
+	// TIFF offsets are relative to the header, not constrained to point
+	// forward. Move the GPS directory after its values without moving them.
+	block := exifwrite.Block(exifwrite.Tags{
+		Model: "TestCam One", Latitude: 51.5074, Longitude: -0.1273,
+	})
+	tiff := block[6:]
+	order := binary.LittleEndian
+	root := int(order.Uint32(tiff[4:8]))
+	count := int(order.Uint16(tiff[root:]))
+	found := false
+	for i := 0; i < count; i++ {
+		entry := tiff[root+2+i*12:][:12]
+		if order.Uint16(entry) != 0x8825 {
+			continue
+		}
+		offset := int(order.Uint32(entry[8:]))
+		size := 2 + int(order.Uint16(tiff[offset:]))*12 + 4
+		order.PutUint32(entry[8:], uint32(len(tiff)))
+		block = append(block, tiff[offset:offset+size]...)
+		found = true
+		break
+	}
+	if !found {
+		t.Fatal("fixture has no GPS directory")
+	}
+	data := insertAfterSOI(t, sampleJPEG(t), segment(0xE1, block))
+	details, err := Extract(bytes.NewReader(data))
+	if err != nil || details == nil {
+		t.Fatalf("extract: %v, %v", details, err)
+	}
+	if got := details.Location(); got != "51.50740, -0.12730" {
+		t.Fatalf("location = %q, want coordinates from before the directory", got)
 	}
 }
 

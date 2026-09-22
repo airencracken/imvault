@@ -121,6 +121,24 @@ one that never had any metadata.
 The API is unmasked. It returns an account's own files to that account, and
 hiding somebody's data from themselves in their own tool helps nobody.
 
+### Refreshing older photo details
+
+After an EXIF parser fix, refresh details for existing uploads using the same
+data directory and database as the service. On a default native install:
+
+```bash
+sudo -u imvault env IMVAULT_DATA_DIR=/var/lib/imvault \
+  /usr/local/bin/imvault refresh-metadata
+```
+
+Pass `IMVAULT_DB` too if the service uses a custom database path. The command
+does not read `/etc/conf.d/imvault`. It reads each stored original once, updates
+the shared details, and reports how many changed. It can run while the service
+is up and is safe to repeat. Unsupported or unreadable metadata leaves existing
+details alone; a missing original or database failure exits with an error.
+Original bytes, links, and metadata visibility settings are preserved. Re-uploading
+an identical photo also refreshes its shared details.
+
 ### Where the metadata-free copy lives
 
 It is stored beside the original, named after the content hash, and built the
@@ -168,8 +186,13 @@ is a host, not a transcoder.
 
 ffmpeg is used in two narrow ways for clips: `ffprobe` reads dimensions and
 duration (so the duration limit can be enforced), and `ffmpeg` extracts one
-still frame for the poster. If neither binary is present, imvault logs a warning
+still frame for the poster. If either binary is missing, imvault logs a warning
 at startup and keeps working — clips are accepted on their magic bytes and get a
 generated placeholder poster.
+
+`make install` also warns when either tool is missing. On Gentoo, install
+`media-video/ffmpeg` and restart imvault so it detects the tools. New uploads then
+get video posters; existing placeholder posters are not regenerated automatically.
+Staged package installs (`DESTDIR=...`) skip the build host's dependency check.
 
 ---

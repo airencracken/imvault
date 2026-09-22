@@ -161,7 +161,7 @@ type FileQuery struct {
 	// FavoritedBy restricts results to an account's private favorites. Combine
 	// with the appropriate visibility scope; a favorite never grants access.
 	FavoritedBy *int64
-	// Search matches against the file id and original filename.
+	// Search matches the file id, current filename, and attached tag names/slugs.
 	Search string
 	// Limit caps the number of rows; defaults to 60.
 	Limit int
@@ -223,8 +223,10 @@ func (q FileQuery) where() (string, []any) {
 	}
 	if term := strings.TrimSpace(q.Search); term != "" {
 		pattern := "%" + escapeLike(term) + "%"
-		clauses = append(clauses, `(f.original_name LIKE ? ESCAPE '\' OR f.id LIKE ? ESCAPE '\')`)
-		args = append(args, pattern, pattern)
+		clauses = append(clauses, `(f.original_name LIKE ? ESCAPE '\' OR f.id LIKE ? ESCAPE '\'
+			OR EXISTS (SELECT 1 FROM file_tags ft JOIN tags t ON t.id = ft.tag_id
+				WHERE ft.file_id = f.id AND (t.name LIKE ? ESCAPE '\' OR t.slug LIKE ? ESCAPE '\')))`)
+		args = append(args, pattern, pattern, pattern, pattern)
 	}
 
 	// Retention is checked last so its argument always lines up with the
@@ -330,6 +332,14 @@ func (s *Store) attachTags(ctx context.Context, files []*models.File) error {
 func (s *Store) DeleteFile(ctx context.Context, id string) error {
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM files WHERE id = ?`, id); err != nil {
 		return fmt.Errorf("delete file: %w", err)
+	}
+	return nil
+}
+
+// RenameFile changes the display/download name without moving shared objects.
+func (s *Store) RenameFile(ctx context.Context, id, name string) error {
+	if _, err := s.db.ExecContext(ctx, `UPDATE files SET original_name = ? WHERE id = ?`, name, id); err != nil {
+		return fmt.Errorf("rename file: %w", err)
 	}
 	return nil
 }

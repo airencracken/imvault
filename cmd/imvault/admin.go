@@ -26,8 +26,10 @@ func runCommand(args []string, stdin io.Reader, stdout io.Writer) error {
 	switch args[0] {
 	case "create-admin":
 		return createAdmin(args[1:], stdin, stdout)
+	case "refresh-metadata":
+		return refreshMetadata(args[1:], stdout)
 	case "help", "-h", "--help":
-		_, err := fmt.Fprintln(stdout, "Usage: imvault [create-admin --username NAME --password-stdin [--email ADDRESS]]\n\nWithout arguments, starts the server. Configuration uses IMVAULT_* environment variables.\ncreate-admin creates a new administrator locally; existing accounts are never changed.")
+		_, err := fmt.Fprintln(stdout, "Usage: imvault [COMMAND]\n\nWithout arguments, starts the server. Configuration uses IMVAULT_* environment variables.\n\ncreate-admin --username NAME --password-stdin [--email ADDRESS]\n  Creates a new administrator locally; existing accounts are never changed.\nrefresh-metadata\n  Refreshes photo details from stored originals without changing files or sharing settings.")
 		return err
 	default:
 		return fmt.Errorf("unknown command %q; use imvault --help", args[0])

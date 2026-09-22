@@ -3,7 +3,9 @@
 package web
 
 import (
+	"crypto/sha256"
 	"errors"
+	"fmt"
 	"mime"
 	"net/http"
 	"path"
@@ -146,7 +148,7 @@ func (s *Server) serveObject(w http.ResponseWriter, r *http.Request, file *model
 		w.Header().Set("Content-Disposition", disposition)
 	}
 	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("ETag", `"`+file.ID+`-`+path.Base(key)+`"`)
+	etag := file.ID + "-" + path.Base(key)
 
 	// A given id's bytes never change, so the content is safe to cache for a
 	// long time. Anything not public is marked private to keep shared caches
@@ -155,7 +157,16 @@ func (s *Server) serveObject(w http.ResponseWriter, r *http.Request, file *model
 	if file.Visibility.IsPublic() {
 		scope = "public"
 	}
-	w.Header().Set("Cache-Control", scope+", max-age=31536000, immutable")
+	cacheControl := scope + ", max-age=31536000, immutable"
+	if disposition != "inline" {
+		// Original downloads must revalidate their filename after a rename.
+		// Include the disposition so an old validator cannot preserve it.
+		nameHash := sha256.Sum256([]byte(disposition))
+		etag += fmt.Sprintf("-%x", nameHash[:8])
+		cacheControl = scope + ", no-cache"
+	}
+	w.Header().Set("ETag", `"`+etag+`"`)
+	w.Header().Set("Cache-Control", cacheControl)
 
 	http.ServeContent(w, r, file.OriginalName, time.Time{}, f)
 }
