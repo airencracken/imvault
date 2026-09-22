@@ -9,6 +9,10 @@ imvault is a small, self-hosted image host in the spirit of MLKSHK, Picsur,
 [Chibisafe](https://github.com/chibisafe/chibisafe), and
 [Imgur](https://imgur.com): part personal library, part clubhouse noticeboard.
 
+Built for personal collections and small communities. **Familyware. Friendware.**
+A cozy place to swap family photos, save the group chat's finest screenshots,
+and keep the little things your friends would appreciate.
+
 One Go binary. One data directory. A small blue keeper with no opinions about
 how many pictures of your cat you upload.
 
