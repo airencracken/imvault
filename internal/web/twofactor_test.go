@@ -434,7 +434,7 @@ func TestRegeneratingRecoveryCodesInvalidatesTheOldSet(t *testing.T) {
 
 func TestAdministratorCanClearTwoFactor(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	alice := h.seedUser("alice")
 	client := h.signIn(t, alice.ID)

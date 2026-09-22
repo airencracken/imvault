@@ -11,6 +11,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	"imvault/internal/accounts"
 	"imvault/internal/ids"
 	"imvault/internal/models"
 	"imvault/internal/oidc"
@@ -415,7 +416,7 @@ func (s *Server) handleOIDCCompleteSubmit(w http.ResponseWriter, r *http.Request
 		s.renderPage(w, status, "oidc_complete", view)
 	}
 
-	if !usernameRe.MatchString(username) {
+	if !accounts.ValidUsername(username) {
 		renderErr(http.StatusBadRequest,
 			"Username must be 3-32 characters, using letters, digits, dot, dash or underscore.")
 		return
@@ -423,7 +424,7 @@ func (s *Server) handleOIDCCompleteSubmit(w http.ResponseWriter, r *http.Request
 
 	// The same gate an ordinary registration passes through, so a provider
 	// cannot be used to walk around an invitation-only instance.
-	decision := s.admit(r.Context(), false, inviteCode)
+	decision := s.admit(r.Context(), inviteCode)
 	if decision.Refusal != "" {
 		renderErr(http.StatusForbidden, decision.Refusal)
 		return

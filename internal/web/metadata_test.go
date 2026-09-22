@@ -106,7 +106,7 @@ func storedOriginal(t *testing.T, h *harness, id string) []byte {
 
 func TestAPublicFileIsServedWithoutItsMetadata(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	data := jpegWithLocation(t)
 	id := uploadWith(t, h, map[string]string{"visibility": "public"}, data)
@@ -135,7 +135,7 @@ func TestAPublicFileIsServedWithoutItsMetadata(t *testing.T) {
 
 func TestAMembersFileKeepsItsMetadata(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	id := uploadWith(t, h, map[string]string{"visibility": "members"}, jpegWithLocation(t))
 
@@ -152,7 +152,7 @@ func TestAMembersFileKeepsItsMetadata(t *testing.T) {
 
 func TestAnExplicitSettingOverridesVisibilityBothWays(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	// Hidden on a members-only file, which visibility would have allowed.
 	hidden := uploadWith(t, h, map[string]string{
@@ -179,7 +179,7 @@ func TestAnExplicitSettingOverridesVisibilityBothWays(t *testing.T) {
 
 func TestAnAlbumCanHideMetadataButNeverRevealIt(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	// A members-only file, which on its own would keep its metadata.
 	hidden := uploadWith(t, h, map[string]string{"visibility": "members"}, jpegWithLocation(t))
@@ -238,7 +238,7 @@ func TestMetadataThatCannotBeRemovedIsRefusedRatherThanServed(t *testing.T) {
 		cfg.FFmpegPath = "ffmpeg-that-does-not-exist"
 		cfg.FFprobePath = "ffprobe-that-does-not-exist"
 	})
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	clip := makeWebM(t)
 	resp, body := h.uploadFiles(map[string]string{"visibility": "public"}, []uploadFile{
@@ -280,7 +280,7 @@ func TestMetadataThatCannotBeRemovedIsRefusedRatherThanServed(t *testing.T) {
 
 func TestTheCleanCopyIsSharedByContent(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	data := jpegWithLocation(t)
 	first := uploadWith(t, h, map[string]string{"visibility": "public"}, data)
@@ -325,7 +325,7 @@ func TestTheCleanCopyIsSharedByContent(t *testing.T) {
 
 func TestRemovingTheLastFileRemovesTheCleanCopy(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	id := uploadWith(t, h, map[string]string{"visibility": "public"}, jpegWithLocation(t))
 	if _, served := fetchRaw(t, h, id); bytes.Contains(served, []byte(gpsMarker)) {
@@ -346,7 +346,7 @@ func TestRemovingTheLastFileRemovesTheCleanCopy(t *testing.T) {
 
 func TestTheAccountExportStillCarriesTheOriginal(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	data := jpegWithLocation(t)
 	uploadWith(t, h, map[string]string{"visibility": "public"}, data)

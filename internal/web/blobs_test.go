@@ -83,7 +83,7 @@ func TestReferenceCountTracksSharedContent(t *testing.T) {
 
 func TestReferenceCountSurvivesACascade(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	alice := h.seedUser("alice")
 	if err := h.store.SetPassword(t.Context(), alice.ID,
@@ -187,7 +187,7 @@ func TestDeletingAnAccountCollectsItsContent(t *testing.T) {
 
 func TestRecomputingReferenceCountsRepairsDrift(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("marcus")
+	h.provisionAdmin("marcus")
 
 	image := pngFixture(t, 40, 40)
 	_, body := h.uploadFiles(map[string]string{"public": "1"}, []uploadFile{

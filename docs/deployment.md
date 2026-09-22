@@ -22,6 +22,12 @@ Create the account it runs as, then pick one of the two init systems below.
 sudo useradd --system --home-dir /var/lib/imvault --shell /usr/sbin/nologin imvault
 ```
 
+Create your administrator with the local `imvault create-admin` command,
+running as the service account with the service's database settings. See
+[provisioning an administrator](accounts.md#provisioning-an-administrator).
+You can keep `IMVAULT_ALLOW_SIGNUP=false` throughout setup; public registration
+never grants administrator access.
+
 ## systemd
 
 ```bash
@@ -223,7 +229,7 @@ A versioned ebuild needs a release source tarball, a dependency tarball, and a
 manifest. The live ebuild vendors modules during unpack instead.
 
 Before exposing the service, bind it to loopback, configure the TLS proxy, and
-register your administrator account. Under **Admin → Settings → Anonymous
+provision your administrator locally. Under **Admin → Settings → Anonymous
 uploads**, uncheck **Allow uploads without an account** and save to turn them
 off. The switch applies immediately and survives restarts. Set an instance
 storage ceiling and upload concurrency appropriate to the machine.

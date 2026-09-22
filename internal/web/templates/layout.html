@@ -41,8 +41,10 @@
   </header>
 
   <main class="page">
-    {{if .Notice}}<p class="flash ok">{{.Notice}}</p>{{end}}
-    {{if .Error}}<p class="flash err">{{.Error}}</p>{{end}}
+    {{block "page_notices" .}}
+      {{if .Notice}}<p class="flash ok">{{.Notice}}</p>{{end}}
+      {{if .Error}}<p class="flash err">{{.Error}}</p>{{end}}
+    {{end}}
     {{template "content" .}}
   </main>
 

@@ -11,9 +11,6 @@ import (
 )
 
 // CountUsers returns the total number of registered accounts.
-//
-// The registration flow uses it to decide whether an account is the first, and
-// therefore becomes the administrator.
 func (s *Store) CountUsers(ctx context.Context) (int, error) {
 	var n int
 	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users`).Scan(&n); err != nil {

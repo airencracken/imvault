@@ -287,7 +287,7 @@ func TestChangePasswordWhileSignedIn(t *testing.T) {
 
 func TestAdminIssuesAResetLink(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	target := h.seedUser("alice")
 	if err := h.store.SetEmail(t.Context(), target.ID, "alice@example.com", false); err != nil {
@@ -323,7 +323,7 @@ func TestAdminIssuesAResetLink(t *testing.T) {
 
 func TestAdminIssuedResetIsSingleUse(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	target := h.seedUser("alice")
 	_, page := h.postForm("/admin/users/"+itoa64(target.ID)+"/reset", url.Values{

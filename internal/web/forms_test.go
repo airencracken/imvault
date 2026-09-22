@@ -58,7 +58,7 @@ func TestAPasswordWithASemicolonCanBeSignedInWith(t *testing.T) {
 
 func TestAReportNoteKeepsItsSemicolon(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 	owner := h.seedUser("owner")
 	reporter := h.seedUser("reporter")
 
@@ -89,7 +89,7 @@ func TestAReportNoteKeepsItsSemicolon(t *testing.T) {
 
 func TestASearchTermKeepsItsSemicolon(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	// A file whose name contains one, so the filter can be seen working rather
 	// than merely echoed back.

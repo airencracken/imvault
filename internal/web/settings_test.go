@@ -19,7 +19,7 @@ func TestInstanceSettingsOverrideTheEnvironment(t *testing.T) {
 		cfg.AllowAnonymousUploads = true
 		cfg.AnonymousTTL = 24 * time.Hour
 	})
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	// Before anything is stored, the configuration is in charge.
 	policy := h.srv.policy()
@@ -68,7 +68,7 @@ func TestConfiguredAdmissionAndStorageLimitsApply(t *testing.T) {
 		cfg.InviteOnly = true
 		cfg.MaxTotalBytes = 1
 	})
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 	resp, _ := h.postForm("/register", url.Values{
 		"csrf_token": {h.csrf()}, "username": {"uninvited"}, "password": {testPassword},
 	})
@@ -83,7 +83,7 @@ func TestConfiguredAdmissionAndStorageLimitsApply(t *testing.T) {
 
 func TestAdminCanSwitchAnonymousUploadsOffAndOn(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 	anon := h.newSession(t)
 	for _, enabled := range []bool{false, true} {
 		form := url.Values{"csrf_token": {h.csrf()}, "anonymous_ttl": {"1h"},
@@ -121,7 +121,7 @@ func TestStoredSettingsActuallyGovern(t *testing.T) {
 		cfg.AllowAnonymousUploads = true
 		cfg.AnonymousTTL = 24 * time.Hour
 	})
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	// Close both from the admin page.
 	h.postForm("/admin/settings", url.Values{
@@ -171,7 +171,7 @@ func TestRetentionWindowAppliesToExistingUploads(t *testing.T) {
 		cfg.AllowAnonymousUploads = true
 		cfg.AnonymousTTL = 30 * 24 * time.Hour
 	})
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	// Two anonymous uploads, with a month to live.
 	for _, name := range []string{"one.png", "two.png"} {
@@ -233,7 +233,7 @@ func TestShorteningTheWindowMakesOldUploadsCollectable(t *testing.T) {
 		cfg.AllowAnonymousUploads = true
 		cfg.AnonymousTTL = 30 * 24 * time.Hour
 	})
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	anon := h.newSession(t)
 	resp, body := anon.upload(map[string]string{"public": "1"}, []uploadFile{
@@ -273,7 +273,7 @@ func TestClearingSettingsRestoresTheConfiguration(t *testing.T) {
 		cfg.AllowAnonymousUploads = true
 		cfg.AnonymousTTL = 12 * time.Hour
 	})
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	h.postForm("/admin/settings", url.Values{
 		"csrf_token":              {h.csrf()},
@@ -354,7 +354,7 @@ func TestRetentionRoundTripsThroughTheForm(t *testing.T) {
 
 func TestOnlyAnAdministratorCanChangeSettings(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	alice := h.seedUser("alice")
 	client := h.signIn(t, alice.ID)

@@ -1,3 +1,7 @@
+{{define "page_notices"}}
+<div id="admin-notice">{{template "admin_notice_inner" .Notice}}</div>
+{{end}}
+
 {{define "content"}}
 <header class="page-head">
   <div>
@@ -9,8 +13,6 @@
 
 {{/* Rendered by both the full page and by an out-of-band swap after an
      action, so a single response can update a row and report what happened. */}}
-<div id="admin-notice">{{template "admin_notice_inner" .Notice}}</div>
-
 <section x-data="tableFilter">
   <div class="filter-row">
     <input type="search" x-model="q" placeholder="Filter by name or address" autocomplete="off"

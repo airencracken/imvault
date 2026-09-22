@@ -26,7 +26,7 @@ func uploadAs(t *testing.T, s *session, name, visibility string) string {
 
 func TestAModeratorMayRemoveButNotRepublish(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 	bob := h.seedUser("bob")
 	mod := h.seedUser("mod")
 	if err := h.store.SetUserRole(t.Context(), mod.ID, models.RoleModerator); err != nil {
@@ -70,7 +70,7 @@ func TestAModeratorMayRemoveButNotRepublish(t *testing.T) {
 
 func TestAModeratorReachesContentButNotAccounts(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 	mod := h.seedUser("mod")
 	member := h.seedUser("member")
 	if err := h.store.SetUserRole(t.Context(), mod.ID, models.RoleModerator); err != nil {
@@ -115,7 +115,7 @@ func TestAModeratorReachesContentButNotAccounts(t *testing.T) {
 
 func TestAnAdministratorGrantsARole(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 	bob := h.seedUser("bob")
 
 	resp, body := h.postHTMX("/admin/users/"+itoa64(bob.ID)+"/role",
@@ -165,7 +165,7 @@ func TestAnAdministratorGrantsARole(t *testing.T) {
 
 func TestAModeratorDoesNotGetAlbumAdministration(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 	owner := h.seedUser("owner")
 	mod := h.seedUser("mod")
 	if err := h.store.SetUserRole(t.Context(), mod.ID, models.RoleModerator); err != nil {
@@ -217,7 +217,7 @@ func TestAModeratorDoesNotGetAlbumAdministration(t *testing.T) {
 
 func TestAdminNavShowsAModeratorOnlyContent(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 	mod := h.seedUser("mod")
 	if err := h.store.SetUserRole(t.Context(), mod.ID, models.RoleModerator); err != nil {
 		t.Fatal(err)

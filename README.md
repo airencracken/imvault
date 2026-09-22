@@ -37,8 +37,8 @@ PORT=9000 make demo   # somebody already parked on 8080?
 make help            # the rest of the toolbox
 ```
 
-Everything is seeded through the same HTTP routes people and scripts use. No
-stage doors, no database sleight of hand.
+The keeper gets an admin account through the local provisioning command.
+Members and sample content come through the same HTTP routes people use.
 
 ## What's in the vault?
 
@@ -65,8 +65,11 @@ Anonymous uploads have a plain on/off control:
 Check or uncheck it and save. It takes effect immediately and survives restarts.
 Anonymous files are public and expire after the configured retention window.
 
-The first registered account becomes the administrator, even when normal signup
-is closed. Claim that account before exposing a fresh instance to the internet.
+Create your administrator locally with `imvault create-admin --username NAME
+--password-stdin`. Public registration always creates members and respects the
+signup policy, even on an empty instance. See
+[provisioning an administrator](docs/accounts.md#provisioning-an-administrator)
+for password input and service-account examples.
 
 ## Make it yours
 

@@ -115,9 +115,8 @@ func TestMailQueueGivesUpAndCanBeRetried(t *testing.T) {
 	// The harness is configured for three attempts.
 	h.mailer.failWith = errors.New("relay unreachable")
 
-	// The administrator has to be the first account, so register before seeding
-	// anybody else.
-	h.registerForm("boss")
+	// Provision an administrator to inspect and manage the queue.
+	h.provisionAdmin("boss")
 
 	alice := h.seedUser("alice")
 	if err := h.store.SetEmail(t.Context(), alice.ID, "alice@example.com", false); err != nil {
@@ -191,7 +190,7 @@ func TestMailQueueDiscard(t *testing.T) {
 
 	h.mailer.failWith = errors.New("relay unreachable")
 
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	alice := h.seedUser("alice")
 	if err := h.store.SetEmail(t.Context(), alice.ID, "alice@example.com", false); err != nil {

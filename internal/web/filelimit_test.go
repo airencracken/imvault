@@ -12,7 +12,7 @@ import (
 
 func TestPerAccountFileLimitOverridesTheInstanceDefault(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	alice := h.seedUser("alice")
 	if err := h.store.SetPassword(t.Context(), alice.ID,
@@ -58,7 +58,7 @@ func TestPerAccountFileLimitCanRaiseTheCeiling(t *testing.T) {
 		cfg.MaxUploadBytes = 64
 		cfg.MaxVideoBytes = 64
 	})
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	alice := h.seedUser("alice")
 	if err := h.store.SetPassword(t.Context(), alice.ID,
@@ -100,7 +100,7 @@ func TestPerAccountFileLimitCanRaiseTheCeiling(t *testing.T) {
 
 func TestUploadPageReportsTheAccountsOwnLimit(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	alice := h.seedUser("alice")
 	if err := h.store.SetPassword(t.Context(), alice.ID,

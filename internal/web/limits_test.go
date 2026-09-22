@@ -15,7 +15,7 @@ import (
 
 func TestUploadsStopAtTheInstanceCeiling(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	// With no ceiling the first upload lands.
 	resp, body := h.uploadFiles(map[string]string{"visibility": "members"}, []uploadFile{
@@ -58,7 +58,7 @@ func TestUploadsStopAtTheInstanceCeiling(t *testing.T) {
 
 func TestAnonymousUploadsCountTowardTheInstanceCeiling(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	// One anonymous upload, which no account's quota covers.
 	anon := h.newSession(t)
@@ -92,7 +92,7 @@ func TestAnonymousUploadsCountTowardTheInstanceCeiling(t *testing.T) {
 
 func TestTheInstanceCeilingIsAnInstanceSetting(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	if h.srv.policy().MaxTotalBytes != 0 {
 		t.Fatal("the harness starts with a ceiling")
@@ -149,7 +149,7 @@ func TestConcurrentUploadsAreBounded(t *testing.T) {
 	h := newHarnessWith(t, func(cfg *config.Config) {
 		cfg.MaxConcurrentUploads = 1
 	})
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	// Shorten the queue so the test does not sit for the real ten seconds.
 	h.srv.processing.wait = 50 * time.Millisecond

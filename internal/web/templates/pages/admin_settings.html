@@ -10,9 +10,6 @@
   {{template "admin_nav" .}}
 </header>
 
-{{if .Error}}<p class="flash err">{{.Error}}</p>{{end}}
-{{if .Notice}}<p class="flash ok">{{.Notice}}</p>{{end}}
-
 <section class="panel stack">
   <h2>What is this instance for?</h2>
   <p class="muted">
@@ -45,7 +42,7 @@
     <span>Allow new accounts to register</span>
   </label>
   <p class="muted">
-    The first account always becomes the administrator, whatever this says.
+    New registrations create ordinary member accounts.
     {{if index .Stored "allow_signup"}}
       Currently set here. Clearing the settings restores {{if .ConfigSignup}}open{{else}}closed{{end}}.
     {{else}}

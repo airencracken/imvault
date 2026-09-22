@@ -351,8 +351,7 @@ func (s *session) signInTo(username, password, code string) (*http.Response, str
 }
 
 // sessionFor returns a session for an existing account, creating the session
-// row directly. It is how a test acts as somebody who is not the first account,
-// and therefore not the administrator.
+// row directly. It lets a test switch between accounts without sharing cookies.
 func (h *harness) sessionFor(t *testing.T, userID int64) *session {
 	t.Helper()
 

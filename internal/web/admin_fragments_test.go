@@ -32,7 +32,7 @@ func (h *harness) postHTMX(path string, form url.Values) (*http.Response, string
 
 func TestAdminActionsAnswerHTMXWithAFragment(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	target := h.seedUser("alice")
 
@@ -76,7 +76,7 @@ func TestAdminActionsAnswerHTMXWithAFragment(t *testing.T) {
 
 func TestAdminRowsAreWiredForClientSideFiltering(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 	h.seedUser("alice")
 
 	_, page := h.get("/admin/users")
@@ -102,7 +102,7 @@ func TestAdminRowsAreWiredForClientSideFiltering(t *testing.T) {
 
 func TestAdminDeleteRemovesTheRow(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	target := h.seedUser("alice")
 
@@ -132,7 +132,7 @@ func TestAdminDeleteRemovesTheRow(t *testing.T) {
 
 func TestAdminActionFailuresStayInline(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	target := h.seedUser("alice")
 
@@ -164,7 +164,7 @@ func TestAdminActionFailuresStayInline(t *testing.T) {
 
 func TestAdminLastAdministratorErrorIsInline(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	boss, err := h.store.UserByUsername(t.Context(), "boss")
 	if err != nil {
@@ -193,7 +193,7 @@ func TestAdminLastAdministratorErrorIsInline(t *testing.T) {
 
 func TestAdminActionsStillWorkWithoutJavaScript(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	target := h.seedUser("alice")
 
@@ -221,7 +221,7 @@ func TestAdminActionsStillWorkWithoutJavaScript(t *testing.T) {
 
 func TestAdminResetLinkSurvivesWithoutHTMX(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	target := h.seedUser("alice")
 
@@ -245,7 +245,7 @@ func TestAdminResetLinkSurvivesWithoutHTMX(t *testing.T) {
 
 func TestAdminMailRowsAreFragments(t *testing.T) {
 	h := newQueueHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	// Point the harness sender at a failure so a message stays queued.
 	h.mailer.failWith = errFakeMail
@@ -281,8 +281,8 @@ func TestAdminMailRowsAreFragments(t *testing.T) {
 func TestPagesUsingAlpineAlsoLoadIt(t *testing.T) {
 	h := newHarness(t)
 
-	// The first account is the administrator, so the admin pages are reachable.
-	h.registerForm("boss")
+	// Provision an administrator so the admin pages are reachable.
+	h.provisionAdmin("boss")
 
 	// A page with Alpine attributes but no Alpine loaded is silently inert:
 	// the confirmation dialog never opens, the filter never hides anything, and

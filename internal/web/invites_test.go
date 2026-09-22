@@ -45,7 +45,7 @@ func (h *harness) registerWith(fields url.Values) (*http.Response, string) {
 
 func TestInvitationOnlyRegistrationNeedsACode(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 	h.setPolicy(t, models.Settings{
 		AllowSignup:           true,
 		InviteOnly:            true,
@@ -112,7 +112,7 @@ func TestInvitationOnlyRegistrationNeedsACode(t *testing.T) {
 
 func TestAnInvitationAdmitsEvenWhenRegistrationIsClosed(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 	h.setPolicy(t, models.Settings{
 		AllowSignup:           false,
 		InviteOnly:            false,
@@ -140,7 +140,7 @@ func TestAnInvitationAdmitsEvenWhenRegistrationIsClosed(t *testing.T) {
 
 func TestAFailedRegistrationDoesNotBurnTheInvitation(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 	h.setPolicy(t, models.Settings{
 		AllowSignup:           true,
 		InviteOnly:            true,
@@ -176,7 +176,7 @@ func TestAFailedRegistrationDoesNotBurnTheInvitation(t *testing.T) {
 
 func TestALimitedInvitationRunsOut(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 	h.setPolicy(t, models.Settings{
 		AllowSignup:           true,
 		InviteOnly:            true,
@@ -204,7 +204,7 @@ func TestALimitedInvitationRunsOut(t *testing.T) {
 
 func TestRevokedAndExpiredInvitationsAreRefused(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 	h.setPolicy(t, models.Settings{
 		AllowSignup:           true,
 		InviteOnly:            true,
@@ -231,7 +231,7 @@ func TestRevokedAndExpiredInvitationsAreRefused(t *testing.T) {
 
 func TestOnlyAnAdministratorManagesInvitations(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 	mod := h.seedUser("mod")
 	member := h.seedUser("member")
 	if err := h.store.SetUserRole(t.Context(), mod.ID, models.RoleModerator); err != nil {
@@ -275,7 +275,7 @@ func TestOnlyAnAdministratorManagesInvitations(t *testing.T) {
 
 func TestACodeIsShownOnceAndThenOnlyItsPrefix(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	resp, body := h.postHTMX("/admin/invites", url.Values{
 		"csrf_token": {h.csrf()},
@@ -318,7 +318,7 @@ func TestACodeIsShownOnceAndThenOnlyItsPrefix(t *testing.T) {
 
 func TestInviteOnlyIsAnInstanceSetting(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	if h.srv.policy().InviteOnly {
 		t.Fatal("the harness starts invitation-only")

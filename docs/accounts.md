@@ -2,6 +2,61 @@
 
 Registration, signing in, second factors, and the way out.
 
+## Provisioning an administrator
+
+Administrators are created locally, using the installed binary and the same
+data directory and database settings as the service:
+
+```bash
+imvault create-admin --username marcus --password-stdin --email you@example.com \
+  < /path/to/admin-password
+```
+
+The input is a single password line, with an optional trailing newline. Email
+is optional. Passwords follow the web form's rules: at least eight characters
+and at most 72 bytes. The command never accepts a password as an argument,
+starts no HTTP listener, and exits nonzero on failure. Run it as the service's
+OS user so newly created database files have the correct owner.
+
+On a native OpenRC install, this Bash example reads the password without echoing
+it or putting it in shell history. Run `sudo -v` first so sudo does not need the
+password pipe for its own prompt:
+
+```bash
+sudo -v
+if IFS= read -r -s -p 'Admin password: ' imvault_admin_password; then
+	printf '\n'
+	printf '%s\n' "$imvault_admin_password" |
+		sudo -u imvault env IMVAULT_DATA_DIR=/var/lib/imvault \
+		/usr/local/bin/imvault create-admin --username marcus --password-stdin
+	unset imvault_admin_password
+fi
+```
+
+Use `/usr/bin/imvault` for an ebuild or `make install PREFIX=/usr`. If the
+service sets `IMVAULT_DB` or a different data directory, pass those same values
+to this command; it does not source `/etc/conf.d/imvault`. The service account
+must already exist and be able to write the data directory. For a new native
+installation, prepare it with:
+
+```bash
+sudo install -d -o imvault -g imvault -m 0750 /var/lib/imvault
+```
+
+For Docker, pipe the password to
+`docker exec -i imvault /usr/local/bin/imvault create-admin --username marcus --password-stdin`
+using the container's configured environment and data volume.
+
+The command works before first startup or while the service is running. It
+creates a new administrator even if other accounts exist; an existing username
+is an error, including a different capitalization. It never resets a password
+or promotes an existing account. Existing administrators and their passwords
+are unchanged by this update. Sign in at `/login` after provisioning.
+
+Public registration always creates ordinary members. Closed and invitation-only
+registration apply even when the database has no accounts; there is no first
+signup exception. Valid invitations continue to admit ordinary members.
+
 ## Exporting an account
 
 `/settings/account` downloads a zip of everything the account has uploaded,
@@ -88,8 +143,8 @@ provider happens to name, so the account page is the safe way to add one.
 
 ## Roles
 
-The first account registered is the administrator. After that, every account has
-one of three roles, set from `/admin/users`:
+Provision an administrator with the local command above. Web registrations
+create members; an administrator can change roles from `/admin/users`:
 
 | Role | What it adds |
 | --- | --- |

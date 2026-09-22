@@ -101,7 +101,7 @@ func TestAnonymousTagsAppearInTheIndex(t *testing.T) {
 	}
 
 	// A signed-in account sees it too, because the file is public.
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 	_, page = h.get("/tags")
 	if !strings.Contains(page, "seaside") {
 		t.Error("a signed-in viewer cannot see a public anonymous tag")
@@ -187,7 +187,7 @@ func TestAdministratorCanTagAnAnonymousUploadAfterwards(t *testing.T) {
 	id := firstFileID(t, body)
 
 	// The administrator signs in and opens the file.
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	resp, page := h.get("/f/" + id)
 	if resp.StatusCode != 200 {
@@ -263,7 +263,7 @@ func TestAnonymousTagsArePrunedWithTheUpload(t *testing.T) {
 
 func TestAPICanTagAtUploadTime(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	anon, body := anonymousUpload(t, h,
 		map[string]string{"public": "1", "tags": "one, two"},

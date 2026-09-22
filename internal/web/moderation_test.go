@@ -17,7 +17,7 @@ func moderationHarness(t *testing.T) (h *harness, owner, reporter, mod *models.U
 	t.Helper()
 
 	h = newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 	owner = h.seedUser("owner")
 	reporter = h.seedUser("reporter")
 	mod = h.seedUser("mod")

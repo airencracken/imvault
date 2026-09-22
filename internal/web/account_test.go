@@ -11,16 +11,15 @@ import (
 	"imvault/internal/store"
 )
 
-// accountUnderTest registers an administrator and then a second, ordinary
+// accountUnderTest provisions an administrator and then a second, ordinary
 // account, and returns a session for the ordinary one.
 //
-// The second account matters: deleting the only account on an instance would
-// leave nobody able to administer it, so the store refuses it, and a test that
-// deletes the first account would be testing that guard rather than deletion.
+// A separate administrator keeps ordinary account deletion independent of the
+// store's last-administrator guard.
 func accountUnderTest(t *testing.T, h *harness) (*session, int64) {
 	t.Helper()
 
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	user := h.seedUser("marcus")
 	if err := h.store.SetPassword(t.Context(), user.ID,
@@ -181,7 +180,7 @@ func TestAccountDeletionNeedsTheSecondFactor(t *testing.T) {
 
 func TestLastAdministratorCannotDeleteThemselves(t *testing.T) {
 	h := newHarness(t)
-	boss := h.registerForm("boss")
+	boss := h.provisionAdmin("boss")
 
 	resp, _ := h.postForm("/settings/account/delete", url.Values{
 		"csrf_token": {h.csrf()},

@@ -125,7 +125,7 @@ func TestAnonymousUploadsAreAlwaysPublic(t *testing.T) {
 
 func TestDefaultVisibilityGovernsNewUploads(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	for _, level := range models.VisibilityLevels() {
 		h.setPolicy(t, models.Settings{
@@ -153,7 +153,7 @@ func TestDefaultVisibilityGovernsNewUploads(t *testing.T) {
 
 func TestUploadFormOffersTheDefaultLevel(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 	h.setPolicy(t, models.Settings{
 		AllowAnonymousUploads: true,
 		DefaultVisibility:     models.VisibilityPrivate,
@@ -174,7 +174,7 @@ func TestUploadFormOffersTheDefaultLevel(t *testing.T) {
 
 func TestVisibilityCanBeChangedAfterUpload(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	_, body := h.uploadFiles(map[string]string{"visibility": "private"}, []uploadFile{
 		{name: "shot.png", data: pngFixture(t, 32, 32)},
@@ -252,7 +252,7 @@ func TestTheFeedShowsWhatEverybodyShared(t *testing.T) {
 
 func TestSignedInLandingPageIsTheFeed(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	resp, _ := h.get("/")
 	if resp.StatusCode != http.StatusSeeOther {
@@ -265,7 +265,7 @@ func TestSignedInLandingPageIsTheFeed(t *testing.T) {
 
 func TestMembersLevelIsNotPubliclyCached(t *testing.T) {
 	h := newHarness(t)
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	_, body := h.uploadFiles(map[string]string{"visibility": "members"}, []uploadFile{
 		{name: "shot.png", data: pngFixture(t, 32, 32)},
@@ -289,7 +289,7 @@ func TestInstanceProfilesSetThePolicy(t *testing.T) {
 		cfg.DefaultVisibility = models.VisibilityMembers
 		cfg.AnonymousTTL = 48 * time.Hour
 	})
-	h.registerForm("boss")
+	h.provisionAdmin("boss")
 
 	if _, ok := profileFor("nonsense"); ok {
 		t.Error("an unknown profile was accepted")
