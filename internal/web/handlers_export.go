@@ -45,17 +45,18 @@ type exportAccount struct {
 }
 
 type exportFile struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	Path       string `json:"path"`
-	Size       int64  `json:"size_bytes"`
-	Mime       string `json:"mime"`
-	Kind       string `json:"kind"`
-	Width      int    `json:"width,omitempty"`
-	Height     int    `json:"height,omitempty"`
-	DurationMS int64  `json:"duration_ms,omitempty"`
-	FrameCount int    `json:"frame_count,omitempty"`
-	SHA256     string `json:"sha256"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Path        string `json:"path"`
+	Size        int64  `json:"size_bytes"`
+	Mime        string `json:"mime"`
+	Kind        string `json:"kind"`
+	Width       int    `json:"width,omitempty"`
+	Height      int    `json:"height,omitempty"`
+	DurationMS  int64  `json:"duration_ms,omitempty"`
+	FrameCount  int    `json:"frame_count,omitempty"`
+	SHA256      string `json:"sha256"`
 	// Public is the older boolean, kept so a manifest written before levels
 	// existed still reads the same way. Visibility is the level itself.
 	Public     bool        `json:"public"`
@@ -187,26 +188,27 @@ func (s *Server) exportableFiles(r *http.Request, userID int64) ([]exportFile, e
 
 		for _, file := range batch {
 			out = append(out, exportFile{
-				ID:         file.ID,
-				Name:       file.OriginalName,
-				Path:       exportPath(file.ID, file.OriginalName),
-				Size:       file.Size,
-				Mime:       file.Mime,
-				Kind:       string(file.Kind),
-				Width:      file.Width,
-				Height:     file.Height,
-				DurationMS: file.DurationMS,
-				FrameCount: file.FrameCount,
-				SHA256:     file.SHA256,
-				Public:     file.Visibility.IsPublic(),
-				Visibility: string(file.Visibility),
-				Views:      file.Views,
-				CreatedAt:  file.CreatedAt.UTC().Format(time.RFC3339),
-				ExpiresAt:  exportExpiry(file),
-				Tags:       exportTags(file.Tags),
-				URL:        s.absoluteURL(r, "/f/"+file.ID),
-				RawURL:     s.absoluteURL(r, "/f/"+file.ID+"/raw"),
-				ObjectKey:  file.ObjectKey,
+				ID:          file.ID,
+				Name:        file.OriginalName,
+				Description: file.Description,
+				Path:        exportPath(file.ID, file.OriginalName),
+				Size:        file.Size,
+				Mime:        file.Mime,
+				Kind:        string(file.Kind),
+				Width:       file.Width,
+				Height:      file.Height,
+				DurationMS:  file.DurationMS,
+				FrameCount:  file.FrameCount,
+				SHA256:      file.SHA256,
+				Public:      file.Visibility.IsPublic(),
+				Visibility:  string(file.Visibility),
+				Views:       file.Views,
+				CreatedAt:   file.CreatedAt.UTC().Format(time.RFC3339),
+				ExpiresAt:   exportExpiry(file),
+				Tags:        exportTags(file.Tags),
+				URL:         s.absoluteURL(r, "/f/"+file.ID),
+				RawURL:      s.absoluteURL(r, "/f/"+file.ID+"/raw"),
+				ObjectKey:   file.ObjectKey,
 			})
 		}
 

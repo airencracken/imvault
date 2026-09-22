@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Match IMVAULT_LOG_FILE in /etc/conf.d/imvault if you change the log path.
+# OpenRC keeps stdout/stderr open; copytruncate avoids restarting the service.
+"/var/log/imvault.log" {
+	daily
+	maxsize 10M
+	rotate 14
+	missingok
+	notifempty
+	compress
+	delaycompress
+	nodateext
+	copytruncate
+}

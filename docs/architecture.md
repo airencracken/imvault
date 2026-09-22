@@ -139,9 +139,9 @@ to end — registration, multipart upload, renditions, animations, clips with
 range requests, tagging, albums, the JSON and plain-text API, and CSRF
 enforcement, all against the real templates.
 
-Tests that need ffmpeg skip themselves when it is unavailable, so the suite runs
-anywhere. The same goes for the JavaScript and browser checks: they skip when
-node or a Chromium-family browser is missing.
+Tests that need ffmpeg or logrotate skip themselves when the tool is unavailable,
+so the suite runs anywhere. The same goes for the JavaScript and browser checks:
+they skip when node or a Chromium-family browser is missing.
 
 Three layers, each catching what the one below cannot:
 

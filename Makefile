@@ -12,6 +12,7 @@ PREFIX     ?= /usr/local
 DESTDIR    ?=
 SYSCONFDIR ?= /etc
 UNITDIR    ?= $(SYSCONFDIR)/systemd/system
+LOGROTATEDIR ?= $(SYSCONFDIR)/logrotate.d
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo 0.1.0)
 DIST    := dist
@@ -21,7 +22,7 @@ DIST_FILES := cmd internal docs go.mod go.sum Makefile README.md LICENSE \
 
 .DEFAULT_GOAL := help
 .PHONY: help all build run demo test test-race test-js check check-fmt check-js check-complexity vet fmt tidy \
-	install install-systemd install-openrc dist clean clean-demo docker \
+	install install-systemd install-openrc install-logrotate dist clean clean-demo docker \
 	compose-up compose-down test-browser
 
 help: ## Show the available targets
@@ -107,7 +108,21 @@ install-systemd: ## Install the systemd unit and its environment file
 	@printf '  %s\n' "$${EDITOR:-vi} $(SYSCONFDIR)/imvault/imvault.env"
 	@printf '  systemctl daemon-reload && systemctl enable --now imvault\n'
 
-install-openrc: ## Install the OpenRC service (Alpine, Gentoo)
+install-logrotate: ## Install log rotation for the OpenRC log, preserving local settings
+	install -d "$(DESTDIR)$(LOGROTATEDIR)"
+	@if [ -e "$(DESTDIR)$(LOGROTATEDIR)/imvault" ] || [ -L "$(DESTDIR)$(LOGROTATEDIR)/imvault" ]; then \
+		echo "  keeping the existing $(DESTDIR)$(LOGROTATEDIR)/imvault"; \
+	else \
+		install -m644 contrib/logrotate/imvault "$(DESTDIR)$(LOGROTATEDIR)/imvault"; \
+	fi
+	@if [ -z "$(DESTDIR)" ]; then \
+		if ! command -v logrotate >/dev/null 2>&1; then \
+			printf '\nWarning: logrotate is missing. On Gentoo: emerge --ask app-admin/logrotate\n'; \
+		fi; \
+		printf 'Ensure logrotate runs regularly via cron or a timer. See docs/operations.md.\n'; \
+	fi
+
+install-openrc: install-logrotate ## Install the OpenRC service and log rotation (Alpine, Gentoo)
 	install -Dm755 contrib/openrc/imvault "$(DESTDIR)/etc/init.d/imvault"
 	@if [ -e "$(DESTDIR)/etc/conf.d/imvault" ]; then \
 		echo "  keeping the existing $(DESTDIR)/etc/conf.d/imvault"; \

@@ -15,7 +15,7 @@ import (
 // The storage keys live on the blob rather than on the file, so they are read
 // through the content hash. COALESCE keeps a file whose blob is somehow missing
 // from breaking every listing that touches it.
-const fileColumns = `f.id, f.user_id, f.original_name, f.ext, f.mime, f.size,
+const fileColumns = `f.id, f.user_id, f.original_name, f.description, f.ext, f.mime, f.size,
 	f.width, f.height, f.sha256,
 	COALESCE(b.object_key, ''), COALESCE(b.thumb_key, ''), COALESCE(b.preview_key, ''),
 	COALESCE(b.details_json, ''),
@@ -37,7 +37,7 @@ func scanFile(sc rowScanner) (*models.File, error) {
 		created    int64
 	)
 	if err := sc.Scan(
-		&f.ID, &userID, &f.OriginalName, &f.Ext, &f.Mime, &f.Size,
+		&f.ID, &userID, &f.OriginalName, &f.Description, &f.Ext, &f.Mime, &f.Size,
 		&f.Width, &f.Height, &f.SHA256, &f.ObjectKey, &f.ThumbKey, &f.PreviewKey, &f.Details,
 		&visibility, &metadata, &kind, &f.DurationMS, &f.FrameCount, &f.Views, &created, &expires, &f.Username,
 	); err != nil {
@@ -64,6 +64,11 @@ func (s *Store) CreateFile(ctx context.Context, f *models.File) error {
 // records the file. Account reservations alone cannot enforce it: anonymous
 // uploads have no account, and concurrent reservations precede file inserts.
 func (s *Store) CreateFileWithLimit(ctx context.Context, f *models.File, totalLimit int64) error {
+	description, err := models.NormalizeFileDescription(f.Description)
+	if err != nil {
+		return err
+	}
+	f.Description = description
 	kind := string(f.Kind)
 	if kind == "" {
 		kind = string(models.KindImage)
@@ -81,11 +86,11 @@ func (s *Store) CreateFileWithLimit(ctx context.Context, f *models.File, totalLi
 	// this insert and has nothing to update otherwise.
 	query := `
 		INSERT INTO files (
-			id, user_id, original_name, ext, mime, size, width, height, sha256,
+			id, user_id, original_name, description, ext, mime, size, width, height, sha256,
 			visibility, metadata, kind, duration_ms, frame_count, views, created_at, expires_at
-		) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?`
+		) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?`
 	args := []any{
-		f.ID, nullableInt64(f.UserID), f.OriginalName, f.Ext, f.Mime, f.Size,
+		f.ID, nullableInt64(f.UserID), f.OriginalName, f.Description, f.Ext, f.Mime, f.Size,
 		f.Width, f.Height, f.SHA256,
 		string(f.Visibility), string(f.Metadata), kind, f.DurationMS, f.FrameCount, f.Views,
 		ts(f.CreatedAt), nullableTime(f.ExpiresAt),

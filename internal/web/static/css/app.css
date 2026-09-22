@@ -411,7 +411,9 @@ details.album-settings > summary {
 }
 details.album-settings[open] > summary { margin-bottom: .6rem; }
 
-/* The photograph's own description, closed until asked for. */
+.file-description { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* Camera metadata, closed until asked for. */
 details.file-details { margin: 0 0 1rem; }
 details.file-details > summary { cursor: pointer; color: var(--muted); font-size: .9rem; }
 details.file-details[open] > summary { margin-bottom: .5rem; }

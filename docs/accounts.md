@@ -65,6 +65,17 @@ Its links, tags, albums, and stored content stay the same, and identical uploads
 owned by other people keep their own names. Owners and administrators can
 rename; other members and moderators cannot rename somebody else's files.
 
+## Descriptions
+
+Open a photo, animation, or clip and choose **Add description** beneath its name.
+Owners and administrators can save up to 1,000 characters of plain text, with
+line breaks preserved. HTML and Markdown appear as text. Choose **Edit
+description** to change it, or leave it empty to remove it.
+
+Descriptions are visible to anyone who can view the file, independently of its
+camera metadata setting. Identical uploads keep their own descriptions, and
+descriptions are included in the API and account exports.
+
 ## Favorites
 
 Signed-in users can choose **Favorite** on a photo, animation, or clip to save
@@ -84,7 +95,7 @@ removes its favorite records. Removing a favorite never deletes the upload.
 ## Exporting an account
 
 `/settings/account` downloads a zip of everything the account has uploaded,
-plus a `manifest.json` describing it: names, sizes, dimensions, content hashes,
+plus a `manifest.json` describing it: names, descriptions, sizes, dimensions, content hashes,
 each file's visibility, tags, albums, and the dates. Each original sits at
 `files/<id>/<name>`, so two uploads called `photo.jpg` do not collide.
 The manifest carries both `visibility` and the older `public` boolean, so a

@@ -417,6 +417,37 @@ async function main() {
     `));
     await page.goto(`${base}/f/${fileID}`);
 
+    // --- plain-text descriptions through the ordinary HTML form ---
+    const description = 'A day out.\nWith <friends> & family.';
+    await page.evaluate(`
+      const form = document.querySelector('form[action$="/description"]');
+      form.closest('details').open = true;
+      form.querySelector('textarea').value = ${JSON.stringify(description)};
+      form.requestSubmit();
+    `);
+    await page.waitFor(`document.querySelector('.file-description')`);
+    record("saving a description preserves plain text and line breaks", await page.evaluate(`
+      const text = document.querySelector('.file-description');
+      return text.textContent === ${JSON.stringify(description)} &&
+        text.children.length === 0 && getComputedStyle(text).whiteSpace === 'pre-wrap';
+    `));
+    await page.goto(`${base}/f/${fileID}`);
+    record("the description survives a reload and can be edited", await page.evaluate(`
+      return document.querySelector('.file-description').textContent === ${JSON.stringify(description)} &&
+        document.querySelector('textarea[name="description"]').value === ${JSON.stringify(description)};
+    `));
+    await page.evaluate(`
+      const form = document.querySelector('form[action$="/description"]');
+      form.closest('details').open = true;
+      form.querySelector('textarea').value = '';
+      form.requestSubmit();
+    `);
+    await page.waitFor(`!document.querySelector('.file-description')`);
+    record("an empty description clears it", await page.evaluate(`
+      return document.querySelector('form[action$="/description"]').closest('details')
+        .querySelector('summary').textContent === 'Add description';
+    `));
+
     const readPressed = `
       const pressed = document.querySelector(".vis-control button[aria-pressed='true']");
       return pressed ? pressed.textContent.trim() : "";

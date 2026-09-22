@@ -51,6 +51,7 @@ IUSE="ffmpeg"
 # placeholder poster instead of a frame from the video, and the duration limit
 # cannot be enforced.
 RDEPEND="
+	app-admin/logrotate
 	acct-group/imvault
 	acct-user/imvault
 	ffmpeg? ( media-video/ffmpeg )
@@ -91,6 +92,8 @@ src_install() {
 
 	newinitd contrib/openrc/imvault imvault
 	newconfd contrib/openrc/imvault.confd imvault
+	insinto /etc/logrotate.d
+	newins contrib/logrotate/imvault imvault
 
 	# Packages install into /usr, unlike the source-install default.
 	sed 's|/usr/local/bin/imvault|/usr/bin/imvault|' \
