@@ -6,7 +6,8 @@
   <meta name="csrf-token" content="{{.CSRFToken}}">
   <title>{{if .Title}}{{.Title}} · imvault{{else}}imvault{{end}}</title>
   <link rel="stylesheet" href="/static/css/app.css">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🖼️</text></svg>">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/img/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/static/img/favicon-16.png">
   <script src="/static/js/htmx.min.js" defer></script>
   <!-- app.js registers its alpine:init hooks, so it must be parsed first. -->
   <script src="/static/js/app.js" defer></script>
@@ -14,7 +15,7 @@
 </head>
 <body hx-headers='{"X-CSRF-Token":"{{.CSRFToken}}"}'>
   <header class="topbar">
-    <a class="brand" href="/">imvault</a>
+    <a class="brand" href="/"><img src="/static/img/mascot.png" alt="" width="32" height="32">imvault</a>
     <nav class="nav">
       {{if .IsAuthed}}
         <a href="/recent">Recent</a>

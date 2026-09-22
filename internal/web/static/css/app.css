@@ -56,10 +56,11 @@ h2 { font-size: 1.05rem; margin: 0 0 .75rem; color: var(--text); }
 }
 
 .brand {
+  display: inline-flex; align-items: center; gap: .45rem;
   font-weight: 700; letter-spacing: -.02em; font-size: 1.1rem;
   color: var(--text); text-decoration: none;
 }
-.brand::before { content: "▣ "; color: var(--accent); }
+.brand img { display: block; flex: none; }
 
 .nav { display: flex; align-items: center; gap: 1rem; margin-left: auto; flex-wrap: wrap; }
 .nav a { color: var(--muted); font-size: .92rem; }

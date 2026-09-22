@@ -192,6 +192,9 @@ if [[ -f "$WORK/media/clip.webm" ]]; then
   upload "$ADMIN_KEY" "$WORK/media/clip.webm" public >/dev/null || warn "the clip did not upload"
 fi
 
+upload "$ADMIN_KEY" "$PWD/internal/web/static/img/mascot.png" public >/dev/null \
+  || warn "the mascot upload did not take"
+
 # The member's own, members-only, so the badges and the feed have something that
 # is not public in them.
 ANIMATION_ID=""
