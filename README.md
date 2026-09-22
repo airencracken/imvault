@@ -1,110 +1,109 @@
 # imvault
 
-A small, self-hosted image and clip host in the spirit of MLKSHK, Picsur,
+<img src="internal/web/static/img/mascot.png" alt="The imvault keeper: a smiling blue vault with a photograph on its door" width="144" height="144" align="right">
+
+**A little vault for your big collection of “I should save that.”**
+
+Photographs, screenshots, GIFs, and short clips deserve a home that you run.
+imvault is a small, self-hosted image host in the spirit of MLKSHK, Picsur,
 [Chibisafe](https://github.com/chibisafe/chibisafe), and
-[Imgur](https://imgur.com) — a Go server with a server-rendered, htmx-driven
-front end. No build step, no JavaScript framework, no external services: one
-binary and a data directory.
+[Imgur](https://imgur.com): part personal library, part clubhouse noticeboard.
 
-```
-make demo          # a throwaway instance, seeded with sample media
-```
+One Go binary. One data directory. A small blue keeper with no opinions about
+how many pictures of your cat you upload.
 
-The first account you register becomes the administrator.
+Public for an audience, members-only for your people, private for the
+“I'll organise these later” collection. You decide who gets in.
 
-It serves three scales from the same binary, because they are settings rather
-than different programs: a **personal** host for one person, a **group** host
-for a community, and a **public** host open to the world. The settings page
-offers those three as profiles and lets you tune each axis by hand. See
-[Configuration](docs/configuration.md#instance-settings).
+<br clear="right">
 
-## What it does
+![The imvault recent feed with the keeper, images, an animation, a clip, and visibility labels](docs/images/recent.png)
 
-**Media.** Still images (JPEG, PNG, WebP, BMP, TIFF), animated GIFs and WebPs,
-and short WebM, MP4, or MOV clips. Uploads are classified from their magic
-bytes, not their filenames, and validated by actually decoding them. Thumbnails
-and previews are generated once, with EXIF orientation applied and transparency
-preserved. Animations are never re-encoded and clips are never transcoded: the
-originals are served, with range requests. Photograph metadata — the camera, the
-date, and the coordinates a phone writes — is removed from what a public file
-serves, per file and per album, without re-encoding the picture, and what
-survives is shown behind a collapsed disclosure with the location withheld from
-anybody the file is not shared with. ffmpeg is optional, and without it
-clips get a placeholder poster rather than failing. See
-[Media handling](docs/media.md).
+*The actual local demo, stocked with generated test media. [Refresh this screenshot](docs/images/README.md).*
 
-**Library.** Per-account galleries, albums, and tags, with tags scoped to the
-account that owns the file and a shared namespace for anonymous uploads. A
-members feed shows what everybody has shared, not only what you put there. Every
-file and album is public, members-only, or private, and an album can be shared
-so that anybody on the instance may add their own images to it. Anonymous
-uploads with a retention window enforced by a reaper.
-
-**Accounts.** Multi-user signup, invitation codes so a closed instance is not an
-unreachable one, three roles so moderation can be somebody else's job without
-handing them the instance, two-factor authentication with recovery codes,
-sign-in through any OpenID Connect provider, password reset by email or by an
-administrator-issued link, and self-service account deletion. See
-[Accounts](docs/accounts.md).
-
-**API.** Bearer-token keys with full CRUD over files, albums, and tags, taking
-JSON or form encoding, and returning bare URLs for tools that want them. See
-[API](docs/api.md).
-
-**Moderation.** Members can report a file or an album; reports land in a queue a
-moderator works, and every removal of somebody else's content is recorded with
-who did it, when, and why. See [Accounts](docs/accounts.md).
-
-**Operations.** Per-account storage quotas and single-file limits, an
-instance-wide storage ceiling, a bound on how many uploads are processed at
-once, identical uploads stored once, an export of everything an account holds,
-upload and sign-in rate limiting, an admin area for usage, quotas, user
-management, and content moderation, and outbound mail that is queued and
-retried rather than dropped. See [Configuration](docs/configuration.md) and
-[Operations](docs/operations.md).
-
-## Quick start
-
-### Try it in one command
+## Come on in
 
 ```bash
 make demo
 ```
 
-Builds the server, boots it on <http://localhost:8080> against a throwaway
-`./demo-data` directory, and seeds a small instance: three accounts with
-different roles, photographs at each visibility, an album two of them have
-contributed to, tags, an invitation, and a report in the queue alongside one a
-moderator has already dealt with. It prints the sign-ins, an API key, and a
-short list of what is worth looking at, then runs in the foreground until you
-press Ctrl-C. `make clean-demo` removes the data.
-
-Everything is seeded through the same HTTP surface a person or a script uses —
-the signup form, the API, the report form, the admin pages — so what you see is
-what those paths actually do.
+Open <http://localhost:8080>. The demo stocks a throwaway `./demo-data` directory
+with three accounts, sample media, a shared album, tags, an invitation, and a
+moderation queue. It prints the sign-ins and a small tour; Ctrl-C closes up shop.
+`make clean-demo` removes the demo data.
 
 ```bash
-PORT=9000 make demo      # if 8080 is taken
-make help                # every other target
+PORT=9000 make demo   # somebody already parked on 8080?
+make help            # the rest of the toolbox
 ```
+
+Everything is seeded through the same HTTP routes people and scripts use. No
+stage doors, no database sleight of hand.
+
+## What's in the vault?
+
+| | |
+| --- | --- |
+| **Pictures that stay pictures** | JPEG, PNG, WebP, BMP, TIFF, animated GIFs and WebPs. Thumbnails and previews are made once, with orientation and transparency handled. |
+| **A home for little movies** | WebM, MP4, and MOV clips, served with range requests. Optional ffmpeg supplies posters and duration checks; originals are never transcoded. |
+| **A library, not a pile** | Galleries, albums, tags, and a recent feed. Shared albums let members contribute their own uploads. Identical uploads share stored bytes. |
+| **Your audience, your call** | Public, members-only, and private visibility. Photograph metadata controls help keep camera details and location out of public downloads. |
+| **Keys for people and scripts** | Invitations, member/moderator/admin roles, TOTP two-factor authentication, OpenID Connect, password resets, and a bearer-token API. |
+| **A broom cupboard** | Reports, a moderation log, account exports and deletion, storage quotas, upload limits, rate limiting, anonymous-upload expiry, and queued mail with retries. |
+
+The front end is server-rendered Go templates with htmx. No JavaScript build
+step, no framework bundle to assemble, no external service required to get
+started. [How it fits together](docs/architecture.md).
+
+## Your place, your house rules
+
+Start with a **Personal**, **Group**, or **Public** profile in **Admin → Settings**,
+then adjust it to taste. These are settings, not separate editions.
+
+Anonymous uploads have a plain on/off control:
+**Admin → Settings → Anonymous uploads → Allow uploads without an account**.
+Check or uncheck it and save. It takes effect immediately and survives restarts.
+Anonymous files are public and expire after the configured retention window.
+
+The first registered account becomes the administrator, even when normal signup
+is closed. Claim that account before exposing a fresh instance to the internet.
+
+## Make it yours
 
 ### From source
 
+Building requires **Go 1.26 or later**. The server has no cgo dependency.
+
 ```bash
-make run                             # :8080, using ./data
-make run PORT=9000 DATA_DIR=/tmp/imv # somewhere else
+make run                              # :8080, data in ./data
+make run PORT=9000 DATA_DIR=/tmp/imv   # a different doorstep
 ```
 
-Or without make:
+Or build the single binary directly:
 
 ```bash
 go build -o bin/imvault ./cmd/imvault
 IMVAULT_DATA_DIR=./data ./bin/imvault
 ```
 
-Building needs Go 1.26 or later, because that is what the dependencies require.
-The binary has no cgo dependency, so it cross-compiles and runs on a scratch
-image.
+### Gentoo and other native installs
+
+```bash
+sudo make install PREFIX=/usr
+sudo make install-openrc
+```
+
+Create the service account and configure `/etc/conf.d/imvault` before starting
+it. `contrib/gentoo/` contains a live ebuild and its account packages for an
+overlay. A systemd unit and Alpine APKBUILD are included too.
+[Deployment](docs/deployment.md) covers the full setup, service paths, and TLS.
+
+For a source install with systemd:
+
+```bash
+sudo make install              # /usr/local/bin/imvault
+sudo make install-systemd
+```
 
 ### Docker
 
@@ -117,105 +116,74 @@ docker run -d --name imvault \
   imvault
 ```
 
-The image bundles ffmpeg. Remove `ffmpeg` from the `apk add` line in the
-`Dockerfile` to slim it down.
-
-### Docker Compose
-
-A `docker-compose.yml` is included, with every setting overridable from the
-environment or a `.env` file:
+The image includes ffmpeg. The local Compose stack is one command away:
 
 ```bash
-make compose-up      # or: docker compose up --build -d
+make compose-up
 make compose-down
 ```
 
-### On a server, without Docker
+For a TLS-facing stack, `contrib/caddy/` includes Caddy configurations and a
+Compose file that keeps the application's port behind the proxy.
 
-```bash
-make dist                        # dist/imvault-<version>.tar.gz
-sudo make install PREFIX=/usr    # /usr/bin/imvault
-sudo make install-systemd        # or: install-openrc
-```
+## Keep the keys somewhere sensible
 
-`PREFIX` defaults to `/usr/local`, but the OpenRC script looks for the binary at
-`/usr/bin/imvault`, which is where a package installs it; `make install-openrc`
-says so when the two disagree.
+The keeper is cute. Backups are still your job.
 
-Both init systems are supported, with an APKBUILD for Alpine and a live ebuild
-for Gentoo alongside them. For TLS, `contrib/caddy/` has a Caddy configuration
-that obtains and renews certificates on its own. See
-[Deployment](docs/deployment.md).
+- **Back up `secret.key` alongside the database and objects.** The key is needed
+  to decrypt TOTP secrets. See [Operations](docs/operations.md).
+- **Use TLS and secure cookies.** Set `IMVAULT_SECURE_COOKIES=true`, bind a native
+  install to loopback, and configure the reverse proxy as described in
+  [Deployment](docs/deployment.md).
+- **Set your house rules before opening the doors.** Decide on signup,
+  anonymous uploads, retention, and a storage ceiling. Defaults favour trying
+  the app locally; [Configuration](docs/configuration.md) lists every knob.
 
-## Before you run this
+[Security](docs/security.md) explains credential storage, access controls,
+metadata handling, and the limits of those protections.
 
-Two things worth reading before an instance has anything in it:
+## The honest rough edges
 
-- **Back up `secret.key` with the database.** They are two halves of the same
-  thing. Restoring one without the other looks fine until somebody with
-  two-factor authentication cannot sign in. See
-  [Operations](docs/operations.md).
-- **Put it behind TLS and set `IMVAULT_SECURE_COOKIES=true`.** Without it, a
-  session cookie can be read off a plaintext connection.
+- Clips keep their original codecs. If a browser cannot play one, imvault does
+  not transcode it into something it can. There is no HLS or adaptive streaming.
+- Without ffmpeg, clips get placeholder posters and their duration cannot be
+  checked. Animated WebP posters also depend on the decoder's first-frame support.
+- Metadata hiding fails closed when a format cannot be scrubbed: the original
+  is withheld from the affected audience. Account exports retain originals.
+- API keys manage files, albums, and tags, and download media. Account settings,
+  key management, and admin operations require a browser session.
+- Email resets require an SMTP relay; administrators can issue reset links
+  without one. Queued mail retries run on a timer.
+- Rate limits are in-memory and per process. Multiple server processes have
+  separate budgets. Storage accounting can drift after a killed upload; the
+  admin dashboard can recalculate it.
+- Two-factor authentication is TOTP with recovery codes; there is no WebAuthn
+  or hardware-key support yet.
 
-[Security](docs/security.md) covers the rest: how credentials are stored, the
-visibility model, and what is deliberately not defended against.
+## The map
 
-## Documentation
-
-| | |
+| Guide | What's there |
 | --- | --- |
-| [Configuration](docs/configuration.md) | Every setting, quotas, and rate limiting |
-| [Accounts](docs/accounts.md) | Sign-in, two-factor, password reset, deletion, administration |
-| [Media handling](docs/media.md) | What is accepted, and what it becomes |
-| [API](docs/api.md) | The programmatic API |
+| [Configuration](docs/configuration.md) | Environment settings, instance profiles, quotas, and rate limits |
+| [Accounts](docs/accounts.md) | Invitations, sign-in, two-factor, roles, and moderation |
+| [Media](docs/media.md) | Formats, renditions, clips, and photograph metadata |
+| [API](docs/api.md) | Upload and manage your collection from scripts |
 | [Routes](docs/routes.md) | Every URL the server answers |
-| [Deployment](docs/deployment.md) | systemd, OpenRC, packages, and logs |
-| [Operations](docs/operations.md) | Backups, maintenance, upgrading, troubleshooting |
-| [Security](docs/security.md) | The security model, and its edges |
-| [Architecture](docs/architecture.md) | Internals, design decisions, and development |
+| [Deployment](docs/deployment.md) | Gentoo, Alpine, init scripts, containers, and TLS |
+| [Operations](docs/operations.md) | Backups, maintenance, upgrades, and troubleshooting |
+| [Security](docs/security.md) | The security model and its edges |
+| [Architecture](docs/architecture.md) | Internals, tests, and contributing changes |
 
-## Limitations
-
-Worth being upfront about what this deliberately does **not** do yet:
-
-- No transcoding. Clips are stored exactly as uploaded, so whatever the browser
-  supports is what you get. An MP4 with an exotic codec will not play.
-- Animated WebP thumbnails depend on `golang.org/x/image/webp` decoding the first
-  frame; if it cannot, the tile falls back to a placeholder poster.
-- No video streaming beyond HTTP range requests — no HLS or adaptive bitrate.
-- Tags cannot be applied to anonymous uploads: those files have no owning account
-  for a tag to live in.
-- API keys can manage files, albums, and tags, but not account settings
-  (password, email), or key management. No admin operations are exposed over the
-  API either — the admin area is web-only.
-- Password reset by email needs a working relay; an instance without one falls
-  back to administrator-issued links.
-- The mail queue is swept on a timer, so a message queued just after a sweep
-  waits up to `IMVAULT_MAIL_RETRY_INTERVAL` before its first retry.
-- Rate limiting is in-memory and per process, so running several instances behind
-  a load balancer gives each its own budget.
-- Storage usage can drift if the process is killed mid-upload; the admin
-  dashboard has a button to recalculate it from the files table.
-- Two-factor authentication is TOTP only: no WebAuthn or hardware keys, and the
-  recovery codes are the sole fallback.
+Working on the code? `make check` runs formatting checks, vet, Go and JavaScript
+tests, and a cyclomatic-complexity ceiling of 15 for production Go functions.
+`make test-race` and `make test-browser` cover concurrency and browser behaviour.
 
 ## License
 
-Copyright (C) 2026 Marcus J. Hildum
+Copyright (C) 2026 Marcus J. Hildum.
 
-This program is free software: you can redistribute it and/or modify it under
-the terms of the **GNU Affero General Public License** as published by the Free
-Software Foundation, either version 3 of the License, or (at your option) any
-later version.
+GNU Affero General Public License, version 3 or later. See [LICENSE](LICENSE).
+This program comes without any warranty.
 
-It is distributed in the hope that it will be useful, but **without any
-warranty**; without even the implied warranty of merchantability or fitness for
-a particular purpose. See the [GNU AGPL](LICENSE) for details.
-
-Because the AGPL covers software used over a network, running a modified version
-as a service obliges you to offer its users the corresponding source. The footer
-carries a source link for exactly that reason; point `IMVAULT_SOURCE_URL` at your
-own fork if you have modified it, or set it to empty to remove the link.
-
-Every source file carries an `SPDX-License-Identifier: AGPL-3.0-or-later` tag.
+The footer links to the source. If you run a modified version, point
+`IMVAULT_SOURCE_URL` at the corresponding source for your instance.

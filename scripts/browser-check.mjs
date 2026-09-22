@@ -18,6 +18,7 @@ import { spawn } from "node:child_process";
 import { mkdtemp, rm, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const BROWSER_CANDIDATES = [
   process.env.CHROME,
@@ -45,7 +46,7 @@ async function exists(path) {
   }
 }
 
-async function findBrowser() {
+export async function findBrowser() {
   for (const candidate of BROWSER_CANDIDATES) {
     if (candidate && (await exists(candidate))) return candidate;
   }
@@ -72,7 +73,7 @@ async function waitForHttp(url, timeoutMs = 15000) {
 
 // --- a minimal Chrome DevTools Protocol client ------------------------------
 
-class Page {
+export class Page {
   constructor(socket) {
     this.socket = socket;
     this.nextId = 1;
@@ -241,6 +242,7 @@ async function main() {
       "--no-sandbox",
       "--disable-gpu",
       "--disable-dev-shm-usage",
+      `--user-data-dir=${join(dataDir, "chrome")}`,
       `--remote-debugging-port=${debugPort}`,
       "about:blank",
     ],
@@ -829,4 +831,6 @@ async function signIn(page, base, username) {
   if (!signedIn) throw new Error("sign in did not take: still on the login page");
 }
 
-process.exit(await main());
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  process.exit(await main());
+}
