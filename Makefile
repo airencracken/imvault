@@ -1,4 +1,5 @@
 BINARY  := imvault
+GORELEASER ?= goreleaser
 PKG     := ./cmd/imvault
 GOFLAGS ?=
 
@@ -24,6 +25,14 @@ DIST_FILES := cmd internal docs go.mod go.sum Makefile README.md LICENSE \
 .PHONY: help all build run demo test test-race test-js check check-fmt check-js check-complexity vet fmt tidy \
 	install install-systemd install-openrc install-logrotate dist clean clean-demo docker \
 	compose-up compose-down test-browser
+
+.PHONY: release-check release-snapshot
+
+release-check: ## Validate the release configuration
+	"$(GORELEASER)" check
+
+release-snapshot: release-check ## Build local binary archives and Debian packages without publishing
+	"$(GORELEASER)" release --snapshot --clean --skip=publish
 
 help: ## Show the available targets
 	@printf '\nimvault\n\n'

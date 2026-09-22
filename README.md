@@ -31,6 +31,10 @@ Public for an audience, members-only for your people, private for the
 
 ## Come on in
 
+Prebuilt Linux amd64/arm64 archives and Debian packages live in
+[GitHub Releases](https://github.com/airencracken/imvault/releases).
+See the [binary installation guide](docs/releases.md) for checksums and setup.
+
 ```bash
 make demo
 ```

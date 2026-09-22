@@ -1,0 +1,11 @@
+#!/bin/sh
+# SPDX-License-Identifier: AGPL-3.0-or-later
+case "$1" in
+	remove|deconfigure)
+		if [ -d /run/systemd/system ]; then
+			deb-systemd-invoke stop imvault.service || exit 1
+			systemctl disable imvault.service || exit 1
+		fi
+		;;
+esac
+exit 0
