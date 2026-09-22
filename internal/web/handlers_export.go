@@ -150,7 +150,7 @@ func (s *Server) handleAccountExport(w http.ResponseWriter, r *http.Request) {
 
 	written := 0
 	for _, file := range files {
-		if err := s.writeExportEntry(archive, file); err != nil {
+		if err := s.writeExportEntry(r.Context(), archive, file); err != nil {
 			// The response has already begun, so the best that can be done is
 			// to stop and leave the truncation visible.
 			s.log.Error("export: write file", "user", user.ID, "id", file.ID, "error", err)
@@ -301,8 +301,8 @@ func writeJSONEntry(archive *zip.Writer, name string, payload any) error {
 //
 // Stored rather than deflated: images and clips are already compressed, so
 // deflating them costs processor time to save nothing.
-func (s *Server) writeExportEntry(archive *zip.Writer, file exportFile) error {
-	reader, err := s.objects.Open(file.ObjectKey)
+func (s *Server) writeExportEntry(ctx context.Context, archive *zip.Writer, file exportFile) error {
+	reader, err := s.objects.Open(ctx, file.ObjectKey)
 	if err != nil {
 		return err
 	}

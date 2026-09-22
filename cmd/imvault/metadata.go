@@ -9,10 +9,10 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 
 	"imvault/internal/config"
 	"imvault/internal/db"
+	"imvault/internal/instance"
 	"imvault/internal/metadata"
 	"imvault/internal/models"
 	"imvault/internal/storage"
@@ -39,12 +39,17 @@ func refreshMetadata(args []string, stdout io.Writer) error {
 		return fmt.Errorf("open existing database: %w", err)
 	}
 	ctx := context.Background()
+	lock, err := instance.Acquire(cfg.DBPath, false)
+	if err != nil {
+		return err
+	}
+	defer lock.Close()
 	database, err := db.Open(ctx, cfg.DBPath)
 	if err != nil {
 		return err
 	}
 	defer database.Close()
-	objects, err := storage.NewDisk(filepath.Join(cfg.DataDir, "objects"))
+	objects, err := storage.New(ctx, cfg.Storage)
 	if err != nil {
 		return err
 	}
@@ -79,7 +84,7 @@ func refreshStoredMetadata(ctx context.Context, st *store.Store, objects storage
 }
 
 func refreshBlobMetadata(ctx context.Context, st *store.Store, objects storage.Backend, blob *models.Blob) (bool, error) {
-	src, err := objects.Open(blob.ObjectKey)
+	src, err := objects.Open(ctx, blob.ObjectKey)
 	if err != nil {
 		return false, err
 	}

@@ -88,7 +88,7 @@ func (s *Server) buildCleanObject(ctx context.Context, file *models.File, object
 		return s.buildCleanClip(ctx, objectKey, cleanKey)
 	}
 
-	src, err := s.objects.Open(objectKey)
+	src, err := s.objects.Open(ctx, objectKey)
 	if err != nil {
 		return fmt.Errorf("open the original: %w", err)
 	}
@@ -112,7 +112,7 @@ func (s *Server) buildCleanObject(ctx context.Context, file *models.File, object
 			strings.ToUpper(strings.TrimPrefix(file.Ext, ".")))
 	}
 
-	if _, err := s.objects.Save(cleanKey, bytes.NewReader(cleaned)); err != nil {
+	if _, err := s.objects.Save(ctx, cleanKey, bytes.NewReader(cleaned)); err != nil {
 		return fmt.Errorf("store the clean copy: %w", err)
 	}
 	return nil
@@ -143,7 +143,7 @@ func (s *Server) buildCleanClip(ctx context.Context, objectKey, cleanKey string)
 			os.Remove(tmp.Name())
 		}()
 
-		src, err := s.objects.Open(objectKey)
+		src, err := s.objects.Open(ctx, objectKey)
 		if err != nil {
 			return fmt.Errorf("open the original: %w", err)
 		}
@@ -176,7 +176,7 @@ func (s *Server) buildCleanClip(ctx context.Context, objectKey, cleanKey string)
 	}
 	defer cleaned.Close()
 
-	if _, err := s.objects.Save(cleanKey, cleaned); err != nil {
+	if _, err := s.objects.Save(ctx, cleanKey, cleaned); err != nil {
 		return fmt.Errorf("store the clean copy: %w", err)
 	}
 	return nil

@@ -15,6 +15,7 @@ import (
 	"imvault/internal/accounts"
 	"imvault/internal/config"
 	"imvault/internal/db"
+	"imvault/internal/instance"
 	"imvault/internal/models"
 	"imvault/internal/store"
 )
@@ -28,8 +29,12 @@ func runCommand(args []string, stdin io.Reader, stdout io.Writer) error {
 		return createAdmin(args[1:], stdin, stdout)
 	case "refresh-metadata":
 		return refreshMetadata(args[1:], stdout)
+	case "migrate-storage", "rebuild-thumbnails", "backup":
+		return runMaintenance(args[0], args[1:], stdout)
+	case "restore":
+		return restoreBackup(args[1:], stdout)
 	case "help", "-h", "--help":
-		_, err := fmt.Fprintln(stdout, "Usage: imvault [COMMAND]\n\nWithout arguments, starts the server. Configuration uses IMVAULT_* environment variables.\n\ncreate-admin --username NAME --password-stdin [--email ADDRESS]\n  Creates a new administrator locally; existing accounts are never changed.\nrefresh-metadata\n  Refreshes photo details from stored originals without changing files or sharing settings.")
+		_, err := fmt.Fprintln(stdout, commandHelp)
 		return err
 	default:
 		return fmt.Errorf("unknown command %q; use imvault --help", args[0])
@@ -95,6 +100,11 @@ func provisionAdmin(ctx context.Context, username, email, password string) (*mod
 	if err := cfg.EnsureDirs(); err != nil {
 		return nil, err
 	}
+	lock, err := instance.Acquire(cfg.DBPath, false)
+	if err != nil {
+		return nil, err
+	}
+	defer lock.Close()
 	database, err := db.Open(ctx, cfg.DBPath)
 	if err != nil {
 		return nil, err

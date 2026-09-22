@@ -88,7 +88,7 @@ func newAPIFile(r *http.Request, s *Server, f *models.File) apiFileJSON {
 		Tags:        newAPITags(f.Tags),
 		PageURL:     s.absoluteURL(r, "/f/"+f.ID),
 		RawURL:      s.absoluteURL(r, "/f/"+f.ID+"/raw"),
-		ThumbURL:    s.absoluteURL(r, "/f/"+f.ID+"/thumb"),
+		ThumbURL:    s.absoluteURL(r, f.ThumbURL()),
 	}
 	out.URL = out.RawURL
 	if f.ExpiresAt != nil {

@@ -192,7 +192,9 @@ generated placeholder poster.
 
 `make install` also warns when either tool is missing. On Gentoo, install
 `media-video/ffmpeg` and restart imvault so it detects the tools. New uploads then
-get video posters; existing placeholder posters are not regenerated automatically.
+get video posters. To repair existing placeholder posters, stop the service and
+run `imvault rebuild-thumbnails --videos-only` with the service's environment
+and OS user. See [rebuilding thumbnails](storage.md#rebuilding-thumbnails-and-posters).
 Staged package installs (`DESTDIR=...`) skip the build host's dependency check.
 
 ---

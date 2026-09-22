@@ -38,7 +38,7 @@ func TestRefreshMetadataRepairsExistingUploads(t *testing.T) {
 	// the fixture contents are shared to keep the test small.
 	for i := 0; i < 101; i++ {
 		sha, key := fmt.Sprintf("%064d", i), fmt.Sprintf("orig/%d.jpg", i)
-		if _, err := objects.Save(key, bytes.NewReader(data)); err != nil {
+		if _, err := objects.Save(t.Context(), key, bytes.NewReader(data)); err != nil {
 			t.Fatal(err)
 		}
 		if err := st.EnsureBlob(t.Context(), sha, int64(len(data)), key, "", "", `{"camera":"TestCam One"}`); err != nil {
@@ -76,7 +76,7 @@ func TestRefreshMetadataRepairsExistingUploads(t *testing.T) {
 		t.Fatalf("second refresh: %s (%v)", &output, err)
 	}
 	// A parser failure leaves known details intact.
-	if _, err := objects.Save("orig/0.jpg", strings.NewReader("not an image")); err != nil {
+	if _, err := objects.Save(t.Context(), "orig/0.jpg", strings.NewReader("not an image")); err != nil {
 		t.Fatal(err)
 	}
 	if err := runCommand([]string{"refresh-metadata"}, nil, io.Discard); err != nil {
@@ -86,7 +86,7 @@ func TestRefreshMetadataRepairsExistingUploads(t *testing.T) {
 	if err != nil || metadata.DecodeDetails(file.Details).Location() == "" {
 		t.Fatal("parser failure erased stored details")
 	}
-	if err := objects.Delete("orig/0.jpg"); err != nil {
+	if err := objects.Delete(t.Context(), "orig/0.jpg"); err != nil {
 		t.Fatal(err)
 	}
 	if err := runCommand([]string{"refresh-metadata"}, nil, io.Discard); err == nil {

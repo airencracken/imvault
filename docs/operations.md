@@ -40,14 +40,14 @@ can be lost between copying and truncating; this is the documented
 The supplied systemd service logs to the journal, whose retention is managed
 by journald. It does not need this file-based rule.
 
-## Back up two things, not one
+## Backups and restore drills
 
-imvault keeps its state in two places:
+imvault needs the database, media, and encryption key together:
 
 | Path | What it is |
 | --- | --- |
 | `<data>/imvault.db` | Accounts, metadata, and every record of what was uploaded |
-| `<data>/objects/` | The uploaded bytes themselves |
+| `<data>/objects/` or the configured S3 bucket/prefix | The uploaded bytes and renditions |
 | `<data>/secret.key` | The key that decrypts two-factor secrets |
 
 **Back up `secret.key` alongside the database.** They are two halves of the same
@@ -64,29 +64,33 @@ If you would rather not keep the key on disk at all, set `IMVAULT_SECRET_KEY`
 and supply it from wherever you already keep secrets. Note that changing or
 losing this value has the same effect as losing the file.
 
-A backup is consistent if it is taken while the service is stopped, or by
-copying the database with SQLite's own tooling, since a plain copy of a live
-WAL-mode database can miss recent commits:
+Use the verified backup command with the service stopped. For a default disk
+installation on Gentoo:
 
 ```bash
-# Simplest, and always correct: stop, copy, start.
-systemctl stop imvault
-tar -C /var/lib/imvault -czf imvault-$(date +%F).tar.gz .
-systemctl start imvault
-
-# Or copy the database safely while it runs.
-sqlite3 /var/lib/imvault/imvault.db ".backup '/backups/imvault.db'"
-rsync -a /var/lib/imvault/objects/ /backups/objects/
-cp /var/lib/imvault/secret.key /backups/secret.key
+sudo install -d -o imvault -g imvault -m 0700 /var/backups/imvault
+sudo rc-service imvault stop
+sudo -u imvault env IMVAULT_DATA_DIR=/var/lib/imvault \
+  /usr/local/bin/imvault backup \
+  --output "/var/backups/imvault/$(date +%Y%m%d-%H%M%S)"
+sudo rc-service imvault start
 ```
 
-Restoring is the reverse: put the three things back, with the key readable only
-by the service account (`chmod 600`, owned by `imvault`).
+Check the backup command's exit status. For custom settings or S3, provide the
+complete service environment too; the CLI does not source `/etc/conf.d/imvault`.
+On systemd hosts, use `systemctl stop/start imvault` around the same command.
 
-> Uploaded files are addressed by random id, and nothing outside the database
-> points at them. Copying `objects/` without the database leaves you with bytes
-> that cannot be attributed to anybody, which is worth knowing if you are
-> storing the two separately.
+The backup contains a SQLite snapshot, encryption key, media, and checksum
+manifest. It is published only after verification. Copy it to another machine
+and periodically run `imvault restore --input BACKUP --output NEW_DIRECTORY` to
+test recovery. Restore refuses to overwrite an existing directory. See
+[Storage](storage.md#backup-and-restore) for restoring service settings and
+moving a restored collection back to S3.
+
+A live SQLite snapshot protects database consistency, but copying media
+separately while deletions continue can produce a backup with missing objects.
+Stop the service for the whole backup, and do not copy a live WAL-mode database
+with a plain filesystem copy.
 
 ## What maintains itself
 
@@ -100,8 +104,10 @@ default), and does the following without being asked:
 - deletes one-time tokens that have been used or have lapsed;
 - removes delivered mail older than seven days.
 
-Nothing accumulates indefinitely on its own. If the service is stopped for a
-while, the first pass after it starts catches up.
+If the service is stopped for a while, the first pass after it starts catches
+up. Failed object deletions remain tracked until storage is reachable again.
+Old renditions retained by a manual rebuild are not automatically collected;
+see [thumbnail rebuilding](storage.md#rebuilding-thumbnails-and-posters).
 
 ## The outbound mail queue
 

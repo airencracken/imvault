@@ -1,5 +1,8 @@
 # Configuration
 
+Object storage defaults to local disk. See [Storage](storage.md) for optional
+S3-compatible storage, credentials, endpoint settings, and migration.
+
 Every setting is an environment variable, and every one has a working default.
 It can be run with no configuration at all.
 

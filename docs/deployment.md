@@ -84,6 +84,10 @@ reads from its environment. The init script re-reads that file with `allexport`
 set, so any `IMVAULT_*` value written there reaches the daemon without the
 script having to know the option's name. Logs go to `/var/log/imvault.log`.
 
+The same configuration file accepts optional S3 storage settings. See
+[Storage](storage.md) for private buckets, credentials, migration, and local
+scratch-space requirements. Stop the service before offline maintenance.
+
 `make install-openrc` also installs `/etc/logrotate.d/imvault`, preserving an
 existing rule. On Gentoo, install `app-admin/logrotate` and make sure its cron
 job or timer runs regularly. Existing installs can add just the rule with

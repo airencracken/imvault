@@ -54,6 +54,7 @@ type Server struct {
 	// processing bounds how many uploads are worked on at once, across
 	// everybody. Rate limiting is per identity and does not bound the total.
 	processing *gate
+	content    contentLocks
 }
 
 // New constructs a Server and installs the middleware chain.

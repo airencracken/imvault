@@ -91,7 +91,7 @@ func storedOriginal(t *testing.T, h *harness, id string) []byte {
 		t.Fatal(err)
 	}
 
-	obj, err := h.srv.objects.Open(blob.ObjectKey)
+	obj, err := h.srv.objects.Open(t.Context(), blob.ObjectKey)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -3,13 +3,13 @@
   <div class="preview">
     {{if .File.IsVideo}}
       <video class="player" controls autoplay muted loop playsinline preload="metadata"
-             poster="/f/{{.File.ID}}/thumb">
+             poster="{{.File.ThumbURL}}">
         <source src="/f/{{.File.ID}}/raw" type="{{.File.Mime}}">
         Your browser cannot play this clip. <a href="/f/{{.File.ID}}/raw">Download it</a>.
       </video>
     {{else}}
       <a href="/f/{{.File.ID}}/raw" title="Open the original">
-        <img src="/f/{{.File.ID}}/preview" alt="{{.File.OriginalName}}">
+        <img src="{{.File.PreviewURL}}" alt="{{.File.OriginalName}}">
       </a>
     {{end}}
   </div>

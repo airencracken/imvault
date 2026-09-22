@@ -29,6 +29,8 @@ func scanBlob(sc rowScanner) (*models.Blob, error) {
 // EnsureBlob records where a piece of content is stored, if it is not already
 // known.
 //
+// An unreferenced blob may have been partially deleted during a storage outage;
+// a new upload replaces its keys with the newly verified content locations.
 // The reference count is not touched: a trigger increments it when the file row
 // that references the blob is inserted, so the only caller obligation is that
 // the blob exists before the file does.
@@ -36,7 +38,9 @@ func (s *Store) EnsureBlob(ctx context.Context, sha string, size int64, objectKe
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO blobs (sha256, size, object_key, thumb_key, preview_key, details_json, refcount, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, 0, ?)
-		ON CONFLICT (sha256) DO NOTHING`,
+		ON CONFLICT (sha256) DO UPDATE SET object_key=excluded.object_key,
+		thumb_key=excluded.thumb_key, preview_key=excluded.preview_key,
+		clean_key='', details_json=excluded.details_json WHERE blobs.refcount <= 0`,
 		sha, size, objectKey, thumbKey, previewKey, details, nowUnix())
 	if err != nil {
 		return fmt.Errorf("ensure blob: %w", err)
