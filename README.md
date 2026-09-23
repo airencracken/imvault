@@ -98,9 +98,9 @@ Found a keeper? Open a photo and choose **Favorite**. Your **Favorites** page
 keeps those little discoveries together, just for you.
 
 Create your administrator locally with `imvault create-admin --username NAME
---password-stdin`. Public registration always creates members and respects the
-signup policy, even on an empty instance. See
-[provisioning an administrator](docs/accounts.md#provisioning-an-administrator)
+--password-prompt`; use `--password-stdin` for scripts. Public registration
+always creates members and respects the signup policy, even on an empty
+instance. See [provisioning an administrator](docs/accounts.md#provisioning-an-administrator)
 for password input and service-account examples.
 
 ## Make it yours

@@ -31,6 +31,28 @@ func adminTestEnvironment(t *testing.T) string {
 	return path
 }
 
+func TestCreateAdminPromptRequiresTerminalBeforeOpeningDatabase(t *testing.T) {
+	path := adminTestEnvironment(t)
+	oldStdin := os.Stdin
+	stdin, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdin = stdin
+	t.Cleanup(func() {
+		os.Stdin = oldStdin
+		stdin.Close()
+		writer.Close()
+	})
+	err = runCommand([]string{"create-admin", "--username", "marcus", "--password-prompt"}, strings.NewReader("unused"), &bytes.Buffer{})
+	if err == nil || !strings.Contains(err.Error(), "use --password-stdin") {
+		t.Fatalf("non-terminal prompt error = %v", err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("non-terminal prompt touched database: %v", err)
+	}
+}
+
 func TestCreateAdminAndRefuseExistingAccount(t *testing.T) {
 	path := adminTestEnvironment(t)
 	var output bytes.Buffer
@@ -90,6 +112,7 @@ func TestCreateAdminRejectsInvalidInputBeforeCreatingDatabase(t *testing.T) {
 	}{
 		{"unknown command", []string{"typo"}, "valid-password"},
 		{"no password source", []string{"create-admin", "--username", "marcus"}, "valid-password"},
+		{"multiple password sources", []string{"create-admin", "--username", "marcus", "--password-prompt", "--password-stdin"}, "valid-password"},
 		{"no username", []string{"create-admin", "--password-stdin"}, "valid-password"},
 		{"invalid username", []string{"create-admin", "--username", "bad user", "--password-stdin"}, "valid-password"},
 		{"invalid email", []string{"create-admin", "--username", "marcus", "--password-stdin", "--email", "not-email"}, "valid-password"},

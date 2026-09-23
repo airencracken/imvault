@@ -15,7 +15,7 @@ Usage: imvault [COMMAND] [OPTIONS]
 
 Commands:
   serve                Start the HTTP server (also the default with no arguments).
-  create-admin         Provision a new administrator using a password from stdin.
+  create-admin         Provision a new administrator using a hidden prompt or stdin.
   refresh-metadata     Refresh photo details from the stored originals.
   migrate-storage      Copy and verify objects to IMVAULT_DEST_* storage.
   rebuild-thumbnails   Regenerate previews and video posters.
@@ -40,7 +40,8 @@ Stop the server before backup, restore, storage migration, or thumbnail rebuildi
 
 Examples:
   IMVAULT_ADDR=127.0.0.1:8080 IMVAULT_DATA_DIR=/var/lib/imvault imvault serve
-  imvault create-admin --username alex --password-stdin
+  imvault create-admin --username alex --password-prompt
+  imvault create-admin --username alex --password-stdin < password-file
   imvault proxy-config caddy --domain img.example.com > imvault.Caddyfile
   imvault backup --output /var/backups/imvault/first
 
@@ -50,7 +51,7 @@ More settings and deployment examples: docs/deployment.md and docs/reverse-proxi
 
 var commandDescriptions = map[string]string{
 	"serve":              "Start the HTTP server using IMVAULT_* environment variables. See imvault --help for defaults.",
-	"create-admin":       "Create a new administrator locally; existing accounts are never changed.\nRead one password line from stdin. Run as the service user with its IMVAULT_DATA_DIR.",
+	"create-admin":       "Create a new administrator locally; existing accounts are never changed.\nUse a hidden terminal prompt or read one password line from stdin. Run as the service user with its IMVAULT_DATA_DIR.",
 	"refresh-metadata":   "Refresh photo details from stored originals without changing sharing settings.\nUse the same IMVAULT_DATA_DIR and storage settings as the service.",
 	"migrate-storage":    "Copy and verify objects to IMVAULT_DEST_* storage. Stop the server first.\nUse the service's data/storage settings and configure the destination; see docs/storage.md.",
 	"rebuild-thumbnails": "Regenerate thumbnails, previews and video posters. Stop the server first.\nUse the service's IMVAULT_DATA_DIR and storage settings; video posters need ffmpeg.",
