@@ -61,17 +61,24 @@ func createAdmin(args []string, stdin io.Reader, stdout io.Writer) error {
 	flags := commandFlags("create-admin", stdout)
 	username := flags.String("username", "", "administrator username (required)")
 	email := flags.String("email", "", "optional email address")
-	passwordStdin := flags.Bool("password-stdin", false, "read the password from stdin (required)")
+	passwordPrompt := flags.Bool("password-prompt", false, "prompt twice without echoing (requires a terminal)")
+	passwordStdin := flags.Bool("password-stdin", false, "read the password from standard input")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
 		}
 		return err
 	}
-	if flags.NArg() != 0 || !*passwordStdin || strings.TrimSpace(*username) == "" {
-		return errors.New("usage: imvault create-admin --username NAME --password-stdin [--email ADDRESS]")
+	if flags.NArg() != 0 || strings.TrimSpace(*username) == "" || *passwordPrompt == *passwordStdin {
+		return errors.New("usage: imvault create-admin --username NAME (--password-prompt | --password-stdin) [--email ADDRESS]")
 	}
-	password, err := readAdminPassword(stdin)
+	var password string
+	var err error
+	if *passwordPrompt {
+		password, err = readPromptAdminPassword()
+	} else {
+		password, err = readAdminPassword(stdin)
+	}
 	if err != nil {
 		return err
 	}

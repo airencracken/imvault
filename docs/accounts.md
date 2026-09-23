@@ -5,32 +5,34 @@ Registration, signing in, second factors, and the way out.
 ## Provisioning an administrator
 
 Administrators are created locally, using the installed binary and the same
-data directory and database settings as the service:
+data directory and database settings as the service. In a terminal, run:
+
+```bash
+imvault create-admin --username marcus --password-prompt --email you@example.com
+```
+
+The hidden prompt asks for the password twice. Passwords follow the web form's
+rules: at least eight characters and at most 72 bytes. The command never
+accepts a password as an argument, starts no HTTP listener, and exits nonzero
+on failure. Run it as the service's OS user so newly created database files
+have the correct owner. Email is optional.
+
+For scripts, pass a single password line on stdin. The line may have a trailing
+newline:
 
 ```bash
 imvault create-admin --username marcus --password-stdin --email you@example.com \
-  < /path/to/admin-password
+	< /path/to/admin-password
 ```
 
-The input is a single password line, with an optional trailing newline. Email
-is optional. Passwords follow the web form's rules: at least eight characters
-and at most 72 bytes. The command never accepts a password as an argument,
-starts no HTTP listener, and exits nonzero on failure. Run it as the service's
-OS user so newly created database files have the correct owner.
-
-On a native OpenRC install, this Bash example reads the password without echoing
-it or putting it in shell history. Run `sudo -v` first so sudo does not need the
-password pipe for its own prompt:
+On a native OpenRC install, run the command as the service user and use the same
+data directory. Cache sudo credentials first so sudo does not need the terminal
+while the application is prompting:
 
 ```bash
 sudo -v
-if IFS= read -r -s -p 'Admin password: ' imvault_admin_password; then
-	printf '\n'
-	printf '%s\n' "$imvault_admin_password" |
-		sudo -u imvault env IMVAULT_DATA_DIR=/var/lib/imvault \
-		/usr/local/bin/imvault create-admin --username marcus --password-stdin
-	unset imvault_admin_password
-fi
+sudo -u imvault env IMVAULT_DATA_DIR=/var/lib/imvault \
+	/usr/local/bin/imvault create-admin --username marcus --password-prompt
 ```
 
 Use `/usr/bin/imvault` for an ebuild or `make install PREFIX=/usr`. If the
@@ -43,9 +45,11 @@ installation, prepare it with:
 sudo install -d -o imvault -g imvault -m 0750 /var/lib/imvault
 ```
 
-For Docker, pipe the password to
-`docker exec -i imvault /usr/local/bin/imvault create-admin --username marcus --password-stdin`
-using the container's configured environment and data volume.
+For Docker, use `docker exec -it imvault /usr/local/bin/imvault create-admin
+--username marcus --password-prompt` for the interactive prompt, or pass one
+password line to `docker exec -i imvault /usr/local/bin/imvault create-admin
+--username marcus --password-stdin` for a script. Both use the container's
+configured environment and data volume.
 
 The command works before first startup or while the service is running. It
 creates a new administrator even if other accounts exist; an existing username
