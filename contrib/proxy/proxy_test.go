@@ -26,6 +26,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"imvault/contrib"
 )
 
 func TestReverseProxies(t *testing.T) {
@@ -212,27 +214,24 @@ func write(t *testing.T, path, content string) {
 func startProxy(t *testing.T, kind, backend string) (string, string) {
 	t.Helper()
 	dir := t.TempDir()
-	certificate(t, dir)
-	plain, secure := freePort(t), freePort(t)
-	files, err := filepath.Glob(filepath.Join("..", kind, "*.conf"))
-	if err != nil || len(files) != 1 {
-		t.Fatalf("expected one %s config: %v %v", kind, files, err)
+	certDir := filepath.Join(dir, "TLS certs")
+	if err := os.Mkdir(certDir, 0o700); err != nil {
+		t.Fatal(err)
 	}
-	data, err := os.ReadFile(files[0])
+	certificate(t, certDir)
+	plain, secure := freePort(t), freePort(t)
+	data, err := proxyconfig.Render(proxyconfig.Options{
+		Server: kind, Domain: "localhost", Upstream: strings.TrimPrefix(backend, "http://"),
+		Certificate: filepath.Join(certDir, "cert.pem"), Key: filepath.Join(certDir, "key.pem"),
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	config := strings.NewReplacer(
-		"/etc/letsencrypt/live/img.example.com/fullchain.pem", filepath.Join(dir, "cert.pem"),
-		"/etc/letsencrypt/live/img.example.com/privkey.pem", filepath.Join(dir, "key.pem"),
-		"/etc/letsencrypt/live/board.example.org/fullchain.pem", filepath.Join(dir, "cert.pem"),
-		"/etc/letsencrypt/live/board.example.org/privkey.pem", filepath.Join(dir, "key.pem"),
-		"img.example.com", "localhost", "board.example.org", "localhost",
-		"http://127.0.0.1:8080", backend, "http://127.0.0.1:8082", backend,
 		"listen [::]:80;", "", "listen [::]:443 ssl;", "",
 		"listen 80;", "listen 127.0.0.1:"+plain+";", "listen 443 ssl;", "listen 127.0.0.1:"+secure+" ssl;",
 		"*:80", "127.0.0.1:"+plain, "*:443", "127.0.0.1:"+secure,
-	).Replace(string(data))
+	).Replace(data)
 	binary := os.Getenv(strings.ToUpper(kind) + "_BINARY")
 	if binary == "" {
 		name := kind

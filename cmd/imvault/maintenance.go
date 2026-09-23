@@ -21,26 +21,8 @@ import (
 	"imvault/internal/store"
 )
 
-const commandHelp = `Usage: imvault [COMMAND]
-
-Without arguments, starts the server. Configuration uses IMVAULT_* environment variables.
-
-create-admin --username NAME --password-stdin [--email ADDRESS]
-  Creates a new administrator locally; existing accounts are never changed.
-refresh-metadata
-  Refreshes photo details from stored originals without changing sharing settings.
-migrate-storage
-  Copies and verifies objects to IMVAULT_DEST_* storage. Stop the server first.
-rebuild-thumbnails [--videos-only]
-  Regenerates thumbnails, previews and video posters. Stop the server first.
-backup --output DIRECTORY
-  Creates a verified, self-contained backup. Stop the server first.
-restore --input DIRECTORY --output DIRECTORY
-  Verifies a backup and restores to a new local data directory.`
-
 func runMaintenance(command string, args []string, out io.Writer) error {
-	flags := flag.NewFlagSet(command, flag.ContinueOnError)
-	flags.SetOutput(out)
+	flags := commandFlags(command, out)
 	var output string
 	var videosOnly bool
 	if command == "backup" {
@@ -119,8 +101,7 @@ func performMaintenance(ctx context.Context, command string, cfg *config.Config,
 }
 
 func restoreBackup(args []string, out io.Writer) error {
-	flags := flag.NewFlagSet("restore", flag.ContinueOnError)
-	flags.SetOutput(out)
+	flags := commandFlags("restore", out)
 	input := flags.String("input", "", "backup directory (required)")
 	output := flags.String("output", "", "new local data directory (required)")
 	if err := flags.Parse(args); err != nil {

@@ -7,8 +7,26 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestInstalledSystemdLoggingUsesJournal(t *testing.T) {
+	dest := t.TempDir()
+	cmd := exec.Command("make", "-C", "..", "install-systemd", "DESTDIR="+dest, "PREFIX=/usr")
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("install systemd: %v\n%s", err, output)
+	}
+	unit, err := os.ReadFile(filepath.Join(dest, "etc/systemd/system/imvault.service"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, setting := range []string{"StandardOutput=journal\n", "StandardError=journal\n", "SyslogIdentifier=imvault\n"} {
+		if !strings.Contains(string(unit), setting) {
+			t.Errorf("installed service omits %s", setting)
+		}
+	}
+}
 
 func TestLogrotateInstallPreservesLocalRules(t *testing.T) {
 	rule, err := os.ReadFile("../contrib/logrotate/imvault")
