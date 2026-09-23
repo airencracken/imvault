@@ -5,11 +5,11 @@
 #
 # Gentoo does not read ebuilds from a source tree, so this belongs in an overlay:
 #
-#   mkdir -p /var/db/repos/local/profiles /var/db/repos/local/app-admin/imvault
+#   mkdir -p /var/db/repos/local/profiles /var/db/repos/local/www-apps/imvault
 #   echo local > /var/db/repos/local/profiles/repo_name
-#   cp contrib/gentoo/imvault-9999.ebuild contrib/gentoo/metadata.xml /var/db/repos/local/app-admin/imvault/
+#   cp contrib/gentoo/imvault-9999.ebuild contrib/gentoo/metadata.xml /var/db/repos/local/www-apps/imvault/
 #   cp -R contrib/gentoo/acct-user contrib/gentoo/acct-group /var/db/repos/local/
-#   emerge -av app-admin/imvault
+#   emerge -av www-apps/imvault
 #
 # There is no manifest to generate and no EGO_SUM to keep in step: git-r3 fetches
 # the repository rather than a distfile, and go-module_live_vendor resolves the

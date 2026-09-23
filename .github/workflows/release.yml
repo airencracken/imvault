@@ -28,11 +28,13 @@ jobs:
       - name: Install test tools
         run: |
           sudo apt-get update || exit 1
-          sudo apt-get install -y logrotate ffmpeg || exit 1
+          sudo systemctl mask --runtime nginx.service apache2.service || exit 1
+          sudo apt-get install -y logrotate ffmpeg nginx apache2 || exit 1
       - name: Repository checks
         run: |
           make check || exit 1
           make test-race || exit 1
+          make test-proxies || exit 1
       - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7
         with:
           version: v2.18.2

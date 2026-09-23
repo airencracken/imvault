@@ -150,6 +150,8 @@ make compose-down
 
 For a TLS-facing stack, `contrib/caddy/` includes Caddy configurations and a
 Compose file that keeps the application's port behind the proxy.
+Caddy is the recommended proxy; [nginx and Apache are supported too](docs/reverse-proxies.md),
+with complete HTTPS examples and integration checks.
 
 ## Keep the keys somewhere sensible
 

@@ -26,7 +26,10 @@ DIST_FILES := cmd internal docs go.mod go.sum Makefile README.md LICENSE \
 	install install-systemd install-openrc install-logrotate dist clean clean-demo docker \
 	compose-up compose-down test-browser
 
-.PHONY: release-check release-snapshot
+.PHONY: release-check release-snapshot test-proxies
+
+test-proxies: ## Test nginx and Apache TLS proxy examples (needs both servers)
+	go test $(GOFLAGS) -tags=proxyintegration -count=1 -timeout=60s ./contrib/proxy
 
 release-check: ## Validate the release configuration
 	"$(GORELEASER)" check

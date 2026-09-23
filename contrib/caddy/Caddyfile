@@ -15,8 +15,8 @@ img.example.com {
 
 	# Optional. imvault enforces its own per-file and per-account limits, so
 	# this is a second line rather than the only one. It stops an oversized
-	# upload from being received at all. Raise it to match
-	# IMVAULT_MAX_VIDEO_BYTES if you raise that.
+	# request from being received in full. It covers every file in a batch
+	# plus multipart overhead; raise it for larger batches or file limits.
 	request_body {
 		max_size 256MB
 	}
