@@ -69,6 +69,15 @@ nfpms:
       - src: docs/
         dst: /usr/share/doc/imvault/docs
         type: tree
+      - src: contrib/caddy/
+        dst: /usr/share/doc/imvault/contrib/caddy
+        type: tree
+      - src: contrib/nginx/
+        dst: /usr/share/doc/imvault/contrib/nginx
+        type: tree
+      - src: contrib/apache/
+        dst: /usr/share/doc/imvault/contrib/apache
+        type: tree
     scripts:
       postinstall: contrib/debian/postinst
       preremove: contrib/debian/prerm
