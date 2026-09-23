@@ -50,7 +50,7 @@ func TestHelpExplainsDeployment(t *testing.T) {
 	if err := runCommand([]string{"--help"}, strings.NewReader(""), &output); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"IMVAULT_ADDR", "IMVAULT_DATA_DIR", "IMVAULT_BASE_URL", "IMVAULT_SECURE_COOKIES", "/etc/conf.d/imvault", "logrotate", "journald", "proxy-config", "password-stdin"} {
+	for _, want := range []string{"IMVAULT_ADDR", "IMVAULT_DATA_DIR", "IMVAULT_BASE_URL", "IMVAULT_SECURE_COOKIES", "/etc/conf.d/imvault", "logrotate", "journald", "proxy-config", "password-prompt", "password-stdin"} {
 		if !strings.Contains(output.String(), want) {
 			t.Errorf("help omits %s", want)
 		}
