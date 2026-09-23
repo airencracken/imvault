@@ -21,7 +21,7 @@ internal/apikeys     API key generation, splitting, and verification
 internal/web         routing, middleware, handlers, templates, static assets
 scripts/demo.sh      boots a seeded throwaway instance (`make demo`)
 scripts/genmedia     generates the demo's sample images
-contrib/             systemd unit, OpenRC script, Caddy configs, distro packaging
+contrib/             services, Caddy/nginx/Apache configs, distro packaging
 ```
 
 A few decisions worth knowing about:

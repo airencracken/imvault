@@ -110,6 +110,10 @@ Two things that are easy to miss on a host rather than in a container:
 
 ## TLS with Caddy
 
+**Caddy is the recommended reverse proxy.** nginx and Apache 2.4 are also
+supported; see [HTTPS reverse proxies](reverse-proxies.md) for their complete
+examples, certificate setup, upload limits, and validation commands.
+
 [Caddy](https://caddyserver.com) obtains and renews a certificate on its own, so
 the only things needed are a hostname pointed at the machine and that hostname
 in the site address. There is no certificate command to run and nothing to
@@ -222,11 +226,11 @@ test-only dependencies that never end up in it.
 Copy all three packages into an overlay already configured in Portage:
 
 ```bash
-sudo install -d /var/db/repos/local/app-admin/imvault
+sudo install -d /var/db/repos/local/www-apps/imvault
 sudo install -m644 contrib/gentoo/imvault-9999.ebuild contrib/gentoo/metadata.xml \
-  /var/db/repos/local/app-admin/imvault/
+  /var/db/repos/local/www-apps/imvault/
 sudo cp -R contrib/gentoo/acct-user contrib/gentoo/acct-group /var/db/repos/local/
-sudo emerge -av app-admin/imvault
+sudo emerge -av www-apps/imvault
 ```
 
 The account packages use Gentoo's `acct-user` and `acct-group` eclasses with
