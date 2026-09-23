@@ -12,6 +12,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	"imvault/contrib"
 	"imvault/internal/accounts"
 	"imvault/internal/config"
 	"imvault/internal/db"
@@ -25,6 +26,10 @@ func runCommand(args []string, stdin io.Reader, stdout io.Writer) error {
 		return run()
 	}
 	switch args[0] {
+	case "serve":
+		return serve(args[1:], stdout)
+	case "proxy-config":
+		return proxyconfig.Run(args[1:], stdout)
 	case "create-admin":
 		return createAdmin(args[1:], stdin, stdout)
 	case "refresh-metadata":
@@ -33,7 +38,18 @@ func runCommand(args []string, stdin io.Reader, stdout io.Writer) error {
 		return runMaintenance(args[0], args[1:], stdout)
 	case "restore":
 		return restoreBackup(args[1:], stdout)
-	case "help", "-h", "--help":
+	case "help":
+		if len(args) == 2 && (commandDescriptions[args[1]] != "" || args[1] == "proxy-config") {
+			return runCommand([]string{args[1], "--help"}, stdin, stdout)
+		}
+		if len(args) != 1 {
+			return errors.New("usage: imvault help [COMMAND]; use imvault --help for commands")
+		}
+		fallthrough
+	case "-h", "--help":
+		if len(args) != 1 {
+			return errors.New("use imvault help COMMAND for command-specific help")
+		}
 		_, err := fmt.Fprintln(stdout, commandHelp)
 		return err
 	default:
@@ -42,8 +58,7 @@ func runCommand(args []string, stdin io.Reader, stdout io.Writer) error {
 }
 
 func createAdmin(args []string, stdin io.Reader, stdout io.Writer) error {
-	flags := flag.NewFlagSet("create-admin", flag.ContinueOnError)
-	flags.SetOutput(stdout)
+	flags := commandFlags("create-admin", stdout)
 	username := flags.String("username", "", "administrator username (required)")
 	email := flags.String("email", "", "optional email address")
 	passwordStdin := flags.Bool("password-stdin", false, "read the password from stdin (required)")

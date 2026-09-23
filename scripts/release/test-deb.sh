@@ -52,6 +52,16 @@ service_uid=$(id -u "$app") || exit 1
 [ "$(stat -c '%U:%G:%a' "$config")" = root:root:600 ] || fail 'Configuration permissions are not private.'
 test -s "/usr/share/doc/$app/copyright" || fail 'License notices are missing.'
 grep -q "/usr/bin/$app" "/usr/lib/systemd/system/$app.service" || fail 'Service uses the wrong binary path.'
+for setting in StandardOutput=journal StandardError=journal SyslogIdentifier=$app; do
+	grep -qx "$setting" "/usr/lib/systemd/system/$app.service" || fail "Missing journal logging setting: $setting"
+done
+env "$upper"_DATA_DIR="$work/no-data" "/usr/bin/$app" --help > "$work/help" || fail 'Installed help failed.'
+grep -q 'proxy-config' "$work/help" || fail 'Help omits the proxy helper.'
+for proxy in caddy nginx apache; do
+	env "$upper"_DATA_DIR="$work/no-data" "/usr/bin/$app" proxy-config "$proxy" --domain board.example.net > "$work/$proxy.conf" || fail "Installed $proxy helper failed."
+	grep -q 'board.example.net' "$work/$proxy.conf" || fail 'Generated proxy config has the wrong hostname.'
+done
+[ ! -e "$work/no-data" ] || fail 'Help or config generation created application data.'
 printf '\n# Local operator setting\n%s_ADDR=127.0.0.1:18080\n' "$upper" >> "$config" || exit 1
 cp "$config" "$work/config" || exit 1
 printf 'keep this board\n' > "$data/release-test-marker" || exit 1
@@ -61,6 +71,8 @@ printf '%s\n' 'release-test-password' | runuser -u "$app" -- env "$upper"_DATA_D
 if [ "$init" = yes ]; then
 	systemd-analyze verify "/usr/lib/systemd/system/$app.service" || fail 'Invalid systemd unit.'
 	systemctl start "$app.service" || fail 'Service startup failed.'
+	[ "$(systemctl show -p StandardOutput --value "$app")" = journal ] || fail 'Service output is not journal-managed.'
+	[ "$(systemctl show -p StandardError --value "$app")" = journal ] || fail 'Service errors are not journal-managed.'
 else
 	runuser -u "$app" -- env "$upper"_DATA_DIR="$data" "$upper"_ADDR=127.0.0.1:18080 \
 		"/usr/bin/$app" > "$work/server.log" 2>&1 &

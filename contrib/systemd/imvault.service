@@ -6,6 +6,9 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=imvault
 
 # Create the account once, before enabling:
 #   useradd --system --home-dir /var/lib/imvault --shell /usr/sbin/nologin imvault

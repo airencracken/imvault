@@ -95,6 +95,20 @@ commands copy configuration; keep your existing configuration during upgrades.
 For OpenRC, the archive includes `contrib/openrc` and `contrib/logrotate`.
 Set `IMVAULT_BIN` to the installed binary path in `/etc/conf.d/imvault`.
 
+## Logging in packages
+
+Gentoo's ebuilds install `/etc/logrotate.d/imvault` and depend on
+`app-admin/logrotate`. The OpenRC service writes `/var/log/imvault.log`;
+the rule keeps 14 archives and rotates daily or above 10 MiB when the system's
+logrotate job runs. Gentoo's default logrotate installation provides its cron
+job and depends on a cron implementation. If you disable that integration,
+arrange the system logrotate timer or another scheduler.
+
+Debian packages and the supplied systemd unit explicitly send stdout and stderr
+to journald, which handles rotation and retention. They do not create a separate
+application log file. Use `journalctl -u imvault` to read these logs.
+Journal limits are managed by the host's journald configuration.
+
 ## Building and publishing
 
 GoReleaser **2.18.2** builds the same artifact set for both projects. With Go

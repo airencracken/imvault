@@ -39,6 +39,18 @@ Prebuilt Linux amd64/arm64 archives and Debian packages live in
 [GitHub Releases](https://github.com/airencracken/imvault/releases).
 See the [binary installation guide](docs/releases.md) for checksums and setup.
 
+The binary has its own toolbox, including ready-to-edit HTTPS proxy configs:
+
+```sh
+imvault --help
+imvault help create-admin
+imvault proxy-config caddy --domain img.example.com > imvault.Caddyfile
+```
+
+Use `nginx` or `apache` in place of `caddy` for those servers. The
+[proxy guide](docs/reverse-proxies.md#generate-a-site-configuration) covers
+custom ports, certificates, and installation.
+
 ```bash
 make demo
 ```

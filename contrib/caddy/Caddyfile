@@ -46,8 +46,7 @@ img.example.com {
 #		output file /var/log/caddy/imvault.log
 #	}
 
-# Anything else that resolves here goes to the canonical name, so there is one
-# origin and one set of cookies.
-www.img.example.com {
-	redir https://img.example.com{uri} permanent
-}
+# Optional alias: enable only if its DNS also points at this server.
+# www.img.example.com {
+#	redir https://img.example.com{uri} permanent
+# }

@@ -20,8 +20,7 @@ import (
 )
 
 func refreshMetadata(args []string, stdout io.Writer) error {
-	flags := flag.NewFlagSet("refresh-metadata", flag.ContinueOnError)
-	flags.SetOutput(stdout)
+	flags := commandFlags("refresh-metadata", stdout)
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil

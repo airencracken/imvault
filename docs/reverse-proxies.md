@@ -27,6 +27,30 @@ in the web server before accepting its client-IP headers. For containers,
 use a private network and the application's service name instead of host
 loopback; do not expose the application's port to the internet.
 
+## Generate a site configuration
+
+The binary includes all three templates, so a package install has the helpers
+available without finding example files:
+
+```sh
+imvault --help
+imvault proxy-config caddy --domain img.example.com > imvault.Caddyfile
+imvault proxy-config nginx --domain img.example.com > imvault.nginx.conf
+imvault proxy-config apache --domain img.example.com > imvault.apache.conf
+```
+
+Use `--upstream HOST:PORT` to change the loopback destination. It defaults to
+the native service port. nginx and Apache accept `--tls-cert /path/fullchain.pem`
+and `--tls-key /path/privkey.pem` together; otherwise their paths follow Certbot's
+`/etc/letsencrypt/live/HOST/` layout. Caddy manages certificates automatically.
+
+These commands print config to stdout. They do not change the service, obtain
+certificates, or reload the proxy. Copy the application settings from the
+generated comments into your service configuration, then include the site
+in the proxy's configuration and validate it with the commands below.
+The helpers support a proxy and application on the same host; use the static
+examples as a starting point for other network arrangements.
+
 ## Caddy: recommended
 
 Use [`contrib/caddy/Caddyfile`](../contrib/caddy/Caddyfile) and the

@@ -93,7 +93,7 @@ check-fmt: ## Verify Go formatting without changing files
 		if [ -n "$$files" ]; then printf 'Run make fmt:\n%s\n' "$$files"; exit 1; fi
 
 check-complexity: ## Keep production Go functions at cyclomatic complexity 15 or below
-	go run github.com/fzipp/gocyclo/cmd/gocyclo@v0.6.0 -over 15 -ignore '_test\.go$$' cmd internal
+	go run github.com/fzipp/gocyclo/cmd/gocyclo@v0.6.0 -over 15 -ignore '_test\.go$$' cmd internal contrib
 
 check: check-fmt vet test check-js test-js check-complexity ## What CI should run
 

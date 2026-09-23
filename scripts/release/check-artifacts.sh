@@ -19,6 +19,10 @@ for arch in amd64 arm64; do
 	test -s "$work/$arch/LICENSE" || fail 'Archive license is missing.'
 	test -s "$work/$arch/THIRD_PARTY_NOTICES.txt" || fail 'Dependency notices are missing.'
 	test -s "$work/$arch/contrib/openrc/imvault" || fail 'OpenRC example is missing.'
+	cmp "contrib/logrotate/imvault" "$work/$arch/contrib/logrotate/imvault" || fail 'Archive logrotate rule is missing or differs.'
+	for setting in StandardOutput=journal StandardError=journal SyslogIdentifier=imvault; do
+		grep -qx "$setting" "$work/$arch/contrib/systemd/imvault.service" || fail "Archive logging setting is missing: $setting"
+	done
 	test -s "$work/$arch/docs/releases.md" || fail 'Archive installation guide is missing.'
 	test -s "$work/$arch/docs/reverse-proxies.md" || fail 'Archive proxy guide is missing.'
 	for proxy in caddy/Caddyfile nginx/imvault.conf apache/imvault.conf; do
@@ -37,6 +41,9 @@ for arch in amd64 arm64; do
 		sh -n "$work/control-$arch/$script" || exit 1
 	done
 	dpkg-deb -x "$1" "$work/deb-$arch" || exit 1
+	for setting in StandardOutput=journal StandardError=journal SyslogIdentifier=imvault; do
+		grep -qx "$setting" "$work/deb-$arch/usr/lib/systemd/system/imvault.service" || fail "Debian logging setting is missing: $setting"
+	done
 	for proxy in caddy/Caddyfile nginx/imvault.conf apache/imvault.conf; do
 		cmp "$work/$arch/contrib/$proxy" "$work/deb-$arch/usr/share/doc/imvault/contrib/$proxy" || fail "Debian proxy example is missing or differs: $proxy"
 	done
