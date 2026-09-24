@@ -4,6 +4,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 
@@ -29,7 +30,11 @@ type NewUser struct {
 	// empty role becomes an ordinary member.
 	Role models.Role
 	// QuotaBytes caps stored original bytes; zero means unlimited.
-	QuotaBytes int64
+	QuotaBytes        int64
+	CanInvite         bool
+	InvitedBy         *int64
+	InvitedByUsername string
+	InvitationID      *int64
 }
 
 // CreateUser inserts a new account. It returns ErrConflict when the username
@@ -51,9 +56,11 @@ func createUser(ctx context.Context, ex execer, in NewUser) (*models.User, error
 	created := nowUnix()
 
 	res, err := ex.ExecContext(ctx, `
-		INSERT INTO users (username, email, password_hash, role, quota_bytes, storage_used, created_at)
-		VALUES (?, ?, ?, ?, ?, 0, ?)`,
+		INSERT INTO users (username, email, password_hash, role, quota_bytes, storage_used, created_at,
+			can_invite, invited_by, invited_by_username, invitation_id)
+		VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
 		in.Username, in.Email, in.PasswordHash, string(in.Role), in.QuotaBytes, created,
+		in.CanInvite, nullableInt64(in.InvitedBy), in.InvitedByUsername, nullableInt64(in.InvitationID),
 	)
 	if err != nil {
 		if ok, col := isUniqueViolation(err); ok {
@@ -68,19 +75,24 @@ func createUser(ctx context.Context, ex execer, in NewUser) (*models.User, error
 	}
 
 	return &models.User{
-		ID:           id,
-		Username:     in.Username,
-		Email:        in.Email,
-		PasswordHash: in.PasswordHash,
-		Role:         in.Role,
-		QuotaBytes:   in.QuotaBytes,
-		CreatedAt:    toTime(created),
+		ID:                id,
+		Username:          in.Username,
+		Email:             in.Email,
+		PasswordHash:      in.PasswordHash,
+		Role:              in.Role,
+		QuotaBytes:        in.QuotaBytes,
+		CreatedAt:         toTime(created),
+		CanInvite:         in.CanInvite,
+		InvitedBy:         in.InvitedBy,
+		InvitedByUsername: in.InvitedByUsername,
+		InvitationID:      in.InvitationID,
 	}, nil
 }
 
 const userColumns = `id, username, email, password_hash, role, disabled,
 	email_verified, quota_bytes, storage_used, max_file_bytes, created_at,
-	totp_secret, totp_enabled, totp_last_step`
+	totp_secret, totp_enabled, totp_last_step, can_invite, invited_by,
+	invited_by_username, invitation_id`
 
 func scanUser(sc rowScanner) (*models.User, error) {
 	var (
@@ -91,10 +103,13 @@ func scanUser(sc rowScanner) (*models.User, error) {
 		totpEnabled   int
 		totpLastStep  int64
 		created       int64
+		invitedBy     sql.NullInt64
+		invitationID  sql.NullInt64
 	)
 	if err := sc.Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &role,
 		&disabled, &emailVerified, &u.QuotaBytes, &u.StorageUsed, &u.MaxFileBytes,
-		&created, &u.TOTPSecret, &totpEnabled, &totpLastStep); err != nil {
+		&created, &u.TOTPSecret, &totpEnabled, &totpLastStep, &u.CanInvite,
+		&invitedBy, &u.InvitedByUsername, &invitationID); err != nil {
 		return nil, err
 	}
 	u.Role = models.ParseRole(role)
@@ -102,8 +117,23 @@ func scanUser(sc rowScanner) (*models.User, error) {
 	u.EmailVerified = emailVerified != 0
 	u.TOTPEnabled = totpEnabled != 0
 	u.TOTPLastStep = uint64(totpLastStep)
+	if invitedBy.Valid {
+		u.InvitedBy = &invitedBy.Int64
+	}
+	if invitationID.Valid {
+		u.InvitationID = &invitationID.Int64
+	}
 	u.CreatedAt = toTime(created)
 	return &u, nil
+}
+
+// SetUserInvitePermission grants or removes the separately controlled ability
+// to issue invitations.
+func (s *Store) SetUserInvitePermission(ctx context.Context, userID int64, allowed bool) error {
+	if _, err := s.db.ExecContext(ctx, `UPDATE users SET can_invite = ? WHERE id = ?`, allowed, userID); err != nil {
+		return fmt.Errorf("set invite permission: %w", err)
+	}
+	return nil
 }
 
 // UserByUsername looks up an account by its (case-insensitive) username.

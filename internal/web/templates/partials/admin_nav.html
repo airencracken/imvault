@@ -16,6 +16,7 @@
   </a>
   <a class="btn small" href="/moderation/log">Log</a>
   <a class="btn small" href="/admin/files">Content</a>
+  {{if and .User.CanInvite (not .IsAdmin)}}<a class="btn small" href="/invites">Invitations</a>{{end}}
   {{if .IsAdmin}}
   <a class="btn small" href="/admin/users">Users</a>
   <a class="btn small" href="/admin/invites">Invitations</a>

@@ -15,6 +15,8 @@ settings](#instance-settings) below.
 | `IMVAULT_DATA_DIR` | `./data` | Root for the database and stored objects |
 | `IMVAULT_DB` | `<data>/imvault.db` | SQLite database path |
 | `IMVAULT_BASE_URL` | *(derived from request)* | Absolute prefix used when building share links |
+| `IMVAULT_NAME` | `imvault` | Default name shown in the page title, header, and footer |
+| `IMVAULT_SOURCE_URL` | `https://github.com/airencracken/imvault` | Source link shown in the footer; blank hides it |
 | `IMVAULT_ALLOW_SIGNUP` | `true` | Whether new accounts can register |
 | `IMVAULT_INVITE_ONLY` | `false` | Whether registering needs an invitation code |
 | `IMVAULT_ALLOW_ANONYMOUS_UPLOADS` | `true` | Whether logged-out visitors may upload |
@@ -133,6 +135,12 @@ instance behaves exactly as its configuration says. The page states, for each
 setting, whether it is currently coming from the file or from the interface, and
 **Clear stored settings** removes the overrides to hand control back to the
 environment.
+
+The same page lets an administrator customize the site name, footer source
+link, and welcome copy, then upload a favicon and mascot for this instance.
+Images can be PNG, JPEG, or GIF up to 2 MiB; imvault converts them to PNG
+before serving them. The source link starts at `IMVAULT_SOURCE_URL` and can be
+changed or hidden in the page.
 
 The retention window accepts a bare number of hours, or a duration with a unit:
 `24` and `24h` mean the same thing, and `7d` is a week.

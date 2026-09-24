@@ -20,6 +20,8 @@ import (
 
 // Config holds all runtime settings for the server.
 type Config struct {
+	// Name is the default instance name when an administrator has not set one.
+	Name string
 	// Addr is the host:port the HTTP server listens on.
 	Addr string
 	// DataDir is the root directory for the database and uploaded objects.
@@ -139,9 +141,25 @@ type Config struct {
 
 // Load reads configuration from the environment, applying defaults.
 func Load() (*Config, error) {
+	return load("", "")
+}
+
+// LoadWithProvisioningPaths reads the environment like Load, using the supplied
+// paths only when their corresponding environment variables are unset. The
+// create-admin command uses this to honor service-manager paths without
+// mutating process environment shared with other commands.
+func LoadWithProvisioningPaths(dataDir, dbPath string) (*Config, error) {
+	return load(dataDir, dbPath)
+}
+
+func load(dataDirOverride, dbPathOverride string) (*Config, error) {
 	dataDir := getenv("IMVAULT_DATA_DIR", "./data")
+	if os.Getenv("IMVAULT_DATA_DIR") == "" && dataDirOverride != "" {
+		dataDir = dataDirOverride
+	}
 
 	c := &Config{
+		Name:                  getenv("IMVAULT_NAME", "imvault"),
 		Addr:                  getenv("IMVAULT_ADDR", ":8080"),
 		DataDir:               dataDir,
 		BaseURL:               strings.TrimRight(getenv("IMVAULT_BASE_URL", ""), "/"),
@@ -191,6 +209,9 @@ func Load() (*Config, error) {
 	}
 
 	c.DBPath = getenv("IMVAULT_DB", filepath.Join(dataDir, "imvault.db"))
+	if os.Getenv("IMVAULT_DB") == "" && dbPathOverride != "" {
+		c.DBPath = dbPathOverride
+	}
 	c.SecretKeyFile = getenv("IMVAULT_SECRET_KEY_FILE", filepath.Join(dataDir, "secret.key"))
 	var err error
 	c.Storage, err = LoadStorage("IMVAULT_", filepath.Join(dataDir, "objects"))

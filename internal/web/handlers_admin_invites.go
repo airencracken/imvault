@@ -36,7 +36,8 @@ type adminInvitesView struct {
 	Error    string
 	InviteOn bool
 	// InviteURL is the ready-to-send link for a freshly created code.
-	InviteURL string
+	InviteURL  string
+	InvitePath string
 }
 
 func inviteStatus(inv *models.Invite, now time.Time) string {
@@ -78,7 +79,16 @@ func inviteRows(list []*models.Invite) []inviteRow {
 // renderInvitesPanel writes the invitation panel, optionally revealing a code
 // that was just minted.
 func (s *Server) renderInvitesPanel(w http.ResponseWriter, r *http.Request, newCode, message string) {
-	list, _, err := s.store.ListInvites(r.Context(), 100, 0)
+	user := currentUser(r.Context())
+	var list []*models.Invite
+	var err error
+	path := "/invites"
+	if user.IsAdmin() {
+		list, _, err = s.store.ListInvites(r.Context(), 100, 0)
+		path = "/admin/invites"
+	} else {
+		list, _, err = s.store.ListInvitesByCreator(r.Context(), user.ID, 100, 0)
+	}
 	if err != nil {
 		s.log.Error("invites panel: list", "error", err)
 		http.Error(w, "database error", http.StatusInternalServerError)
@@ -86,11 +96,12 @@ func (s *Server) renderInvitesPanel(w http.ResponseWriter, r *http.Request, newC
 	}
 
 	view := adminInvitesView{
-		base:     s.base(r, "Invitations"),
-		Rows:     inviteRows(list),
-		NewCode:  newCode,
-		Error:    message,
-		InviteOn: s.policy().InviteOnly,
+		base:       s.base(r, "Invitations"),
+		Rows:       inviteRows(list),
+		NewCode:    newCode,
+		Error:      message,
+		InviteOn:   s.policy().InviteOnly,
+		InvitePath: path,
 	}
 	if newCode != "" {
 		view.InviteURL = s.absoluteURL(r, "/register") + "?invite=" + newCode
@@ -109,12 +120,30 @@ func (s *Server) handleAdminInvites(w http.ResponseWriter, r *http.Request) {
 	}
 
 	view := adminInvitesView{
-		base:     s.base(r, "Invitations"),
-		Rows:     inviteRows(list),
-		Error:    strings.TrimSpace(r.URL.Query().Get("error")),
-		InviteOn: s.policy().InviteOnly,
+		base:       s.base(r, "Invitations"),
+		Rows:       inviteRows(list),
+		Error:      strings.TrimSpace(r.URL.Query().Get("error")),
+		InviteOn:   s.policy().InviteOnly,
+		InvitePath: "/admin/invites",
 	}
 
+	s.renderPage(w, http.StatusOK, "admin_invites", view)
+}
+
+func (s *Server) handleUserInvites(w http.ResponseWriter, r *http.Request) {
+	user := currentUser(r.Context())
+	list, _, err := s.store.ListInvitesByCreator(r.Context(), user.ID, 100, 0)
+	if err != nil {
+		s.log.Error("invites: list own", "error", err)
+		http.Error(w, "database error", http.StatusInternalServerError)
+		return
+	}
+	view := adminInvitesView{
+		base:       s.base(r, "Invitations"),
+		Rows:       inviteRows(list),
+		Error:      strings.TrimSpace(r.URL.Query().Get("error")),
+		InvitePath: "/invites",
+	}
 	s.renderPage(w, http.StatusOK, "admin_invites", view)
 }
 
@@ -190,5 +219,26 @@ func (s *Server) handleAdminRevokeInvite(w http.ResponseWriter, r *http.Request)
 	}
 
 	s.log.Info("invitation revoked", "actor", currentUser(r.Context()).ID, "invite", id)
+	s.renderInvitesPanel(w, r, "", "")
+}
+
+func (s *Server) handleUserRevokeInvite(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid invitation", http.StatusBadRequest)
+		return
+	}
+	user := currentUser(r.Context())
+	if user.IsAdmin() {
+		err = s.store.RevokeInvite(r.Context(), id)
+	} else {
+		err = s.store.RevokeInviteByCreator(r.Context(), id, user.ID)
+	}
+	if err != nil {
+		s.log.Error("invitation revoke", "actor", user.ID, "id", id, "error", err)
+		s.renderInvitesPanel(w, r, "", "Could not revoke the invitation.")
+		return
+	}
+	s.log.Info("invitation revoked", "actor", user.ID, "invite", id)
 	s.renderInvitesPanel(w, r, "", "")
 }

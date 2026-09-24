@@ -21,6 +21,7 @@
     {{if .User.TOTPEnabled}}<span class="badge" title="Two-factor authentication is on">2FA</span>{{end}}
     {{if .User.Email}}<br><span class="muted">{{.User.Email}}</span>{{end}}
     <br><span class="muted">joined {{humanTime .User.CreatedAt}}</span>
+    {{if .User.InvitedByUsername}}<br><span class="muted">invited by {{.User.InvitedByUsername}}</span>{{end}}
     {{/* Kept inside the row so a swap replaces it atomically: an error on its
          own row would linger after the next successful action. */}}
     {{if .Error}}<br><span class="row-error-text">{{.Error}}</span>{{end}}
@@ -71,6 +72,16 @@
       </select>
       <button class="btn small" type="submit">Set</button>
     </form>
+
+    {{if not .User.Role.IsAdmin}}
+    <form class="inline-form" method="post" action="/admin/users/{{.User.ID}}/invites"
+          hx-post="/admin/users/{{.User.ID}}/invites"
+          hx-target="closest tr" hx-swap="outerHTML">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <input type="hidden" name="can_invite" value="{{if .User.CanInvite}}0{{else}}1{{end}}">
+      <button class="btn small" type="submit">{{if .User.CanInvite}}Remove invite access{{else}}Allow invites{{end}}</button>
+    </form>
+    {{end}}
 
     {{if .Self}}
     <span class="muted" title="You cannot disable or delete your own account">—</span>

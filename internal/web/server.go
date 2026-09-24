@@ -137,6 +137,7 @@ func (s *Server) routes() *http.ServeMux {
 		panic(fmt.Sprintf("web: static assets: %v", err))
 	}
 	mux.Handle("GET /static/", http.StripPrefix("/static/", immutableCache(http.FileServer(http.FS(staticSub)))))
+	mux.HandleFunc("GET /branding/{name}", s.handleBrandingAsset)
 
 	mux.HandleFunc("GET /healthz", s.handleHealth)
 
@@ -224,6 +225,7 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /admin/users/{id}/limits", s.requireAdmin(s.handleAdminSetLimits))
 	mux.HandleFunc("POST /admin/users/{id}/disabled", s.requireAdmin(s.handleAdminSetDisabled))
 	mux.HandleFunc("POST /admin/users/{id}/role", s.requireAdmin(s.handleAdminSetRole))
+	mux.HandleFunc("POST /admin/users/{id}/invites", s.requireAdmin(s.handleAdminSetInvitePermission))
 	mux.HandleFunc("POST /admin/users/{id}/delete", s.requireAdmin(s.handleAdminDeleteUser))
 	mux.HandleFunc("POST /admin/users/{id}/reset", s.requireAdmin(s.handleAdminIssueReset))
 	mux.HandleFunc("POST /admin/users/{id}/2fa", s.requireAdmin(s.handleAdminClearTwoFactor))
@@ -235,8 +237,12 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /admin/invites", s.requireAdmin(s.handleAdminInvites))
 	mux.HandleFunc("POST /admin/invites", s.requireAdmin(s.handleAdminCreateInvite))
 	mux.HandleFunc("POST /admin/invites/{id}/revoke", s.requireAdmin(s.handleAdminRevokeInvite))
+	mux.HandleFunc("GET /invites", s.requireInviter(s.handleUserInvites))
+	mux.HandleFunc("POST /invites", s.requireInviter(s.handleAdminCreateInvite))
+	mux.HandleFunc("POST /invites/{id}/revoke", s.requireInviter(s.handleUserRevokeInvite))
 	mux.HandleFunc("GET /admin/settings", s.requireAdmin(s.handleAdminSettings))
 	mux.HandleFunc("POST /admin/settings", s.requireAdmin(s.handleAdminSaveSettings))
+	mux.HandleFunc("POST /admin/settings/branding-assets", s.requireAdmin(s.handleAdminSaveBrandingAssets))
 	mux.HandleFunc("POST /admin/settings/clear", s.requireAdmin(s.handleAdminClearSettings))
 	mux.HandleFunc("GET /admin/files", s.requireModerator(s.handleAdminFiles))
 	mux.HandleFunc("POST /admin/files/{id}/delete", s.requireModerator(s.handleAdminDeleteFile))

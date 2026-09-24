@@ -8,11 +8,15 @@ import (
 	"time"
 
 	"imvault/internal/invites"
+	"imvault/internal/models"
 )
 
 func TestRegisterWithInviteIsAtomic(t *testing.T) {
 	s, ctx := newTestStore(t)
 	boss := mustUser(t, s, ctx, "boss")
+	if err := s.SetUserInvitePermission(ctx, boss.ID, true); err != nil {
+		t.Fatal(err)
+	}
 
 	mint := func(maxUses int) int64 {
 		t.Helper()
@@ -60,6 +64,9 @@ func TestRegisterWithInviteIsAtomic(t *testing.T) {
 func TestRevokeInviteIsIdempotent(t *testing.T) {
 	s, ctx := newTestStore(t)
 	boss := mustUser(t, s, ctx, "boss")
+	if err := s.SetUserInvitePermission(ctx, boss.ID, true); err != nil {
+		t.Fatal(err)
+	}
 
 	generated := invites.Generate()
 	inv, err := s.CreateInvite(ctx, boss.ID, "test", generated.Prefix, generated.Hash, 1, nil)
@@ -82,5 +89,46 @@ func TestRevokeInviteIsIdempotent(t *testing.T) {
 	}
 	if after.Usable(time.Now()) {
 		t.Error("a revoked invitation is still usable")
+	}
+}
+
+func TestDelegatedInvitePermissionAndAttribution(t *testing.T) {
+	s, ctx := newTestStore(t)
+	admin, err := s.CreateUser(ctx, NewUser{Username: "admin", Role: models.RoleAdmin})
+	if err != nil {
+		t.Fatal(err)
+	}
+	delegate, err := s.CreateUser(ctx, NewUser{Username: "delegate"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	generated := invites.Generate()
+	if _, err := s.CreateInvite(ctx, delegate.ID, "denied", generated.Prefix, generated.Hash, 1, nil); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("ungranted member created invite: %v", err)
+	}
+	if err := s.SetUserInvitePermission(ctx, delegate.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	created, err := s.CreateInvite(ctx, delegate.ID, "family", generated.Prefix, generated.Hash, 1, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	newcomer, err := s.RegisterWithInvite(ctx, NewUser{Username: "newcomer", PasswordHash: "hash"}, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if newcomer.InvitedBy == nil || *newcomer.InvitedBy != delegate.ID || newcomer.InvitedByUsername != delegate.Username || newcomer.InvitationID == nil || *newcomer.InvitationID != created.ID {
+		t.Fatalf("registration lost its invitation lineage: %+v", newcomer)
+	}
+	all, total, err := s.ListInvites(ctx, 10, 0)
+	if err != nil || total != 1 || len(all) != 1 {
+		t.Fatalf("all invites: %+v total=%d err=%v", all, total, err)
+	}
+	delegated, total, err := s.ListInvitesByCreator(ctx, delegate.ID, 10, 0)
+	if err != nil || total != 1 || len(delegated) != 1 || delegated[0].Creator != delegate.Username {
+		t.Fatalf("delegate invites: %+v total=%d err=%v", delegated, total, err)
+	}
+	if err := s.RevokeInviteByCreator(ctx, created.ID, admin.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("another account revoked delegated invite: %v", err)
 	}
 }

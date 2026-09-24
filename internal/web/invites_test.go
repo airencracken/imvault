@@ -5,6 +5,7 @@ package web
 import (
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -30,6 +31,62 @@ func (h *harness) seedInvite(t *testing.T, maxUses int, expiresAt *time.Time) (s
 		t.Fatalf("create invite: %v", err)
 	}
 	return generated.Full, inv
+}
+
+func TestDelegatedInvitesAreGrantedScopedAndAttributed(t *testing.T) {
+	h := newHarness(t)
+	admin := h.provisionAdmin("boss")
+	delegate := h.seedUser("jules")
+	adminSession := h.sessionFor(t, admin.ID)
+	delegateSession := h.sessionFor(t, delegate.ID)
+
+	if resp, _ := delegateSession.get("/invites"); resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("ungranted user invitation page = %d, want 403", resp.StatusCode)
+	}
+	resp, _ := adminSession.post("/admin/users/"+itoa64(delegate.ID)+"/invites", url.Values{"can_invite": {"1"}})
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("grant invite permission = %d", resp.StatusCode)
+	}
+	delegateSession = h.sessionFor(t, delegate.ID)
+	if resp, page := delegateSession.get("/invites"); resp.StatusCode != http.StatusOK || !strings.Contains(page, "Create an invitation") {
+		t.Fatalf("granted user invitation page = %d, body %s", resp.StatusCode, truncate(page))
+	}
+
+	codeResp, codePage := delegateSession.post("/invites", url.Values{"label": {"From Jules"}, "max_uses": {"1"}, "expires_days": {"7"}})
+	if codeResp.StatusCode != http.StatusOK {
+		t.Fatalf("delegated invite creation = %d: %s", codeResp.StatusCode, truncate(codePage))
+	}
+	match := regexp.MustCompile(`value="(inv_[A-Za-z0-9_-]+)"`).FindStringSubmatch(codePage)
+	if len(match) != 2 {
+		t.Fatalf("new invite code missing: %s", truncate(codePage))
+	}
+	list, total, err := h.store.ListInvitesByCreator(t.Context(), delegate.ID, 10, 0)
+	if err != nil || total != 1 || len(list) != 1 || list[0].Label != "From Jules" {
+		t.Fatalf("delegated invitation list: %+v total=%d err=%v", list, total, err)
+	}
+
+	guest := h.newSession(t)
+	resp, body := guest.post("/register", url.Values{"username": {"sam"}, "password": {testPassword}, "invite": {match[1]}})
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("invite registration = %d: %s", resp.StatusCode, truncate(body))
+	}
+	joined, err := h.store.UserByUsername(t.Context(), "sam")
+	if err != nil || joined.InvitedBy == nil || *joined.InvitedBy != delegate.ID || joined.InvitedByUsername != "jules" || joined.InvitationID == nil || *joined.InvitationID != list[0].ID {
+		t.Fatalf("new account attribution: %+v err=%v", joined, err)
+	}
+
+	adminCode, adminInvite := h.seedInvite(t, 1, nil)
+	if strings.Contains(codePage, adminCode) {
+		t.Fatal("member invitation response exposed an administrator's code")
+	}
+	_, memberInvites := delegateSession.get("/invites")
+	if strings.Contains(memberInvites, adminInvite.Prefix) {
+		t.Fatal("member invitation list included another creator's invitation")
+	}
+	_, _ = delegateSession.post("/invites/"+itoa64(adminInvite.ID)+"/revoke", url.Values{})
+	if current, err := h.store.InviteByID(t.Context(), adminInvite.ID); err != nil || current.Revoked() {
+		t.Fatalf("delegated user revoked another person's invitation: %+v err=%v", current, err)
+	}
 }
 
 // registerWith submits the registration form as given.

@@ -36,6 +36,21 @@
 <form class="panel stack" method="post" action="/admin/settings">
   <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
 
+  <h2>Instance identity</h2>
+  <label>Site name
+    <input name="site_name" maxlength="80" value="{{.Branding.SiteName}}" required>
+  </label>
+  <label>Source link <span class="muted">(blank hides it)</span>
+    <input name="source_url" type="url" maxlength="512" value="{{.Branding.SourceURL}}" placeholder="https://example.org/source">
+  </label>
+  <label>Welcome heading
+    <input name="welcome_title" maxlength="120" value="{{.Branding.WelcomeTitle}}">
+  </label>
+  <label>Welcome text
+    <textarea name="welcome_text" rows="4" maxlength="2000">{{.Branding.WelcomeText}}</textarea>
+  </label>
+  <p class="muted">The site name appears in the title, header, and footer. The welcome copy appears on the home page. Blank welcome fields restore the default copy; a blank source link hides that link.</p>
+
   <h2>Accounts</h2>
   <label class="row">
     <input type="checkbox" name="allow_signup" value="1" {{if .AllowSignup}}checked{{end}}>
@@ -149,12 +164,28 @@
   <button class="btn primary" type="submit">Save settings</button>
 </form>
 
-{{if .Stored}}
+<section class="panel stack">
+  <h2>Favicon and mascot</h2>
+  <p class="muted">Upload a PNG, JPEG, or GIF image up to 2 MiB. The server converts it to PNG before serving it on this instance.</p>
+  <form class="stack" method="post" action="/admin/settings/branding-assets" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <label>Favicon
+      <input name="favicon" type="file" accept="image/png,image/jpeg,image/gif">
+    </label>
+    {{if .CustomFavicon}}<label class="row"><input type="checkbox" name="remove_favicon" value="1"><span>Use the default favicon</span></label>{{end}}
+    <label>Mascot
+      <input name="mascot" type="file" accept="image/png,image/jpeg,image/gif">
+    </label>
+    {{if .CustomMascot}}<label class="row"><input type="checkbox" name="remove_mascot" value="1"><span>Use the default mascot</span></label>{{end}}
+    <button class="btn primary" type="submit">Save images</button>
+  </form>
+</section>
+
+{{if or .Stored .BrandingStored}}
 <section class="panel stack">
   <h2>Stored overrides</h2>
   <p class="muted">
-    {{if eq (len .Stored) 1}}One setting is{{else}}{{len .Stored}} settings are{{end}}
-    stored here and taking precedence over the configuration.
+    Settings saved here take precedence over the configuration. Clearing them resets the policy and text branding; uploaded images stay until removed above.
   </p>
   <form method="post" action="/admin/settings/clear"
         onsubmit="return confirm('Clear the stored settings and go back to the configuration file?');">

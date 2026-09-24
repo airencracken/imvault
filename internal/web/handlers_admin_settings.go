@@ -21,7 +21,9 @@ type settingSource struct {
 	Values models.Settings
 	// Stored marks the settings an administrator has set here. Anything else is
 	// coming from the configuration.
-	Stored map[string]bool
+	Stored         map[string]bool
+	Branding       models.Branding
+	BrandingStored map[string]bool
 }
 
 // installSettings loads the policy at startup and keeps it in memory.
@@ -43,9 +45,39 @@ func (s *Server) reloadSettings(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-
-	s.settings.Store(&settingSource{Values: values, Stored: stored})
+	branding, brandingStored, err := s.store.LoadBranding(ctx, s.configBrandingDefaults())
+	if err != nil {
+		return err
+	}
+	s.settings.Store(&settingSource{Values: values, Stored: stored, Branding: branding, BrandingStored: brandingStored})
 	return nil
+}
+
+func (s *Server) configBrandingDefaults() models.Branding {
+	name := s.cfg.Name
+	if name == "" {
+		name = "imvault"
+	}
+	return models.Branding{
+		SiteName:     name,
+		SourceURL:    s.cfg.SourceURL,
+		WelcomeTitle: "Your pictures, your server.",
+		WelcomeText:  "imvault is a small, self-hosted image host. Upload, organise into albums, tag, and share by link.",
+	}
+}
+
+func (s *Server) branding() models.Branding {
+	if current := s.settings.Load(); current != nil {
+		return current.Branding
+	}
+	return s.configBrandingDefaults()
+}
+
+func (s *Server) settingBrandingSources() map[string]bool {
+	if current := s.settings.Load(); current != nil && current.BrandingStored != nil {
+		return current.BrandingStored
+	}
+	return map[string]bool{}
 }
 
 // configDefaults is the policy the environment asks for, which applies to
@@ -82,6 +114,10 @@ func (s *Server) settingSources() map[string]bool {
 // settingsView backs the instance settings page.
 type settingsView struct {
 	base
+	Branding              models.Branding
+	BrandingStored        map[string]bool
+	CustomMascot          bool
+	CustomFavicon         bool
 	AllowSignup           bool
 	InviteOnly            bool
 	AllowAnonymousUploads bool
@@ -178,6 +214,8 @@ func (s *Server) handleAdminSettings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	view := settingsView{
+		Branding:              s.branding(),
+		BrandingStored:        s.settingBrandingSources(),
 		AllowSignup:           policy.AllowSignup,
 		InviteOnly:            policy.InviteOnly,
 		AllowAnonymousUploads: policy.AllowAnonymousUploads,
@@ -196,6 +234,10 @@ func (s *Server) handleAdminSettings(w http.ResponseWriter, r *http.Request) {
 		AnonymousPending:      pending,
 		Error:                 r.URL.Query().Get("error"),
 		Notice:                r.URL.Query().Get("notice"),
+	}
+	view.CustomMascot, view.CustomFavicon, err = s.store.BrandingAssetState(r.Context())
+	if err != nil {
+		s.log.Error("admin settings: branding assets", "error", err)
 	}
 	view.base = s.base(r, "Instance settings")
 
@@ -252,8 +294,24 @@ func (s *Server) handleAdminSaveSettings(w http.ResponseWriter, r *http.Request)
 		next.AnonymousTTL = window
 	}
 
-	if err := s.store.SaveSettings(r.Context(), next); err != nil {
-		s.log.Error("admin: save settings", "error", err)
+	var saveErr error
+	if _, hasBranding := r.Form["site_name"]; hasBranding {
+		branding := models.Branding{
+			SiteName:     strings.TrimSpace(r.FormValue("site_name")),
+			SourceURL:    strings.TrimSpace(r.FormValue("source_url")),
+			WelcomeTitle: strings.TrimSpace(r.FormValue("welcome_title")),
+			WelcomeText:  strings.TrimSpace(r.FormValue("welcome_text")),
+		}
+		if err := store.ValidateBranding(branding); err != nil {
+			redirectNotice(w, r, "/admin/settings", "error", err.Error())
+			return
+		}
+		saveErr = s.store.SaveSettingsWithBranding(r.Context(), next, branding)
+	} else {
+		saveErr = s.store.SaveSettings(r.Context(), next)
+	}
+	if saveErr != nil {
+		s.log.Error("admin: save settings", "error", saveErr)
 		redirectNotice(w, r, "/admin/settings", "error", "Could not save the settings.")
 		return
 	}

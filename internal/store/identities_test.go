@@ -19,6 +19,9 @@ func newInviteFor(t *testing.T, s *Store, ctx context.Context) int64 {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := s.SetUserInvitePermission(ctx, boss.ID, true); err != nil {
+		t.Fatal(err)
+	}
 	generated := invites.Generate()
 	inv, err := s.CreateInvite(ctx, boss.ID, "test", generated.Prefix, generated.Hash, 1, nil)
 	if err != nil {

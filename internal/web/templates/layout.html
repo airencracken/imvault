@@ -4,11 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="{{.CSRFToken}}">
-  <title>{{if .Title}}{{.Title}} · imvault{{else}}imvault{{end}}</title>
+  <title>{{if .Title}}{{.Title}} · {{.SiteName}}{{else}}{{.SiteName}}{{end}}</title>
   <script src="/static/js/theme.js"></script>
   <link rel="stylesheet" href="/static/css/app.css">
-  <link rel="icon" type="image/png" sizes="32x32" href="/static/img/favicon-32.png">
-  <link rel="icon" type="image/png" sizes="16x16" href="/static/img/favicon-16.png">
+  {{if .FaviconURL}}<link rel="icon" type="image/png" href="{{.FaviconURL}}">
+  {{else}}<link rel="icon" type="image/png" sizes="32x32" href="/static/img/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/static/img/favicon-16.png">{{end}}
   <script src="/static/js/htmx.min.js" defer></script>
   <!-- app.js registers its alpine:init hooks, so it must be parsed first. -->
   <script src="/static/js/app.js" defer></script>
@@ -16,7 +17,7 @@
 </head>
 <body hx-headers='{"X-CSRF-Token":"{{.CSRFToken}}"}'>
   <header class="topbar">
-    <a class="brand" href="/"><img src="/static/img/mascot.png" alt="" width="32" height="32">imvault</a>
+    <a class="brand" href="/"><img src="{{.MascotURL}}" alt="" width="32" height="32">{{.SiteName}}</a>
     <nav class="nav">
       {{if .IsAuthed}}
         <a href="/recent">Recent</a>
@@ -25,6 +26,7 @@
         <a href="/albums">Albums</a>
         <a href="/tags">Tags</a>
         <a href="/settings/2fa">Settings</a>
+        {{if and .User.CanInvite (not .IsAdmin)}}<a href="/invites">Invitations</a>{{end}}
         {{if .IsAdmin}}<a href="/admin">Admin</a>
         {{else if .CanModerate}}<a href="/admin/files">Moderate</a>{{end}}
         <a class="btn small primary" href="/upload">Upload</a>
@@ -60,7 +62,7 @@
   {{if .UseAlpine}}{{template "confirm_dialog" .}}{{end}}
 
   <footer class="foot">
-    <span>imvault</span>
+    <span>{{.SiteName}}</span>
     <span class="muted">
       Self-hosted image hosting{{if .SourceURL}} ·
       <a href="{{.SourceURL}}" rel="noopener">source</a> · AGPLv3{{end}}
