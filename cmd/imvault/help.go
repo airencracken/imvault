@@ -34,8 +34,10 @@ Server configuration uses environment variables:
   IMVAULT_STORAGE        disk (default) or s3; see docs/storage.md for storage settings.
 
 Native service settings: /etc/conf.d/imvault (OpenRC), /etc/imvault/imvault.env (systemd).
-The CLI reads the environment; it does not source service configuration files.
-Run account/maintenance commands with the service's data settings and user.
+create-admin reads IMVAULT_DATA_DIR from the active service configuration when
+it is not set in the environment. When run as root, it repeats the database
+operation as the service user. Other commands use the process environment; pass
+their service settings explicitly.
 Stop the server before backup, restore, storage migration, or thumbnail rebuilding.
 
 Examples:
@@ -51,7 +53,7 @@ More settings and deployment examples: docs/deployment.md and docs/reverse-proxi
 
 var commandDescriptions = map[string]string{
 	"serve":              "Start the HTTP server using IMVAULT_* environment variables. See imvault --help for defaults.",
-	"create-admin":       "Create a new administrator locally; existing accounts are never changed.\nUse a hidden terminal prompt or read one password line from stdin. Run as the service user with its IMVAULT_DATA_DIR.",
+	"create-admin":       "Create a new administrator locally; existing accounts are never changed.\nUse a hidden terminal prompt or read one password line from stdin. IMVAULT_DATA_DIR is read from the active service configuration unless set in the environment. Root invocations use the configured service user.",
 	"refresh-metadata":   "Refresh photo details from stored originals without changing sharing settings.\nUse the same IMVAULT_DATA_DIR and storage settings as the service.",
 	"migrate-storage":    "Copy and verify objects to IMVAULT_DEST_* storage. Stop the server first.\nUse the service's data/storage settings and configure the destination; see docs/storage.md.",
 	"rebuild-thumbnails": "Regenerate thumbnails, previews and video posters. Stop the server first.\nUse the service's IMVAULT_DATA_DIR and storage settings; video posters need ffmpeg.",

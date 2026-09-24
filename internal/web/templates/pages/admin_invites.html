@@ -1,5 +1,5 @@
 {{define "content"}}
-<header class="page-head">
+  <header class="page-head">
   <div>
     <h1>Invitations</h1>
     <p class="muted">
@@ -7,10 +7,10 @@
       registration is closed.
     </p>
   </div>
-  {{template "admin_nav" .}}
+  {{if .IsAdmin}}{{template "admin_nav" .}}{{end}}
 </header>
 
-{{if not .InviteOn}}
+{{if and .IsAdmin (not .InviteOn)}}
 <p class="muted">
   Registration is currently <strong>open</strong>, so anybody who finds this
   instance can create an account and invitations are a convenience rather than a

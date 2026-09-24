@@ -1,7 +1,7 @@
 {{define "content"}}
 <section class="hero">
-  <h1>Your pictures, your server.</h1>
-  <p class="lede">imvault is a small, self-hosted image host. Upload, organise into albums, tag, and share by link.</p>
+  <h1>{{.WelcomeTitle}}</h1>
+  <p class="lede">{{.WelcomeText}}</p>
   <div class="cta">
     {{if .AnonUploads}}<a class="btn primary" href="/upload">Upload an image</a>{{end}}
     {{if .IsAuthed}}

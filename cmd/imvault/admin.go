@@ -58,6 +58,10 @@ func runCommand(args []string, stdin io.Reader, stdout io.Writer) error {
 }
 
 func createAdmin(args []string, stdin io.Reader, stdout io.Writer) error {
+	return createAdminWithConfigPaths(args, stdin, stdout, defaultProvisioningConfigPaths())
+}
+
+func createAdminWithConfigPaths(args []string, stdin io.Reader, stdout io.Writer, paths provisioningConfigPaths) error {
 	flags := commandFlags("create-admin", stdout)
 	username := flags.String("username", "", "administrator username (required)")
 	email := flags.String("email", "", "optional email address")
@@ -86,7 +90,15 @@ func createAdmin(args []string, stdin io.Reader, stdout io.Writer) error {
 	if err := accounts.ValidateRegistration(name, address, password); err != nil {
 		return err
 	}
-	user, err := provisionAdmin(context.Background(), name, address, password)
+	dataDir, err := resolveProvisioningDataDir(paths)
+	if err != nil {
+		return err
+	}
+	dbPath, _, err := resolveProvisioningDBPath(paths)
+	if err != nil {
+		return err
+	}
+	user, err := provisionAdmin(context.Background(), name, address, password, dataDir, dbPath)
 	if err != nil {
 		return err
 	}
@@ -114,8 +126,8 @@ func readAdminPassword(stdin io.Reader) (string, error) {
 	return password, nil
 }
 
-func provisionAdmin(ctx context.Context, username, email, password string) (*models.User, error) {
-	cfg, err := config.Load()
+func provisionAdmin(ctx context.Context, username, email, password, dataDir, dbPath string) (*models.User, error) {
+	cfg, err := config.LoadWithProvisioningPaths(dataDir, dbPath)
 	if err != nil {
 		return nil, err
 	}

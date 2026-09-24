@@ -185,3 +185,26 @@ func TestTheInstanceCeilingDefaultsToNone(t *testing.T) {
 		t.Error("a negative ceiling was accepted")
 	}
 }
+
+func TestWhiteboxIdentityHasSourceLinkDefaultsAndEnvironmentOverrides(t *testing.T) {
+	t.Setenv("IMVAULT_DATA_DIR", t.TempDir())
+	t.Setenv("IMVAULT_NAME", "")
+	t.Setenv("IMVAULT_SOURCE_URL", "")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Name != "imvault" || cfg.SourceURL != "https://github.com/airencracken/imvault" {
+		t.Fatalf("identity defaults = %q / %q", cfg.Name, cfg.SourceURL)
+	}
+
+	t.Setenv("IMVAULT_NAME", "Friends' Album")
+	t.Setenv("IMVAULT_SOURCE_URL", "https://example.org/source")
+	cfg, err = Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Name != "Friends' Album" || cfg.SourceURL != "https://example.org/source" {
+		t.Errorf("identity overrides = %q / %q", cfg.Name, cfg.SourceURL)
+	}
+}

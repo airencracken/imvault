@@ -25,21 +25,21 @@ imvault create-admin --username marcus --password-stdin --email you@example.com 
 	< /path/to/admin-password
 ```
 
-On a native OpenRC install, run the command as the service user and use the same
-data directory. Cache sudo credentials first so sudo does not need the terminal
-while the application is prompting:
+On a native OpenRC or systemd install, run the command as root or as the service
+user. It reads `IMVAULT_DATA_DIR` from the active service configuration when
+the process environment does not set it. A root invocation repeats the database
+operation as the configured service user, so the database keeps the right
+ownership:
 
 ```bash
-sudo -v
-sudo -u imvault env IMVAULT_DATA_DIR=/var/lib/imvault \
-	/usr/local/bin/imvault create-admin --username marcus --password-prompt
+sudo /usr/local/bin/imvault create-admin \
+	--username marcus --password-prompt
 ```
 
 Use `/usr/bin/imvault` for an ebuild or `make install PREFIX=/usr`. If the
-service sets `IMVAULT_DB` or a different data directory, pass those same values
-to this command; it does not source `/etc/conf.d/imvault`. The service account
-must already exist and be able to write the data directory. For a new native
-installation, prepare it with:
+service uses a custom database path, set `IMVAULT_DB` explicitly for this
+command too. The service account must already exist and be able to write the
+data directory. For a new native installation, prepare it with:
 
 ```bash
 sudo install -d -o imvault -g imvault -m 0750 /var/lib/imvault
@@ -141,6 +141,13 @@ A code is shown once, when it is created, and only a digest is stored — the sa
 trade API keys make. If one is lost, revoke it and issue another; the list shows
 each code's prefix so it is clear which row is which. Revoking takes effect
 immediately.
+
+An administrator can grant selected members permission to issue invitations.
+Those members can create, list, and revoke only their own codes at
+`/invites`. Accounts created with a code retain the issuer, invitation, and a
+snapshot of the issuer's username, so the administrator can follow who invited
+whom even if an account is later renamed or removed. New accounts are still
+ordinary members and do not inherit invitation permission.
 
 Issuing a code with several uses is for a group you trust together, and `0`
 means no limit at all. A code's uses are consumed in the same transaction that

@@ -60,13 +60,17 @@ func (s *Store) CreateInvite(ctx context.Context, createdBy int64, label, prefix
 
 	res, err := s.db.ExecContext(ctx, `
 		INSERT INTO invites (prefix, code_hash, label, created_by, created_at, expires_at, max_uses)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		prefix, hash, label, createdBy, created, nullableTime(expiresAt), maxUses)
+		SELECT ?, ?, ?, u.id, ?, ?, ? FROM users u
+		WHERE u.id = ? AND (u.role = 'admin' OR u.can_invite = 1)`,
+		prefix, hash, label, created, nullableTime(expiresAt), maxUses, createdBy)
 	if err != nil {
 		if ok, col := isUniqueViolation(err); ok {
 			return nil, fmt.Errorf("%w: invite %s", ErrConflict, col)
 		}
 		return nil, fmt.Errorf("insert invite: %w", err)
+	}
+	if affected, _ := res.RowsAffected(); affected != 1 {
+		return nil, ErrNotFound
 	}
 
 	id, err := res.LastInsertId()
@@ -115,16 +119,32 @@ func (s *Store) InviteCodeHash(ctx context.Context, prefix string) (string, erro
 
 // ListInvites returns invitations, newest first, plus the total count.
 func (s *Store) ListInvites(ctx context.Context, limit, offset int) ([]*models.Invite, int, error) {
+	return s.listInvites(ctx, 0, true, limit, offset)
+}
+
+// ListInvitesByCreator returns only invitations issued by one non-admin user.
+func (s *Store) ListInvitesByCreator(ctx context.Context, creatorID int64, limit, offset int) ([]*models.Invite, int, error) {
+	return s.listInvites(ctx, creatorID, false, limit, offset)
+}
+
+func (s *Store) listInvites(ctx context.Context, creatorID int64, all bool, limit, offset int) ([]*models.Invite, int, error) {
+	filter := ""
+	args := []any{}
+	if !all {
+		filter = "WHERE i.created_by = ?"
+		args = append(args, creatorID)
+	}
+	args = append(args, limit, offset)
 	var total int
-	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM invites`).Scan(&total); err != nil {
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM invites i `+filter, args[:len(args)-2]...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count invites: %w", err)
 	}
 
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT `+inviteColumns+`
-		 FROM invites i LEFT JOIN users u ON u.id = i.created_by
+		 FROM invites i LEFT JOIN users u ON u.id = i.created_by `+filter+`
 		 ORDER BY i.created_at DESC, i.id DESC
-		 LIMIT ? OFFSET ?`, limit, offset)
+		 LIMIT ? OFFSET ?`, args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list invites: %w", err)
 	}
@@ -139,6 +159,22 @@ func (s *Store) ListInvites(ctx context.Context, limit, offset int) ([]*models.I
 		invites = append(invites, inv)
 	}
 	return invites, total, rows.Err()
+}
+
+// RevokeInviteByCreator limits delegated issuers to revoking their own codes.
+func (s *Store) RevokeInviteByCreator(ctx context.Context, id, creatorID int64) error {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE invites SET revoked_at = ? WHERE id = ? AND created_by = ? AND revoked_at IS NULL`,
+		nowUnix(), id, creatorID)
+	if err != nil {
+		return fmt.Errorf("revoke invite: %w", err)
+	}
+	if affected, err := res.RowsAffected(); err != nil {
+		return fmt.Errorf("revoke invite: %w", err)
+	} else if affected == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 // InviteByID loads one invitation.
@@ -202,9 +238,23 @@ func (s *Store) RegisterWithInvite(ctx context.Context, in NewUser, inviteID int
 	var user *models.User
 
 	err := s.withTx(ctx, func(tx *sql.Tx) error {
+		var inviterID sql.NullInt64
+		var inviterName string
+		if err := tx.QueryRowContext(ctx, `SELECT i.created_by, COALESCE(u.username, '')
+			FROM invites i LEFT JOIN users u ON u.id = i.created_by WHERE i.id = ?`, inviteID).
+			Scan(&inviterID, &inviterName); err != nil {
+			return mapErr(err)
+		}
 		if err := redeemInvite(ctx, tx, inviteID); err != nil {
 			return err
 		}
+		if inviterID.Valid {
+			id := inviterID.Int64
+			in.InvitedBy = &id
+			in.InvitedByUsername = inviterName
+		}
+		id := inviteID
+		in.InvitationID = &id
 		created, err := createUser(ctx, tx, in)
 		if err != nil {
 			return err

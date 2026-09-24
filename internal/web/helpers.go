@@ -123,14 +123,32 @@ func (s *Server) base(r *http.Request, title string) base {
 	policy := s.policy()
 
 	user := currentUser(r.Context())
+	branding := s.branding()
+	mascotURL := "/static/img/mascot.png"
+	faviconURL := ""
+	if mascot, favicon, err := s.store.BrandingAssetState(r.Context()); err == nil {
+		if mascot {
+			mascotURL = "/branding/mascot"
+		}
+		if favicon {
+			faviconURL = "/branding/favicon"
+		}
+	} else {
+		s.log.Warn("load branding asset state", "error", err)
+	}
 
 	b := base{
 		Title:             title,
+		SiteName:          branding.SiteName,
+		WelcomeTitle:      branding.WelcomeTitle,
+		WelcomeText:       branding.WelcomeText,
+		MascotURL:         mascotURL,
+		FaviconURL:        faviconURL,
 		User:              user,
 		CSRFToken:         csrfToken(r.Context()),
 		AnonUploads:       policy.AllowAnonymousUploads,
 		SignupOpen:        policy.AllowSignup,
-		SourceURL:         s.cfg.SourceURL,
+		SourceURL:         branding.SourceURL,
 		VisibilityLevels:  models.VisibilityLevels(),
 		DefaultVisibility: policy.DefaultVisibility,
 		Notice:            strings.TrimSpace(r.URL.Query().Get("notice")),

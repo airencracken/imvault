@@ -41,6 +41,9 @@ const uploadWait = 10 * time.Second
 func (s *Server) requestLimitsMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		limit := int64(formRewriteLimit)
+		if r.Method == http.MethodPost && r.URL.Path == "/admin/settings/branding-assets" {
+			limit = 5 << 20
+		}
 		if r.Method == http.MethodPost && (r.URL.Path == "/upload" || r.URL.Path == "/api/v1/upload") {
 			release, ok := s.processing.acquire(r.Context())
 			if !ok {

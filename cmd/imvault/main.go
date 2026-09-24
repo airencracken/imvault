@@ -30,6 +30,12 @@ import (
 )
 
 func main() {
+	if handled, status, err := reexecProvisioningAsService(os.Args[1:]); handled {
+		if err != nil {
+			slog.Error("imvault", "error", err)
+		}
+		os.Exit(status)
+	}
 	if err := runCommand(os.Args[1:], os.Stdin, os.Stdout); err != nil {
 		// Goes through slog so that every line this process emits, including
 		// its last, is a logfmt record.

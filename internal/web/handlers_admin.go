@@ -46,6 +46,19 @@ func (s *Server) requireModerator(next http.HandlerFunc) http.HandlerFunc {
 	})
 }
 
+// requireInviter allows administrators and accounts the administrator has
+// explicitly granted invitation access.
+func (s *Server) requireInviter(next http.HandlerFunc) http.HandlerFunc {
+	return s.requireUser(func(w http.ResponseWriter, r *http.Request) {
+		user := currentUser(r.Context())
+		if !user.IsAdmin() && !user.CanInvite {
+			s.notPermitted(w, r, "You do not have permission to issue invitations.")
+			return
+		}
+		next(w, r)
+	})
+}
+
 // notPermitted renders the shared refusal. It is a page rather than a bare
 // status because a signed-in person who followed a link deserves to be told
 // what happened and shown the way back.
@@ -332,6 +345,32 @@ func (s *Server) handleAdminSetRole(w http.ResponseWriter, r *http.Request) {
 	s.adminRespond(w, r, updated, adminNotice{
 		Text: user.Username + " is now " + role.Label() + ".",
 	}, "", "/admin/users")
+}
+
+// handleAdminSetInvitePermission grants or removes a member's ability to issue
+// invitations without changing their role.
+func (s *Server) handleAdminSetInvitePermission(w http.ResponseWriter, r *http.Request) {
+	userID, ok := s.adminTargetUser(w, r)
+	if !ok {
+		return
+	}
+	user, err := s.store.UserByID(r.Context(), userID)
+	if err != nil {
+		s.renderAdminRow(w, "admin_user_row", nil, adminNotice{Text: "No such account.", Error: true})
+		return
+	}
+	allowed := r.FormValue("can_invite") == "1"
+	if err := s.store.SetUserInvitePermission(r.Context(), userID, allowed); err != nil {
+		s.log.Error("admin: set invite permission", "user", userID, "error", err)
+		s.adminRespond(w, r, user, adminNotice{}, "Could not update invitation access.", "/admin/users")
+		return
+	}
+	updated := s.reloadAdminUser(r, userID)
+	message := user.Username + " can now issue invitations."
+	if !allowed {
+		message = user.Username + " can no longer issue invitations. Existing invitations remain active."
+	}
+	s.adminRespond(w, r, updated, adminNotice{Text: message}, "", "/admin/users")
 }
 
 // handleAdminDeleteUser removes an account and everything it stored.

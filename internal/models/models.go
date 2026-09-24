@@ -206,6 +206,12 @@ type User struct {
 	// TOTPLastStep is the last time step accepted, so a code cannot be
 	// replayed for the rest of its window.
 	TOTPLastStep uint64
+	// CanInvite is a separately granted permission to issue invitations.
+	CanInvite bool
+	// InvitedBy and InvitationID preserve the direct invitation lineage.
+	InvitedBy         *int64
+	InvitedByUsername string
+	InvitationID      *int64
 }
 
 // TwoFactorRequired reports whether signing in needs a second factor.
@@ -386,7 +392,20 @@ const (
 	SettingDefaultVisibility     = "default_visibility"
 	SettingInviteOnly            = "invite_only"
 	SettingMaxTotalBytes         = "max_total_bytes"
+	SettingSiteName              = "site_name"
+	SettingSourceURL             = "source_url"
+	SettingWelcomeTitle          = "welcome_title"
+	SettingWelcomeText           = "welcome_text"
 )
+
+// Branding is the public-facing identity resolved from database settings and
+// configuration defaults.
+type Branding struct {
+	SiteName     string
+	SourceURL    string
+	WelcomeTitle string
+	WelcomeText  string
+}
 
 // Settings is that policy, resolved: stored values where an administrator has
 // set them, configuration otherwise.
