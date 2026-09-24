@@ -65,8 +65,9 @@ done
 printf '\n# Local operator setting\n%s_ADDR=127.0.0.1:18080\n' "$upper" >> "$config" || exit 1
 cp "$config" "$work/config" || exit 1
 printf 'keep this board\n' > "$data/release-test-marker" || exit 1
-printf '%s\n' 'release-test-password' | runuser -u "$app" -- env "$upper"_DATA_DIR="$data" \
-	"/usr/bin/$app" create-admin --username release_test --password-stdin || fail 'Owner provisioning failed.'
+printf '%s\n' 'release-test-password' | "/usr/bin/$app" create-admin \
+	--username release_test --password-stdin || fail 'Owner provisioning failed.'
+[ "$(stat -c '%U:%G' "$data/imvault.db")" = "$app:$app" ] || fail 'Provisioning did not create the database as the service user.'
 
 if [ "$init" = yes ]; then
 	systemd-analyze verify "/usr/lib/systemd/system/$app.service" || fail 'Invalid systemd unit.'

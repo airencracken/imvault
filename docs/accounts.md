@@ -14,8 +14,9 @@ imvault create-admin --username marcus --password-prompt --email you@example.com
 The hidden prompt asks for the password twice. Passwords follow the web form's
 rules: at least eight characters and at most 72 bytes. The command never
 accepts a password as an argument, starts no HTTP listener, and exits nonzero
-on failure. Run it as the service's OS user so newly created database files
-have the correct owner. Email is optional.
+on failure. Email is optional. On a native service install, run it as root; it
+reads the service configuration and creates the database as the configured
+service user.
 
 For scripts, pass a single password line on stdin. The line may have a trailing
 newline:
@@ -25,11 +26,11 @@ imvault create-admin --username marcus --password-stdin --email you@example.com 
 	< /path/to/admin-password
 ```
 
-On a native OpenRC or systemd install, run the command as root or as the service
-user. It reads `IMVAULT_DATA_DIR` from the active service configuration when
-the process environment does not set it. A root invocation repeats the database
-operation as the configured service user, so the database keeps the right
-ownership:
+On a native OpenRC or systemd install, the command reads `IMVAULT_DATA_DIR` and
+`IMVAULT_DB` from the active service configuration when the process environment
+does not set them. A root invocation repeats the database operation as the
+configured service user, so the database keeps the right ownership. Use root
+for package installs where the service configuration is private:
 
 ```bash
 sudo /usr/local/bin/imvault create-admin \

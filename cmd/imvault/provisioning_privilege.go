@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -33,11 +34,19 @@ func reexecProvisioningAsService(args []string) (bool, int, error) {
 	if err != nil {
 		return true, 1, err
 	}
-	dbPath, dbPathSet, err := resolveProvisioningDBPath(paths)
+	dbPath, _, err := resolveProvisioningDBPath(paths)
 	if err != nil {
 		return true, 1, err
 	}
-	return reexecAsServiceUser(args, username, groupName, dataDir, dbPath, dbPathSet)
+	dbPath = provisioningDBPathForChild(dataDir, dbPath)
+	return reexecAsServiceUser(args, username, groupName, dataDir, dbPath, true)
+}
+
+func provisioningDBPathForChild(dataDir, dbPath string) string {
+	if dbPath != "" {
+		return dbPath
+	}
+	return filepath.Join(dataDir, "imvault.db")
 }
 
 func reexecAsServiceUser(args []string, username, groupName, dataDir, dbPath string, dbPathSet bool) (bool, int, error) {

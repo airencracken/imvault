@@ -46,11 +46,11 @@ sudo /usr/bin/imvault create-admin \
 systemctl enable --now imvault
 ```
 
-The command reads `IMVAULT_DATA_DIR` from the systemd unit and environment file
-or OpenRC configuration when it is unset in the process environment. When run
-as root, it repeats the database operation as the configured service account.
-Set `IMVAULT_DB` explicitly if the service uses a custom database path. For
-scripts, pass one password line on stdin with `--password-stdin`. See
+The command reads `IMVAULT_DATA_DIR` and `IMVAULT_DB` from the systemd unit and
+environment file or OpenRC configuration when they are unset in the process
+environment. When run as root, it repeats the database operation as the
+configured service account. For scripts, pass one password line on stdin with
+`--password-stdin`. See
 [deployment](deployment.md) for reverse proxy and service settings. Logs go to
 `journalctl -u imvault`.
 
