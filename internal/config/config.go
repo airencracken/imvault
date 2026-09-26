@@ -8,6 +8,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -137,6 +138,14 @@ type Config struct {
 	PreviewMax int
 	// JPEGQuality is the encoder quality for lossy thumbnails/previews.
 	JPEGQuality int
+
+	// MapURL is an optional static-map URL template used to draw a photo's
+	// location on its page. The feature is off unless it is set. Placeholders
+	// {lat}, {lon}, {zoom}, and {key} are substituted server-side, so the key
+	// never reaches the browser.
+	MapURL  string
+	MapKey  string
+	MapZoom int
 }
 
 // Load reads configuration from the environment, applying defaults.
@@ -206,6 +215,9 @@ func load(dataDirOverride, dbPathOverride string) (*Config, error) {
 		ThumbMax:              int(getInt64("IMVAULT_THUMB_MAX", 480)),
 		PreviewMax:            int(getInt64("IMVAULT_PREVIEW_MAX", 1600)),
 		JPEGQuality:           int(getInt64("IMVAULT_JPEG_QUALITY", 82)),
+		MapURL:                getenv("IMVAULT_MAP_URL", ""),
+		MapKey:                getenv("IMVAULT_MAP_KEY", ""),
+		MapZoom:               int(getInt64("IMVAULT_MAP_ZOOM", 13)),
 	}
 
 	c.DBPath = getenv("IMVAULT_DB", filepath.Join(dataDir, "imvault.db"))
@@ -235,7 +247,33 @@ func load(dataDirOverride, dbPathOverride string) (*Config, error) {
 	if err := c.validateAccounts(); err != nil {
 		return nil, err
 	}
+	if err := c.validateMap(); err != nil {
+		return nil, err
+	}
 	return c, nil
+}
+
+// validateMap checks the optional location map. It is off when no template is
+// given, and a partial or malformed configuration is refused rather than
+// failing on the first photo somebody opens.
+func (c *Config) validateMap() error {
+	if c.MapURL == "" {
+		return nil
+	}
+	parsed, err := url.Parse(c.MapURL)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Hostname() == "" {
+		return fmt.Errorf("IMVAULT_MAP_URL must be an HTTP(S) URL template")
+	}
+	if !strings.Contains(c.MapURL, "{lat}") || !strings.Contains(c.MapURL, "{lon}") {
+		return fmt.Errorf("IMVAULT_MAP_URL must contain {lat} and {lon} placeholders")
+	}
+	if strings.Contains(c.MapURL, "{key}") && c.MapKey == "" {
+		return fmt.Errorf("IMVAULT_MAP_KEY is required because IMVAULT_MAP_URL contains {key}")
+	}
+	if c.MapZoom < 1 || c.MapZoom > 20 {
+		return fmt.Errorf("IMVAULT_MAP_ZOOM must be within 1..20, got %d", c.MapZoom)
+	}
+	return nil
 }
 
 func (c *Config) validateMedia() error {

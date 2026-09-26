@@ -121,6 +121,25 @@ one that never had any metadata.
 The API is unmasked. It returns an account's own files to that account, and
 hiding somebody's data from themselves in their own tool helps nobody.
 
+### An optional map
+
+A photograph's page can draw its location as a small static map. This is off
+unless the operator sets `IMVAULT_MAP_URL`, a static-map URL template carrying
+`{lat}`, `{lon}`, `{zoom}`, and optionally `{key}` placeholders, and supplies
+`IMVAULT_MAP_KEY` when the template wants one. Any provider that serves a static
+image by coordinates will do.
+
+imvault fetches the image **server-side** and streams it, so the key never
+reaches the browser and the content security policy stays `'self'`. The map is
+drawn only when the viewer may see the location, following the same policy as
+the coordinates themselves: a withheld location has no map, not a blank one. The
+coordinates also link to `openstreetmap.org`, which needs no key and works
+whether or not a provider is configured.
+
+The trade is explicit: with a map configured, opening a photo whose location you
+can see makes one request to the provider, which learns the coordinates and your
+server's address. Leave `IMVAULT_MAP_URL` unset and nothing leaves the host.
+
 ### Refreshing older photo details
 
 After an EXIF parser fix, refresh details for existing uploads using the same

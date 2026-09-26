@@ -208,3 +208,50 @@ func TestWhiteboxIdentityHasSourceLinkDefaultsAndEnvironmentOverrides(t *testing
 		t.Errorf("identity overrides = %q / %q", cfg.Name, cfg.SourceURL)
 	}
 }
+
+func TestTheOptionalLocationMap(t *testing.T) {
+	load := func(t *testing.T, env map[string]string) (*Config, error) {
+		t.Helper()
+		t.Setenv("IMVAULT_DATA_DIR", t.TempDir())
+		t.Setenv("IMVAULT_MAP_URL", "")
+		t.Setenv("IMVAULT_MAP_KEY", "")
+		t.Setenv("IMVAULT_MAP_ZOOM", "")
+		for key, value := range env {
+			t.Setenv(key, value)
+		}
+		return Load()
+	}
+
+	// Off unless a template is given, with a sensible zoom ready for the link.
+	cfg, err := load(t, nil)
+	if err != nil || cfg.MapURL != "" || cfg.MapZoom != 13 {
+		t.Fatalf("default map config = %+v, %v", cfg, err)
+	}
+
+	// A keyless template is complete on its own.
+	if _, err := load(t, map[string]string{"IMVAULT_MAP_URL": "https://maps.example/{lat},{lon}?z={zoom}"}); err != nil {
+		t.Fatalf("keyless template rejected: %v", err)
+	}
+
+	// A template that wants a key without one is half a configuration.
+	if _, err := load(t, map[string]string{"IMVAULT_MAP_URL": "https://maps.example/{lat}/{lon}?k={key}"}); err == nil {
+		t.Fatal("a template wanting a key was accepted without one")
+	}
+	if _, err := load(t, map[string]string{
+		"IMVAULT_MAP_URL": "https://maps.example/{lat}/{lon}?k={key}",
+		"IMVAULT_MAP_KEY": "secret",
+	}); err != nil {
+		t.Fatalf("keyed template rejected: %v", err)
+	}
+
+	// Missing placeholders, bad schemes, and an out-of-range zoom are refused.
+	for _, env := range []map[string]string{
+		{"IMVAULT_MAP_URL": "https://maps.example/static.png"},
+		{"IMVAULT_MAP_URL": "ftp://maps.example/{lat}/{lon}"},
+		{"IMVAULT_MAP_URL": "https://maps.example/{lat}/{lon}", "IMVAULT_MAP_ZOOM": "99"},
+	} {
+		if _, err := load(t, env); err == nil {
+			t.Errorf("%v was accepted", env)
+		}
+	}
+}

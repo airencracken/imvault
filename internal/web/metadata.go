@@ -197,6 +197,11 @@ type detailsView struct {
 	// shown, so the page can say so rather than looking like a file that never
 	// had any.
 	Withheld bool
+	// OSMLink and MapImage are set only when the viewer may see the location.
+	// A map is another way of disclosing the same thing, so it follows the
+	// same rule: no link and no map when the coordinates are withheld.
+	OSMLink  string
+	MapImage string
 }
 
 // detailsFor builds the metadata section for a file, as seen by one viewer.
@@ -219,25 +224,33 @@ func (s *Server) detailsFor(ctx context.Context, file *models.File, viewer *mode
 	if details == nil {
 		return nil
 	}
-	if canChangeFile(viewer, file) {
-		return &detailsView{Fields: details.Fields()}
-	}
 
-	policy, err := s.store.EffectiveMetadataPolicy(ctx, file)
-	if err != nil {
-		// Closing on doubt: this is the path that decides whether to disclose
-		// somebody's location.
-		s.log.Error("metadata policy", "id", file.ID, "error", err)
-		policy = models.MetadataHidden
+	shown := canChangeFile(viewer, file)
+	if !shown {
+		policy, err := s.store.EffectiveMetadataPolicy(ctx, file)
+		if err != nil {
+			// Closing on doubt: this is the path that decides whether to disclose
+			// somebody's location.
+			s.log.Error("metadata policy", "id", file.ID, "error", err)
+			policy = models.MetadataHidden
+		}
+		shown = policy == models.MetadataShown
 	}
 
 	view := &detailsView{}
 	for _, field := range details.Fields() {
-		if policy != models.MetadataShown && field.Identifying {
+		if !shown && field.Identifying {
 			view.Withheld = true
 			continue
 		}
 		view.Fields = append(view.Fields, field)
+	}
+
+	if shown && details.Latitude != nil && details.Longitude != nil {
+		view.OSMLink = osmLink(*details.Latitude, *details.Longitude, mapZoom(s.cfg.MapZoom))
+		if s.cfg.MapURL != "" {
+			view.MapImage = "/f/" + file.ID + "/map"
+		}
 	}
 
 	if len(view.Fields) == 0 && !view.Withheld {
