@@ -68,6 +68,8 @@
       <dl class="facts">
         {{range .Fields}}<dt>{{.Label}}</dt><dd>{{.Value}}</dd>{{end}}
       </dl>
+      {{if .MapImage}}<a href="{{.OSMLink}}" target="_blank" rel="noopener" hx-boost="false"><img class="map" src="{{.MapImage}}" alt="Map showing where this photograph was taken" loading="lazy"></a>
+      {{else if .OSMLink}}<p class="muted"><a href="{{.OSMLink}}" target="_blank" rel="noopener" hx-boost="false">View on OpenStreetMap</a></p>{{end}}
       {{if .Withheld}}
       <p class="muted">
         Where it was taken, and who by, are not shown while this file is not

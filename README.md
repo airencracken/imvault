@@ -198,6 +198,9 @@ metadata handling, and the limits of those protections.
   admin dashboard can recalculate it.
 - Two-factor authentication is TOTP with recovery codes; there is no WebAuthn
   or hardware-key support yet.
+- The optional location map is the one outbound request imvault makes on its own.
+  It is off unless `IMVAULT_MAP_URL` is set, and the provider then sees the
+  coordinates and your server's address.
 
 ## The map
 

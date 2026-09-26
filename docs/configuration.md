@@ -53,6 +53,9 @@ settings](#instance-settings) below.
 | `IMVAULT_JPEG_QUALITY` | `82` | Encoder quality for lossy renditions |
 | `IMVAULT_THUMB_MAX` | `480` | Thumbnail bounding box in pixels |
 | `IMVAULT_PREVIEW_MAX` | `1600` | Preview bounding box in pixels |
+| `IMVAULT_MAP_URL` | *(empty)* | Static-map URL template with `{lat}`, `{lon}`, `{zoom}`, `{key}` placeholders; empty disables the map |
+| `IMVAULT_MAP_KEY` | *(empty)* | Map provider key, substituted server-side and never sent to the browser |
+| `IMVAULT_MAP_ZOOM` | `13` | Zoom level for the map and the OpenStreetMap link |
 | `IMVAULT_SECURE_COOKIES` | `false` | Set the `Secure` flag on cookies |
 | `IMVAULT_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` |
 | `IMVAULT_OIDC_ISSUER` | *(empty)* | OpenID Connect issuer. Empty disables provider sign-in |

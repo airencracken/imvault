@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -55,6 +56,10 @@ type Server struct {
 	// everybody. Rate limiting is per identity and does not bound the total.
 	processing *gate
 	content    contentLocks
+	// mapCache holds fetched static maps so repeated views do not spend a
+	// provider's quota. The key is the fully substituted provider URL.
+	mapMu    sync.Mutex
+	mapCache map[string]mapImage
 }
 
 // New constructs a Server and installs the middleware chain.
@@ -172,6 +177,7 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /f/{id}/raw", s.handleFileRaw)
 	mux.HandleFunc("GET /f/{id}/thumb", s.handleFileThumb)
 	mux.HandleFunc("GET /f/{id}/preview", s.handleFilePreview)
+	mux.HandleFunc("GET /f/{id}/map", s.handleFileMap)
 	mux.HandleFunc("POST /f/{id}/favorite", s.requireUser(s.handleFavorite))
 	mux.HandleFunc("POST /f/{id}/rename", s.requireUser(s.handleFileRename))
 	mux.HandleFunc("POST /f/{id}/description", s.requireUser(s.handleFileDescription))

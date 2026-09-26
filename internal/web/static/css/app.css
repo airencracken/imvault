@@ -429,6 +429,7 @@ details.file-details > summary { cursor: pointer; color: var(--muted); font-size
 details.file-details[open] > summary { margin-bottom: .5rem; }
 details.file-details .facts { margin: 0; }
 details.file-details p.muted { margin: .6rem 0 0; font-size: .8rem; }
+details.file-details .map { display: block; width: 100%; height: auto; margin: .7rem 0 0; border-radius: 10px; }
 
 /* ---------- moderation ---------- */
 
