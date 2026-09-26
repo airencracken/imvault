@@ -14,6 +14,21 @@ type location struct {
 	latitude, longitude, altitude *float64
 }
 
+// mergeGPS prefers a scanned location only when it is complete, and keeps the
+// fallback's altitude when the scan did not recover one. A scan that found
+// nothing must never erase a location that was already found, which is the
+// difference between "this file has no coordinates" and "this reader could not
+// find them".
+func mergeGPS(fallback, scanned location) location {
+	if scanned.latitude == nil || scanned.longitude == nil {
+		return fallback
+	}
+	if scanned.altitude == nil {
+		scanned.altitude = fallback.altitude
+	}
+	return scanned
+}
+
 // jpegLocation reads GPS independently of imagemeta's forward-only TIFF
 // reader, which drops values located before their directory. A JPEG's APP1
 // segment is bounded by its 16-bit length, so offsets can be followed in memory
@@ -39,7 +54,11 @@ func jpegLocation(r io.ReadSeeker) (gps location, handled bool) {
 	err := metajpeg.ScanJPEG(r, func(payload io.Reader, _ meta.ExifHeader) error {
 		data, err := io.ReadAll(io.LimitReader(payload, 1<<16))
 		if err == nil {
-			gps = tiffLocation(data)
+			// Only a complete reading is kept, so a later segment without a
+			// location cannot erase an earlier one that had it.
+			if candidate := tiffLocation(data); candidate.latitude != nil && candidate.longitude != nil {
+				gps = candidate
+			}
 		}
 		return err
 	}, nil)

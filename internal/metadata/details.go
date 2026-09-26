@@ -201,15 +201,20 @@ func Extract(r io.ReadSeeker) (*Details, error) {
 
 	// A location of exactly zero for both is the null island, which is what a
 	// camera writes when it had no fix rather than one off the coast of Africa.
+	var fallback location
 	if lat, lon := exif.GPS.Latitude(), exif.GPS.Longitude(); lat != 0 || lon != 0 {
-		details.Latitude, details.Longitude = &lat, &lon
+		fallback.latitude, fallback.longitude = &lat, &lon
 		if altitude := float64(exif.GPS.Altitude()); altitude != 0 {
-			details.Altitude = &altitude
+			fallback.altitude = &altitude
 		}
 	}
-	if gps, handled := jpegLocation(r); handled {
-		details.Latitude, details.Longitude, details.Altitude = gps.latitude, gps.longitude, gps.altitude
+	// The independent reader can see locations the library's forward-only TIFF
+	// parser drops, so it is preferred when it found a complete coordinate. When
+	// it found nothing it must not erase what the library did find.
+	if scanned, handled := jpegLocation(r); handled {
+		fallback = mergeGPS(fallback, scanned)
 	}
+	details.Latitude, details.Longitude, details.Altitude = fallback.latitude, fallback.longitude, fallback.altitude
 
 	if details.Empty() {
 		return nil, nil
