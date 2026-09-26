@@ -128,6 +128,22 @@ func TestExtractGPSValuesBeforeTheirDirectory(t *testing.T) {
 	}
 }
 
+// TestExtractKeepsLocationWhenALaterSegmentFollows covers the common phone
+// shape: an Exif APP1 carrying the GPS, followed by an XMP APP1. The XMP holds
+// no location, and must not be allowed to erase the one that was found.
+func TestExtractKeepsLocationWhenALaterSegmentFollows(t *testing.T) {
+	exif := exifwrite.Block(exifwrite.Tags{Model: "TestCam One", Latitude: 51.5074, Longitude: -0.1273})
+	data := appOneWithExifThenXMP(t, exif)
+
+	details, err := Extract(bytes.NewReader(data))
+	if err != nil || details == nil {
+		t.Fatalf("extract: %v, %v", details, err)
+	}
+	if got := details.Location(); got != "51.50740, -0.12730" {
+		t.Fatalf("location = %q, want the coordinates despite the later XMP segment", got)
+	}
+}
+
 func TestExtractFindsNothingInAPlainImage(t *testing.T) {
 	// A file with no metadata is not a failure, and must not be reported as one.
 	details, err := Extract(bytes.NewReader(sampleJPEG(t)))
