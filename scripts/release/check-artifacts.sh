@@ -17,7 +17,6 @@ for arch in amd64 arm64; do
 	tar -xzf "$1" -C "$work/$arch" --strip-components=1 || exit 1
 	test -x "$work/$arch/imvault" || fail 'Archive binary is not executable.'
 	test -s "$work/$arch/LICENSE" || fail 'Archive license is missing.'
-	cmp FUNDING.md "$work/$arch/FUNDING.md" || fail 'Archive funding link is missing or differs.'
 	test -s "$work/$arch/THIRD_PARTY_NOTICES.txt" || fail 'Dependency notices are missing.'
 	test -s "$work/$arch/contrib/openrc/imvault" || fail 'OpenRC example is missing.'
 	cmp "contrib/logrotate/imvault" "$work/$arch/contrib/logrotate/imvault" || fail 'Archive logrotate rule is missing or differs.'
@@ -48,7 +47,6 @@ for arch in amd64 arm64; do
 	for proxy in caddy/Caddyfile nginx/imvault.conf apache/imvault.conf; do
 		cmp "$work/$arch/contrib/$proxy" "$work/deb-$arch/usr/share/doc/imvault/contrib/$proxy" || fail "Debian proxy example is missing or differs: $proxy"
 	done
-	cmp FUNDING.md "$work/deb-$arch/usr/share/doc/imvault/FUNDING.md" || fail 'Debian funding link is missing or differs.'
 	cmp "$work/$arch/imvault" "$work/deb-$arch/usr/bin/imvault" || fail 'Archive and Debian binaries differ.'
 done
 set -- dist/imvault_*_source.tar.gz
@@ -58,7 +56,7 @@ tar -xzf "$1" -C "$work/source" --strip-components=1 || exit 1
 cmp go.mod "$work/source/go.mod" || fail 'Source archive does not match the build.'
 cmp .goreleaser.yaml "$work/source/.goreleaser.yaml" || fail 'Source archive is missing current release configuration.'
 test -f "$work/source/cmd/imvault/main.go" || fail 'Source archive is incomplete.'
-git ls-files -- cmd internal docs scripts contrib go.mod go.sum Makefile README.md FUNDING.md LICENSE .goreleaser.yaml > "$work/source-files" || exit 1
+git ls-files -- cmd internal docs scripts contrib go.mod go.sum Makefile README.md LICENSE .github/FUNDING.yml .goreleaser.yaml > "$work/source-files" || exit 1
 while IFS= read -r source_file; do
 	cmp "$source_file" "$work/source/$source_file" || fail "Source archive differs: $source_file"
 done < "$work/source-files"

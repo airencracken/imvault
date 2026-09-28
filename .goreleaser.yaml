@@ -20,7 +20,6 @@ archives:
     files:
       - LICENSE
       - README.md
-      - FUNDING.md
       - docs/*
       - docs/**/*
       - contrib/**/*
@@ -67,8 +66,6 @@ nfpms:
         dst: /usr/share/doc/imvault/LICENSE
       - src: README.md
         dst: /usr/share/doc/imvault/README.md
-      - src: FUNDING.md
-        dst: /usr/share/doc/imvault/FUNDING.md
       - src: docs/
         dst: /usr/share/doc/imvault/docs
         type: tree

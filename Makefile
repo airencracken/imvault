@@ -18,7 +18,7 @@ LOGROTATEDIR ?= $(SYSCONFDIR)/logrotate.d
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo 0.1.0)
 DIST    := dist
 # What goes into a release tarball, in the layout `make install` expects.
-DIST_FILES := cmd internal docs go.mod go.sum Makefile README.md FUNDING.md LICENSE \
+DIST_FILES := cmd internal docs go.mod go.sum Makefile README.md LICENSE \
 	contrib scripts Dockerfile docker-compose.yml .dockerignore
 
 .DEFAULT_GOAL := help
