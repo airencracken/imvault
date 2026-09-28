@@ -37,8 +37,8 @@ func TestUploadedGPSReachesOwnerDetailsAndAPI(t *testing.T) {
 			t.Error("owner's photo details lost the uploaded EXIF")
 		}
 		_, page = h.newSession(t).get(path)
-		if strings.Contains(page, "51.50740") || !strings.Contains(page, "TestCam One") {
-			t.Error("public metadata policy did not hide only identifying details")
+		if strings.Contains(page, "51.50740") || strings.Contains(page, "TestCam One") {
+			t.Error("public metadata policy did not hide EXIF details")
 		}
 		_, raw = h.apiJSON(http.MethodGet, "/api/v1/files/"+uploaded.Files[0].ID, key, nil)
 		var file apiFileJSON

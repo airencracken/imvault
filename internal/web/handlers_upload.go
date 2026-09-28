@@ -115,6 +115,9 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !validLocationForm(w, r) {
+		return
+	}
 	options := s.uploadOptions(r, user)
 	albumID := int64(queryInt(r, "album_id", 0))
 	tags := r.FormValue("tags")
@@ -359,6 +362,7 @@ func (s *Server) storeStill(
 		FrameCount:   result.FrameCount,
 		Visibility:   options.Visibility,
 		Metadata:     options.Metadata,
+		Location:     options.Location,
 		Details:      details,
 		CreatedAt:    now,
 		ExpiresAt:    expires,
@@ -473,6 +477,7 @@ func (s *Server) storeVideo(
 		DurationMS:   result.DurationMS,
 		Visibility:   options.Visibility,
 		Metadata:     options.Metadata,
+		Location:     options.Location,
 		Details:      details,
 		CreatedAt:    now,
 		ExpiresAt:    expires,
@@ -603,6 +608,7 @@ func (s *Server) extractDetails(src io.ReadSeeker) string {
 type uploadOptions struct {
 	Visibility models.Visibility
 	Metadata   models.MetadataPolicy
+	Location   models.MetadataPolicy
 }
 
 // metadataFor resolves the metadata setting for an upload. An anonymous
@@ -647,6 +653,7 @@ func (s *Server) uploadOptions(r *http.Request, owner *models.User) uploadOption
 	return uploadOptions{
 		Visibility: s.uploadVisibility(r, owner),
 		Metadata:   s.metadataFor(r, owner),
+		Location:   locationFor(r, owner),
 	}
 }
 

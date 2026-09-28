@@ -63,20 +63,35 @@
     </dl>
 
     {{with .Details}}
+    {{if or .Location .LocationWithheld .NoLocation}}
+    <section class="panel stack file-location" aria-label="Photo location">
+      <h2>Location</h2>
+      {{if .Location}}
+      <p>{{.Location}}</p>
+      {{if .MapImage}}<a href="{{.OSMLink}}" target="_blank" rel="noopener" hx-boost="false"><img class="map" src="{{.MapImage}}" alt="Map showing where this photograph was taken" loading="lazy"></a>
+      {{else}}<p><a href="{{.OSMLink}}" target="_blank" rel="noopener" hx-boost="false">View on OpenStreetMap</a></p>{{end}}
+      {{else if .LocationWithheld}}
+      <p class="muted">Location is hidden by this photo's location sharing settings.</p>
+      {{else if .RefreshFailed}}
+      <p class="muted">Location details could not be refreshed. Try opening this photo again later.</p>
+      {{else}}
+      <p class="muted">No readable GPS coordinates were found in this original. If your photo app shows a location, try uploading the original with location metadata included.</p>
+      {{end}}
+    </section>
+    {{end}}
+    {{if or .Fields .Withheld}}
     <details class="panel stack file-details">
       <summary>Photo details</summary>
       <dl class="facts">
         {{range .Fields}}<dt>{{.Label}}</dt><dd>{{.Value}}</dd>{{end}}
       </dl>
-      {{if .MapImage}}<a href="{{.OSMLink}}" target="_blank" rel="noopener" hx-boost="false"><img class="map" src="{{.MapImage}}" alt="Map showing where this photograph was taken" loading="lazy"></a>
-      {{else if .OSMLink}}<p class="muted"><a href="{{.OSMLink}}" target="_blank" rel="noopener" hx-boost="false">View on OpenStreetMap</a></p>{{end}}
       {{if .Withheld}}
       <p class="muted">
-        Where it was taken, and who by, are not shown while this file is not
-        showing its metadata.
+        EXIF details are hidden by this photo's EXIF sharing settings.
       </p>
       {{end}}
     </details>
+    {{end}}
     {{end}}
 
     <section class="block">
@@ -98,10 +113,12 @@
     <section class="block">
       <h2>Metadata</h2>
       {{template "metadata_button" .}}
+      {{template "location_button" .}}
       <p class="muted">
-        Camera details, the date, and any location the picture carries. Public
-        files hide them unless you say otherwise, and an album can hide them
-        too but never reveal them.
+        EXIF and GPS location have separate sharing settings. Follow EXIF keeps
+        location with the EXIF choice; Shown and Hidden override it. Albums can
+        hide either category, but cannot reveal what you hide. You always see
+        your own photo details here.
       </p>
     </section>
     {{end}}

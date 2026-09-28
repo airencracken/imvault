@@ -167,8 +167,9 @@ password".
 
 Coordinates are the most commonly leaked personal data in a photo, and they are
 not in the picture: they are in the file, next to it. Every upload carries a
-metadata setting and so does every album, the default follows visibility, and
-albums can only tighten.
+separate EXIF and location settings, and so does every album. EXIF defaults to
+following visibility; location defaults to following EXIF. Albums can restrict
+each category independently.
 
 It is described in full under [Media handling](media.md#metadata). The part that
 belongs here is the failure mode. When metadata cannot be removed — a clip on an

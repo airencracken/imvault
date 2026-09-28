@@ -74,12 +74,18 @@ func (s *Server) handleAlbumCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	location, err := (&params{form: r.Form}).locationOr(models.MetadataInherit)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	album, err := s.store.CreateAlbum(r.Context(), user.ID, store.AlbumInput{
 		Title:       title,
 		Description: strings.TrimSpace(r.FormValue("description")),
 		Visibility:  visibility,
 		Access:      access,
 		Metadata:    models.ParseMetadataPolicy(r.FormValue("metadata")),
+		Location:    location,
 	})
 	if err != nil {
 		s.log.Error("create album", "error", err)
@@ -124,12 +130,18 @@ func (s *Server) handleAlbumUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	location, err := (&params{form: r.Form}).locationOr(album.Location)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	if err := s.store.UpdateAlbum(r.Context(), album.ID, store.AlbumInput{
 		Title:       title,
 		Description: strings.TrimSpace(r.FormValue("description")),
 		Visibility:  visibility,
 		Access:      access,
 		Metadata:    models.ParseMetadataPolicy(r.FormValue("metadata")),
+		Location:    location,
 	}); err != nil {
 		s.log.Error("update album", "id", album.ID, "error", err)
 		redirectNotice(w, r, "/a/"+album.Slug, "error", "Could not save the album.")

@@ -17,6 +17,61 @@ const vm = require("node:vm");
 
 const SOURCE = fs.readFileSync(path.join(__dirname, "app.js"), "utf8");
 
+function loadBulkSelection() {
+  const elements = {};
+  for (const id of ["bulk-tags", "bulk-count", "bulk-submit", "bulk-selection", "bulk-select-all", "bulk-clear"]) {
+    elements[id] = { listeners: {}, addEventListener(name, fn) { this.listeners[name] = fn; } };
+  }
+  let picks = [{ checked: false }, { checked: false }];
+  const listeners = {};
+  const bodyListeners = {};
+  const windowListeners = {};
+  const document = {
+    getElementById: (id) => elements[id] || null,
+    querySelectorAll(selector) {
+      assert.equal(selector, 'input[name="files"][form="bulk-tags"]');
+      return picks;
+    },
+    addEventListener: (name, fn) => { listeners[name] = fn; },
+    body: { addEventListener: (name, fn) => { bodyListeners[name] = fn; } },
+  };
+  vm.runInNewContext(SOURCE, { document, window: { addEventListener: (name, fn) => { windowListeners[name] = fn; } } });
+  return { elements, picks, listeners, bodyListeners, windowListeners, remove: () => { picks = []; } };
+}
+
+test("bulk selection counts individual picks, selects the page and clears it", () => {
+  const { elements, picks, listeners } = loadBulkSelection();
+  assert.equal(elements["bulk-selection"].hidden, false);
+  assert.equal(elements["bulk-submit"].disabled, true);
+  assert.equal(elements["bulk-count"].textContent, "0 selected");
+  picks[0].checked = true;
+  listeners.change();
+  assert.equal(elements["bulk-count"].textContent, "1 selected");
+  assert.equal(elements["bulk-submit"].disabled, false);
+  elements["bulk-select-all"].listeners.click();
+  assert.ok(picks.every((pick) => pick.checked));
+  assert.equal(elements["bulk-count"].textContent, "2 selected");
+  elements["bulk-clear"].listeners.click();
+  assert.ok(picks.every((pick) => !pick.checked));
+  assert.equal(elements["bulk-submit"].disabled, true);
+});
+
+test("bulk selection handles browser restore, deleted cards and empty submission", () => {
+  const { elements, picks, windowListeners, bodyListeners, remove } = loadBulkSelection();
+  picks[0].checked = true;
+  windowListeners.pageshow();
+  assert.equal(elements["bulk-count"].textContent, "1 selected");
+  let prevented = false;
+  const event = { preventDefault() { prevented = true; } };
+  elements["bulk-tags"].listeners.submit(event);
+  assert.equal(prevented, false);
+  remove();
+  bodyListeners["htmx:afterSwap"]();
+  assert.equal(elements["bulk-count"].textContent, "0 selected");
+  elements["bulk-tags"].listeners.submit(event);
+  assert.equal(prevented, true);
+});
+
 // The Alpine object the listener uses is the global one, so it is captured by
 // running the listener against a shim that records the calls.
 function loadAlpineRegistrations() {

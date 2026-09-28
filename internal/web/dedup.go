@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"imvault/internal/ids"
+	"imvault/internal/metadata"
 	"imvault/internal/models"
 	"imvault/internal/storage"
 	"imvault/internal/store"
@@ -140,6 +141,7 @@ func (s *Server) recordReused(
 	now time.Time,
 ) (*models.File, error) {
 	size := existing.Size
+	details = metadata.MergeDetails(existing.Details, metadata.DecodeDetails(details))
 	if details != "" && details != existing.Details {
 		if err := s.store.SetBlobDetails(ctx, existing.SHA256, details); err != nil {
 			return nil, err
@@ -172,6 +174,7 @@ func (s *Server) recordReused(
 			DurationMS:   existing.DurationMS,
 			Visibility:   options.Visibility,
 			Metadata:     options.Metadata,
+			Location:     options.Location,
 			Details:      existing.Details,
 			CreatedAt:    now,
 			ExpiresAt:    expires,

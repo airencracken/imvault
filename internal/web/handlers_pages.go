@@ -51,9 +51,11 @@ func (s *Server) handleGallery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	grid := s.grid(r, files, true, true, "", "You have not uploaded anything yet.")
+	grid.SelectionForm = "bulk-tags"
 	s.renderPage(w, http.StatusOK, "gallery", galleryView{
 		base:       s.base(r, "Your gallery"),
-		Grid:       s.grid(r, files, true, false, "", "You have not uploaded anything yet."),
+		Grid:       grid,
 		Query:      query,
 		Pagination: pg,
 	})
@@ -102,6 +104,7 @@ func (s *Server) handleFilePage(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	s.refreshFileDetails(r.Context(), file)
 
 	user := currentUser(r.Context())
 

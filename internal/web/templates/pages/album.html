@@ -69,11 +69,19 @@
         {{end}}
       </select>
     </label>
-    <label>Metadata in this album
+    <label>EXIF in this album
       <select name="metadata">
         {{$currentMeta := .Album.Metadata}}
         {{range .MetadataLevels}}
         <option value="{{.}}" {{if eq . $currentMeta}}selected{{end}}>{{.Label}} — {{.Explain}}</option>
+        {{end}}
+      </select>
+    </label>
+    <label>Location in this album
+      <select name="location">
+        {{$currentLocation := .Album.Location}}
+        {{range .MetadataLevels}}
+        <option value="{{.}}" {{if eq . $currentLocation}}selected{{end}}>{{.LocationLabel}} — {{.LocationExplain}}</option>
         {{end}}
       </select>
     </label>

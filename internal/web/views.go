@@ -60,10 +60,11 @@ func (b base) CanModerate() bool { return b.User != nil && b.User.CanModerate() 
 
 // fileCard is the data for a single tile in a grid.
 type fileCard struct {
-	File       *models.File
-	CSRFToken  string
-	Removable  bool
-	Selectable bool
+	SelectionForm string
+	File          *models.File
+	CSRFToken     string
+	Removable     bool
+	Selectable    bool
 	// ShowOwner attributes the upload, which matters where the point is what
 	// other people have shared rather than what you have.
 	ShowOwner bool
@@ -73,6 +74,7 @@ type fileCard struct {
 
 // fileCardsView backs the reusable grid fragment.
 type fileCardsView struct {
+	SelectionForm string
 	base
 	Files      []*models.File
 	Removable  bool

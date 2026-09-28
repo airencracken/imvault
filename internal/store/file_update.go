@@ -14,6 +14,7 @@ import (
 type FileUpdate struct {
 	Visibility  *models.Visibility
 	Metadata    *models.MetadataPolicy
+	Location    *models.MetadataPolicy
 	Description *string
 }
 
@@ -24,6 +25,9 @@ func (s *Store) UpdateFile(ctx context.Context, id string, update FileUpdate) er
 	if update.Metadata != nil && !update.Metadata.Valid() {
 		return fmt.Errorf("invalid metadata policy %q", *update.Metadata)
 	}
+	if update.Location != nil && !update.Location.Valid() {
+		return fmt.Errorf("invalid location policy %q", *update.Location)
+	}
 	if update.Description != nil {
 		text, err := models.NormalizeFileDescription(*update.Description)
 		if err != nil {
@@ -32,9 +36,9 @@ func (s *Store) UpdateFile(ctx context.Context, id string, update FileUpdate) er
 		update.Description = &text
 	}
 	_, err := s.db.ExecContext(ctx, `UPDATE files SET
-		visibility = COALESCE(?, visibility), metadata = COALESCE(?, metadata),
+		visibility = COALESCE(?, visibility), metadata = COALESCE(?, metadata), location = COALESCE(?, location),
 		description = COALESCE(?, description) WHERE id = ?`,
-		update.Visibility, update.Metadata, update.Description, id)
+		update.Visibility, update.Metadata, update.Location, update.Description, id)
 	if err != nil {
 		return fmt.Errorf("update file: %w", err)
 	}
