@@ -8,6 +8,35 @@
   var count = document.getElementById("file-count");
   var form = document.getElementById("upload-form");
 
+  var bulkForm = document.getElementById("bulk-tags");
+  if (bulkForm) {
+    var bulkCount = document.getElementById("bulk-count");
+    var bulkSubmit = document.getElementById("bulk-submit");
+    function picks() {
+      return Array.prototype.slice.call(document.querySelectorAll('input[name="files"][form="bulk-tags"]'));
+    }
+    function updateSelection() {
+      var selected = picks().filter(function (pick) { return pick.checked; }).length;
+      bulkCount.textContent = selected + " selected";
+      bulkSubmit.disabled = selected === 0;
+    }
+    function selectPage(checked) {
+      picks().forEach(function (pick) { pick.checked = checked; });
+      updateSelection();
+    }
+    document.getElementById("bulk-selection").hidden = false;
+    document.getElementById("bulk-select-all").addEventListener("click", function () { selectPage(true); });
+    document.getElementById("bulk-clear").addEventListener("click", function () { selectPage(false); });
+    document.addEventListener("change", updateSelection);
+    document.body.addEventListener("htmx:afterSwap", updateSelection);
+    window.addEventListener("pageshow", updateSelection);
+    bulkForm.addEventListener("submit", function (event) {
+      updateSelection();
+      if (bulkSubmit.disabled) event.preventDefault();
+    });
+    updateSelection();
+  }
+
   if (input && count) {
     input.addEventListener("change", function () {
       render(input.files);

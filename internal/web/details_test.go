@@ -73,7 +73,7 @@ func TestTheOwnerSeesTheWholeDetail(t *testing.T) {
 	}
 }
 
-func TestAPublicPhotoHidesWhereItWasTakenFromEverybodyElse(t *testing.T) {
+func TestAPublicPhotoHidesEXIFAndLocationByDefault(t *testing.T) {
 	h := newHarness(t)
 	h.provisionAdmin("boss")
 	other := h.seedUser("other")
@@ -87,10 +87,10 @@ func TestAPublicPhotoHidesWhereItWasTakenFromEverybodyElse(t *testing.T) {
 		t.Fatalf("a member cannot open a public file: %d", resp.StatusCode)
 	}
 
-	// What a family archive is for survives: when it was taken, and with what.
+	// Hidden EXIF withholds camera and date details as well as attribution.
 	for _, want := range []string{"TestCam One", "21 September 2026 at 14:30", "1/250", "200"} {
-		if !strings.Contains(page, want) {
-			t.Errorf("%q is missing from the details", want)
+		if strings.Contains(page, want) {
+			t.Errorf("hidden EXIF disclosed %q", want)
 		}
 	}
 
@@ -102,7 +102,7 @@ func TestAPublicPhotoHidesWhereItWasTakenFromEverybodyElse(t *testing.T) {
 	}
 
 	// And the page says so, rather than looking like a file that never had any.
-	if !strings.Contains(page, "not shown while this file is not") {
+	if !strings.Contains(page, "EXIF details are hidden") {
 		t.Error("the page does not say that something is being withheld")
 	}
 }
@@ -123,7 +123,7 @@ func TestShowingMetadataShowsItToEverybodyWhoCanSeeTheFile(t *testing.T) {
 	if !strings.Contains(page, "51.50740, -0.12730") {
 		t.Error("a file set to show its metadata hid the location")
 	}
-	if strings.Contains(page, "not shown while this file is not") {
+	if strings.Contains(page, "EXIF details are hidden") {
 		t.Error("the page claims to be withholding something")
 	}
 }
@@ -242,11 +242,11 @@ func TestTheFamilySeesWhereThePhotographWasTaken(t *testing.T) {
 	if !strings.Contains(page, "51.50740, -0.12730") {
 		t.Error("the group was not shown where the photograph was taken")
 	}
-	if strings.Contains(page, "not shown while this file is not") {
+	if strings.Contains(page, "EXIF details are hidden") {
 		t.Error("the group is told something is withheld, and nothing is")
 	}
 
-	// The public does not, and keeps the parts a stranger can do nothing with.
+	// The public sees neither EXIF nor location under the default policy.
 	public := uploadPlain(t, h, map[string]string{"visibility": "public"})
 	seedDetails(t, h, public, storedDetails)
 
@@ -254,10 +254,10 @@ func TestTheFamilySeesWhereThePhotographWasTaken(t *testing.T) {
 	if strings.Contains(page, "51.50740") {
 		t.Error("a stranger was shown where a public photograph was taken")
 	}
-	if !strings.Contains(page, "21 September 2026 at 14:30") {
-		t.Error("a stranger lost the date as well, which is not the point")
+	if strings.Contains(page, "21 September 2026 at 14:30") {
+		t.Error("a stranger was shown a hidden date")
 	}
-	if !strings.Contains(page, "TestCam One") {
-		t.Error("a stranger lost the camera as well, which is not the point")
+	if strings.Contains(page, "TestCam One") {
+		t.Error("a stranger was shown a hidden camera")
 	}
 }

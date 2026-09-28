@@ -167,6 +167,7 @@ func (s *Server) routes() *http.ServeMux {
 
 	// Library
 	mux.HandleFunc("GET /gallery", s.requireUser(s.handleGallery))
+	mux.HandleFunc("POST /gallery/tags", s.requireUser(s.handleBulkTags))
 	mux.HandleFunc("GET /favorites", s.requireUser(s.handleFavorites))
 	mux.HandleFunc("GET /recent", s.requireUser(s.handleRecent))
 	mux.HandleFunc("GET /upload", s.handleUploadPage)
@@ -183,6 +184,7 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /f/{id}/description", s.requireUser(s.handleFileDescription))
 	mux.HandleFunc("POST /f/{id}/visibility", s.requireUser(s.handleFileVisibility))
 	mux.HandleFunc("POST /f/{id}/metadata", s.requireUser(s.handleFileMetadata))
+	mux.HandleFunc("POST /f/{id}/location", s.requireUser(s.handleFileLocation))
 	mux.HandleFunc("POST /f/{id}/delete", s.requireUser(s.handleFileDelete))
 	mux.HandleFunc("POST /f/{id}/tags", s.requireUser(s.handleTagAdd))
 	mux.HandleFunc("POST /f/{id}/tags/{tagID}/delete", s.requireUser(s.handleTagRemove))
@@ -265,6 +267,7 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("DELETE /api/v1/files/{id}", s.requireAPIKey(s.apiDeleteFile))
 
 	mux.HandleFunc("POST /api/v1/files/{id}/tags", s.requireAPIKey(s.apiAddFileTag))
+	mux.HandleFunc("POST /api/v1/files/tags", s.requireAPIKey(s.apiBulkTags))
 	mux.HandleFunc("DELETE /api/v1/files/{id}/tags/{tagRef}", s.requireAPIKey(s.apiRemoveFileTag))
 
 	mux.HandleFunc("GET /api/v1/albums", s.requireAPIKey(s.apiListAlbums))

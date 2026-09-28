@@ -32,6 +32,7 @@ multipart uploads use the configured upload limits.
 | `files` | One or more files. `file`, `image`, and `uploads` are accepted as aliases |
 | `visibility` | `public`, `members`, or `private`. Defaults to the instance default |
 | `metadata` | `shown`, `inherit`, or `hidden`. Defaults to `inherit`, which follows visibility |
+| `location` | `shown`, `inherit`, or `hidden`. Defaults to `inherit`, which follows EXIF independently of an explicit location choice |
 | `public` | The older boolean. `1` means `visibility=public`, `0` means `private` |
 | `album` | Album slug or id to add the uploads to |
 | `tags` | Comma-separated tag names to apply to the uploads |
@@ -91,9 +92,23 @@ to clear it; omitting the field preserves it. `null` and non-string values are
 errors. Ordinary form encoding works too. Descriptions follow file visibility,
 independently of the camera metadata policy.
 
-You can send `description`, `visibility`, and `metadata` together. All supplied
+You can send `description`, `visibility`, `metadata`, and `location` together. All supplied
 fields are validated and saved together; an invalid value leaves the file
 unchanged.
+
+## Location sharing
+
+File and album JSON include `metadata` and `location` policy strings.
+Set `location` on upload, album creation, or a file/album PATCH. Accepted values
+are `shown`, `hidden`, and `inherit` (**Follow EXIF**, the upgrade default).
+Omitting it on PATCH keeps the existing choice. Empty strings, `null`, and
+non-string values are rejected before any changes are saved.
+
+For example, `{"metadata":"shown","location":"hidden"}` shares camera details
+without GPS. `{"metadata":"hidden","location":"shown"}` shares GPS without
+camera details. Albums may restrict either category, but cannot reveal details
+hidden by a file or another album. See [media handling](media.md#metadata) for
+page, download, and format behavior.
 
 ## Albums and tags
 
@@ -148,6 +163,11 @@ curl -H "Authorization: Bearer $IMVAULT_KEY" -H 'Content-Type: application/json'
 curl -X DELETE -H "Authorization: Bearer $IMVAULT_KEY" \
      https://img.example.com/api/v1/files/abc123/tags/beach
 
+# Add several tags to several files, preserving existing tags
+curl -H "Authorization: Bearer $IMVAULT_KEY" -H 'Content-Type: application/json' \
+     -d '{"files":["abc123","def456"],"tags":["Holiday","Family"]}' \
+     https://img.example.com/api/v1/files/tags
+
 # Find things
 curl -H "Authorization: Bearer $IMVAULT_KEY" \
      'https://img.example.com/api/v1/files?tag=beach&kind=image&public=1'
@@ -160,21 +180,30 @@ which is what callers written against two levels meant by it.
 
 **Endpoints**
 
+Bulk tagging accepts 1–500 file IDs and 1–50 tag names (up to 48 characters
+each). Use JSON arrays or repeated `files` and `tags` form fields. Success returns
+`{"tagged":2}` with the number of distinct selected files, including files that
+already carried the tags. Repeating a request is safe. Every selected file must
+belong to the caller, including administrators. Invalid input returns 400;
+missing, expired, or unowned files return 404. Any failure leaves the entire
+batch unchanged.
+
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/v1/me` | Identify the calling key |
 | `POST` | `/api/v1/upload` | Upload one or more files |
 | `GET` | `/api/v1/files` | List and filter your uploads |
 | `GET` | `/api/v1/files/{id}` | Metadata for one file |
-| `PATCH` | `/api/v1/files/{id}` | Change `description`, `visibility`, `metadata`, or the older `public` |
+| `PATCH` | `/api/v1/files/{id}` | Change `description`, `visibility`, `metadata`, `location`, or the older `public` |
 | `DELETE` | `/api/v1/files/{id}` | Delete a file and its bytes |
 | `POST` | `/api/v1/files/{id}/tags` | Attach a tag |
+| `POST` | `/api/v1/files/tags` | Add tags to multiple own files atomically |
 | `DELETE` | `/api/v1/files/{id}/tags/{ref}` | Detach a tag by id, slug or name |
 | `GET` | `/api/v1/tags` | List tags |
 | `GET` | `/api/v1/albums` | List your albums |
 | `POST` | `/api/v1/albums` | Create an album (optionally seeding `files`) |
 | `GET` | `/api/v1/albums/{ref}` | Album with its files |
-| `PATCH` | `/api/v1/albums/{ref}` | Update title, description, visibility or `access` |
+| `PATCH` | `/api/v1/albums/{ref}` | Update title, description, visibility, `access`, `metadata`, or `location` |
 | `DELETE` | `/api/v1/albums/{ref}` | Delete an album, keeping its files |
 | `POST` | `/api/v1/albums/{ref}/files` | Add files to an album |
 | `DELETE` | `/api/v1/albums/{ref}/files/{id}` | Remove a file from an album |

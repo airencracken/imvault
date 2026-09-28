@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strings"
@@ -34,8 +35,9 @@ type apiFileJSON struct {
 	Public bool `json:"public"`
 	// Visibility is the level itself: public, members, or private.
 	Visibility string `json:"visibility"`
-	// Metadata is what happens to the camera details, date, and location.
+	// Metadata controls non-location EXIF. Location controls GPS independently.
 	Metadata string `json:"metadata"`
+	Location string `json:"location"`
 	// Details is what the file says about itself. The API returns an account's
 	// own files to that account, so nothing is withheld here.
 	Details    *metadata.Details `json:"details,omitempty"`
@@ -81,6 +83,7 @@ func newAPIFile(r *http.Request, s *Server, f *models.File) apiFileJSON {
 		Public:      f.Visibility.IsPublic(),
 		Visibility:  string(f.Visibility),
 		Metadata:    string(f.Metadata),
+		Location:    string(f.Location),
 		Details:     metadata.DecodeDetails(f.Details),
 		DurationMS:  f.DurationMS,
 		FrameCount:  f.FrameCount,
@@ -190,16 +193,7 @@ func (s *Server) apiUpload(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	parts := r.MultipartForm.File["files"]
-	if len(parts) == 0 {
-		// Accept the field name several clients default to.
-		for _, name := range []string{"file", "image", "uploads"} {
-			if candidates := r.MultipartForm.File[name]; len(candidates) > 0 {
-				parts = candidates
-				break
-			}
-		}
-	}
+	parts := uploadParts(r.MultipartForm)
 	if len(parts) == 0 {
 		writeAPIError(w, http.StatusBadRequest, "no files were included in the request")
 		return
@@ -215,6 +209,9 @@ func (s *Server) apiUpload(w http.ResponseWriter, r *http.Request) {
 	// boolean, then the instance default. The default matters more than it
 	// looks: on an instance configured for members, a script that says nothing
 	// uploads for members rather than for the world.
+	if !validLocationForm(w, r) {
+		return
+	}
 	options := s.uploadOptions(r, user)
 
 	var (
@@ -255,6 +252,16 @@ func (s *Server) apiUpload(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, apiUploadResponse{Files: created, Errors: failures})
 }
 
+// uploadParts accepts the conventional multipart names used by upload clients.
+func uploadParts(form *multipart.Form) []*multipart.FileHeader {
+	for _, name := range []string{"files", "file", "image", "uploads"} {
+		if parts := form.File[name]; len(parts) != 0 {
+			return parts
+		}
+	}
+	return nil
+}
+
 // apiAttachToAlbum links an upload to an album named by id or slug, when the
 // caller owns it. Failures are logged rather than failing the upload, which has
 // already succeeded by this point.
@@ -276,6 +283,7 @@ func (s *Server) apiFile(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	s.refreshFileDetails(r.Context(), file)
 
 	noStore(w)
 	writeJSON(w, http.StatusOK, newAPIFile(r, s, file))
@@ -323,12 +331,16 @@ func parseFileUpdate(params *params) (store.FileUpdate, error) {
 		}
 		update.Metadata = &metadata
 	}
+	update.Location, err = params.locationPolicy()
+	if err != nil {
+		return update, err
+	}
 	update.Description, err = params.description()
 	if err != nil {
 		return update, err
 	}
-	if update.Visibility == nil && update.Metadata == nil && update.Description == nil {
-		return update, errors.New("no supported fields were provided (supported: visibility, public, metadata, description)")
+	if update.Visibility == nil && update.Metadata == nil && update.Location == nil && update.Description == nil {
+		return update, errors.New("no supported fields were provided (supported: visibility, public, metadata, location, description)")
 	}
 	return update, nil
 }

@@ -98,12 +98,12 @@ func (s *Server) locationVisible(ctx context.Context, file *models.File, viewer 
 	if canChangeFile(viewer, file) {
 		return true
 	}
-	policy, err := s.store.EffectiveMetadataPolicy(ctx, file)
+	policies, err := s.store.EffectiveMetadataPolicies(ctx, file)
 	if err != nil {
 		s.log.Error("metadata policy", "id", file.ID, "error", err)
 		return false
 	}
-	return policy == models.MetadataShown
+	return policies.Location == models.MetadataShown
 }
 
 func (s *Server) fetchMap(ctx context.Context, lat, lon float64) (mapImage, error) {

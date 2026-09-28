@@ -8,6 +8,26 @@
   </form>
 </header>
 
+{{if .Grid.Files}}
+<form id="bulk-tags" class="panel stack" method="post" action="/gallery/tags">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  <input type="hidden" name="q" value="{{.Query}}">
+  <input type="hidden" name="page" value="{{.Pagination.Page}}">
+  <h2>Tag selected photos</h2>
+  <p class="muted">Select photos below, then add tags to all of them. Existing tags are kept.</p>
+  <div class="actions" id="bulk-selection" hidden>
+    <button class="btn small" type="button" id="bulk-select-all">Select all on this page</button>
+    <button class="btn small" type="button" id="bulk-clear">Clear selection</button>
+    <span id="bulk-count" role="status" aria-live="polite"></span>
+  </div>
+  <label>Tags, separated by commas
+    <input name="tags" required placeholder="Holiday, Family" aria-describedby="bulk-tags-help">
+  </label>
+  <p id="bulk-tags-help" class="muted">Up to 50 tags, 48 characters each. Selection applies to this page.</p>
+  <button class="btn primary" type="submit" id="bulk-submit">Add tags</button>
+</form>
+{{end}}
+
 {{template "file_grid" .Grid}}
 {{template "pagination" .Pagination}}
 {{end}}

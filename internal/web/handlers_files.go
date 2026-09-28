@@ -101,11 +101,11 @@ func (s *Server) metadataUnavailable(w http.ResponseWriter, r *http.Request, fil
 		"id", file.ID, "ext", file.Ext, "error", err)
 
 	message := "This file is set to hide its metadata, but it could not be removed. " +
-		"It is not being served. Set its metadata to \"Shown\" to accept the exposure, " +
+		"It is not being served. Set both EXIF and location to \"Shown\" to accept the exposure, " +
 		"or upload it as JPEG, PNG, WebP, GIF, or BMP."
 	if gap := s.MetadataGap(file); gap != "" {
 		message = "This file is set to hide its metadata, but it could not be removed. " + gap +
-			" It is not being served. Set its metadata to \"Shown\" to accept the exposure."
+			" It is not being served. Set both EXIF and location to \"Shown\" to accept the exposure."
 	}
 
 	s.renderPage(w, http.StatusBadGateway, "notfound", errorView{
@@ -150,14 +150,19 @@ func (s *Server) serveObject(w http.ResponseWriter, r *http.Request, file *model
 	w.Header().Set("Content-Type", contentType)
 	etag := file.ID + "-" + path.Base(key)
 
-	// A given id's bytes never change, so the content is safe to cache for a
-	// long time. Anything not public is marked private to keep shared caches
+	// Re-encoded renditions can be cached for a long time. Anything not
+	// public is marked private to keep shared caches
 	// out, since a members-only file is still a signed-in-only file.
 	scope := "private"
 	if file.Visibility.IsPublic() {
 		scope = "public"
 	}
 	cacheControl := scope + ", max-age=31536000, immutable"
+	if key != file.ThumbKey && (key == file.ObjectKey || key != file.PreviewKey) {
+		// Originals and their filtered variants can change when either sharing
+		// policy changes. Revalidate even when this URL is an inline preview.
+		cacheControl = scope + ", no-cache"
+	}
 	if disposition != "inline" {
 		// Original downloads must revalidate their filename after a rename.
 		// Include the disposition so an old validator cannot preserve it.

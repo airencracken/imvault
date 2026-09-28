@@ -42,12 +42,15 @@ func cleanKeyFor(objectKey string) string {
 // original would be the one failure that matters here: it would look exactly
 // like success while shipping the coordinates anyway.
 func (s *Server) scopedObjectKey(ctx context.Context, file *models.File, original string) (string, error) {
-	policy, err := s.store.EffectiveMetadataPolicy(ctx, file)
+	policies, err := s.store.EffectiveMetadataPolicies(ctx, file)
 	if err != nil {
 		return "", err
 	}
-	if policy != models.MetadataHidden {
+	if policies.Metadata == models.MetadataShown && policies.Location == models.MetadataShown {
 		return original, nil
+	}
+	if policies.Metadata != policies.Location && !file.IsVideo() {
+		return s.filteredObject(ctx, file, policies.Metadata == models.MetadataShown)
 	}
 	return s.cleanObject(ctx, file)
 }
@@ -192,8 +195,12 @@ func (s *Server) forgetCleanObject(ctx context.Context, sha string) {
 
 // detailsView is the metadata section of a file page.
 type detailsView struct {
-	Fields []metadata.Field
-	// Withheld reports that identifying fields are present and not being
+	Location         string
+	LocationWithheld bool
+	NoLocation       bool
+	RefreshFailed    bool
+	Fields           []metadata.Field
+	// Withheld reports that non-location EXIF fields are present and not being
 	// shown, so the page can say so rather than looking like a file that never
 	// had any.
 	Withheld bool
@@ -210,53 +217,51 @@ type detailsView struct {
 // the choice, and the policy is about what other people are told. For anybody
 // else it follows the same rule as the bytes, because a page and a download are
 // two ways of disclosing the same thing.
-//
-// The audience decides, not the field. A location is family value — "here is
-// where we were" is much of the point of a holiday photograph — and it is the
-// public that turns the same coordinates into a liability. So nothing is
-// discarded: the identifying fields are withheld from the wrong audience, and a
-// file shared with a group shows them to that group. That is what makes this a
-// policy rather than a strip. "Share the coordinates with my family" and "do
-// not tell the internet" are one setting, not two, and the setting is really a
-// question about who is looking.
 func (s *Server) detailsFor(ctx context.Context, file *models.File, viewer *models.User) *detailsView {
 	details := metadata.DecodeDetails(file.Details)
 	if details == nil {
+		if canChangeFile(viewer, file) && !file.IsVideo() {
+			return &detailsView{NoLocation: true, RefreshFailed: file.DetailsVersion < metadata.Version}
+		}
 		return nil
 	}
 
-	shown := canChangeFile(viewer, file)
-	if !shown {
-		policy, err := s.store.EffectiveMetadataPolicy(ctx, file)
-		if err != nil {
-			// Closing on doubt: this is the path that decides whether to disclose
-			// somebody's location.
-			s.log.Error("metadata policy", "id", file.ID, "error", err)
-			policy = models.MetadataHidden
-		}
-		shown = policy == models.MetadataShown
-	}
+	exifShown, locationShown := s.detailsVisibility(ctx, file, viewer)
 
-	view := &detailsView{}
+	view := &detailsView{NoLocation: locationShown && details.Location() == "", RefreshFailed: file.DetailsVersion < metadata.Version}
+	view.LocationWithheld = !locationShown && details.Location() != ""
 	for _, field := range details.Fields() {
-		if !shown && field.Identifying {
+		if field.Location {
+			continue
+		}
+		if !exifShown {
 			view.Withheld = true
 			continue
 		}
 		view.Fields = append(view.Fields, field)
 	}
 
-	if shown && details.Latitude != nil && details.Longitude != nil {
+	if locationShown && details.Location() != "" {
+		view.Location = details.Location()
 		view.OSMLink = osmLink(*details.Latitude, *details.Longitude, mapZoom(s.cfg.MapZoom))
 		if s.cfg.MapURL != "" {
 			view.MapImage = "/f/" + file.ID + "/map"
 		}
 	}
 
-	if len(view.Fields) == 0 && !view.Withheld {
-		return nil
-	}
 	return view
+}
+
+func (s *Server) detailsVisibility(ctx context.Context, file *models.File, viewer *models.User) (bool, bool) {
+	if canChangeFile(viewer, file) {
+		return true, true
+	}
+	policies, err := s.store.EffectiveMetadataPolicies(ctx, file)
+	if err != nil {
+		s.log.Error("metadata policies", "id", file.ID, "error", err)
+		return false, false
+	}
+	return policies.Metadata == models.MetadataShown, policies.Location == models.MetadataShown
 }
 
 // MetadataGap describes why a file's metadata cannot be removed, or is empty

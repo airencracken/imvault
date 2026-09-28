@@ -88,18 +88,21 @@ func refreshBlobMetadata(ctx context.Context, st *store.Store, objects storage.B
 		return false, err
 	}
 	defer src.Close()
-	details, err := metadata.Extract(src)
+	details, err := metadata.ExtractStored(src)
+	if errors.Is(err, metadata.ErrRead) {
+		return false, err
+	}
 	// Unsupported formats and metadata parse failures do not erase previously
 	// extracted fields. A later parser improvement can retry the same original.
-	if err != nil || details.Empty() {
-		return false, nil
+	if err != nil && ctx.Err() != nil {
+		return false, ctx.Err()
 	}
-	encoded := details.Encode()
-	if encoded == "" || encoded == blob.Details {
+	encoded := metadata.MergeDetails(blob.Details, details)
+	if encoded == blob.Details && blob.DetailsVersion >= metadata.Version {
 		return false, nil
 	}
 	if err := st.SetBlobDetails(ctx, blob.SHA256, encoded); err != nil {
 		return false, err
 	}
-	return true, nil
+	return encoded != blob.Details, nil
 }

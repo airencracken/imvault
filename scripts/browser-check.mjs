@@ -431,7 +431,41 @@ async function main() {
     record("the new filename is searchable", await page.evaluate(`
       return !!document.getElementById('file-${fileID}');
     `));
+
+    // Selection checkboxes live outside the form to avoid nesting card delete
+    // forms. Verify that an actual browser submits those associated controls.
+    await page.evaluate(`
+      document.getElementById('bulk-select-all').click();
+    `);
+    record("gallery selects photos with a live count", await page.evaluate(`
+      return document.getElementById('bulk-count').textContent === '1 selected' &&
+        !document.getElementById('bulk-submit').disabled;
+    `));
+    await page.evaluate(`
+      document.getElementById('bulk-clear').click();
+    `);
+    record("gallery clears its selection", await page.evaluate(`
+      return document.getElementById('bulk-submit').disabled &&
+        !document.querySelector('input[form="bulk-tags"]').checked;
+    `));
+    await page.evaluate(`
+      document.querySelector('input[form="bulk-tags"]').click();
+      const form = document.getElementById('bulk-tags');
+      form.elements.tags.value = 'Picnic, Family';
+      form.requestSubmit();
+    `);
+    await page.waitFor(`document.querySelector('.flash.ok')?.textContent.includes('Tags added to 1 file.')`);
+    record("bulk tags preserves the gallery search", await page.evaluate(`
+      return new URLSearchParams(location.search).get('q') === 'picnic';
+    `));
     await page.goto(`${base}/f/${fileID}`);
+    record("bulk tags appear on the selected photo", await page.evaluate(`
+      const tags = document.getElementById('tag-chips').textContent;
+      return tags.includes('Picnic') && tags.includes('Family');
+    `));
+    record("photos without GPS explain the missing location", await page.evaluate(`
+      return document.querySelector('.file-location')?.textContent.includes('No readable GPS coordinates');
+    `));
 
     // --- plain-text descriptions through the ordinary HTML form ---
     const description = 'A day out.\nWith <friends> & family.';
@@ -505,6 +539,19 @@ async function main() {
     `);
     record("changing it swaps in place over htmx", metadataAfter.value === "hidden",
       JSON.stringify(metadataAfter));
+
+    record("location offers its own sharing setting", await page.evaluate(`
+      return document.querySelector('select[name="location"]')?.value === 'inherit';
+    `));
+    await page.evaluate(`
+      const select = document.querySelector('select[name="location"]');
+      select.value = 'shown';
+      select.form.requestSubmit();
+    `);
+    await page.waitFor(`document.querySelector('select[name="location"]')?.value === 'shown' && document.body.textContent.includes('Location sharing updated.')`);
+    record("location changes without changing EXIF", await page.evaluate(`
+      return document.querySelector('select[name="metadata"]')?.value === 'hidden';
+    `));
 
     // --- private favorites ---
     record("the photo starts unfavorited", await page.evaluate(`

@@ -152,12 +152,13 @@ func templateFuncs() template.FuncMap {
 				removeURL = strings.Replace(pattern, "%s", f.ID, 1)
 			}
 			return fileCard{
-				File:       f,
-				CSRFToken:  view.CSRFToken,
-				Removable:  removable,
-				Selectable: view.Selectable,
-				ShowOwner:  view.ShowOwner,
-				RemoveURL:  removeURL,
+				SelectionForm: view.SelectionForm,
+				File:          f,
+				CSRFToken:     view.CSRFToken,
+				Removable:     removable,
+				Selectable:    view.Selectable,
+				ShowOwner:     view.ShowOwner,
+				RemoveURL:     removeURL,
 			}
 		},
 		"default": func(fallback, v string) string {

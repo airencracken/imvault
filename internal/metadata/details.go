@@ -15,9 +15,9 @@ import (
 
 // Details are the descriptive fields read out of a file's metadata.
 //
-// They are read once, at upload, and stored. Nothing re-reads an original to
-// display them, and that is the point: a file whose metadata is no longer
-// served can still describe itself to the people allowed to see it. The bytes
+// They are read at upload and refreshed when the parser version changes.
+// A file whose metadata is no longer served can still describe itself to the
+// people allowed to see it. The bytes
 // and the page are separate channels, and the date a photograph was taken is
 // worth keeping even where the coordinates are not.
 //
@@ -49,6 +49,7 @@ type Field struct {
 	// Identifying marks the fields that are withheld when a file is not
 	// showing its metadata.
 	Identifying bool
+	Location    bool
 }
 
 // Fields renders the details in the order a person would read them: what it
@@ -70,7 +71,7 @@ func (d *Details) Fields() []Field {
 		{Label: "Artist", Value: d.Artist, Identifying: true},
 		{Label: "Copyright", Value: d.Copyright, Identifying: true},
 		{Label: "Serial number", Value: d.Serial, Identifying: true},
-		{Label: "Location", Value: d.Location(), Identifying: true},
+		{Label: "Location", Value: d.Location(), Identifying: true, Location: true},
 	}
 
 	out := make([]Field, 0, len(all))
@@ -159,9 +160,8 @@ func Extract(r io.ReadSeeker) (*Details, error) {
 	}
 
 	exif, err := decode(r)
-	if err != nil {
-		return nil, err
-	}
+	// An unrelated EXIF directory can fail after yielding useful fields. Keep
+	// those fields and still run the independent GPS reader below.
 
 	details := &Details{
 		Camera:   cameraName(exif.CameraMakeID.String(), exif.IFD0.Model),
@@ -202,7 +202,7 @@ func Extract(r io.ReadSeeker) (*Details, error) {
 	// A location of exactly zero for both is the null island, which is what a
 	// camera writes when it had no fix rather than one off the coast of Africa.
 	var fallback location
-	if lat, lon := exif.GPS.Latitude(), exif.GPS.Longitude(); lat != 0 || lon != 0 {
+	if lat, lon := exif.GPS.Latitude(), exif.GPS.Longitude(); err == nil && (lat != 0 || lon != 0) {
 		fallback.latitude, fallback.longitude = &lat, &lon
 		if altitude := float64(exif.GPS.Altitude()); altitude != 0 {
 			fallback.altitude = &altitude
@@ -217,7 +217,7 @@ func Extract(r io.ReadSeeker) (*Details, error) {
 	details.Latitude, details.Longitude, details.Altitude = fallback.latitude, fallback.longitude, fallback.altitude
 
 	if details.Empty() {
-		return nil, nil
+		return nil, err
 	}
 	return details, nil
 }

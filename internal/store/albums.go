@@ -11,7 +11,7 @@ import (
 	"imvault/internal/models"
 )
 
-const albumColumns = `a.id, a.user_id, a.title, a.slug, a.description, a.visibility, a.access, a.metadata, a.created_at,
+const albumColumns = `a.id, a.user_id, a.title, a.slug, a.description, a.visibility, a.access, a.metadata, a.location, a.created_at,
 	COALESCE(u.username, ''), (SELECT COUNT(*) FROM album_files WHERE album_id = a.id)`
 
 func scanAlbum(sc rowScanner) (*models.Album, error) {
@@ -20,15 +20,17 @@ func scanAlbum(sc rowScanner) (*models.Album, error) {
 		visibility string
 		access     string
 		metadata   string
+		location   string
 		created    int64
 	)
 	if err := sc.Scan(&a.ID, &a.UserID, &a.Title, &a.Slug, &a.Description,
-		&visibility, &access, &metadata, &created, &a.Username, &a.FileCount); err != nil {
+		&visibility, &access, &metadata, &location, &created, &a.Username, &a.FileCount); err != nil {
 		return nil, err
 	}
 	a.Visibility = models.ParseVisibility(visibility)
 	a.Access = models.ParseAlbumAccess(access)
 	a.Metadata = models.ParseMetadataPolicy(metadata)
+	a.Location = models.ParseMetadataPolicy(location)
 	a.CreatedAt = toTime(created)
 	return &a, nil
 }
@@ -45,6 +47,7 @@ type AlbumInput struct {
 	Visibility  models.Visibility
 	Access      models.AlbumAccess
 	Metadata    models.MetadataPolicy
+	Location    models.MetadataPolicy
 }
 
 // normalised fills in anything the caller left out with the closed, cautious
@@ -59,6 +62,9 @@ func (in AlbumInput) normalised() AlbumInput {
 	}
 	if !in.Metadata.Valid() {
 		in.Metadata = models.MetadataInherit
+	}
+	if !in.Location.Valid() {
+		in.Location = models.MetadataInherit
 	}
 	return in
 }
@@ -87,9 +93,9 @@ func (s *Store) CreateAlbum(ctx context.Context, userID int64, in AlbumInput) (*
 		}
 
 		res, err := s.db.ExecContext(ctx, `
-			INSERT INTO albums (user_id, title, slug, description, visibility, access, metadata, created_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-			userID, title, slug, description, string(visibility), string(access), string(metadata), created,
+			INSERT INTO albums (user_id, title, slug, description, visibility, access, metadata, location, created_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			userID, title, slug, description, string(visibility), string(access), string(metadata), string(in.Location), created,
 		)
 		if err != nil {
 			if ok, col := isUniqueViolation(err); ok && strings.Contains(col, "slug") {
@@ -111,6 +117,7 @@ func (s *Store) CreateAlbum(ctx context.Context, userID int64, in AlbumInput) (*
 			Visibility:  visibility,
 			Access:      access,
 			Metadata:    metadata,
+			Location:    in.Location,
 			CreatedAt:   toTime(created),
 		}
 		return &album, nil
@@ -172,10 +179,10 @@ func (s *Store) UpdateAlbum(ctx context.Context, id int64, in AlbumInput) error 
 	}
 
 	if _, err := s.db.ExecContext(ctx, `
-		UPDATE albums SET title = ?, description = ?, visibility = ?, access = ?, metadata = ?
+		UPDATE albums SET title = ?, description = ?, visibility = ?, access = ?, metadata = ?, location = ?
 		WHERE id = ?`,
 		in.Title, in.Description, string(in.Visibility), string(in.Access),
-		string(in.Metadata), id); err != nil {
+		string(in.Metadata), string(in.Location), id); err != nil {
 		return fmt.Errorf("update album: %w", err)
 	}
 	return nil
@@ -298,28 +305,39 @@ func (s *Store) AlbumsVisibleTo(ctx context.Context, viewerID int64) ([]*models.
 // to a file but never remove it. That matters because a shared album's owner
 // and a file's owner need not be the same person.
 func (s *Store) EffectiveMetadataPolicy(ctx context.Context, file *models.File) (models.MetadataPolicy, error) {
+	policies, err := s.EffectiveMetadataPolicies(ctx, file)
+	return policies.Metadata, err
+}
+
+type MetadataPolicies struct{ Metadata, Location models.MetadataPolicy }
+
+// EffectiveMetadataPolicies resolves the two independent ceilings together.
+func (s *Store) EffectiveMetadataPolicies(ctx context.Context, file *models.File) (MetadataPolicies, error) {
 	// The file's own answer, with inherit settled by its visibility.
 	opinions := []models.MetadataPolicy{file.Metadata.Resolve(file.Visibility)}
+	locations := []models.MetadataPolicy{file.Location.WithFallback(opinions[0])}
 
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT a.metadata FROM albums a
+		SELECT a.metadata, a.location FROM albums a
 		JOIN album_files af ON af.album_id = a.id
 		WHERE af.file_id = ?`, file.ID)
 	if err != nil {
-		return models.MetadataInherit, fmt.Errorf("album metadata policies: %w", err)
+		return MetadataPolicies{}, fmt.Errorf("album metadata policies: %w", err)
 	}
 	defer rows.Close()
 
 	for rows.Next() {
-		var raw string
-		if err := rows.Scan(&raw); err != nil {
-			return models.MetadataInherit, fmt.Errorf("scan album metadata: %w", err)
+		var raw, location string
+		if err := rows.Scan(&raw, &location); err != nil {
+			return MetadataPolicies{}, fmt.Errorf("scan album metadata: %w", err)
 		}
-		opinions = append(opinions, models.ParseMetadataPolicy(raw))
+		policy := models.ParseMetadataPolicy(raw)
+		opinions = append(opinions, policy)
+		locations = append(locations, models.ParseMetadataPolicy(location).WithFallback(policy))
 	}
 	if err := rows.Err(); err != nil {
-		return models.MetadataInherit, fmt.Errorf("album metadata policies: %w", err)
+		return MetadataPolicies{}, fmt.Errorf("album metadata policies: %w", err)
 	}
 
-	return models.Strictest(opinions...), nil
+	return MetadataPolicies{Metadata: models.Strictest(opinions...), Location: models.Strictest(locations...)}, nil
 }

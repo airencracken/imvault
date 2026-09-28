@@ -27,6 +27,21 @@
       {{end}}
     </select>
   </label>
+  <label>EXIF
+    <select name="metadata">
+      {{range .MetadataLevels}}
+      <option value="{{.}}" {{if eq . "inherit"}}selected{{end}}>{{.Label}}</option>
+      {{end}}
+    </select>
+  </label>
+  <label>Location
+    <select name="location">
+      {{range .MetadataLevels}}
+      <option value="{{.}}" {{if eq . "inherit"}}selected{{end}}>{{.LocationLabel}}</option>
+      {{end}}
+    </select>
+  </label>
+  <p class="muted">Albums can hide EXIF or location, but cannot reveal details a photo hides.</p>
   <button class="btn primary" type="submit">Create album</button>
 </form>
 

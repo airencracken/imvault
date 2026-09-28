@@ -75,7 +75,7 @@ Members and sample content come through the same HTTP routes people use.
 | **Pictures that stay pictures** | JPEG, PNG, WebP, BMP, TIFF, animated GIFs and WebPs. Thumbnails and previews are made once, with orientation and transparency handled. |
 | **A home for little movies** | WebM, MP4, and MOV clips, served with range requests. Optional ffmpeg supplies posters and duration checks; originals are never transcoded. |
 | **A library, not a pile** | Galleries, albums, tags, private favorites, and a recent feed. Add a little description to a photo or clip. Shared albums let members contribute their own uploads. Identical uploads share stored bytes. |
-| **Your audience, your call** | Public, members-only, and private visibility. Photograph metadata controls help keep camera details and location out of public downloads. |
+| **Your audience, your call** | Public, members-only, and private visibility. Separate EXIF and location sharing controls on photos and albums. |
 | **Keys for people and scripts** | Invitations, member/moderator/admin roles, TOTP two-factor authentication, OpenID Connect, password resets, and a bearer-token API. |
 | **A broom cupboard** | Reports, a moderation log, account exports and deletion, storage quotas, upload limits, rate limiting, anonymous-upload expiry, and queued mail with retries. |
 | **Room to grow** | Local disk or a private S3-compatible bucket. Verified storage migration, backup and restore commands, and a way to rebuild missing video posters. |
@@ -96,6 +96,11 @@ Anonymous files are public and expire after the configured retention window.
 
 Found a keeper? Open a photo and choose **Favorite**. Your **Favorites** page
 keeps those little discoveries together, just for you.
+
+To tag several photos, open **Your gallery**, select their checkboxes (or choose
+**Select all on this page**), enter comma-separated tags, and choose **Add tags**.
+Existing tags are kept. A photo's **Location** section shows its coordinates and
+map link, or explains when GPS is missing or hidden.
 
 Create your administrator locally with `imvault create-admin --username NAME
 --password-prompt`; use `--password-stdin` for scripts. Public registration
@@ -220,6 +225,10 @@ metadata handling, and the limits of those protections.
 Working on the code? `make check` runs formatting checks, vet, Go and JavaScript
 tests, and a cyclomatic-complexity ceiling of 15 for production Go functions.
 `make test-race` and `make test-browser` cover concurrency and browser behaviour.
+
+## Support
+
+You can [support imvault on Ko-fi](https://ko-fi.com/airencracken).
 
 ## License
 

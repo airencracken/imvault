@@ -306,7 +306,8 @@ type File struct {
 	ThumbKey     string
 	PreviewKey   string
 	Visibility   Visibility
-	// Metadata is what happens to the camera details, date, and location.
+	// Metadata controls EXIF fields other than GPS; Location controls GPS.
+	Location   MetadataPolicy
 	Metadata   MetadataPolicy
 	Kind       Kind
 	DurationMS int64
@@ -321,7 +322,8 @@ type File struct {
 	// Details is the descriptive metadata of the content, as stored JSON. It
 	// comes from the blob, because it belongs to the bytes rather than to this
 	// file.
-	Details string
+	Details        string
+	DetailsVersion int
 }
 
 // Expired reports whether the file has passed its retention deadline.
@@ -443,11 +445,15 @@ type Blob struct {
 	// never been needed. It is derived from the content, so every file with
 	// these bytes shares it.
 	CleanKey string
+	// Filtered copies retain only the permitted category of EXIF data.
+	CameraKey   string
+	LocationKey string
 	// Details is the descriptive metadata read out at upload, as stored JSON.
 	// It is a property of the bytes, so every file with this content shares it.
-	Details   string
-	Refcount  int
-	CreatedAt time.Time
+	Details        string
+	DetailsVersion int
+	Refcount       int
+	CreatedAt      time.Time
 }
 
 // Orphaned reports whether nothing refers to the content any more.
@@ -456,7 +462,7 @@ func (b *Blob) Orphaned() bool { return b.Refcount <= 0 }
 // Keys lists the stored objects belonging to the content.
 func (b *Blob) Keys() []string {
 	out := make([]string, 0, 4)
-	for _, key := range []string{b.ObjectKey, b.ThumbKey, b.PreviewKey, b.CleanKey} {
+	for _, key := range []string{b.ObjectKey, b.ThumbKey, b.PreviewKey, b.CleanKey, b.CameraKey, b.LocationKey} {
 		if key != "" {
 			out = append(out, key)
 		}
@@ -475,6 +481,7 @@ type Album struct {
 	// Metadata is what happens to the metadata of the files in this album. It
 	// can only tighten a file's own setting, never loosen it.
 	Metadata MetadataPolicy
+	Location MetadataPolicy
 	// Access is who may add their own files. It is what makes an album shared.
 	Access    AlbumAccess
 	CreatedAt time.Time
@@ -817,9 +824,9 @@ func (p MetadataPolicy) Label() string {
 func (p MetadataPolicy) Explain() string {
 	switch p {
 	case MetadataShown:
-		return "Always include the camera details, date, and location"
+		return "Share camera details, date, and other EXIF fields"
 	case MetadataHidden:
-		return "Never include the camera details, date, or location"
+		return "Hide camera details, date, and other EXIF fields"
 	}
 	return "Include them only where the file is not public"
 }

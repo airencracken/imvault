@@ -18,8 +18,8 @@ import (
 const fileColumns = `f.id, f.user_id, f.original_name, f.description, f.ext, f.mime, f.size,
 	f.width, f.height, f.sha256,
 	COALESCE(b.object_key, ''), COALESCE(b.thumb_key, ''), COALESCE(b.preview_key, ''),
-	COALESCE(b.details_json, ''),
-	f.visibility, f.metadata, f.kind, f.duration_ms, f.frame_count, f.views, f.created_at, f.expires_at,
+	COALESCE(b.details_json, ''), COALESCE(b.details_version, 0),
+	f.visibility, f.metadata, f.location, f.kind, f.duration_ms, f.frame_count, f.views, f.created_at, f.expires_at,
 	COALESCE(u.username, '')`
 
 const fileFrom = `FROM files f
@@ -33,13 +33,14 @@ func scanFile(sc rowScanner) (*models.File, error) {
 		expires    sql.NullInt64
 		visibility string
 		metadata   string
+		location   string
 		kind       string
 		created    int64
 	)
 	if err := sc.Scan(
 		&f.ID, &userID, &f.OriginalName, &f.Description, &f.Ext, &f.Mime, &f.Size,
-		&f.Width, &f.Height, &f.SHA256, &f.ObjectKey, &f.ThumbKey, &f.PreviewKey, &f.Details,
-		&visibility, &metadata, &kind, &f.DurationMS, &f.FrameCount, &f.Views, &created, &expires, &f.Username,
+		&f.Width, &f.Height, &f.SHA256, &f.ObjectKey, &f.ThumbKey, &f.PreviewKey, &f.Details, &f.DetailsVersion,
+		&visibility, &metadata, &location, &kind, &f.DurationMS, &f.FrameCount, &f.Views, &created, &expires, &f.Username,
 	); err != nil {
 		return nil, err
 	}
@@ -49,6 +50,7 @@ func scanFile(sc rowScanner) (*models.File, error) {
 	}
 	f.Visibility = models.ParseVisibility(visibility)
 	f.Metadata = models.ParseMetadataPolicy(metadata)
+	f.Location = models.ParseMetadataPolicy(location)
 	f.Kind = models.ParseKind(kind)
 	f.CreatedAt = toTime(created)
 	f.ExpiresAt = timePtr(expires)
@@ -82,17 +84,21 @@ func (s *Store) CreateFileWithLimit(ctx context.Context, f *models.File, totalLi
 		f.Metadata = models.MetadataInherit
 	}
 
+	if !f.Location.Valid() {
+		f.Location = models.MetadataInherit
+	}
+
 	// The blob has to exist first: the trigger that counts references fires on
 	// this insert and has nothing to update otherwise.
 	query := `
 		INSERT INTO files (
 			id, user_id, original_name, description, ext, mime, size, width, height, sha256,
-			visibility, metadata, kind, duration_ms, frame_count, views, created_at, expires_at
-		) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?`
+			visibility, metadata, location, kind, duration_ms, frame_count, views, created_at, expires_at
+		) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?`
 	args := []any{
 		f.ID, nullableInt64(f.UserID), f.OriginalName, f.Description, f.Ext, f.Mime, f.Size,
 		f.Width, f.Height, f.SHA256,
-		string(f.Visibility), string(f.Metadata), kind, f.DurationMS, f.FrameCount, f.Views,
+		string(f.Visibility), string(f.Metadata), string(f.Location), kind, f.DurationMS, f.FrameCount, f.Views,
 		ts(f.CreatedAt), nullableTime(f.ExpiresAt),
 	}
 	if totalLimit > 0 {

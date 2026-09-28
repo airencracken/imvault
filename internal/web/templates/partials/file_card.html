@@ -2,7 +2,7 @@
 <figure class="card{{if .Selectable}} selectable{{end}}" id="file-{{.File.ID}}">
   {{if .Selectable}}
   <label class="pick" title="Select">
-    <input type="checkbox" name="files" value="{{.File.ID}}" form="album-add">
+    <input type="checkbox" name="files" value="{{.File.ID}}" form="{{default "album-add" .SelectionForm}}" aria-label="Select {{.File.OriginalName}}">
   </label>
   {{end}}
 

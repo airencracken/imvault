@@ -23,29 +23,30 @@ A photo carries more than pixels: the camera, the date, and often the
 coordinates it was taken at. The last of those is a home address in the
 majority of phone photos, and it travels with the file wherever the file goes.
 
-Every upload has a **metadata setting**, and so does every album:
+Every upload and album has separate **EXIF** and **Location** sharing settings.
+EXIF covers camera, date, exposure, attribution, and other non-location fields.
+Location covers GPS coordinates and altitude, the map, and its link.
 
-| Setting | What it does |
-| --- | --- |
-| **Follow visibility** | The default. Public files hide their metadata; members-only and private files keep it |
-| **Shown** | Always keep it, however the file is shared |
-| **Hidden** | Never serve it |
+| Setting | EXIF | Location |
+| --- | --- | --- |
+| Default | **Follow visibility**: public files hide EXIF; members-only and private files show it | **Follow EXIF**: use the EXIF choice |
+| **Shown** | Share non-location EXIF | Share GPS |
+| **Hidden** | Hide non-location EXIF | Hide GPS |
 
-Following visibility is the default because the audience usually answers the
-question: the group a file was shared with is the people who took the picture,
-and the public is not. The explicit settings are there because the default is a
-good rule and a poor ceiling — people have opinions about individual pictures.
+For example, choose EXIF **Shown** and Location **Hidden** to share camera
+settings without coordinates. Choose the reverse to show where a photo was taken
+without sharing its camera details. Existing photos and albums start with
+Location **Follow EXIF**, preserving their previous GPS sharing behavior.
 
-**An album can only ever tighten.** The setting that applies is the most
-restrictive of the file's own, its visibility's default, and every album it is
-in. Albums do not change who can see a file, and they must not change what it
-reveals either, in either direction: a shared album's owner is often not the
-file's owner, and one person must not be able to loosen another's privacy, nor
-to make their file more exposed than they chose.
+**Albums can only restrict sharing.** Each category is resolved independently
+against the file and every album containing it. An album set to **Shown** cannot
+reveal a category hidden by the file or another album. An album's **Follow EXIF**
+location choice follows that album's EXIF restriction.
 
 ### What is removed
 
-Whole metadata segments are dropped, and **the pixels are never re-encoded**.
+When both categories are hidden, whole metadata segments are dropped.
+**The pixels are never re-encoded**.
 Orientation is applied to renditions, so a rotated phone photo still looks
 right; the file keeps the tag that says so until the metadata goes.
 
@@ -57,6 +58,16 @@ right; the file keeps the tag that says so until the metadata goes.
 | GIF | Comment, plain text, and application extensions — except the loop block, which is how an animation says what it does |
 | BMP | Nothing: it has no metadata to begin with |
 | WebM, MP4, MOV | The container's tags, including QuickTime's location atom, by remuxing |
+
+When only one category is shown, JPEG, PNG, and WebP downloads receive rebuilt
+EXIF containing the permitted standard fields. GPS is kept separately from
+camera, date, exposure, lens, and attribution. XMP, IPTC, maker notes, embedded
+thumbnails, and unknown fields are removed in either mixed mode: opaque blocks
+can carry another copy of coordinates or other hidden details. GIF and BMP do
+not have supported structured EXIF; their existing cleanup rules still apply.
+
+Video downloads currently remove all container metadata when either category
+is hidden. Independent retention of video metadata is not supported.
 
 The embedded thumbnail inside a JPEG's Exif is worth naming. It is a second,
 usually smaller copy of the image, and it is frequently left un-stripped by
@@ -78,48 +89,28 @@ what is wrong and how to proceed.
 Refusing rather than serving is deliberate. Serving it would be
 indistinguishable from success — the page would look exactly like a clean file —
 and the one outcome this feature cannot produce is a false sense of safety. It
-is also not a dead end: setting the file's metadata to **Shown** is an explicit
+is also not a dead end: setting both the file's EXIF and location to **Shown** is an explicit
 decision to accept the exposure, and the file is served from then on.
 
 ### What the page shows
 
-The details are read out of a file **once, at upload**, and stored against the
-content. Nothing re-reads an original to display them.
+The details are read at upload and stored against the content. After a parser
+upgrade, opening an older photo page or fetching its API detail refreshes the
+cached fields from the stored original once. Identical uploads share that cache.
 
-They appear on the file page behind a **collapsed** disclosure, so a wall of
-camera settings does not sit above the picture. What is inside depends on who is
-looking, and on the setting:
+Coordinates and the map link appear in a visible **Location** section. Camera
+settings remain behind a **collapsed** Photo details disclosure. When no readable
+GPS is present, the owner sees an explanation; when privacy settings hide a
+location, viewers are told it is hidden. What is shown depends on who is looking:
 
-| Viewer | Following visibility | **Shown** | **Hidden** |
-| --- | --- | --- | --- |
-| The owner, and administrators | Everything | Everything | Everything |
-| A member, on a members-visible file | Everything | Everything | Date and camera |
-| Anybody, on a public file | Date and camera | Everything | Date and camera |
+The owner and administrators always see all extracted details on the photo
+page. Other viewers see each category only when its effective setting allows
+it. **Hidden EXIF now also hides camera and date on the page**, matching the
+setting used for downloads. A separate notice explains when location is hidden.
 
-**The audience decides, not the field.** The location is family value — "here is
-where we were" is much of the point of a holiday photograph — and it is the
-public that turns the same coordinates into a liability. So nothing is thrown
-away: the identifying fields are withheld from the wrong audience, and a file
-shared with a group shows them to that group. That is what makes this a policy
-rather than a strip. "Share the coordinates with my family" and "do not tell the
-internet" are one setting, not two, and the setting is really a question about
-who is looking.
-
-The owner and administrators are the exception, and always see everything: it is
-their photograph, they made the choice, and the setting is about what other
-people are told. Reading it as "this file has no location" would be wrong for
-exactly the case the feature exists for.
-
-The withheld fields are the ones that say *where* and *who by*: location,
-altitude, artist, copyright, and camera serial. What remains is what a
-photograph was taken with and when, which is the part a stranger can do nothing
-with.
-
-Withholding is stated rather than silent, so a masked file does not look like
-one that never had any metadata.
-
-The API is unmasked. It returns an account's own files to that account, and
-hiding somebody's data from themselves in their own tool helps nobody.
+The authenticated owner API returns all extracted details regardless of sharing
+settings. Raw downloads follow the file and album sharing choices even for the
+owner; account exports contain the original bytes.
 
 ### An optional map
 
@@ -158,12 +149,19 @@ details alone; a missing original or database failure exits with an error.
 Original bytes, links, and metadata visibility settings are preserved. Re-uploading
 an identical photo also refreshes its shared details.
 
-### Where the metadata-free copy lives
+Opening a photo page or fetching `GET /api/v1/files/{id}` now refreshes older
+cached details automatically. The command is useful for refreshing the entire
+library before browsing. Partial reads preserve previously recovered fields.
 
-It is stored beside the original, named after the content hash, and built the
+### Where filtered copies live
+
+Each filtered copy is stored beside the original, named after the content hash, and built the
 first time something needs it. It belongs to the content rather than to a file:
-two files with the same bytes share one copy, and it is removed when the last
+two files with the same bytes share copies, and they are removed when the last
 file referring to those bytes goes.
+
+Original and filtered download responses require cache revalidation, so a later
+sharing change selects the correct copy. Already downloaded files cannot be recalled.
 
 Originals are never replaced. The account export contains the original, because
 the export is the owner's own data going back to the owner.
