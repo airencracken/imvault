@@ -49,37 +49,9 @@ func (s *Store) ConsumeAuthToken(ctx context.Context, tokenHash string, purpose 
 	var userID int64
 
 	err := s.withTx(ctx, func(tx *sql.Tx) error {
-		var (
-			usedAt  sql.NullInt64
-			expires int64
-		)
-		err := tx.QueryRowContext(ctx, `
-			SELECT user_id, used_at, expires_at FROM auth_tokens
-			WHERE token_hash = ? AND purpose = ?`,
-			tokenHash, string(purpose),
-		).Scan(&userID, &usedAt, &expires)
-		if err != nil {
-			return mapErr(err)
-		}
-
-		if usedAt.Valid || expires <= ts(at) {
-			return ErrNotFound
-		}
-
-		result, err := tx.ExecContext(ctx,
-			`UPDATE auth_tokens SET used_at = ? WHERE token_hash = ? AND used_at IS NULL`,
-			ts(at), tokenHash)
-		if err != nil {
-			return fmt.Errorf("mark auth token used: %w", err)
-		}
-		affected, err := result.RowsAffected()
-		if err != nil {
-			return fmt.Errorf("mark auth token used rows: %w", err)
-		}
-		if affected == 0 {
-			return ErrNotFound // lost a race to another request
-		}
-		return nil
+		var err error
+		userID, err = consumeAuthToken(ctx, tx, tokenHash, purpose, at)
+		return err
 	})
 	if err != nil {
 		return nil, err
@@ -90,6 +62,32 @@ func (s *Store) ConsumeAuthToken(ctx context.Context, tokenHash string, purpose 
 		return nil, err
 	}
 	return user, nil
+}
+
+func consumeAuthToken(ctx context.Context, tx *sql.Tx, hash string, purpose TokenPurpose, at time.Time) (int64, error) {
+	var userID int64
+	err := tx.QueryRowContext(ctx, `UPDATE auth_tokens SET used_at = ?
+		WHERE token_hash = ? AND purpose = ? AND used_at IS NULL AND expires_at > ?
+		RETURNING user_id`, ts(at), hash, string(purpose), ts(at)).Scan(&userID)
+	return userID, mapErr(err)
+}
+
+// ResetPassword spends the link, changes the password, and revokes sessions and
+// other reset/pending-login tokens in one transaction. A failure spends nothing.
+func (s *Store) ResetPassword(ctx context.Context, hash, passwordHash string, at time.Time) (*models.User, error) {
+	var userID int64
+	err := s.withTx(ctx, func(tx *sql.Tx) error {
+		var err error
+		userID, err = consumeAuthToken(ctx, tx, hash, TokenPasswordReset, at)
+		if err != nil {
+			return err
+		}
+		return setPassword(ctx, tx, userID, passwordHash)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return s.UserByID(ctx, userID)
 }
 
 // AuthTokenValid reports whether a token could still be redeemed, without
@@ -145,11 +143,25 @@ func (s *Store) DeleteExpiredAuthTokens(ctx context.Context, at time.Time) (int6
 	return res.RowsAffected()
 }
 
-// SetPassword replaces an account's password hash.
+// SetPassword replaces the password and revokes old sessions and recovery links
+// together, so a failed change cannot leave compromised sessions behind.
 func (s *Store) SetPassword(ctx context.Context, userID int64, passwordHash string) error {
-	if _, err := s.db.ExecContext(ctx,
+	return s.withTx(ctx, func(tx *sql.Tx) error {
+		return setPassword(ctx, tx, userID, passwordHash)
+	})
+}
+
+func setPassword(ctx context.Context, tx *sql.Tx, userID int64, passwordHash string) error {
+	if _, err := tx.ExecContext(ctx,
 		`UPDATE users SET password_hash = ? WHERE id = ?`, passwordHash, userID); err != nil {
 		return fmt.Errorf("set password: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM sessions WHERE user_id = ?`, userID); err != nil {
+		return fmt.Errorf("revoke password sessions: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM auth_tokens WHERE user_id = ? AND purpose IN (?, ?)`,
+		userID, string(TokenPasswordReset), string(TokenLoginSecondFactor)); err != nil {
+		return fmt.Errorf("revoke password tokens: %w", err)
 	}
 	return nil
 }

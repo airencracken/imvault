@@ -192,11 +192,15 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 		renderErr(http.StatusBadRequest, "The two passwords do not match.")
 		return
 	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		http.Error(w, "could not reset the password", http.StatusInternalServerError)
+		return
+	}
 
 	// Redeeming the token here, rather than on the GET, means a double-loaded
 	// form still works but a token is only ever spent once.
-	user, err := s.store.ConsumeAuthToken(r.Context(), tokens.Hash(tokenValue),
-		store.TokenPasswordReset, time.Now())
+	user, err := s.store.ResetPassword(r.Context(), tokens.Hash(tokenValue), string(hash), time.Now())
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			renderErr(http.StatusBadRequest, "That reset link is invalid or has expired. Request a new one.")
@@ -207,8 +211,16 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.applyNewPassword(r.Context(), w, r, user, password); err != nil {
-		s.log.Error("reset: apply password", "user", user.ID, "error", err)
+	if user.TwoFactorRequired() {
+		if err := s.startPendingLogin(r.Context(), w, r, user.ID); err != nil {
+			http.Error(w, "could not start sign-in", http.StatusInternalServerError)
+			return
+		}
+		http.Redirect(w, r, "/login/2fa", http.StatusSeeOther)
+		return
+	}
+	if err := s.startSession(r.Context(), w, r, user.ID); err != nil {
+		s.log.Error("reset: start session", "user", user.ID, "error", err)
 		http.Error(w, "could not reset the password", http.StatusInternalServerError)
 		return
 	}
@@ -366,12 +378,6 @@ func (s *Server) applyNewPassword(ctx context.Context, w http.ResponseWriter, r 
 		return fmt.Errorf("hash password: %w", err)
 	}
 	if err := s.store.SetPassword(ctx, user.ID, string(hash)); err != nil {
-		return err
-	}
-
-	// A password change invalidates anything that was already signed in: that is
-	// the point of changing it after a compromise.
-	if err := s.store.DeleteSessionsForUser(ctx, user.ID); err != nil {
 		return err
 	}
 

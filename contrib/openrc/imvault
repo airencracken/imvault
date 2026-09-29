@@ -4,7 +4,7 @@
 # OpenRC service script for imvault, for Alpine Linux and Gentoo.
 #
 #   install -Dm755 contrib/openrc/imvault /etc/init.d/imvault
-#   install -Dm644 contrib/openrc/imvault.confd /etc/conf.d/imvault
+#   install -Dm600 contrib/openrc/imvault.confd /etc/conf.d/imvault
 #   rc-update add imvault default
 #   rc-service imvault start
 #

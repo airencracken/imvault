@@ -335,7 +335,7 @@ func TestHeadersCannotBeInjected(t *testing.T) {
 	}
 }
 
-func TestBodyLineEndingsAndDotStuffing(t *testing.T) {
+func TestBodyLineEndings(t *testing.T) {
 	message := string(buildMessage("a@example.com", Message{
 		To:      "b@example.com",
 		Subject: "s",
@@ -345,8 +345,8 @@ func TestBodyLineEndingsAndDotStuffing(t *testing.T) {
 	if strings.Contains(message, "\n") && strings.Contains(strings.ReplaceAll(message, "\r\n", ""), "\n") {
 		t.Error("a bare newline survived into the message")
 	}
-	if !strings.Contains(message, "\r\n..hidden\r\n") {
-		t.Errorf("a leading dot was not stuffed:\n%q", message)
+	if !strings.Contains(message, "\r\n.hidden\r\n") {
+		t.Errorf("a leading dot was changed before SMTP transport:\n%q", message)
 	}
 	if !strings.Contains(message, "line four") {
 		t.Error("the last line was lost")
