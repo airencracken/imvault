@@ -136,11 +136,12 @@ install-logrotate: ## Install log rotation for the OpenRC log, preserving local 
 
 install-openrc: install-logrotate ## Install the OpenRC service and log rotation (Alpine, Gentoo)
 	install -Dm755 contrib/openrc/imvault "$(DESTDIR)/etc/init.d/imvault"
-	@if [ -e "$(DESTDIR)/etc/conf.d/imvault" ]; then \
+	@if [ -e "$(DESTDIR)/etc/conf.d/imvault" ] || [ -L "$(DESTDIR)/etc/conf.d/imvault" ]; then \
 		echo "  keeping the existing $(DESTDIR)/etc/conf.d/imvault"; \
 	else \
-		install -Dm644 contrib/openrc/imvault.confd "$(DESTDIR)/etc/conf.d/imvault"; \
+		install -Dm600 contrib/openrc/imvault.confd "$(DESTDIR)/etc/conf.d/imvault"; \
 	fi
+	@if [ ! -L "$(DESTDIR)/etc/conf.d/imvault" ]; then chmod 600 "$(DESTDIR)/etc/conf.d/imvault"; fi
 	@printf '\nNext:\n'
 	@printf '  adduser -S -D -H -h /var/lib/imvault -s /sbin/nologin imvault   # Alpine\n'
 	@printf '  useradd --system --home-dir /var/lib/imvault -s /sbin/nologin imvault  # Gentoo\n'

@@ -263,11 +263,18 @@ func (s *Store) SetUserFileLimit(ctx context.Context, userID, maxBytes int64) er
 // SetUserDisabled enables or disables an account. A disabled account cannot
 // sign in and its API keys stop working.
 func (s *Store) SetUserDisabled(ctx context.Context, userID int64, disabled bool) error {
-	if _, err := s.db.ExecContext(ctx,
-		`UPDATE users SET disabled = ? WHERE id = ?`, boolToInt(disabled), userID); err != nil {
-		return fmt.Errorf("set disabled: %w", err)
-	}
-	return nil
+	return s.withTx(ctx, func(tx *sql.Tx) error {
+		if disabled {
+			if err := protectEnabledAdmin(ctx, tx, userID); err != nil {
+				return err
+			}
+		}
+		_, err := tx.ExecContext(ctx, `UPDATE users SET disabled = ? WHERE id = ?`, boolToInt(disabled), userID)
+		if err != nil {
+			return fmt.Errorf("set disabled: %w", err)
+		}
+		return nil
+	})
 }
 
 // SetUserRole changes what an account may do.
@@ -279,24 +286,44 @@ func (s *Store) SetUserRole(ctx context.Context, userID int64, role models.Role)
 		return fmt.Errorf("set role: %q is not a role", role)
 	}
 
-	target, err := s.UserByID(ctx, userID)
-	if err != nil {
+	return s.withTx(ctx, func(tx *sql.Tx) error {
+		if !role.IsAdmin() {
+			if err := protectEnabledAdmin(ctx, tx, userID); err != nil {
+				return err
+			}
+		}
+		result, err := tx.ExecContext(ctx, `UPDATE users SET role = ? WHERE id = ?`, string(role), userID)
+		if err != nil {
+			return fmt.Errorf("set role: %w", err)
+		}
+		rows, err := result.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("set role rows: %w", err)
+		}
+		if rows == 0 {
+			return ErrNotFound
+		}
+		return nil
+	})
+}
+
+// Read and protect the final enabled administrator under the same transaction
+// as the write; concurrent removals cannot both count the other account.
+func protectEnabledAdmin(ctx context.Context, tx *sql.Tx, userID int64) error {
+	var role string
+	var disabled bool
+	if err := tx.QueryRowContext(ctx, `SELECT role, disabled FROM users WHERE id = ?`, userID).Scan(&role, &disabled); err != nil {
+		return mapErr(err)
+	}
+	if role != "admin" || disabled {
+		return nil
+	}
+	var admins int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE role = 'admin' AND disabled = 0`).Scan(&admins); err != nil {
 		return err
 	}
-
-	if target.Role.IsAdmin() && !role.IsAdmin() {
-		admins, err := s.CountAdmins(ctx)
-		if err != nil {
-			return err
-		}
-		if admins <= 1 {
-			return ErrLastAdmin
-		}
-	}
-
-	if _, err := s.db.ExecContext(ctx,
-		`UPDATE users SET role = ? WHERE id = ?`, string(role), userID); err != nil {
-		return fmt.Errorf("set role: %w", err)
+	if admins <= 1 {
+		return ErrLastAdmin
 	}
 	return nil
 }
@@ -305,7 +332,7 @@ func (s *Store) SetUserRole(ctx context.Context, userID int64, role models.Role)
 func (s *Store) CountAdmins(ctx context.Context) (int, error) {
 	var n int
 	err := s.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM users WHERE role = 'admin'`).Scan(&n)
+		`SELECT COUNT(*) FROM users WHERE role = 'admin' AND disabled = 0`).Scan(&n)
 	if err != nil {
 		return 0, fmt.Errorf("count admins: %w", err)
 	}
@@ -315,22 +342,16 @@ func (s *Store) CountAdmins(ctx context.Context) (int, error) {
 // DeleteUser removes an account. The caller is responsible for deleting the
 // account's stored objects first; the database rows cascade.
 func (s *Store) DeleteUser(ctx context.Context, userID int64) error {
-	admins, err := s.CountAdmins(ctx)
-	if err != nil {
-		return err
-	}
-	target, err := s.UserByID(ctx, userID)
-	if err != nil {
-		return err
-	}
-	if target.Role.IsAdmin() && admins <= 1 {
-		return ErrLastAdmin
-	}
-
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM users WHERE id = ?`, userID); err != nil {
-		return fmt.Errorf("delete user: %w", err)
-	}
-	return nil
+	return s.withTx(ctx, func(tx *sql.Tx) error {
+		if err := protectEnabledAdmin(ctx, tx, userID); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(ctx, `DELETE FROM users WHERE id = ?`, userID)
+		if err != nil {
+			return fmt.Errorf("delete user: %w", err)
+		}
+		return nil
+	})
 }
 
 // ReserveStorage atomically claims size bytes for an account, refusing when the

@@ -82,6 +82,8 @@ sudo rc-service imvault start
 `make install-openrc` says so when the two disagree, because the alternative is
 a service that starts and immediately stops.
 
+Keep `/etc/conf.d/imvault` at mode 0600 because it can contain SMTP credentials.
+
 Settings in `/etc/conf.d/imvault` use the same `IMVAULT_*` names the server
 reads from its environment. The init script re-reads that file with `allexport`
 set, so any `IMVAULT_*` value written there reaches the daemon without the

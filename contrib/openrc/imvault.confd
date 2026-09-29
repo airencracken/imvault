@@ -1,6 +1,6 @@
 # Configuration for the OpenRC service, read by /etc/init.d/imvault.
 #
-#   install -Dm644 contrib/openrc/imvault.confd /etc/conf.d/imvault
+#   install -Dm600 contrib/openrc/imvault.confd /etc/conf.d/imvault
 #
 # This is a shell fragment sourced by the init script, so the syntax is shell:
 # quote values containing spaces. Only the IMVAULT_* names are passed on to the

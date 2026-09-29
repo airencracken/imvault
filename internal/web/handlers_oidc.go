@@ -295,6 +295,15 @@ func (s *Server) finishOIDCSignIn(w http.ResponseWriter, r *http.Request, user *
 		s.oidcFailed(w, r, "That account is disabled.")
 		return
 	}
+	if user.TwoFactorRequired() {
+		if err := s.startPendingLogin(r.Context(), w, r, user.ID); err != nil {
+			s.log.Error("oidc: start pending login", "error", err)
+			s.oidcFailed(w, r, "The second-factor check could not be started.")
+			return
+		}
+		http.Redirect(w, r, "/login/2fa", http.StatusSeeOther)
+		return
+	}
 
 	if err := s.startSession(r.Context(), w, r, user.ID); err != nil {
 		s.log.Error("oidc: start session", "error", err)

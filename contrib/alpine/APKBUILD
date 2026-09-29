@@ -55,7 +55,7 @@ package() {
 	install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
 
 	install -Dm755 contrib/openrc/imvault "$pkgdir/etc/init.d/imvault"
-	install -Dm644 contrib/openrc/imvault.confd "$pkgdir/etc/conf.d/imvault"
+	install -Dm600 contrib/openrc/imvault.confd "$pkgdir/etc/conf.d/imvault"
 
 	# The service runs as its own unprivileged account.
 	install -d -m755 "$pkgdir/var/lib/imvault"

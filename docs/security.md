@@ -50,6 +50,10 @@ shown once.
 - **An administrator can clear a second factor** from `/admin/users`. This is
   the way back in for somebody who has lost both their app and their recovery
   codes, and it is why it is administrator-only.
+- **Recovery and provider sign-in still need the factor.** Resetting a password
+  or authenticating through OpenID Connect starts the same code prompt before a
+  session is granted. Password changes revoke older sessions, reset links, and
+  pending sign-ins atomically.
 
 ## Cross-site request forgery
 
