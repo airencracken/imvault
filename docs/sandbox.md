@@ -52,7 +52,7 @@ Bubblewrap, remove these overrides and restore the packaged unit's restrictions.
 
 ## What the server can access
 
-The sandbox has read-only `/usr`, binary and library directories, system CA
+The sandbox has read-only `/usr`, binary and library directories, the dynamic linker cache and library alternatives, system CA
 certificates, DNS/hosts configuration and local timezone information. It retains
 the host network for HTTP, mail and other configured services. It has its own
 process namespace, minimal devices, and temporary directory. Only its configured

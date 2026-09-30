@@ -92,6 +92,25 @@ func TestMediaBaseHasNoNetworkOrHostEnvironment(t *testing.T) {
 	}
 }
 
+func TestDynamicLoaderPathsAreReadOnly(t *testing.T) {
+	args, err := Base(false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(args, "\n")
+	for _, path := range []string{"/usr", "/lib", "/etc/ld.so.cache", "/etc/alternatives"} {
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			continue
+		}
+		if !strings.Contains(joined, "--ro-bind\n"+path+"\n"+path) {
+			t.Fatalf("runtime path is missing or writable: %s", path)
+		}
+	}
+	if strings.Contains(joined, "--ro-bind\n/etc\n/etc") {
+		t.Fatal("runtime libraries exposed the entire host configuration")
+	}
+}
+
 func TestSandboxSetupFailureIsAnError(t *testing.T) {
 	if err := Check(context.Background(), "/does-not-exist", nil, nil); err == nil {
 		t.Fatal("missing Bubblewrap accepted")

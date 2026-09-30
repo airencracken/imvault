@@ -22,7 +22,7 @@ func Base(network bool) ([]string, error) {
 	if !network {
 		args = append(args, "--unshare-net", "--die-with-parent")
 	}
-	for _, path := range []string{"/usr", "/bin", "/sbin", "/lib", "/lib64"} {
+	for _, path := range []string{"/usr", "/bin", "/sbin", "/lib", "/lib64", "/etc/ld.so.cache", "/etc/alternatives"} {
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			continue
 		} else if err != nil {
