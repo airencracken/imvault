@@ -134,9 +134,13 @@ func newHarnessFull(t *testing.T, mutate func(*config.Config), mode mailMode) *h
 	st := store.New(database)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
+	video, err := media.ConfiguredVideo(ctx, cfg.FFmpegPath, cfg.FFprobePath, cfg.MediaSandbox, "bwrap")
+	if err != nil {
+		t.Fatalf("video tooling: %v", err)
+	}
 	processor := media.NewProcessor(
 		cfg.ThumbMax, cfg.PreviewMax, cfg.JPEGQuality, cfg.MaxVideoDuration,
-		media.NewFFmpeg(cfg.FFmpegPath, cfg.FFprobePath),
+		video,
 	)
 
 	// A key in the temporary data directory, as a real instance would have.

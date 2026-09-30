@@ -53,8 +53,9 @@ func (f *FFmpeg) Scrub(ctx context.Context, src, dst string) error {
 	ctx, cancel := context.WithTimeout(ctx, f.timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, f.ffmpegPath,
-		"-v", "error",
+	args := []string{
+		"-v", "error", "-nostdin",
+		"-protocol_whitelist", "file,pipe",
 		"-i", src,
 		"-map", "0",
 		"-c", "copy",
@@ -63,14 +64,19 @@ func (f *FFmpeg) Scrub(ctx context.Context, src, dst string) error {
 		"-map_chapters", "-1",
 		"-y",
 		dst,
-	)
+	}
+	cmd, finish, err := f.command(ctx, f.ffmpegPath, src, dst, args)
+	if err != nil {
+		return err
+	}
+	defer finish(false)
 
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("scrub clip: %w: %s", err, strings.TrimSpace(stderr.String()))
 	}
-	return nil
+	return finish(true)
 }
 
 // ffmpegTimeout bounds a single ffmpeg or ffprobe invocation.
@@ -80,6 +86,7 @@ const ffmpegTimeout = 30 * time.Second
 type FFmpeg struct {
 	ffmpegPath  string
 	ffprobePath string
+	bwrapPath   string
 	timeout     time.Duration
 	available   bool
 }
@@ -104,14 +111,20 @@ func (f *FFmpeg) Probe(ctx context.Context, path string) (VideoInfo, error) {
 	ctx, cancel := context.WithTimeout(ctx, f.timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, f.ffprobePath,
+	args := []string{
 		"-v", "error",
+		"-protocol_whitelist", "file,pipe",
 		"-select_streams", "v:0",
 		"-show_entries", "stream=width,height",
 		"-show_entries", "format=duration",
 		"-of", "json",
 		path,
-	)
+	}
+	cmd, finish, err := f.command(ctx, f.ffprobePath, path, "", args)
+	if err != nil {
+		return VideoInfo{}, err
+	}
+	defer finish(false)
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -158,6 +171,7 @@ func (f *FFmpeg) Poster(ctx context.Context, path string, at time.Duration, max 
 		args = append(args, "-ss", strconv.FormatFloat(at.Seconds(), 'f', 3, 64))
 	}
 	args = append(args,
+		"-protocol_whitelist", "file,pipe",
 		"-i", path,
 		"-frames:v", "1",
 		"-vf", fmt.Sprintf("scale='min(%d,iw)':-2", max),
@@ -166,7 +180,11 @@ func (f *FFmpeg) Poster(ctx context.Context, path string, at time.Duration, max 
 		"pipe:1",
 	)
 
-	cmd := exec.CommandContext(ctx, f.ffmpegPath, args...)
+	cmd, finish, err := f.command(ctx, f.ffmpegPath, path, "", args)
+	if err != nil {
+		return nil, err
+	}
+	defer finish(false)
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout

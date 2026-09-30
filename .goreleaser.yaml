@@ -52,6 +52,8 @@ nfpms:
       - init-system-helpers
     recommends:
       - ffmpeg
+    suggests:
+      - bubblewrap
     contents:
       - src: .release/imvault.service
         dst: /usr/lib/systemd/system/imvault.service

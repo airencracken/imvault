@@ -81,6 +81,30 @@ else
 fi
 health
 [ "$(stat -c '%U:%G:%a' "$data")" = "$app:$app:700" ] || fail 'Service startup changed private data permissions.'
+# The Ubuntu VM gate also exercises the actual hardened unit with Bubblewrap.
+# Containers retain the normal package lifecycle test because their outer
+# namespace policy is controlled by the container host.
+if [ "${RELEASE_SANDBOX_TEST:-0}" = 1 ]; then
+	[ "$init" = yes ] || fail 'Sandbox service gate requires systemd.'
+	mkdir -p "/etc/systemd/system/$app.service.d" || exit 1
+	{
+		printf '%s\n' '[Service]' 'ExecStart=' "ExecStart=/usr/bin/$app sandbox" \
+		'RestrictNamespaces=user mnt pid ipc uts net'
+	} > "/etc/systemd/system/$app.service.d/release-sandbox.conf" || exit 1
+	printf '\nIMVAULT_MEDIA_SANDBOX=true\n' >> "$config" || exit 1
+	systemctl daemon-reload || exit 1
+	systemctl restart "$app" || fail 'Sandboxed service startup failed.'
+	health
+	systemctl stop "$app" || fail 'Sandboxed service did not stop.'
+	[ "$(systemctl show -p Result --value "$app")" = success ] || fail 'Sandboxed shutdown was not graceful.'
+	rm "/etc/systemd/system/$app.service.d/release-sandbox.conf" || exit 1
+	rmdir "/etc/systemd/system/$app.service.d" || exit 1
+	cp "$work/config" "$config" || exit 1
+	systemctl daemon-reload || exit 1
+	systemctl start "$app" || fail 'Normal service restart failed.'
+	health
+fi
+
 if [ "$init" = yes ]; then old_pid=$(systemctl show -p MainPID --value "$app"); fi
 
 # Exercise an actual newer package with a changed upstream conffile.

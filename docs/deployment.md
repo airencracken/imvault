@@ -286,3 +286,8 @@ time=2026-09-18T11:21:16.988-07:00 level=WARN msg="mail delivery failed; will re
 Values containing spaces or newlines are quoted and escaped, so a multi-line
 stack trace stays on one line. Set `IMVAULT_LOG_LEVEL` to `debug`, `info`, `warn`
 or `error`.
+
+## Optional Bubblewrap confinement
+
+See [Linux confinement](sandbox.md) for OpenRC settings, systemd overrides,
+custom paths and verification. Existing startup remains unchanged by default.

@@ -4,4 +4,7 @@
 	<upstream>
 		<remote-id type="github">airencracken/imvault</remote-id>
 	</upstream>
+	<use>
+		<flag name="bubblewrap">Install Bubblewrap for optional service confinement</flag>
+	</use>
 </pkgmetadata>

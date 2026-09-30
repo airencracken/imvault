@@ -86,6 +86,9 @@ type Config struct {
 	// placeholder posters instead of failing outright.
 	FFmpegPath  string
 	FFprobePath string
+	// MediaSandbox requires confined FFmpeg and FFprobe; BwrapPath selects the launcher.
+	MediaSandbox bool
+	BwrapPath    string
 
 	// SMTP configures outgoing mail. When the host is empty, mail is disabled
 	// and password resets are issued by an administrator instead.
@@ -191,6 +194,7 @@ func load(dataDirOverride, dbPathOverride string) (*Config, error) {
 		TrustProxyHeaders:     getBool("IMVAULT_TRUST_PROXY_HEADERS", false),
 		FFmpegPath:            getenv("IMVAULT_FFMPEG", "ffmpeg"),
 		FFprobePath:           getenv("IMVAULT_FFPROBE", "ffprobe"),
+		BwrapPath:             getenv("IMVAULT_BWRAP", "bwrap"),
 		SMTPHost:              getenv("IMVAULT_SMTP_HOST", ""),
 		SMTPPort:              int(getInt64("IMVAULT_SMTP_PORT", 587)),
 		SMTPUsername:          getenv("IMVAULT_SMTP_USERNAME", ""),
@@ -220,12 +224,19 @@ func load(dataDirOverride, dbPathOverride string) (*Config, error) {
 		MapZoom:               int(getInt64("IMVAULT_MAP_ZOOM", 13)),
 	}
 
+	switch getenv("IMVAULT_MEDIA_SANDBOX", "false") {
+	case "true":
+		c.MediaSandbox = true
+	case "false":
+	default:
+		return nil, fmt.Errorf("IMVAULT_MEDIA_SANDBOX must be true or false")
+	}
+	var err error
 	c.DBPath = getenv("IMVAULT_DB", filepath.Join(dataDir, "imvault.db"))
 	if os.Getenv("IMVAULT_DB") == "" && dbPathOverride != "" {
 		c.DBPath = dbPathOverride
 	}
 	c.SecretKeyFile = getenv("IMVAULT_SECRET_KEY_FILE", filepath.Join(dataDir, "secret.key"))
-	var err error
 	c.Storage, err = LoadStorage("IMVAULT_", filepath.Join(dataDir, "objects"))
 	if err != nil {
 		return nil, err

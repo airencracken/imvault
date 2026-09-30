@@ -91,7 +91,10 @@ func performMaintenance(ctx context.Context, command string, cfg *config.Config,
 		}
 		return maintenance.Migrate(ctx, st, objects, dest, out)
 	case "rebuild-thumbnails":
-		video := media.NewFFmpeg(cfg.FFmpegPath, cfg.FFprobePath)
+		video, err := media.ConfiguredVideo(ctx, cfg.FFmpegPath, cfg.FFprobePath, cfg.MediaSandbox, cfg.BwrapPath)
+		if err != nil {
+			return err
+		}
 		// Previously accepted clips may exceed today's upload duration limit.
 		processor := media.NewProcessor(cfg.ThumbMax, cfg.PreviewMax, cfg.JPEGQuality, 0, video)
 		return maintenance.Regenerate(ctx, st, objects, processor, videosOnly, out)

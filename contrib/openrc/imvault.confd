@@ -45,3 +45,8 @@
 # IMVAULT_SMTP_PASSWORD=changeme
 # IMVAULT_SMTP_FROM="imvault <no-reply@example.com>"
 # IMVAULT_SMTP_TLS=starttls
+
+# Optional Linux confinement; see docs/sandbox.md.
+# IMVAULT_SANDBOX=true
+# IMVAULT_MEDIA_SANDBOX=true
+# IMVAULT_BWRAP=/usr/bin/bwrap

@@ -17,6 +17,7 @@ import (
 	"strings"
 	"testing"
 
+	"imvault/internal/config"
 	"imvault/internal/models"
 	"imvault/internal/store"
 )
@@ -224,6 +225,19 @@ func TestSingleFrameGIFIsTreatedAsAnImage(t *testing.T) {
 
 func TestVideoClipUpload(t *testing.T) {
 	h := newHarness(t)
+	checkVideoClipUpload(t, h)
+}
+
+func TestSandboxedVideoClipUpload(t *testing.T) {
+	if os.Getenv("COMFYWARE_SANDBOX_TEST") != "1" {
+		t.Skip("set COMFYWARE_SANDBOX_TEST=1 to require real media sandbox integration")
+	}
+	h := newHarnessWith(t, func(cfg *config.Config) { cfg.MediaSandbox = true })
+	checkVideoClipUpload(t, h)
+}
+
+func checkVideoClipUpload(t *testing.T, h *harness) {
+	t.Helper()
 	if !h.processor.VideoEnabled() {
 		t.Skip("ffmpeg is not installed")
 	}

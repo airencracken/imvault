@@ -49,6 +49,12 @@ start_pre() {
 		. "/etc/conf.d/${RC_SVCNAME}"
 		set +a
 	fi
+	case "${IMVAULT_SANDBOX:-false}" in
+		false) command_args="" ;;
+		true) command_args="sandbox" ;;
+		*) eerror "IMVAULT_SANDBOX must be true or false"; return 1 ;;
+	esac
+
 	# Defaults are shell variables too; the unchanged config is all comments.
 	export IMVAULT_DATA_DIR
 
