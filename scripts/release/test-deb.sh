@@ -89,12 +89,18 @@ if [ "${RELEASE_SANDBOX_TEST:-0}" = 1 ]; then
 	mkdir -p "/etc/systemd/system/$app.service.d" || exit 1
 	{
 		printf '%s\n' '[Service]' 'ExecStart=' "ExecStart=/usr/bin/$app sandbox" \
-		'RestrictNamespaces=user mnt pid ipc uts net' 'ProtectKernelTunables=no' 'ReadOnlyPaths=/sys'
+		'RestrictNamespaces=user mnt pid ipc uts net' 'ProtectKernelTunables=no' 'ReadOnlyPaths=/sys' 'RestrictSUIDSGID=no' 'KillMode=mixed' \
+		'RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK'
 	} > "/etc/systemd/system/$app.service.d/release-sandbox.conf" || exit 1
 	printf '\nIMVAULT_MEDIA_SANDBOX=true\n' >> "$config" || exit 1
 	systemctl daemon-reload || exit 1
+	journalctl -u "$app" --no-pager -n 1 --show-cursor > "$work/journal-cursor" || exit 1
+	cursor=$(sed -n 's/^-- cursor: //p' "$work/journal-cursor") || exit 1
+	[ -n "$cursor" ] || fail 'Could not record the pre-sandbox journal cursor.'
 	systemctl restart "$app" || fail 'Sandboxed service startup failed.'
 	health
+	journalctl -u "$app" --after-cursor "$cursor" --no-pager -n 40 > "$work/sandbox-journal" || exit 1
+	grep -Eq 'imvault listening|Witmoot is ready' "$work/sandbox-journal" || fail 'Sandboxed server logs did not reach journald.'
 	systemctl stop "$app" || fail 'Sandboxed service did not stop.'
 	[ "$(systemctl show -p Result --value "$app")" = success ] || fail 'Sandboxed shutdown was not graceful.'
 	rm "/etc/systemd/system/$app.service.d/release-sandbox.conf" || exit 1
