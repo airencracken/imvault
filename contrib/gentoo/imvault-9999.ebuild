@@ -45,12 +45,13 @@ KEYWORDS=""
 # go-module_live_vendor refuses to run without this.
 PROPERTIES="live"
 
-IUSE="ffmpeg"
+IUSE="bubblewrap ffmpeg"
 
 # ffmpeg is optional. Without it clips are still accepted, but they get a
 # placeholder poster instead of a frame from the video, and the duration limit
 # cannot be enforced.
 RDEPEND="
+	bubblewrap? ( sys-apps/bubblewrap[-suid(-)] )
 	app-admin/logrotate
 	acct-group/imvault
 	acct-user/imvault

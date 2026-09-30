@@ -13,7 +13,7 @@ func TestCLIHelpAndProxyConfigDoNotTouchData(t *testing.T) {
 	t.Setenv("IMVAULT_DATA_DIR", data)
 	t.Setenv("IMVAULT_STORAGE", "invalid-on-purpose")
 	for _, args := range [][]string{
-		{"--help"}, {"-h"}, {"help"}, {"serve", "--help"}, {"help", "serve"},
+		{"--help"}, {"-h"}, {"help"}, {"serve", "--help"}, {"sandbox", "--help"}, {"help", "sandbox"}, {"help", "serve"},
 		{"create-admin", "--help"}, {"help", "create-admin"}, {"backup", "--help"},
 		{"restore", "--help"}, {"refresh-metadata", "--help"}, {"migrate-storage", "--help"},
 		{"rebuild-thumbnails", "--help"}, {"proxy-config", "--help"}, {"help", "proxy-config"},
@@ -35,7 +35,7 @@ func TestCLIHelpAndProxyConfigDoNotTouchData(t *testing.T) {
 			t.Fatalf("wrong proxy config: %s", &output)
 		}
 	}
-	for _, args := range [][]string{{"wat"}, {"help", "wat"}, {"serve", "extra"}, {"--help", "extra"}, {"create-admin"}} {
+	for _, args := range [][]string{{"sandbox", "extra"}, {"sandbox", "--unknown"}, {"wat"}, {"help", "wat"}, {"serve", "extra"}, {"--help", "extra"}, {"create-admin"}} {
 		if err := runCommand(args, strings.NewReader(""), &bytes.Buffer{}); err == nil {
 			t.Fatalf("invalid arguments succeeded: %v", args)
 		}

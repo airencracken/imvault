@@ -239,3 +239,5 @@ This program comes without any warranty.
 
 The footer links to the source. If you run a modified version, point
 `IMVAULT_SOURCE_URL` at the corresponding source for your instance.
+
+Optional Linux service confinement: [Bubblewrap setup and boundaries](docs/sandbox.md).

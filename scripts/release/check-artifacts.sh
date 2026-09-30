@@ -23,6 +23,7 @@ for arch in amd64 arm64; do
 	for setting in StandardOutput=journal StandardError=journal SyslogIdentifier=imvault; do
 		grep -qx "$setting" "$work/$arch/contrib/systemd/imvault.service" || fail "Archive logging setting is missing: $setting"
 	done
+	test -s "$work/$arch/docs/sandbox.md" || fail 'Archive sandbox guide is missing.'
 	test -s "$work/$arch/docs/releases.md" || fail 'Archive installation guide is missing.'
 	test -s "$work/$arch/docs/reverse-proxies.md" || fail 'Archive proxy guide is missing.'
 	for proxy in caddy/Caddyfile nginx/imvault.conf apache/imvault.conf; do
@@ -34,6 +35,7 @@ for arch in amd64 arm64; do
 	[ "$#" = 1 ] && [ -f "$1" ] || fail "Missing $arch Debian package."
 	[ "$(dpkg-deb -f "$1" Architecture)" = "$arch" ] || fail 'Incorrect Debian architecture.'
 	[ "$(dpkg-deb -f "$1" Package)" = imvault ] || fail 'Incorrect Debian package name.'
+	[ "$(dpkg-deb -f "$1" Suggests)" = bubblewrap ] || fail 'Optional Bubblewrap dependency is missing.'
 	dpkg-deb -e "$1" "$work/control-$arch" || exit 1
 	grep -qx '/etc/imvault/imvault.env' "$work/control-$arch/conffiles" || fail 'Settings are not registered as a conffile.'
 	for script in postinst prerm postrm; do

@@ -14,6 +14,7 @@ const commandHelp = `imvault - a photo and clip home for your people
 Usage: imvault [COMMAND] [OPTIONS]
 
 Commands:
+  sandbox              Start the server confined by Bubblewrap (Linux).
   serve                Start the HTTP server (also the default with no arguments).
   create-admin         Provision a new administrator using a hidden prompt or stdin.
   refresh-metadata     Refresh photo details from the stored originals.
@@ -52,6 +53,7 @@ OpenRC packages include /etc/logrotate.d/imvault; a cron job or timer runs rotat
 More settings and deployment examples: docs/deployment.md and docs/reverse-proxies.md.`
 
 var commandDescriptions = map[string]string{
+	"sandbox":            "Start the server confined by Bubblewrap. Run as the service user.\nThe data directory must already exist; see docs/sandbox.md.",
 	"serve":              "Start the HTTP server using IMVAULT_* environment variables. See imvault --help for defaults.",
 	"create-admin":       "Create a new administrator locally; existing accounts are never changed.\nUse a hidden terminal prompt or read one password line from stdin. IMVAULT_DATA_DIR is read from the active service configuration unless set in the environment. Root invocations use the configured service user.",
 	"refresh-metadata":   "Refresh photo details from stored originals without changing sharing settings.\nUse the same IMVAULT_DATA_DIR and storage settings as the service.",

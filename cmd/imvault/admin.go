@@ -25,6 +25,9 @@ func runCommand(args []string, stdin io.Reader, stdout io.Writer) error {
 	if len(args) == 0 {
 		return run()
 	}
+	if args[0] == "sandbox" {
+		return runSandbox(args[1:], stdout)
+	}
 	switch args[0] {
 	case "serve":
 		return serve(args[1:], stdout)
@@ -39,13 +42,7 @@ func runCommand(args []string, stdin io.Reader, stdout io.Writer) error {
 	case "restore":
 		return restoreBackup(args[1:], stdout)
 	case "help":
-		if len(args) == 2 && (commandDescriptions[args[1]] != "" || args[1] == "proxy-config") {
-			return runCommand([]string{args[1], "--help"}, stdin, stdout)
-		}
-		if len(args) != 1 {
-			return errors.New("usage: imvault help [COMMAND]; use imvault --help for commands")
-		}
-		fallthrough
+		return commandHelpFor(args, stdin, stdout)
 	case "-h", "--help":
 		if len(args) != 1 {
 			return errors.New("use imvault help COMMAND for command-specific help")
@@ -160,4 +157,15 @@ func provisionAdmin(ctx context.Context, username, email, password, dataDir, dbP
 		return nil, fmt.Errorf("account %q already exists; no account was changed", username)
 	}
 	return user, err
+}
+
+func commandHelpFor(args []string, stdin io.Reader, stdout io.Writer) error {
+	if len(args) == 2 && (commandDescriptions[args[1]] != "" || args[1] == "proxy-config") {
+		return runCommand([]string{args[1], "--help"}, stdin, stdout)
+	}
+	if len(args) != 1 {
+		return errors.New("usage: imvault help [COMMAND]; use imvault --help for commands")
+	}
+	_, err := fmt.Fprintln(stdout, commandHelp)
+	return err
 }

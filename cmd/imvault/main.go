@@ -78,7 +78,10 @@ func run() error {
 		return err
 	}
 
-	video := media.NewFFmpeg(cfg.FFmpegPath, cfg.FFprobePath)
+	video, err := media.ConfiguredVideo(ctx, cfg.FFmpegPath, cfg.FFprobePath, cfg.MediaSandbox, cfg.BwrapPath)
+	if err != nil {
+		return err
+	}
 	if !video.Available() {
 		logger.Warn("ffmpeg not found; clips will still be accepted but get a placeholder poster and no duration check",
 			"ffmpeg", cfg.FFmpegPath,

@@ -29,10 +29,14 @@ jobs:
         run: |
           sudo apt-get update || exit 1
           sudo systemctl mask --runtime caddy.service nginx.service apache2.service || exit 1
-          sudo apt-get install -y logrotate ffmpeg caddy nginx apache2 || exit 1
+          sudo apt-get install -y bubblewrap logrotate ffmpeg caddy nginx apache2 || exit 1
+      - name: Allow test namespaces on the disposable runner
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Repository checks
         run: |
           make check || exit 1
+          make test-sandbox || exit 1
+          make test-sandbox-mutations || exit 1
           make test-race || exit 1
           make test-proxies || exit 1
       - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7
@@ -87,7 +91,9 @@ jobs:
           PACKAGE_ARCH: ${{ matrix.arch }}
         run: |
           sudo apt-get update || exit 1
-          sudo env RELEASE_PACKAGE_TEST=1 sh scripts/release/test-deb.sh dist/imvault_*_"$PACKAGE_ARCH".deb || exit 1
+          sudo apt-get install -y bubblewrap ffmpeg || exit 1
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || exit 1
+          sudo env RELEASE_SANDBOX_TEST=1 RELEASE_PACKAGE_TEST=1 sh scripts/release/test-deb.sh dist/imvault_*_"$PACKAGE_ARCH".deb || exit 1
       - name: Debian package lifecycle
         env:
           PACKAGE_ARCH: ${{ matrix.arch }}
