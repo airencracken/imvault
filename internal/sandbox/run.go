@@ -13,6 +13,10 @@ import (
 	"time"
 )
 
+// Relay output through the supervisor. Journald can then attribute records to
+// the service's main process even when the server lives in another PID namespace.
+type serviceLog struct{ io.Writer }
+
 // Run supervises Bubblewrap and forwards shutdown to the actual server.
 // Bubblewrap's outer monitor does not forward SIGTERM itself. JSON status gives
 // us the server's host PID; --as-pid-1 avoids signalling an intermediate reaper.
@@ -30,7 +34,8 @@ func Run(ctx context.Context, binary string, args, env []string) error {
 	cmd := exec.Command(binary, append(options, args...)...)
 	cmd.Env = env
 	cmd.ExtraFiles = []*os.File{writer}
-	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	cmd.Stdout, cmd.Stderr = serviceLog{os.Stdout}, serviceLog{os.Stderr}
+	cmd.WaitDelay = 2 * time.Second
 	if err := cmd.Start(); err != nil {
 		return err
 	}

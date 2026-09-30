@@ -44,6 +44,9 @@ ExecStart=/usr/bin/imvault sandbox
 RestrictNamespaces=user mnt pid ipc uts net
 ProtectKernelTunables=no
 ReadOnlyPaths=/sys
+RestrictSUIDSGID=no
+KillMode=mixed
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
 ```
 
 Use `/usr/local/bin/imvault` for a default source installation. Keep the unit's
@@ -53,6 +56,12 @@ namespaces Bubblewrap needs; the override permits only the listed types.
 Bubblewrap process from mounting its own procfs. The override removes that
 conflict while keeping host sysfs read-only. Bubblewrap supplies its own private
 procfs with protected kernel-control paths for the confined server and tools.
+`RestrictSUIDSGID=no` permits the path-resolution syscalls used by newer
+Bubblewrap versions; `NoNewPrivileges=yes` continues to block setuid privilege
+gains. `KillMode=mixed` sends SIGTERM to the launcher first, so it can let the
+server shut down before systemd kills any remaining processes.
+`AF_NETLINK` lets Bubblewrap initialize loopback inside each media job's isolated
+network namespace; the job still cannot reach the host network.
 Run `systemctl daemon-reload`, then restart the service. To disable whole-service
 Bubblewrap, remove these overrides and restore the packaged unit's restrictions.
 
@@ -115,5 +124,5 @@ Probing, poster generation and metadata removal all use this boundary. Outputs
 must be regular files; symlinks are rejected before copying back to the server.
 
 When enabling this with the shipped systemd unit, also override
-the same `RestrictNamespaces`, `ProtectKernelTunables` and `ReadOnlyPaths`
-settings shown above, even if you leave `ExecStart` unchanged. Whole-service and media confinement can be enabled together.
+the same `RestrictNamespaces`, `ProtectKernelTunables`, `ReadOnlyPaths` and
+`RestrictSUIDSGID` and `RestrictAddressFamilies` settings shown above, even if you leave `ExecStart` unchanged. Whole-service and media confinement can be enabled together.
