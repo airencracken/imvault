@@ -14,6 +14,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"imvault/internal/closer"
 	"imvault/internal/models"
 )
 
@@ -30,7 +31,7 @@ func (s *Store) LoadSettings(ctx context.Context, defaults models.Settings) (mod
 	if err != nil {
 		return defaults, nil, fmt.Errorf("load settings: %w", err)
 	}
-	defer rows.Close()
+	defer closer.Discard(rows)
 
 	for rows.Next() {
 		var key, value string
@@ -86,7 +87,7 @@ func (s *Store) LoadBranding(ctx context.Context, defaults models.Branding) (mod
 	if err != nil {
 		return defaults, nil, fmt.Errorf("load branding: %w", err)
 	}
-	defer rows.Close()
+	defer closer.Discard(rows)
 	values := map[string]string{}
 	stored := map[string]bool{}
 	for rows.Next() {
@@ -187,7 +188,8 @@ func validateBrandingText(name, value string, max int, multiline bool) error {
 		return fmt.Errorf("%s must be no longer than %d characters", name, max)
 	}
 	for _, r := range value {
-		if unicode.IsControl(r) && !(multiline && (r == '\n' || r == '\r' || r == '\t')) {
+		allowedLineBreak := multiline && (r == '\n' || r == '\r' || r == '\t')
+		if unicode.IsControl(r) && !allowedLineBreak {
 			return fmt.Errorf("%s contains an unsupported control character", name)
 		}
 	}

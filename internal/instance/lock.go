@@ -5,7 +5,6 @@ package instance
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -22,9 +21,7 @@ func AcquireServer(database string) (*ServerLock, error) {
 	process := flock.New(shared.Path()+".server", flock.SetPermissions(0o600))
 	ok, err := process.TryLock()
 	if err != nil || !ok {
-		process.Close()
-		shared.Close()
-		return nil, fmt.Errorf("another imvault server is using this database")
+		return nil, errors.Join(errors.New("another imvault server is using this database"), err, process.Close(), shared.Close())
 	}
 	return &ServerLock{shared, process}, nil
 }
@@ -58,12 +55,10 @@ func Acquire(database string, exclusive bool) (*flock.Flock, error) {
 		ok, err = lock.TryRLock()
 	}
 	if err != nil {
-		lock.Close()
-		return nil, err
+		return nil, errors.Join(err, lock.Close())
 	}
 	if !ok {
-		lock.Close()
-		return nil, fmt.Errorf("instance is busy; stop imvault and other maintenance commands before retrying")
+		return nil, errors.Join(errors.New("instance is busy; stop imvault and other maintenance commands before retrying"), lock.Close())
 	}
 	return lock, nil
 }

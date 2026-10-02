@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"imvault/internal/closer"
 )
 
 type provisioningConfigPaths struct {
@@ -92,9 +94,9 @@ func resolveProvisioningDBPath(paths provisioningConfigPaths) (string, bool, err
 	case managerNone:
 		return "", false, nil
 	case managerOpenRC:
-		return readProvisioningSetting(paths, managerOpenRC, "IMVAULT_DB")
+		return readProvisioningDBPath(paths, managerOpenRC)
 	case managerSystemd:
-		return readProvisioningSetting(paths, managerSystemd, "IMVAULT_DB")
+		return readProvisioningDBPath(paths, managerSystemd)
 	case managerBoth:
 		return matchingProvisioningDBPath(paths)
 	}
@@ -159,25 +161,27 @@ func matchingProvisioningDataDir(paths provisioningConfigPaths) (string, error) 
 }
 
 func matchingProvisioningDBPath(paths provisioningConfigPaths) (string, bool, error) {
-	openRC, openRCSet, err := readProvisioningSetting(paths, managerOpenRC, "IMVAULT_DB")
+	openRC, openRCSet, err := readProvisioningDBPath(paths, managerOpenRC)
 	if err != nil {
 		return "", false, err
 	}
-	systemd, systemdSet, err := readProvisioningSetting(paths, managerSystemd, "IMVAULT_DB")
+	systemd, systemdSet, err := readProvisioningDBPath(paths, managerSystemd)
 	if err != nil {
 		return "", false, err
 	}
 	if openRCSet != systemdSet || openRC != systemd {
-		return "", false, fmt.Errorf("OpenRC and systemd configure different Imvault database paths; set IMVAULT_DB explicitly or run under the active service manager")
+		return "", false, fmt.Errorf("OpenRC and systemd configure different database paths; set IMVAULT_DB explicitly or run under the active service manager")
 	}
 	return openRC, openRCSet, nil
 }
 
-func readProvisioningSetting(paths provisioningConfigPaths, manager provisioningManager, key string) (string, bool, error) {
+// readProvisioningDBPath reads IMVAULT_DB from one service manager's
+// configuration.
+func readProvisioningDBPath(paths provisioningConfigPaths, manager provisioningManager) (string, bool, error) {
 	if manager == managerOpenRC {
-		return readShellConfigValue(paths.openRCConfig, key)
+		return readShellConfigValue(paths.openRCConfig, "IMVAULT_DB")
 	}
-	return readSystemdDataDir(paths.systemdUnit, key)
+	return readSystemdDataDir(paths.systemdUnit, "IMVAULT_DB")
 }
 
 func matchingProvisioningServiceAccount(paths provisioningConfigPaths) (string, string, bool, error) {
@@ -258,7 +262,7 @@ func readSystemdServiceFile(path, key string) (string, bool, error) {
 	if err != nil {
 		return "", false, fmt.Errorf("read systemd unit %s: %w", path, err)
 	}
-	defer file.Close()
+	defer closer.Discard(file)
 
 	var value string
 	found, inService := false, false
@@ -320,7 +324,7 @@ func readShellConfigValue(path, key string) (string, bool, error) {
 		}
 		return "", false, fmt.Errorf("read %s: %w; run create-owner as a user that can read the service configuration, or set IMVAULT_DATA_DIR explicitly", path, err)
 	}
-	defer file.Close()
+	defer closer.Discard(file)
 
 	var value string
 	found := false
@@ -523,7 +527,7 @@ func readSystemdEnvironmentFile(path, key string) (string, bool, error) {
 	if err != nil {
 		return "", false, fmt.Errorf("read systemd environment file %s: %w", path, err)
 	}
-	defer file.Close()
+	defer closer.Discard(file)
 	var value string
 	found := false
 	scanner := bufio.NewScanner(file)

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"imvault/internal/closer"
 	"imvault/internal/ids"
 	"imvault/internal/models"
 )
@@ -158,7 +159,7 @@ func (s *Store) AlbumsByUser(ctx context.Context, userID int64) ([]*models.Album
 	if err != nil {
 		return nil, fmt.Errorf("list albums: %w", err)
 	}
-	defer rows.Close()
+	defer closer.Discard(rows)
 
 	var albums []*models.Album
 	for rows.Next() {
@@ -224,7 +225,7 @@ func (s *Store) AlbumMembership(ctx context.Context, albumID int64) (map[string]
 	if err != nil {
 		return nil, fmt.Errorf("album membership: %w", err)
 	}
-	defer rows.Close()
+	defer closer.Discard(rows)
 
 	members := map[string]bool{}
 	for rows.Next() {
@@ -249,7 +250,7 @@ func (s *Store) AlbumsForFile(ctx context.Context, fileID string) ([]*models.Alb
 	if err != nil {
 		return nil, fmt.Errorf("albums for file: %w", err)
 	}
-	defer rows.Close()
+	defer closer.Discard(rows)
 
 	var albums []*models.Album
 	for rows.Next() {
@@ -280,7 +281,7 @@ func (s *Store) AlbumsVisibleTo(ctx context.Context, viewerID int64) ([]*models.
 	if err != nil {
 		return nil, fmt.Errorf("albums visible to: %w", err)
 	}
-	defer rows.Close()
+	defer closer.Discard(rows)
 
 	var albums []*models.Album
 	for rows.Next() {
@@ -324,7 +325,7 @@ func (s *Store) EffectiveMetadataPolicies(ctx context.Context, file *models.File
 	if err != nil {
 		return MetadataPolicies{}, fmt.Errorf("album metadata policies: %w", err)
 	}
-	defer rows.Close()
+	defer closer.Discard(rows)
 
 	for rows.Next() {
 		var raw, location string

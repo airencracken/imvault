@@ -61,7 +61,9 @@ the application settings to put in your service configuration.
 	flags.StringVar(&options.Certificate, "tls-cert", "", "nginx/Apache certificate path (default: /etc/letsencrypt/live/HOST/fullchain.pem)")
 	flags.StringVar(&options.Key, "tls-key", "", "nginx/Apache key path (default: /etc/letsencrypt/live/HOST/privkey.pem)")
 	flags.Usage = func() {
-		fmt.Fprintf(out, "Usage: %s proxy-config %s --domain HOST [OPTIONS]\n\nPrint an HTTPS site config to stdout; no system files are changed.\n\n", app, options.Server)
+		// Usage cannot return an error, and output that cannot take the help
+		// text cannot take an error message either.
+		_, _ = fmt.Fprintf(out, "Usage: %s proxy-config %s --domain HOST [OPTIONS]\n\nPrint an HTTPS site config to stdout; no system files are changed.\n\n", app, options.Server)
 		flags.PrintDefaults()
 	}
 	if err := flags.Parse(args[1:]); err != nil {
@@ -97,7 +99,7 @@ func Render(options Options) (string, error) {
 		return "", errors.New("--upstream must be localhost or a loopback IP with a port from 1 to 65535 (for example 127.0.0.1:8080)")
 	}
 	if options.Server == "caddy" && (options.Certificate != "" || options.Key != "") {
-		return "", errors.New("Caddy manages TLS automatically; --tls-cert and --tls-key apply to nginx and Apache")
+		return "", errors.New("--tls-cert and --tls-key apply to nginx and Apache; Caddy manages TLS automatically")
 	}
 	if (options.Certificate == "") != (options.Key == "") {
 		return "", errors.New("provide both --tls-cert and --tls-key")

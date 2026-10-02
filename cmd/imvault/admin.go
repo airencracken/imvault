@@ -123,7 +123,7 @@ func readAdminPassword(stdin io.Reader) (string, error) {
 	return password, nil
 }
 
-func provisionAdmin(ctx context.Context, username, email, password, dataDir, dbPath string) (*models.User, error) {
+func provisionAdmin(ctx context.Context, username, email, password, dataDir, dbPath string) (_ *models.User, err error) {
 	cfg, err := config.LoadWithProvisioningPaths(dataDir, dbPath)
 	if err != nil {
 		return nil, err
@@ -135,12 +135,12 @@ func provisionAdmin(ctx context.Context, username, email, password, dataDir, dbP
 	if err != nil {
 		return nil, err
 	}
-	defer lock.Close()
+	defer closeInto(&err, lock)
 	database, err := db.Open(ctx, cfg.DBPath)
 	if err != nil {
 		return nil, err
 	}
-	defer database.Close()
+	defer closeInto(&err, database)
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {

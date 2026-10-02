@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 
+	"imvault/internal/closer"
 	"imvault/internal/metadata"
 	"imvault/internal/models"
 )
@@ -71,7 +72,7 @@ func (s *Store) BlobsAfter(ctx context.Context, sha string, limit int) ([]*model
 	if err != nil {
 		return nil, fmt.Errorf("list blobs: %w", err)
 	}
-	defer rows.Close()
+	defer closer.Discard(rows)
 	var blobs []*models.Blob
 	for rows.Next() {
 		blob, err := scanBlob(rows)
@@ -168,7 +169,7 @@ func (s *Store) OrphanedBlobs(ctx context.Context, limit int) ([]*models.Blob, e
 	if err != nil {
 		return nil, fmt.Errorf("list orphaned blobs: %w", err)
 	}
-	defer rows.Close()
+	defer closer.Discard(rows)
 
 	var blobs []*models.Blob
 	for rows.Next() {

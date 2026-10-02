@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"imvault/internal/closer"
 	"imvault/internal/models"
 )
 
@@ -86,7 +87,7 @@ func (s *Store) APIKeysByUser(ctx context.Context, userID int64) ([]*models.APIK
 	if err != nil {
 		return nil, fmt.Errorf("list api keys: %w", err)
 	}
-	defer rows.Close()
+	defer closer.Discard(rows)
 
 	var keys []*models.APIKey
 	for rows.Next() {

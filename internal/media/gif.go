@@ -4,6 +4,7 @@ package media
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 )
@@ -52,8 +53,7 @@ func gifFrameCount(src io.ReadSeeker) (int, error) {
 	for frames <= maxGIFFrames {
 		marker, err := br.ReadByte()
 		if err != nil {
-			// A truncated file still tells us whether it was animated.
-			return frames, nil
+			return frames, truncation(err)
 		}
 
 		switch marker {
@@ -63,16 +63,16 @@ func gifFrameCount(src io.ReadSeeker) (int, error) {
 		case gifExtension:
 			// 0x21 <label> <length-prefixed sub-blocks...> 0x00
 			if _, err := br.ReadByte(); err != nil {
-				return frames, nil
+				return frames, truncation(err)
 			}
 			if err := skipSubBlocks(br); err != nil {
-				return frames, nil
+				return frames, truncation(err)
 			}
 
 		case gifImageDesc:
 			frames++
 			if err := skipGIFImage(br); err != nil {
-				return frames, nil
+				return frames, truncation(err)
 			}
 
 		default:
@@ -81,6 +81,16 @@ func gifFrameCount(src io.ReadSeeker) (int, error) {
 	}
 
 	return frames, nil
+}
+
+// truncation forgives a file that simply stops: a truncated GIF still tells us
+// whether it was animated, which is all the count is for. Any other read
+// failure is reported.
+func truncation(err error) error {
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return nil
+	}
+	return err
 }
 
 // skipGIFImage consumes a descriptor, its optional palette and LZW data.

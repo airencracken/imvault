@@ -5,12 +5,14 @@ package media
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 
+	"imvault/internal/closer"
 	"imvault/internal/sandbox"
 )
 
@@ -95,8 +97,7 @@ func (f *FFmpeg) command(ctx context.Context, binary, input, output string, args
 	}
 	mounts, err := sandbox.Base(false)
 	if err != nil {
-		os.RemoveAll(job)
-		return nil, nil, err
+		return nil, nil, errors.Join(err, os.RemoveAll(job))
 	}
 	insideInput := "/input/media" + filepath.Ext(input)
 	insideOutput := "/output/result" + filepath.Ext(output)
@@ -105,13 +106,20 @@ func (f *FFmpeg) command(ctx context.Context, binary, input, output string, args
 	cmd := exec.CommandContext(ctx, f.bwrapPath, append(mounts, append([]string{"--", "/app/tool"}, mapped...)...)...)
 	cmd.Env = sandbox.RuntimeEnv()
 	finish := func(success bool) error {
-		defer os.RemoveAll(job)
-		if !success || output == "" || ctx.Err() != nil {
-			return nil
+		var err error
+		if success && output != "" && ctx.Err() == nil {
+			err = copySandboxOutput(filepath.Join(job, filepath.Base(insideOutput)), output)
 		}
-		return copySandboxOutput(filepath.Join(job, filepath.Base(insideOutput)), output)
+		return errors.Join(err, os.RemoveAll(job))
 	}
 	return cmd, finish, nil
+}
+
+// abandon is deferred by every media operation to clean up after a failure.
+// Its only work is removing the job's scratch directory, and the operation's
+// own error is the one worth reporting, so a failure here is dropped.
+func abandon(finish func(bool) error) {
+	_ = finish(false)
 }
 
 func copySandboxOutput(src, dst string) error {
@@ -125,7 +133,7 @@ func copySandboxOutput(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer input.Close()
+	defer closer.Discard(input)
 	output, err := os.OpenFile(dst, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0600)
 	if err != nil {
 		return err

@@ -18,6 +18,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
 
+	"imvault/internal/closer"
 	"imvault/internal/config"
 )
 
@@ -158,8 +159,11 @@ func (s *S3) Save(ctx context.Context, key string, src io.Reader) (int64, error)
 	if err != nil {
 		return 0, err
 	}
-	defer os.Remove(f.Name())
-	defer f.Close()
+	// A scratch spool, read to the end by the SDK by the time these run. The
+	// upload's own error is what the caller needs; an imvault-s3-* file left
+	// in the temporary directory is cleared with it.
+	defer func() { _ = os.Remove(f.Name()) }()
+	defer closer.Discard(f)
 	n, err := io.Copy(f, ContextReader(ctx, src))
 	if err != nil {
 		return 0, err
@@ -178,7 +182,7 @@ func (s *S3) Save(ctx context.Context, key string, src io.Reader) (int64, error)
 	return n, nil
 }
 
-func (s *S3) multipart(ctx context.Context, key string, f *os.File, size int64) error {
+func (s *S3) multipart(ctx context.Context, key string, f *os.File, size int64) (err error) {
 	start, err := s.client.CreateMultipartUpload(ctx, &s3.CreateMultipartUploadInput{Bucket: &s.bucket, Key: &key})
 	if err != nil {
 		return err
@@ -190,7 +194,11 @@ func (s *S3) multipart(ctx context.Context, key string, f *os.File, size int64) 
 		}
 		cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 		defer cancel()
-		s.client.AbortMultipartUpload(cleanup, &s3.AbortMultipartUploadInput{Bucket: &s.bucket, Key: &key, UploadId: start.UploadId})
+		// An upload that cannot be aborted keeps its parts, and storage, until
+		// a bucket lifecycle rule clears them; the operator should know.
+		if _, abortErr := s.client.AbortMultipartUpload(cleanup, &s3.AbortMultipartUploadInput{Bucket: &s.bucket, Key: &key, UploadId: start.UploadId}); abortErr != nil {
+			err = errors.Join(err, fmt.Errorf("abort multipart upload: %w", abortErr))
+		}
 	}()
 	parts, err := s.uploadParts(ctx, key, start.UploadId, f, size)
 	if err != nil {

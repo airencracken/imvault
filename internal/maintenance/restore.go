@@ -14,13 +14,14 @@ import (
 	"os"
 	"path/filepath"
 
+	"imvault/internal/closer"
 	"imvault/internal/storage"
 	"imvault/internal/store"
 )
 
 // Restore produces a complete new local data directory. It never overwrites an
 // instance, alters a backup, or requires access to its original S3 credentials.
-func Restore(ctx context.Context, input, output string, out io.Writer) error {
+func Restore(ctx context.Context, input, output string, out io.Writer) (err error) {
 	manifest, err := readManifest(input)
 	if err != nil {
 		return err
@@ -29,7 +30,8 @@ func Restore(ctx context.Context, input, output string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(stage)
+	// Once published, the stage has been renamed away and this is a no-op.
+	defer func() { err = errors.Join(err, os.RemoveAll(stage)) }()
 	source, err := storage.OpenDisk(input)
 	if err != nil {
 		return err
@@ -86,12 +88,12 @@ func readManifest(input string) (Manifest, error) {
 	if err != nil {
 		return manifest, err
 	}
-	defer root.Close()
+	defer closer.Discard(root)
 	f, err := root.Open("manifest.json")
 	if err != nil {
 		return manifest, err
 	}
-	defer f.Close()
+	defer closer.Discard(f)
 	info, err := f.Stat()
 	if err != nil {
 		return manifest, err

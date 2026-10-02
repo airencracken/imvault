@@ -66,7 +66,7 @@ func runSandbox(args []string, out io.Writer) error {
 	}
 	binary, err := sandbox.Binary(*bwrap)
 	if err != nil {
-		return fmt.Errorf("Bubblewrap is required for sandbox mode: %w", err)
+		return fmt.Errorf("sandbox mode needs Bubblewrap: %w", err)
 	}
 	if err := sandbox.Check(context.Background(), binary, mounts, environment); err != nil {
 		return err

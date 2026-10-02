@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"imvault/internal/closer"
 	"imvault/internal/ids"
 	"imvault/internal/models"
 )
@@ -198,7 +199,7 @@ func (s *Store) TagsForFile(ctx context.Context, fileID string) ([]models.Tag, e
 	if err != nil {
 		return nil, fmt.Errorf("list file tags: %w", err)
 	}
-	defer rows.Close()
+	defer closer.Discard(rows)
 
 	var tags []models.Tag
 	for rows.Next() {
@@ -283,7 +284,7 @@ func (s *Store) ListTags(ctx context.Context, viewerID *int64, limit int) ([]mod
 	if err != nil {
 		return nil, fmt.Errorf("list tags: %w", err)
 	}
-	defer rows.Close()
+	defer closer.Discard(rows)
 
 	var tags []models.Tag
 	for rows.Next() {

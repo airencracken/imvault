@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"imvault/internal/closer"
 	"imvault/internal/config"
 	"imvault/internal/secrets"
 	"imvault/internal/storage"
@@ -30,12 +31,13 @@ type Manifest struct {
 
 // Backup requires the caller's exclusive instance lock for the entire copy.
 // The output appears only after every database, key and object check succeeds.
-func Backup(ctx context.Context, cfg *config.Config, st *store.Store, source storage.Backend, output string, out io.Writer) error {
+func Backup(ctx context.Context, cfg *config.Config, st *store.Store, source storage.Backend, output string, out io.Writer) (err error) {
 	stage, err := stageDirectory(output)
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(stage)
+	// Once published, the stage has been renamed away and this is a no-op.
+	defer func() { err = errors.Join(err, os.RemoveAll(stage)) }()
 	if _, err := st.DB().ExecContext(ctx, `VACUUM INTO ?`, filepath.Join(stage, "imvault.db")); err != nil {
 		return fmt.Errorf("snapshot database: %w", err)
 	}
@@ -139,7 +141,7 @@ func publishDirectory(stage, output string) error {
 	if err != nil {
 		return err
 	}
-	defer dir.Close()
+	defer closer.Discard(dir) // opened only to sync it
 	return dir.Sync()
 }
 
@@ -153,7 +155,7 @@ func syncTree(root string) error {
 		if err != nil {
 			return err
 		}
-		defer f.Close()
+		defer closer.Discard(f) // opened only to sync it
 		return f.Sync()
 	})
 }
@@ -165,7 +167,7 @@ func validateDatabase(ctx context.Context, filename string, key []byte, objects 
 	if err != nil {
 		return err
 	}
-	defer database.Close()
+	defer closer.Discard(database) // a read-only, immutable snapshot
 	var integrity string
 	if err := database.QueryRowContext(ctx, `PRAGMA integrity_check`).Scan(&integrity); err != nil {
 		return err
@@ -179,7 +181,7 @@ func validateDatabase(ctx context.Context, filename string, key []byte, objects 
 	}
 	broken := rows.Next()
 	rowErr := rows.Err()
-	rows.Close()
+	closer.Discard(rows)
 	if rowErr != nil {
 		return rowErr
 	}
@@ -204,7 +206,7 @@ func validateSecrets(ctx context.Context, database *sql.DB, key []byte) error {
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
+	defer closer.Discard(rows)
 	for rows.Next() {
 		var secret string
 		if err := rows.Scan(&secret); err != nil {

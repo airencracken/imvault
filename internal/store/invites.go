@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"imvault/internal/closer"
 	"imvault/internal/models"
 )
 
@@ -210,7 +211,7 @@ func (s *Store) listInvites(ctx context.Context, creatorID int64, all bool, limi
 	if err != nil {
 		return nil, 0, fmt.Errorf("list invites: %w", err)
 	}
-	defer rows.Close()
+	defer closer.Discard(rows)
 
 	var invites []*models.Invite
 	for rows.Next() {

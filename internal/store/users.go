@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"imvault/internal/closer"
 	"imvault/internal/models"
 )
 
@@ -178,7 +179,7 @@ func (s *Store) UsersByEmail(ctx context.Context, email string) ([]*models.User,
 	if err != nil {
 		return nil, fmt.Errorf("users by email: %w", err)
 	}
-	defer rows.Close()
+	defer closer.Discard(rows)
 
 	var users []*models.User
 	for rows.Next() {
@@ -238,7 +239,7 @@ func (s *Store) ListUsers(ctx context.Context, limit, offset int) ([]*models.Use
 	if err != nil {
 		return nil, 0, fmt.Errorf("list users: %w", err)
 	}
-	defer rows.Close()
+	defer closer.Discard(rows)
 
 	var users []*models.User
 	for rows.Next() {
