@@ -70,7 +70,7 @@ settings](#instance-settings) below.
 | `IMVAULT_OIDC_CLIENT_SECRET` | *(empty)* | Client secret, for a confidential client |
 | `IMVAULT_OIDC_NAME` | `Single sign-on` | What the button says |
 | `IMVAULT_OIDC_SCOPES` | `openid profile email` | Comma or space separated scopes |
-| `IMVAULT_OIDC_ALLOWED_DOMAINS` | *(empty)* | Email domains allowed to sign in |
+| `IMVAULT_OIDC_ALLOWED_DOMAINS` | *(empty)* | Email domains allowed to sign in; the provider must assert `email_verified` |
 
 Durations accept Go syntax (`24h`, `90m`) or a bare number of seconds.
 
@@ -79,7 +79,9 @@ Durations accept Go syntax (`24h`, `90m`) or a bare number of seconds.
 Setting `IMVAULT_OIDC_ISSUER` and `IMVAULT_OIDC_CLIENT_ID` turns on sign-in
 through any OpenID Connect provider — Keycloak, Authentik, Google, Discord, or
 anything else that speaks it. Discovery is automatic from
-`<issuer>/.well-known/openid-configuration`.
+`<issuer>/.well-known/openid-configuration`. Give the issuer exactly as the
+provider publishes it, trailing slash included or not: discovery compares the
+two character for character and refuses a mismatch.
 
 ```bash
 IMVAULT_BASE_URL=https://img.example.com
