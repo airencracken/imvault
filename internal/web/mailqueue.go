@@ -23,6 +23,10 @@ const (
 	mailBackoffMax = 6 * time.Hour
 	// sentMailRetention is how long delivered messages are kept for reference.
 	sentMailRetention = 7 * 24 * time.Hour
+	// mailClaimLease is how long a claimed message is left alone by everybody
+	// else. It outlasts any relay timeout; the attempt records the real next
+	// time as soon as it knows the outcome.
+	mailClaimLease = 10 * time.Minute
 )
 
 // mailQueue wraps a Sender so that a delivery failure delays a message rather
@@ -84,7 +88,19 @@ func (q *mailQueue) attempt(ctx context.Context, record *models.OutboundMail) {
 		return
 	}
 
-	err := q.sender.Send(ctx, mail.Message{
+	// Only the caller that claims the message delivers it. The request that
+	// queued it and the retry sweep can both reach this point for the same row.
+	claimedAt := q.now().UTC()
+	claimed, err := q.store.ClaimMail(ctx, record.ID, claimedAt, claimedAt.Add(mailClaimLease))
+	if err != nil {
+		q.log.Error("could not claim mail for delivery", "id", record.ID, "error", err)
+		return
+	}
+	if !claimed {
+		return
+	}
+
+	err = q.sender.Send(ctx, mail.Message{
 		To:      record.Recipient,
 		Subject: record.Subject,
 		Body:    record.Body,

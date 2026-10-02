@@ -113,11 +113,22 @@ type captureMail struct {
 	enabled  bool
 	// failWith makes Send report an error, standing in for an unreachable relay.
 	failWith error
+	// gate, when set, holds every Send until it is closed, standing in for a
+	// slow relay.
+	gate chan struct{}
+	// entered is signalled each time a Send begins waiting at the gate.
+	entered chan struct{}
 }
 
 func (c *captureMail) Enabled() bool { return c.enabled }
 
 func (c *captureMail) Send(_ context.Context, msg mail.Message) error {
+	if c.gate != nil {
+		if c.entered != nil {
+			c.entered <- struct{}{}
+		}
+		<-c.gate
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.failWith != nil {
