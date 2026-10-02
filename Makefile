@@ -1,5 +1,6 @@
 BINARY  := imvault
-GORELEASER ?= goreleaser
+# Release CI pins GoReleaser v2.18.2; without a local install, run that release.
+GORELEASER ?= $(or $(shell command -v goreleaser 2>/dev/null),go run github.com/goreleaser/goreleaser/v2@v2.18.2)
 PKG     := ./cmd/imvault
 GOFLAGS ?=
 
@@ -39,10 +40,10 @@ test-proxies: ## Test nginx and Apache TLS proxy examples (needs both servers)
 	go test $(GOFLAGS) -tags=proxyintegration -count=1 -timeout=60s ./contrib/proxy
 
 release-check: ## Validate the release configuration
-	"$(GORELEASER)" check
+	$(GORELEASER) check
 
 release-snapshot: release-check ## Build local binary archives and Debian packages without publishing
-	"$(GORELEASER)" release --snapshot --clean --skip=publish
+	$(GORELEASER) release --snapshot --clean --skip=publish
 
 help: ## Show the available targets
 	@printf '\nimvault\n\n'
@@ -102,7 +103,7 @@ check-fmt: ## Verify Go formatting without changing files
 check-complexity: ## Keep production Go functions at cyclomatic complexity 15 or below
 	go run github.com/fzipp/gocyclo/cmd/gocyclo@v0.6.0 -over 15 -ignore '_test\.go$$' cmd internal contrib
 
-check: check-fmt vet test check-js test-js check-complexity ## What CI should run
+check: check-fmt vet test check-js test-js check-complexity release-check ## What CI should run
 
 # --- installing on a server -------------------------------------------------
 
