@@ -40,3 +40,16 @@ version's release notes.
   `IMVAULT_ADDR`'s port. The Compose file's own probe is gone in its favour.
   `/data` is created at mode 0700; an existing named volume keeps its mode
   until you change it (`chmod 0700` inside the volume).
+- **The mail sender is checked at startup.** `IMVAULT_SMTP_FROM` must be a
+  single address, optionally with a display name, on one line. A malformed
+  value now stops the server with the setting's name, even with no relay
+  configured, instead of failing at the first reset mail. The sender is
+  written in canonical form, so a display name may now appear quoted
+  (`"Imvault" <no-reply@example.com>`); mail clients show it the same.
+  `IMVAULT_SMTP_TLS` is still refused unless it is exactly `starttls`,
+  `implicit` or `none`, and the mail transport itself now refuses an unknown
+  mode too rather than treating it as plain text.
+- **No mail is logged without a relay.** An instance with no
+  `IMVAULT_SMTP_HOST` used to log each message it could not send, reset and
+  confirmation links included. It now logs nothing about them; administrators
+  issue reset links from the admin pages as before.

@@ -19,11 +19,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/airencracken/comfylib/smtp"
+
 	"imvault/internal/config"
 	"imvault/internal/db"
 	"imvault/internal/instance"
 	"imvault/internal/logging"
-	"imvault/internal/mail"
 	"imvault/internal/media"
 	"imvault/internal/sandbox"
 	"imvault/internal/secrets"
@@ -131,7 +132,10 @@ func run() (err error) {
 	)
 
 	st := store.New(database)
-	sender := mailSender(cfg, st, logger)
+	sender, err := mailSender(cfg, st, logger)
+	if err != nil {
+		return err
+	}
 
 	// The key beside the database encrypts the few values that have to be
 	// readable again, which today means TOTP secrets.
@@ -188,32 +192,35 @@ func run() (err error) {
 	return nil
 }
 
-// mailSender returns an SMTP sender when a relay is configured, and a sender
-// that logs instead of delivering otherwise.
+// mailSender returns an SMTP sender when a relay is configured, and one that
+// refuses every message otherwise. The refusing sender logs nothing: a reset
+// link in a log is as good as the password it replaces.
 //
 // Password reset stays usable either way: without mail, administrators issue
 // one-time links from the admin UI.
-func mailSender(cfg *config.Config, st *store.Store, logger *slog.Logger) mail.Sender {
+func mailSender(cfg *config.Config, st *store.Store, logger *slog.Logger) (smtp.Sender, error) {
 	if cfg.SMTPHost == "" {
 		logger.Info("mail is not configured; password resets use administrator-issued links")
-		return mail.Disabled{Log: logger}
+		return smtp.Disabled{}, nil
 	}
 
-	logger.Info("mail configured",
-		"host", cfg.SMTPHost,
-		"port", cfg.SMTPPort,
-		"tls", cfg.SMTPTLS,
-		"from", cfg.SMTPFrom,
-	)
-
-	relay := mail.NewSMTP(mail.Config{
+	relay, err := smtp.New(smtp.Config{
 		Host:     cfg.SMTPHost,
 		Port:     cfg.SMTPPort,
 		Username: cfg.SMTPUsername,
 		Password: cfg.SMTPPassword,
 		From:     cfg.SMTPFrom,
-		Mode:     mail.TLSMode(cfg.SMTPTLS),
+		Mode:     cfg.SMTPTLS,
 	})
+	if err != nil {
+		return nil, err
+	}
+	logger.Info("mail configured",
+		"host", cfg.SMTPHost,
+		"port", cfg.SMTPPort,
+		"tls", string(cfg.SMTPTLS),
+		"from", cfg.SMTPFrom,
+	)
 
 	// Queue in front of the relay so an outage delays mail rather than dropping
 	// it, and so a failed message shows up in the admin UI.
@@ -221,5 +228,5 @@ func mailSender(cfg *config.Config, st *store.Store, logger *slog.Logger) mail.S
 		"max_attempts", cfg.MailMaxAttempts,
 		"retry_interval", cfg.MailRetryInterval.String(),
 	)
-	return web.NewMailQueue(st, relay, cfg.MailMaxAttempts, cfg.MailRetryInterval, logger)
+	return web.NewMailQueue(st, relay, cfg.MailMaxAttempts, cfg.MailRetryInterval, logger), nil
 }

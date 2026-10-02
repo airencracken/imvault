@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"imvault/internal/mail"
+	"github.com/airencracken/comfylib/smtp"
 )
 
 // queueFrom returns the durable queue behind the harness, which tests drive
@@ -310,5 +310,5 @@ func TestMailQueueIsDurableAcrossARestart(t *testing.T) {
 		t.Errorf("%d messages in the queue, want 1", len(messages))
 	}
 
-	_ = mail.Sender(restarted)
+	_ = smtp.Sender(restarted)
 }

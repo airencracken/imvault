@@ -41,8 +41,8 @@ settings](#instance-settings) below.
 | `IMVAULT_SMTP_PORT` | `587` | Relay port |
 | `IMVAULT_SMTP_USERNAME` | *(empty)* | Skip authentication when empty, for a local relay |
 | `IMVAULT_SMTP_PASSWORD` | *(empty)* | Relay password |
-| `IMVAULT_SMTP_FROM` | `Imvault <no-reply@localhost>` | Envelope and header sender |
-| `IMVAULT_SMTP_TLS` | `starttls` | `starttls`, `implicit` (port 465) or `none` |
+| `IMVAULT_SMTP_FROM` | `Imvault <no-reply@localhost>` | Envelope and header sender, checked at startup; one address, optionally with a display name |
+| `IMVAULT_SMTP_TLS` | `starttls` | `starttls`, `implicit` (port 465) or `none`; any other value stops startup |
 | `IMVAULT_TOTP_ISSUER` | `Imvault` | Name an authenticator app shows for the account |
 | `IMVAULT_SECRET_KEY` | *(empty)* | Key for encrypting TOTP secrets; overrides the key file |
 | `IMVAULT_SECRET_KEY_FILE` | `<data>/secret.key` | Where that key is kept, created on first run |
