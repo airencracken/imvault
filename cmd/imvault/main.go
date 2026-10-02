@@ -19,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/airencracken/comfylib/sandbox"
 	"github.com/airencracken/comfylib/smtp"
 
 	"imvault/internal/config"
@@ -26,7 +27,6 @@ import (
 	"imvault/internal/instance"
 	"imvault/internal/logging"
 	"imvault/internal/media"
-	"imvault/internal/sandbox"
 	"imvault/internal/secrets"
 	"imvault/internal/storage"
 	"imvault/internal/store"

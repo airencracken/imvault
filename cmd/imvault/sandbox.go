@@ -13,9 +13,43 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/airencracken/comfylib/sandbox"
+
 	"imvault/internal/config"
-	"imvault/internal/sandbox"
 )
+
+// forwardedEnv are the variables outside IMVAULT_ that the confined server
+// still needs. The AWS SDK reads its credential chain from these when no
+// explicit S3 keys are configured; TZ sets the zone logs are written in.
+// Files they name, such as a shared credentials file, have to be added with
+// --read-file.
+var forwardedEnv = []string{
+	"TZ",
+	"AWS_ACCESS_KEY_ID",
+	"AWS_SECRET_ACCESS_KEY",
+	"AWS_SESSION_TOKEN",
+	"AWS_REGION",
+	"AWS_DEFAULT_REGION",
+	"AWS_PROFILE",
+	"AWS_CONFIG_FILE",
+	"AWS_SHARED_CREDENTIALS_FILE",
+	"AWS_CA_BUNDLE",
+	"AWS_ENDPOINT_URL",
+	"AWS_ENDPOINT_URL_S3",
+	"AWS_ROLE_ARN",
+	"AWS_ROLE_SESSION_NAME",
+	"AWS_WEB_IDENTITY_TOKEN_FILE",
+	"AWS_EC2_METADATA_DISABLED",
+	"AWS_CONTAINER_CREDENTIALS_FULL_URI",
+	"AWS_CONTAINER_CREDENTIALS_RELATIVE_URI",
+	"AWS_CONTAINER_AUTHORIZATION_TOKEN",
+}
+
+// sandboxProbe is what the sandbox check runs inside the namespaces: the
+// confined server itself, asking only for help, which needs no configuration,
+// data or network and exits 0. It proves the policy can start this binary
+// rather than a host utility that might live elsewhere.
+var sandboxProbe = []string{"/app/server", "--help"}
 
 type mountPaths []string
 
@@ -59,8 +93,7 @@ func runSandbox(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	policy := sandbox.Service{Prefix: "IMVAULT_", DataDir: data, Executable: executable, WriteDirs: writes, ReadFiles: reads, Env: environment, NestedSandbox: nested}
-	mounts, environment, err := policy.Policy()
+	mounts, environment, err := servicePolicy(data, executable, writes, reads, environment, nested).Policy()
 	if err != nil {
 		return err
 	}
@@ -68,7 +101,7 @@ func runSandbox(args []string, out io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("sandbox mode needs Bubblewrap: %w", err)
 	}
-	if err := sandbox.Check(context.Background(), binary, mounts, environment); err != nil {
+	if err := sandbox.Check(context.Background(), binary, mounts, environment, sandboxProbe...); err != nil {
 		return err
 	}
 	if *check {
@@ -78,6 +111,22 @@ func runSandbox(args []string, out io.Writer) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	return sandbox.Run(ctx, binary, append(mounts, "--", "/app/server"), environment)
+}
+
+// servicePolicy is the server's confinement: its own data directory and the
+// operator's extra mounts writable, its IMVAULT_ settings and forwardedEnv
+// passed in, and user namespaces kept only when it builds media sandboxes.
+func servicePolicy(data, executable string, writes, reads, environment []string, nested bool) sandbox.Service {
+	return sandbox.Service{
+		Prefix:        "IMVAULT_",
+		DataDir:       data,
+		Executable:    executable,
+		WriteDirs:     writes,
+		ReadFiles:     reads,
+		Env:           environment,
+		ForwardEnv:    forwardedEnv,
+		NestedSandbox: nested,
+	}
 }
 
 func envOr(key, fallback string) string {

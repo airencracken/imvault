@@ -76,3 +76,12 @@ version's release notes.
   sign-in or upload budget for each of its addresses. Each limiter also tracks
   at most 10,000 callers, forgetting the least recently seen, so a flood of
   addresses cannot grow its memory without bound.
+- **Sandbox changes** (`imvault sandbox`). `sandbox --check` and the start-up
+  check now run the confined binary itself (`imvault --help`) inside the
+  namespaces instead of the host's `true`, so a policy that cannot start
+  Imvault fails the check. An `SSL_CERT_FILE` in the service environment now
+  names the CA bundle the server trusts, which must be an existing regular
+  file; it was ignored before. On merged-`/usr` systems `/bin`, `/lib` and
+  similar links are recreated as links instead of separate mounts. A
+  `--read-file` path must now be clean, as `--write-dir` paths already were.
+

@@ -7,8 +7,9 @@ the application never retries outside the sandbox.
 Install your distribution's current, patched `bubblewrap` package. Unprivileged
 user namespaces must be permitted for the service account. The launcher refuses
 to run as root and rejects setuid Bubblewrap installations. Kernel or AppArmor policy may prevent startup; `sandbox --check`
-reports the error without starting the server. Do not weaken host policy merely
-to hide an error.
+reports the error without starting the server. The check runs the confined
+binary itself, as `imvault --help`, inside the same namespaces the server will
+get. Do not weaken host policy merely to hide an error.
 
 ## OpenRC
 
@@ -68,7 +69,11 @@ Bubblewrap, remove these overrides and restore the packaged unit's restrictions.
 ## What the server can access
 
 The sandbox has read-only `/usr`, binary and library directories, the dynamic linker cache and library alternatives, system CA
-certificates, DNS/hosts configuration and local timezone information. It retains
+certificates, DNS/hosts configuration and local timezone information. On a
+merged-`/usr` system, `/bin`, `/lib` and similar links are recreated as the
+same links rather than mounted again. When the service environment sets
+`SSL_CERT_FILE`, that bundle must be an existing regular file and is trusted
+instead of the system one, bound read-only inside the sandbox. It retains
 the host network for HTTP, mail and other configured services. It has its own
 process namespace, minimal devices, and temporary directory. Only its configured
 data directory is writable on the host by default. Other home directories,

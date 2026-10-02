@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"imvault/internal/sandbox"
+	"github.com/airencracken/comfylib/sandbox"
 )
 
 // VideoInfo is what probing a clip tells us.

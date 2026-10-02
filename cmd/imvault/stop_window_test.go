@@ -10,7 +10,7 @@ import (
 )
 
 // sandboxStopWait is how long the Bubblewrap launcher waits for the server
-// after forwarding SIGTERM (internal/sandbox/run.go).
+// after forwarding SIGTERM (comfylib's sandbox.Run).
 const sandboxStopWait = 20 * time.Second
 
 // The init systems must wait longer than the server takes to stop, and longer
