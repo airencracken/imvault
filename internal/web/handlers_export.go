@@ -12,6 +12,7 @@ import (
 	"path"
 	"time"
 
+	"imvault/internal/ids"
 	"imvault/internal/models"
 	"imvault/internal/store"
 )
@@ -137,7 +138,7 @@ func (s *Server) handleAccountExport(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(
-		`attachment; filename="%s"`, exportFilename(user.Username)))
+		`attachment; filename="%s"`, exportFilename(s.branding().SiteName, user.Username)))
 	w.Header().Set("Cache-Control", "no-store")
 
 	// The archive is only finished once everything is in it. Closing it after a
@@ -173,9 +174,15 @@ func (s *Server) abortExport(user *models.User, fileID, step string, err error) 
 	panic(http.ErrAbortHandler)
 }
 
-// exportFilename is the name the browser saves the archive as.
-func exportFilename(username string) string {
-	return fmt.Sprintf("imvault-%s-%s.zip", username, time.Now().UTC().Format("2006-01-02"))
+// exportFilename is the name the browser saves the archive as. It is named for
+// the instance, reduced to characters that are safe in a header and a file
+// name.
+func exportFilename(siteName, username string) string {
+	siteSlug := ids.Slug(siteName)
+	if siteSlug == "" {
+		siteSlug = "imvault"
+	}
+	return fmt.Sprintf("%s-%s-%s.zip", siteSlug, username, time.Now().UTC().Format("2006-01-02"))
 }
 
 // exportableFiles reads the account's file metadata, paging so that a large

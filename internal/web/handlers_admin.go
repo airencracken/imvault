@@ -515,13 +515,13 @@ func (s *Server) handleAdminFiles(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleAdminDeleteFile(w http.ResponseWriter, r *http.Request) {
 	file, err := s.store.FileByID(r.Context(), r.PathValue("id"))
 	if err != nil {
-		s.notFound(w, r, "That image does not exist.")
+		s.notFound(w, r, "That file does not exist.")
 		return
 	}
 
 	if err := s.deleteFileAndRelease(r.Context(), file); err != nil {
 		s.log.Error("admin: delete file", "id", file.ID, "error", err)
-		http.Error(w, "could not delete the image", http.StatusInternalServerError)
+		http.Error(w, "could not delete the file", http.StatusInternalServerError)
 		return
 	}
 	s.recordFileRemoval(r.Context(), currentUser(r.Context()), file, "")
@@ -531,7 +531,7 @@ func (s *Server) handleAdminDeleteFile(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		return
 	}
-	s.redirectFlash(w, r, "/admin/files", flashNotice, "Image deleted.")
+	s.redirectFlash(w, r, "/admin/files", flashNotice, "File deleted.")
 }
 
 // handleAdminRecomputeStorage recalculates every account's usage from the files

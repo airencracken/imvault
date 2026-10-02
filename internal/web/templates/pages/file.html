@@ -153,7 +153,7 @@
       <form method="post" action="/f/{{.File.ID}}/delete">
         <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
         <input type="hidden" name="next" value="/gallery">
-        <button class="btn danger" type="submit">Delete {{if .File.IsVideo}}clip{{else}}image{{end}}</button>
+        <button class="btn danger" type="submit">Delete {{if .File.IsVideo}}clip{{else}}photo{{end}}</button>
       </form>
     </section>
     {{end}}

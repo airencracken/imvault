@@ -138,15 +138,13 @@ func (s *Server) base(r *http.Request, title string) base {
 	branding := s.branding()
 	mascotURL := "/static/img/mascot.png"
 	faviconURL := ""
-	if mascot, favicon, err := s.store.BrandingAssetState(r.Context()); err == nil {
-		if mascot {
+	if current := s.settings.Load(); current != nil {
+		if current.CustomMascot {
 			mascotURL = "/branding/mascot"
 		}
-		if favicon {
+		if current.CustomFavicon {
 			faviconURL = "/branding/favicon"
 		}
-	} else {
-		s.log.Warn("load branding asset state", "error", err)
 	}
 
 	b := base{

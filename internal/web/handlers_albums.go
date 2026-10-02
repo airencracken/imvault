@@ -236,7 +236,7 @@ func (s *Server) handleAlbumPage(w http.ResponseWriter, r *http.Request) {
 			s.log.Error("album page: candidates", "error", err)
 		}
 		view.Available = s.grid(r, available, false, true, "",
-			"Every image in your gallery is already in this album.")
+			"Everything in your gallery is already in this album.")
 	}
 
 	s.renderPage(w, http.StatusOK, "album", view)
@@ -328,9 +328,9 @@ func (s *Server) handleAlbumAddFiles(w http.ResponseWriter, r *http.Request) {
 	notice := "Album updated."
 	switch {
 	case added == 1:
-		notice = "1 image added."
+		notice = "1 file added."
 	case added > 1:
-		notice = fmt.Sprintf("%d images added.", added)
+		notice = fmt.Sprintf("%d files added.", added)
 	}
 	switch {
 	case closed == 1:

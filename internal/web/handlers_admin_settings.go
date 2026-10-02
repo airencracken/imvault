@@ -24,6 +24,10 @@ type settingSource struct {
 	Stored         map[string]bool
 	Branding       models.Branding
 	BrandingStored map[string]bool
+	// CustomMascot and CustomFavicon say whether brand images were uploaded.
+	// They are read on every page, so they are cached with the rest rather
+	// than queried per render.
+	CustomMascot, CustomFavicon bool
 }
 
 // installSettings loads the policy at startup and keeps it in memory.
@@ -49,20 +53,32 @@ func (s *Server) reloadSettings(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	s.settings.Store(&settingSource{Values: values, Stored: stored, Branding: branding, BrandingStored: brandingStored})
+	mascot, favicon, err := s.store.BrandingAssetState(ctx)
+	if err != nil {
+		return err
+	}
+	s.settings.Store(&settingSource{
+		Values: values, Stored: stored,
+		Branding: branding, BrandingStored: brandingStored,
+		CustomMascot: mascot, CustomFavicon: favicon,
+	})
 	return nil
 }
+
+// defaultSiteName is the product name, used when an instance names nothing.
+const defaultSiteName = "Imvault"
 
 func (s *Server) configBrandingDefaults() models.Branding {
 	name := s.cfg.Name
 	if name == "" {
-		name = "imvault"
+		name = defaultSiteName
 	}
 	return models.Branding{
 		SiteName:     name,
 		SourceURL:    s.cfg.SourceURL,
 		WelcomeTitle: "Your pictures, your server.",
-		WelcomeText:  "imvault is a small, self-hosted image host. Upload, organise into albums, tag, and share by link.",
+		WelcomeText: name + " is a small, self-hosted home for photos and short clips. " +
+			"Upload, organise into albums, tag, and share by link.",
 	}
 }
 
@@ -236,9 +252,8 @@ func (s *Server) handleAdminSettings(w http.ResponseWriter, r *http.Request) {
 		Notice:                notice,
 		Error:                 problem,
 	}
-	view.CustomMascot, view.CustomFavicon, err = s.store.BrandingAssetState(r.Context())
-	if err != nil {
-		s.log.Error("admin settings: branding assets", "error", err)
+	if current := s.settings.Load(); current != nil {
+		view.CustomMascot, view.CustomFavicon = current.CustomMascot, current.CustomFavicon
 	}
 	view.base = s.base(r, "Instance settings")
 

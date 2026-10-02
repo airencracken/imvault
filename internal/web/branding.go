@@ -60,6 +60,11 @@ func (s *Server) handleAdminSaveBrandingAssets(w http.ResponseWriter, r *http.Re
 		s.redirectFlash(w, r, "/admin/settings", flashError, "Could not save the images.")
 		return
 	}
+	if err := s.reloadSettings(r.Context()); err != nil {
+		s.log.Error("admin: reload after branding assets", "error", err)
+		s.redirectFlash(w, r, "/admin/settings", flashError, "The images were saved but could not be read back.")
+		return
+	}
 	s.redirectFlash(w, r, "/admin/settings", flashNotice, "Brand images saved.")
 }
 
