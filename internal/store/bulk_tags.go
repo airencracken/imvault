@@ -32,7 +32,7 @@ func (s *Store) AddTagsToFiles(ctx context.Context, ownerID int64, fileIDs, name
 	err = s.withTx(ctx, func(tx *sql.Tx) error {
 		for _, id := range files {
 			var found int
-			err := tx.QueryRowContext(ctx, `SELECT 1 FROM files f WHERE f.id = ? AND f.user_id = ? AND `+expiryClause("f"), id, ownerID, nowUnix()).Scan(&found)
+			err := tx.QueryRowContext(ctx, `SELECT 1 FROM files f WHERE f.id = ? AND f.user_id = ? AND `+expiryClause, id, ownerID, nowUnix()).Scan(&found)
 			if err != nil {
 				return mapErr(err)
 			}

@@ -9,6 +9,7 @@ import (
 	"embed"
 	"fmt"
 	"io/fs"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -22,12 +23,8 @@ var migrationsFS embed.FS
 // Open opens (creating if needed) the SQLite database at path and brings the
 // schema up to date.
 func Open(ctx context.Context, path string) (*sql.DB, error) {
-	dsn := fmt.Sprintf(
-		"file:%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)&_pragma=synchronous(NORMAL)",
-		path,
-	)
+	sqlDB, err := sql.Open("sqlite", dsn(path))
 
-	sqlDB, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
@@ -49,6 +46,19 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 	}
 
 	return sqlDB, nil
+}
+
+// dsn builds the connection URI for a database file.
+//
+// The path is escaped, because SQLite reads it as a URI: a directory name
+// containing "?" or "#" would otherwise end the path early. Transactions start
+// IMMEDIATE, taking the write lock up front. Within one process the single
+// connection already serialises writers, but a maintenance command can share
+// the database with the server, and a deferred transaction that reads and then
+// writes would fail outright rather than wait for the busy timeout.
+func dsn(path string) string {
+	return "file:" + (&url.URL{Path: path}).EscapedPath() +
+		"?_txlock=immediate&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)&_pragma=synchronous(NORMAL)"
 }
 
 func migrate(ctx context.Context, sqlDB *sql.DB) error {

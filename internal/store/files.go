@@ -242,7 +242,7 @@ func (q FileQuery) where() (string, []any) {
 
 	// Retention is checked last so its argument always lines up with the
 	// trailing placeholder.
-	clauses = append(clauses, expiryClause("f"))
+	clauses = append(clauses, expiryClause)
 	args = append(args, nowUnix())
 
 	return " WHERE " + strings.Join(clauses, " AND "), args

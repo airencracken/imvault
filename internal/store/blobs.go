@@ -108,13 +108,17 @@ func (s *Store) ClearBlobCleanKey(ctx context.Context, sha string) error {
 	return nil
 }
 
+// SetBlobFilteredKey records where a partly filtered copy of some content
+// lives: the one keeping camera details, or the one keeping only the location.
 func (s *Store) SetBlobFilteredKey(ctx context.Context, sha, key string, camera bool) error {
 	query := `UPDATE blobs SET location_key = ? WHERE sha256 = ?`
 	if camera {
 		query = `UPDATE blobs SET camera_key = ? WHERE sha256 = ?`
 	}
-	_, err := s.db.ExecContext(ctx, query, key, sha)
-	return err
+	if _, err := s.db.ExecContext(ctx, query, key, sha); err != nil {
+		return fmt.Errorf("set blob filtered key: %w", err)
+	}
+	return nil
 }
 
 // BlobBySHA returns the record for a piece of content.
@@ -177,12 +181,12 @@ func (s *Store) OrphanedBlobs(ctx context.Context, limit int) ([]*models.Blob, e
 	return blobs, rows.Err()
 }
 
-// RecomputeBlobRefcounts recalculates every count from the file rows, and
-// removes content nothing refers to.
+// RecomputeBlobRefcounts recalculates every count from the file rows.
 //
 // It exists for the same reason the storage recompute does: a count is derived
 // state, and a way to put it back in step is worth having even when the
-// database maintains it. It returns how many blobs were corrected.
+// database maintains it. It returns how many blobs were corrected. Content it
+// finds unreferenced is left for the orphan sweep to remove, bytes and all.
 func (s *Store) RecomputeBlobRefcounts(ctx context.Context) (int64, error) {
 	res, err := s.db.ExecContext(ctx, `
 		UPDATE blobs SET refcount = (
