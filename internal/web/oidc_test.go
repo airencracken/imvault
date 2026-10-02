@@ -362,11 +362,11 @@ func TestOIDCLinksByAVerifiedAddress(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := h.store.SetEmail(t.Context(), boss.ID, "boss@example.com", false); err != nil {
+	if err := h.store.SetEmail(t.Context(), boss.ID, "boss@example.com", true); err != nil {
 		t.Fatal(err)
 	}
 
-	// The provider vouches for the address, so the account is found and linked.
+	// Both sides vouch for the address, so the account is found and linked.
 	idp.setIdentity("subject-new", "boss@example.com", true, "boss")
 
 	client := h.newSession(t)

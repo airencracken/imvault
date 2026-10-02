@@ -250,31 +250,8 @@ func (s *Server) resolveOIDCIdentity(w http.ResponseWriter, r *http.Request, att
 		return
 	}
 
-	// An address is only evidence if the provider says it checked. Letting an
-	// unverified address link would hand over an account on the strength of a
-	// claim anybody can make to some providers.
-	if identity.EmailVerified && identity.Email != "" {
-		users, err := s.store.UsersByEmail(r.Context(), identity.Email)
-		if err != nil {
-			s.log.Error("oidc: look up email", "error", err)
-			s.oidcFailed(w, r, "Something went wrong on this server.")
-			return
-		}
-
-		switch len(users) {
-		case 1:
-			s.linkAndSignIn(w, r, users[0], identity)
-			return
-		case 0:
-			// Nobody here uses that address, so this is a new account.
-		default:
-			// Addresses are not unique, so this is ambiguous. Guessing would be
-			// a way to sign in as the wrong person.
-			s.log.Warn("oidc: ambiguous address", "email", identity.Email, "accounts", len(users))
-			s.oidcFailed(w, r, "More than one account uses that address. Sign in with "+
-				"your password, then connect the provider from your account page.")
-			return
-		}
+	if done := s.linkByVerifiedAddress(w, r, identity); done {
+		return
 	}
 
 	// An unknown person. Finishing the registration is a step of its own, under
@@ -287,6 +264,50 @@ func (s *Server) resolveOIDCIdentity(w http.ResponseWriter, r *http.Request, att
 		return
 	}
 	http.Redirect(w, r, "/auth/oidc/complete", http.StatusSeeOther)
+}
+
+// linkByVerifiedAddress attaches the identity to the one local account that
+// has proved it owns the same address, reporting whether it wrote a response.
+//
+// The address is only evidence when both sides checked it. The provider's flag
+// covers its half. The local half matters as much: anybody can register here
+// with somebody else's address, and linking on an unconfirmed one would sign
+// the real owner into the squatter's account the first time they used the
+// provider, leaving the squatter a password to it.
+func (s *Server) linkByVerifiedAddress(w http.ResponseWriter, r *http.Request, identity *oidc.Identity) bool {
+	if !identity.EmailVerified || identity.Email == "" {
+		return false
+	}
+	users, err := s.store.UsersByEmail(r.Context(), identity.Email)
+	if err != nil {
+		s.log.Error("oidc: look up email", "error", err)
+		s.oidcFailed(w, r, "Something went wrong on this server.")
+		return true
+	}
+
+	var confirmed []*models.User
+	for _, user := range users {
+		if user.EmailVerified {
+			confirmed = append(confirmed, user)
+		}
+	}
+
+	switch len(confirmed) {
+	case 0:
+		// Nobody here has confirmed that address, so this is a new account,
+		// even if somebody typed the address in without proving it.
+		return false
+	case 1:
+		s.linkAndSignIn(w, r, confirmed[0], identity)
+		return true
+	default:
+		// Addresses are not unique, so this is ambiguous. Guessing would be a
+		// way to sign in as the wrong person.
+		s.log.Warn("oidc: ambiguous address", "email", identity.Email, "accounts", len(confirmed))
+		s.oidcFailed(w, r, "More than one account uses that address. Sign in with "+
+			"your password, then connect the provider from your account page.")
+		return true
+	}
 }
 
 // finishOIDCSignIn creates the session for a verified identity.
