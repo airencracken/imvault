@@ -82,18 +82,13 @@ func keyMaterial(keyFile, explicitKey string) ([]byte, error) {
 	}
 
 	// An existing file is used as-is, however it was created.
-	if data, err := os.ReadFile(keyFile); err == nil {
-		key, err := decodeKey(string(data))
-		if err != nil {
-			return nil, fmt.Errorf("secrets: key file %s: %w", keyFile, err)
-		}
-		return key, nil
-	} else if !os.IsNotExist(err) {
-		return nil, fmt.Errorf("secrets: read key file %s: %w", keyFile, err)
+	key, err := readKeyFile(keyFile)
+	if err == nil || !errors.Is(err, os.ErrNotExist) {
+		return key, err
 	}
 
 	// Otherwise create one, readable only by the account running the server.
-	key := make([]byte, KeySize)
+	key = make([]byte, KeySize)
 	if _, err := rand.Read(key); err != nil {
 		return nil, fmt.Errorf("secrets: generate key: %w", err)
 	}
@@ -104,12 +99,62 @@ func keyMaterial(keyFile, explicitKey string) ([]byte, error) {
 		}
 	}
 
-	encoded := hex.EncodeToString(key) + "\n"
-	if err := os.WriteFile(keyFile, []byte(encoded), 0o600); err != nil {
+	// Exclusive creation: two processes starting together, say the server and
+	// create-admin, must not each write a different key and leave the one
+	// that loses with secrets it cannot read. Whoever loses uses the winner's.
+	if err := writeNewKeyFile(keyFile, hex.EncodeToString(key)+"\n"); err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return readKeyFile(keyFile)
+		}
 		return nil, fmt.Errorf("secrets: write key file %s: %w", keyFile, err)
 	}
-
 	return key, nil
+}
+
+func readKeyFile(keyFile string) ([]byte, error) {
+	data, err := os.ReadFile(keyFile)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
+		return nil, fmt.Errorf("secrets: read key file %s: %w", keyFile, err)
+	}
+	key, err := decodeKey(string(data))
+	if err != nil {
+		return nil, fmt.Errorf("secrets: key file %s: %w", keyFile, err)
+	}
+	return key, nil
+}
+
+// writeNewKeyFile publishes a complete key file only if none exists. The key is
+// written and synced under a temporary name first and then hard-linked into
+// place, which fails rather than replaces when another process got there
+// first; nobody can ever read half a key.
+func writeNewKeyFile(keyFile, encoded string) (err error) {
+	tmp, err := os.CreateTemp(filepath.Dir(keyFile), ".secret-key-*")
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if removeErr := os.Remove(tmp.Name()); removeErr != nil && err == nil {
+			err = removeErr
+		}
+	}()
+	if err := tmp.Chmod(0o600); err != nil {
+		_ = tmp.Close() // the chmod error is the one worth reporting
+		return err
+	}
+	_, err = tmp.WriteString(encoded)
+	if err == nil {
+		err = tmp.Sync()
+	}
+	if closeErr := tmp.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		return err
+	}
+	return os.Link(tmp.Name(), keyFile)
 }
 
 // Encrypt returns base64 of the nonce followed by the ciphertext.
