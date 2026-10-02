@@ -72,8 +72,10 @@ printf '%s\n' 'release-test-password' | "/usr/bin/$app" create-admin \
 if [ "$init" = yes ]; then
 	systemd-analyze verify "/usr/lib/systemd/system/$app.service" || fail 'Invalid systemd unit.'
 	systemctl start "$app.service" || fail 'Service startup failed.'
-	[ "$(systemctl show -p StandardOutput --value "$app")" = journal ] || fail 'Service output is not journal-managed.'
-	[ "$(systemctl show -p StandardError --value "$app")" = journal ] || fail 'Service errors are not journal-managed.'
+	stdout_mode=$(systemctl show -p StandardOutput --value "$app") || fail 'Could not read the service output setting.'
+	[ "$stdout_mode" = journal ] || fail 'Service output is not journal-managed.'
+	stderr_mode=$(systemctl show -p StandardError --value "$app") || fail 'Could not read the service error setting.'
+	[ "$stderr_mode" = journal ] || fail 'Service errors are not journal-managed.'
 else
 	runuser -u "$app" -- env "$upper"_DATA_DIR="$data" "$upper"_ADDR=127.0.0.1:18080 \
 		"/usr/bin/$app" > "$work/server.log" 2>&1 &
@@ -102,7 +104,8 @@ if [ "${RELEASE_SANDBOX_TEST:-0}" = 1 ]; then
 	journalctl -u "$app" --after-cursor "$cursor" --no-pager -n 40 > "$work/sandbox-journal" || exit 1
 	grep -q 'Imvault listening' "$work/sandbox-journal" || fail 'Sandboxed server logs did not reach journald.'
 	systemctl stop "$app" || fail 'Sandboxed service did not stop.'
-	[ "$(systemctl show -p Result --value "$app")" = success ] || fail 'Sandboxed shutdown was not graceful.'
+	stop_result=$(systemctl show -p Result --value "$app") || fail 'Could not read the sandboxed shutdown result.'
+	[ "$stop_result" = success ] || fail 'Sandboxed shutdown was not graceful.'
 	rm "/etc/systemd/system/$app.service.d/release-sandbox.conf" || exit 1
 	rmdir "/etc/systemd/system/$app.service.d" || exit 1
 	cp "$work/config" "$config" || exit 1
@@ -111,7 +114,9 @@ if [ "${RELEASE_SANDBOX_TEST:-0}" = 1 ]; then
 	health
 fi
 
-if [ "$init" = yes ]; then old_pid=$(systemctl show -p MainPID --value "$app"); fi
+if [ "$init" = yes ]; then
+	old_pid=$(systemctl show -p MainPID --value "$app") || exit 1
+fi
 
 # Exercise an actual newer package with a changed upstream conffile.
 dpkg-deb --raw-extract "$package" "$work/upgrade" || exit 1
@@ -120,7 +125,7 @@ sed -i "s/^Version:.*/Version: $version+upgrade-test/" "$work/upgrade/DEBIAN/con
 printf '\n# New upstream configuration default\n' >> "$work/upgrade$config" || exit 1
 (
 	cd "$work/upgrade" || exit 1
-	find etc usr -type f -exec md5sum '{}' + > DEBIAN/md5sums
+	find etc usr -type f -exec md5sum '{}' + > DEBIAN/md5sums || exit 1
 ) || exit 1
 dpkg-deb --root-owner-group --build "$work/upgrade" "$work/upgrade.deb" || exit 1
 dpkg --force-confdef --force-confold -i "$work/upgrade.deb" || fail 'Package upgrade failed.'
