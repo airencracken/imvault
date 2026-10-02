@@ -122,6 +122,20 @@ func (p *Processor) processGIF(src io.ReadSeeker) (*Result, error) {
 		return p.processImage(src)
 	}
 
+	// The logical screen bounds every frame, and the decoder allocates a whole
+	// frame before reading a byte of it, so the limit is checked here rather
+	// than discovered as an allocation the size of the screen.
+	if err := rewind(src); err != nil {
+		return nil, err
+	}
+	screen, err := gif.DecodeConfig(src)
+	if err != nil {
+		return nil, fmt.Errorf("decode gif: %w", err)
+	}
+	if err := imaging.CheckDimensions(screen.Width, screen.Height); err != nil {
+		return nil, err
+	}
+
 	if err := rewind(src); err != nil {
 		return nil, err
 	}
@@ -195,8 +209,13 @@ func (p *Processor) ProcessVideo(ctx context.Context, src io.ReadSeeker, path st
 	}
 	res.Width, res.Height, res.DurationMS = info.Width, info.Height, info.DurationMS
 
-	if p.MaxVideoDuration > 0 && res.DurationMS > 0 &&
-		res.DurationMS > p.MaxVideoDuration.Milliseconds() {
+	// A clip that records no duration anywhere cannot be shown to be within
+	// the limit, so it is refused rather than waved through.
+	if p.MaxVideoDuration > 0 && res.DurationMS <= 0 {
+		return nil, fmt.Errorf("the clip does not record its length, so it cannot be checked against the %s limit",
+			p.MaxVideoDuration)
+	}
+	if p.MaxVideoDuration > 0 && res.DurationMS > p.MaxVideoDuration.Milliseconds() {
 		return nil, fmt.Errorf("clip runs %s, the limit is %s",
 			formatDuration(res.DurationMS), p.MaxVideoDuration)
 	}
