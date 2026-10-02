@@ -265,6 +265,7 @@ type passwordView struct {
 	HasEmail      bool
 	VerifyPending bool
 	Error         string
+	Credentials   credentialState
 }
 
 // adminMailView backs the outbound mail queue.

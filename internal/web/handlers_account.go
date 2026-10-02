@@ -24,6 +24,9 @@ type accountView struct {
 	Identities []*models.Identity
 	Error      string
 	Notice     string
+	// Credentials says how the account proves itself, which decides whether
+	// deletion asks for a password and whether a connection may be removed.
+	Credentials credentialState
 }
 
 // handleAccountPage shows the account's own settings, including the way out.
@@ -56,6 +59,7 @@ func (s *Server) handleAccountPage(w http.ResponseWriter, r *http.Request) {
 		Identities:      identities,
 	}
 	view.Notice, view.Error = s.flash(r)
+	view.Credentials = s.credentialsFor(r, user, "/settings/account")
 	view.base = s.base(r, "Account")
 	// The confirmation field uses Alpine, so the page has to load it.
 	view.UseAlpine = true
@@ -127,14 +131,20 @@ func (s *Server) deleteAccount(ctx context.Context, userID int64) (int, error) {
 
 // handleUnlinkIdentity disconnects a provider from the signed-in account.
 //
-// Every account keeps its password, so this never locks anybody out; it only
-// removes one way in.
+// An account made through a provider has no password anybody knows, so for it
+// the last connection is the only way in. Removing that is refused rather than
+// allowed to lock the account out; setting a password first lifts it.
 func (s *Server) handleUnlinkIdentity(w http.ResponseWriter, r *http.Request) {
 	user := currentUser(r.Context())
 
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		http.Error(w, "invalid connection", http.StatusBadRequest)
+		return
+	}
+
+	if message := s.unlinkRefusal(r, user); message != "" {
+		s.redirectFlash(w, r, "/settings/account", flashError, message)
 		return
 	}
 
@@ -151,4 +161,26 @@ func (s *Server) handleUnlinkIdentity(w http.ResponseWriter, r *http.Request) {
 	s.log.Info("identity disconnected", "user", user.ID, "identity", id)
 	s.redirectFlash(w, r, "/settings/account", flashNotice,
 		"Disconnected. You can still sign in with your password.")
+}
+
+// unlinkRefusal explains why the account may not remove a connection, or is
+// empty when it may.
+func (s *Server) unlinkRefusal(r *http.Request, user *models.User) string {
+	set, err := s.store.PasswordSet(r.Context(), user.ID)
+	if err != nil {
+		s.log.Error("unlink: load password state", "user", user.ID, "error", err)
+		return "Could not disconnect it."
+	}
+	if set {
+		return ""
+	}
+	identities, err := s.store.IdentitiesByUser(r.Context(), user.ID)
+	if err != nil {
+		s.log.Error("unlink: list identities", "user", user.ID, "error", err)
+		return "Could not disconnect it."
+	}
+	if len(identities) <= 1 {
+		return "This is the only way into this account. Set a password first, then disconnect it."
+	}
+	return ""
 }

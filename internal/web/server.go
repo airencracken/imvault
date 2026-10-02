@@ -232,6 +232,7 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /settings/password", s.requireUser(s.handleChangePasswordPage))
 	mux.HandleFunc("POST /settings/password", s.requireUser(s.handleChangePassword))
 	mux.HandleFunc("POST /settings/email", s.requireUser(s.handleChangeEmail))
+	mux.HandleFunc("POST /settings/reauth", s.requireUser(s.handleReauthStart))
 	mux.HandleFunc("GET /settings/api-keys", s.requireUser(s.handleAPIKeysPage))
 	mux.HandleFunc("POST /settings/api-keys", s.requireUser(s.handleAPIKeyCreate))
 	mux.HandleFunc("POST /settings/api-keys/{id}/delete", s.requireUser(s.handleAPIKeyDelete))

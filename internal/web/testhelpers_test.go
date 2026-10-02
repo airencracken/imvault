@@ -309,7 +309,7 @@ func (s *session) get(path string) (*http.Response, string) {
 func (s *session) post(path string, form url.Values) (*http.Response, string) {
 	s.t.Helper()
 
-	form.Set("csrf_token", s.csrf)
+	form.Set("csrf_token", s.token())
 
 	req, err := http.NewRequest(http.MethodPost, s.h.server.URL+path, strings.NewReader(form.Encode()))
 	if err != nil {
