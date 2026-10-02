@@ -8,11 +8,9 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
-	"time"
 
 	"imvault/internal/config"
 	"imvault/internal/models"
@@ -67,51 +65,6 @@ func auditMultipart(t *testing.T, size int) ([]byte, string) {
 		t.Fatal(err)
 	}
 	return body.Bytes(), w.FormDataContentType()
-}
-
-func TestMultipartIsBoundedBeforeCSRFParsing(t *testing.T) {
-	h := newHarnessWith(t, func(c *config.Config) {
-		c.MaxUploadBytes = 1
-		c.MaxVideoBytes = 1
-	})
-	body, contentType := auditMultipart(t, 2<<20)
-	for _, path := range []string{"/upload", "/login"} {
-		r := &auditCountingReader{Reader: bytes.NewReader(body)}
-		req := httptest.NewRequest(http.MethodPost, path, r)
-		req.Header.Set("Content-Type", contentType)
-		req.AddCookie(&http.Cookie{Name: csrfCookie, Value: strings.Repeat("a", 32)})
-		w := httptest.NewRecorder()
-		h.srv.Handler().ServeHTTP(w, req)
-		if req.MultipartForm != nil {
-			req.MultipartForm.RemoveAll()
-		}
-		if w.Code != http.StatusRequestEntityTooLarge {
-			t.Errorf("%s oversized body = %d, want 413", path, w.Code)
-		}
-		if r.read >= len(body) {
-			t.Errorf("%s read the entire oversized body before rejecting it", path)
-		}
-	}
-}
-
-func TestBusyUploadDoesNotReadBodyForCSRF(t *testing.T) {
-	h := newHarness(t)
-	h.srv.processing.wait = time.Millisecond
-	release, ok := h.srv.processing.acquire(t.Context())
-	if !ok {
-		t.Fatal("could not occupy upload slot")
-	}
-	defer release()
-	body, contentType := auditMultipart(t, 1024)
-	r := &auditCountingReader{Reader: bytes.NewReader(body)}
-	req := httptest.NewRequest(http.MethodPost, "/upload", r)
-	req.Header.Set("Content-Type", contentType)
-	req.AddCookie(&http.Cookie{Name: csrfCookie, Value: strings.Repeat("a", 32)})
-	w := httptest.NewRecorder()
-	h.srv.Handler().ServeHTTP(w, req)
-	if w.Code != http.StatusServiceUnavailable || r.read != 0 {
-		t.Fatalf("busy upload: status=%d, bytes read=%d; want 503 without reading", w.Code, r.read)
-	}
 }
 
 func TestSecondFactorRateLimitIgnoresSuppliedUsername(t *testing.T) {

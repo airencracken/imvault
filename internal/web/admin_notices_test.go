@@ -20,8 +20,8 @@ func TestAdminPagesOnlyRenderActualNoticesOnce(t *testing.T) {
 			if strings.Contains(page, "{ false") {
 				t.Error("page without a notice shows an empty or serialized flash message")
 			}
-			for _, kind := range []string{"notice", "error"} {
-				_, page := h.get(path + "?" + kind + "=saved-settings-test")
+			for _, kind := range []flashKind{flashNotice, flashError} {
+				_, page := h.get(h.srv.flashURL(path, kind, "saved-settings-test"))
 				if count := strings.Count(page, "saved-settings-test"); count != 1 {
 					t.Errorf("%s appears %d times, want once", kind, count)
 				}

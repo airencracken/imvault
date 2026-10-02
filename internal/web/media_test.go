@@ -66,7 +66,7 @@ func (h *harness) uploadFiles(fields map[string]string, files []uploadFile) (*ht
 	if err != nil {
 		h.t.Fatalf("upload: %v", err)
 	}
-	defer resp.Body.Close()
+	defer mustClose(h.t, resp.Body)
 
 	out, _ := io.ReadAll(resp.Body)
 	return resp, string(out)
@@ -317,7 +317,7 @@ func checkVideoClipUpload(t *testing.T, h *harness) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer rangeResp.Body.Close()
+	defer mustClose(t, rangeResp.Body)
 
 	if rangeResp.StatusCode != http.StatusPartialContent {
 		t.Errorf("range status = %d, want 206", rangeResp.StatusCode)

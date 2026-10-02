@@ -72,7 +72,7 @@ func (h *harness) csrfFor(t *testing.T, client *http.Client) string {
 	if err != nil {
 		t.Fatalf("prime client: %v", err)
 	}
-	resp.Body.Close()
+	mustClose(t, resp.Body)
 
 	parsed, err := url.Parse(h.server.URL)
 	if err != nil {
@@ -101,7 +101,7 @@ func doForm(t *testing.T, client *http.Client, base, path string, form url.Value
 	if err != nil {
 		t.Fatalf("POST %s: %v", path, err)
 	}
-	resp.Body.Close()
+	mustClose(t, resp.Body)
 	return resp
 }
 
@@ -113,11 +113,22 @@ type captureMail struct {
 	enabled  bool
 	// failWith makes Send report an error, standing in for an unreachable relay.
 	failWith error
+	// gate, when set, holds every Send until it is closed, standing in for a
+	// slow relay.
+	gate chan struct{}
+	// entered is signalled each time a Send begins waiting at the gate.
+	entered chan struct{}
 }
 
 func (c *captureMail) Enabled() bool { return c.enabled }
 
 func (c *captureMail) Send(_ context.Context, msg mail.Message) error {
+	if c.gate != nil {
+		if c.entered != nil {
+			c.entered <- struct{}{}
+		}
+		<-c.gate
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.failWith != nil {
@@ -278,7 +289,7 @@ func (h *harness) newSession(t *testing.T) *session {
 	if err != nil {
 		t.Fatalf("prime session: %v", err)
 	}
-	resp.Body.Close()
+	mustClose(t, resp.Body)
 
 	parsed, err := url.Parse(h.server.URL)
 	if err != nil {
@@ -302,14 +313,14 @@ func (s *session) get(path string) (*http.Response, string) {
 	if err != nil {
 		s.t.Fatalf("GET %s: %v", path, err)
 	}
-	defer resp.Body.Close()
+	defer mustClose(s.t, resp.Body)
 	return resp, readAll(s.t, resp.Body)
 }
 
 func (s *session) post(path string, form url.Values) (*http.Response, string) {
 	s.t.Helper()
 
-	form.Set("csrf_token", s.csrf)
+	form.Set("csrf_token", s.token())
 
 	req, err := http.NewRequest(http.MethodPost, s.h.server.URL+path, strings.NewReader(form.Encode()))
 	if err != nil {
@@ -321,8 +332,11 @@ func (s *session) post(path string, form url.Values) (*http.Response, string) {
 	if err != nil {
 		s.t.Fatalf("POST %s: %v", path, err)
 	}
-	defer resp.Body.Close()
-	return resp, readAll(s.t, resp.Body)
+	defer closeBody(s.t, resp)
+	body := readAll(s.t, resp.Body)
+	// Anything the request handed off has finished before the test looks.
+	s.h.srv.waitBackground()
+	return resp, body
 }
 
 // signedIn reports whether the session can reach an authenticated page.
@@ -382,10 +396,11 @@ func (h *harness) sessionFor(t *testing.T, userID int64) *session {
 		t.Fatalf("parse base url: %v", err)
 	}
 
-	// Seed both the session and a CSRF cookie, as a browser would have.
+	// Seed both the session and its CSRF cookie, as a browser that had signed
+	// in would hold.
 	jar.SetCookies(parsed, []*http.Cookie{
 		{Name: sessionCookie, Value: token, Path: "/"},
-		{Name: csrfCookie, Value: ids.Token(32), Path: "/"},
+		{Name: csrfCookie, Value: sessionCSRFToken(token), Path: "/"},
 	})
 	for _, cookie := range jar.Cookies(parsed) {
 		if cookie.Name == csrfCookie {
@@ -433,7 +448,7 @@ func (s *session) upload(fields map[string]string, files []uploadFile) (*http.Re
 	if err != nil {
 		s.t.Fatalf("upload: %v", err)
 	}
-	defer resp.Body.Close()
+	defer mustClose(s.t, resp.Body)
 	return resp, readAll(s.t, resp.Body)
 }
 
@@ -455,11 +470,43 @@ func (s *session) getBytes(path string) (*http.Response, []byte) {
 	if err != nil {
 		s.t.Fatalf("GET %s: %v", path, err)
 	}
-	defer resp.Body.Close()
+	defer mustClose(s.t, resp.Body)
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		s.t.Fatalf("read %s: %v", path, err)
 	}
 	return resp, body
+}
+
+// token is the CSRF token the session's browser currently holds, read fresh
+// from the jar because signing in replaces it.
+func (s *session) token() string {
+	s.t.Helper()
+	parsed, err := url.Parse(s.h.server.URL)
+	if err != nil {
+		s.t.Fatalf("parse base url: %v", err)
+	}
+	for _, cookie := range s.jar.Cookies(parsed) {
+		if cookie.Name == csrfCookie {
+			return cookie.Value
+		}
+	}
+	return s.csrf
+}
+
+// closeBody closes a response body, failing the test if that fails.
+func closeBody(t *testing.T, resp *http.Response) {
+	t.Helper()
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("close response body: %v", err)
+	}
+}
+
+// mustClose closes something a test opened, failing the test if that fails.
+func mustClose(tb testing.TB, c io.Closer) {
+	tb.Helper()
+	if err := c.Close(); err != nil {
+		tb.Errorf("close: %v", err)
+	}
 }

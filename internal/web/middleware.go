@@ -3,9 +3,16 @@
 package web
 
 import (
+	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/hex"
 	"errors"
+	"io"
 	"log/slog"
+	"mime"
+	"mime/multipart"
 	"net"
 	"net/http"
 	"runtime/debug"
@@ -65,6 +72,26 @@ func (s *Server) recoverMW(next http.Handler) http.Handler {
 	})
 }
 
+// securityHeadersMW sets the response headers every page and file needs.
+//
+// nosniff stops a browser second-guessing the content types this server
+// chose, which matters for user uploads above all. The framing headers keep
+// every page out of other sites' frames, so a button here cannot be dressed up
+// as something else and clicked by somebody who thinks they are elsewhere;
+// both forms are sent because older browsers only know X-Frame-Options. Only
+// frame-ancestors is set in the policy: a full Content-Security-Policy would
+// have to allow the inline Alpine expressions, and is the operator's choice.
+func securityHeadersMW(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		header := w.Header()
+		header.Set("X-Content-Type-Options", "nosniff")
+		header.Set("X-Frame-Options", "DENY")
+		header.Set("Content-Security-Policy", "frame-ancestors 'none'")
+		header.Set("Referrer-Policy", "same-origin")
+		next.ServeHTTP(w, r)
+	})
+}
+
 // logMW records one line per request.
 func (s *Server) logMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -118,57 +145,165 @@ func (s *Server) sessionMW(next http.Handler) http.Handler {
 	})
 }
 
-// csrfMW implements double-submit-cookie CSRF protection. The token lives in a
-// readable cookie; mutating requests must echo it via header or form field.
+// csrfMW implements CSRF protection. Mutating requests must echo the token via
+// header or form field.
+//
+// A signed-in request's token is derived from its session, so it cannot be
+// planted: a cookie set by a neighbouring subdomain, or left over from before
+// sign-in, is not the token this session expects. A signed-out request has no
+// session to bind to and uses a double-submit cookie, which is still what keeps
+// a stranger from submitting the sign-in form on somebody's behalf.
 func (s *Server) csrfMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		token := ""
-		if c, err := r.Cookie(csrfCookie); err == nil && len(c.Value) >= 32 {
-			token = c.Value
-		}
-		if token == "" {
-			token = ids.Token(32)
-			http.SetCookie(w, &http.Cookie{
-				Name:     csrfCookie,
-				Value:    token,
-				Path:     "/",
-				SameSite: http.SameSiteLaxMode,
-				Secure:   s.cfg.SecureCookies || isSecureRequest(r),
-				HttpOnly: false, // the page must be able to read it
-				MaxAge:   30 * 24 * 60 * 60,
-			})
-		}
+		token := s.expectedCSRF(w, r)
 
 		if isMutating(r.Method) && !isAPIKeyAuth(r.Context()) && !isAPIPath(r) {
-			provided := r.Header.Get(csrfHeader)
-			if provided == "" {
-				// Limits and upload slots are installed before any form parser.
-				// Do not use FormValue alone: it hides body-limit errors.
-				var err error
-				if isFormEncoded(r) {
-					err = r.ParseForm()
-				} else {
-					err = r.ParseMultipartForm(multipartMemory)
+			provided, err := providedCSRF(r)
+			if err != nil {
+				status := http.StatusBadRequest
+				var tooLarge *http.MaxBytesError
+				if errors.As(err, &tooLarge) {
+					status = http.StatusRequestEntityTooLarge
 				}
-				if err != nil && !errors.Is(err, http.ErrNotMultipart) {
-					status := http.StatusBadRequest
-					var tooLarge *http.MaxBytesError
-					if errors.As(err, &tooLarge) {
-						status = http.StatusRequestEntityTooLarge
-					}
-					http.Error(w, "could not read form", status)
-					return
-				}
-				provided = r.FormValue(csrfField)
+				http.Error(w, "could not read form", status)
+				return
 			}
 			if subtle.ConstantTimeCompare([]byte(provided), []byte(token)) != 1 {
 				s.log.Warn("csrf rejection", "method", r.Method, "path", r.URL.Path)
 				http.Error(w, "invalid or missing CSRF token", http.StatusForbidden)
 				return
 			}
+			if !parseCheckedMultipart(w, r) {
+				return
+			}
 		}
 
 		next.ServeHTTP(w, r.WithContext(withCSRF(r.Context(), token)))
+	})
+}
+
+// providedCSRF finds the token a mutating request carries.
+//
+// The header is what htmx sends, and costs nothing to read. A form posted
+// without JavaScript carries the token as a field instead. An ordinary form is
+// small and bounded, so it is parsed. A multipart body may be an upload of
+// hundreds of megabytes, so only its first part is read, which is where the
+// templates put the token: the rest of the body is left for the handler, and
+// is never read for a request that turns out to have no token.
+func providedCSRF(r *http.Request) (string, error) {
+	if provided := r.Header.Get(csrfHeader); provided != "" {
+		return provided, nil
+	}
+	if isFormEncoded(r) {
+		// Do not use FormValue alone: it hides body-limit errors.
+		if err := r.ParseForm(); err != nil {
+			return "", err
+		}
+		return r.PostFormValue(csrfField), nil
+	}
+	return firstPartToken(r)
+}
+
+// parseCheckedMultipart parses a multipart body once its request has passed
+// the CSRF check, so a handler reading r.Form sees its fields whether the form
+// arrived as multipart or not. The upload endpoints are left alone: they parse
+// their own body, after taking a processing slot. It writes the refusal itself
+// and reports whether to continue.
+func parseCheckedMultipart(w http.ResponseWriter, r *http.Request) bool {
+	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || mediaType != "multipart/form-data" || isUploadPath(r) {
+		return true
+	}
+	if err := r.ParseMultipartForm(multipartMemory); err != nil {
+		status := http.StatusBadRequest
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			status = http.StatusRequestEntityTooLarge
+		}
+		http.Error(w, "could not read form", status)
+		return false
+	}
+	return true
+}
+
+// csrfPeekLimit bounds how much of a multipart body is read to find the token.
+const csrfPeekLimit = 16 << 10
+
+// firstPartToken reads the CSRF field from the first part of a multipart body
+// and puts back everything it consumed.
+func firstPartToken(r *http.Request) (string, error) {
+	mediaType, params, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || mediaType != "multipart/form-data" || params["boundary"] == "" {
+		return "", nil
+	}
+
+	original := r.Body
+	var consumed bytes.Buffer
+	reader := multipart.NewReader(io.TeeReader(io.LimitReader(original, csrfPeekLimit), &consumed), params["boundary"])
+	defer func() {
+		r.Body = struct {
+			io.Reader
+			io.Closer
+		}{io.MultiReader(bytes.NewReader(consumed.Bytes()), original), original}
+	}()
+
+	part, err := reader.NextPart()
+	if err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			return "", err
+		}
+		return "", nil
+	}
+	if part.FormName() != csrfField {
+		return "", nil
+	}
+	value, err := io.ReadAll(io.LimitReader(part, 256))
+	if err != nil {
+		return "", nil
+	}
+	return string(value), nil
+}
+
+// expectedCSRF returns the token this request must carry, issuing the cookie
+// that holds it when the browser does not already have the right one.
+func (s *Server) expectedCSRF(w http.ResponseWriter, r *http.Request) string {
+	current := ""
+	if c, err := r.Cookie(csrfCookie); err == nil {
+		current = c.Value
+	}
+
+	token := current
+	if session, err := r.Cookie(sessionCookie); err == nil && session.Value != "" && currentUser(r.Context()) != nil {
+		token = sessionCSRFToken(session.Value)
+	} else if len(token) < 32 {
+		token = ids.Token(32)
+	}
+	if token != current {
+		s.setCSRFCookie(w, r, token)
+	}
+	return token
+}
+
+// sessionCSRFToken derives a session's CSRF token from its secret. The session
+// token never leaves its HttpOnly cookie, so nobody without it can compute
+// this, and the derivation is one-way, so publishing this reveals nothing.
+func sessionCSRFToken(sessionToken string) string {
+	mac := hmac.New(sha256.New, []byte(sessionToken))
+	mac.Write([]byte("imvault-csrf-v1"))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// setCSRFCookie hands the browser the token its forms and htmx headers echo.
+func (s *Server) setCSRFCookie(w http.ResponseWriter, r *http.Request, token string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     csrfCookie,
+		Value:    token,
+		Path:     "/",
+		SameSite: http.SameSiteLaxMode,
+		Secure:   s.secureCookies(r),
+		HttpOnly: false, // the page must be able to read it
+		MaxAge:   30 * 24 * 60 * 60,
 	})
 }
 
@@ -361,12 +496,15 @@ func (s *Server) rateLimitKey(r *http.Request) string {
 //
 // Proxy headers are only consulted when explicitly trusted: they are otherwise
 // trivially spoofable, which would let a caller sidestep the limit entirely.
+// Even then only the right-most X-Forwarded-For entry counts. That is the one
+// the trusted proxy itself appended; anything to its left arrived from the
+// client, so a proxy configured to append rather than replace would otherwise
+// let every request choose its own bucket.
 func (s *Server) clientIP(r *http.Request) string {
 	if s.cfg.TrustProxyHeaders {
-		if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
-			// The left-most entry is the original client.
-			first, _, _ := strings.Cut(forwarded, ",")
-			if ip := strings.TrimSpace(first); ip != "" {
+		if forwarded := r.Header.Values("X-Forwarded-For"); len(forwarded) > 0 {
+			entries := strings.Split(forwarded[len(forwarded)-1], ",")
+			if ip := strings.TrimSpace(entries[len(entries)-1]); ip != "" {
 				return ip
 			}
 		}
@@ -391,11 +529,14 @@ func (s *Server) clearSessionCookie(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   -1,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   s.cfg.SecureCookies || isSecureRequest(r),
+		Secure:   s.secureCookies(r),
 	})
 }
 
-// rateLimitLogins bounds sign-in attempts.
+// rateLimitLogins bounds sign-in attempts, and every other route that checks a
+// credential or acts for an anonymous caller in a way worth repeating: asking
+// for reset mail, registering, redeeming a reset link, and the current-password
+// checks behind the settings pages.
 //
 // This matters more once a second factor exists: a six-digit code is small
 // enough that unlimited guesses would eventually find one, so the code prompt

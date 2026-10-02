@@ -264,7 +264,7 @@ func (s *Server) handleTagPage(w http.ResponseWriter, r *http.Request) {
 	s.renderPage(w, http.StatusOK, "tag", tagPageView{
 		base:       s.base(r, "#"+tag.Name),
 		Tag:        tag,
-		Grid:       s.grid(r, files, false, false, "", "No images carry this tag yet."),
+		Grid:       s.grid(r, files, false, false, "", "Nothing carries this tag yet."),
 		Pagination: pg,
 	})
 }
@@ -278,7 +278,7 @@ func (s *Server) lookupVisibleFile(w http.ResponseWriter, r *http.Request) (file
 	f, err := s.store.FileByID(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			s.notFound(w, r, "That image does not exist.")
+			s.notFound(w, r, "That file does not exist.")
 			return nil, false
 		}
 		s.log.Error("lookup file", "id", id, "error", err)
@@ -298,7 +298,7 @@ func (s *Server) lookupVisibleFile(w http.ResponseWriter, r *http.Request) (file
 
 	if !canViewFile(currentUser(r.Context()), f) {
 		// Do not reveal that a private file exists.
-		s.notFound(w, r, "That image does not exist.")
+		s.notFound(w, r, "That file does not exist.")
 		return nil, false
 	}
 

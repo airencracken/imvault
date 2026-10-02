@@ -86,7 +86,6 @@ func (s *Server) handleFileMap(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", image.contentType)
 	w.Header().Set("Cache-Control", "private, max-age=0, must-revalidate")
-	w.Header().Set("X-Content-Type-Options", "nosniff")
 	if r.Method != http.MethodHead {
 		_, _ = w.Write(image.data)
 	}
@@ -124,7 +123,7 @@ func (s *Server) fetchMap(ctx context.Context, lat, lon float64) (mapImage, erro
 	if err != nil {
 		return mapImage{}, err
 	}
-	defer resp.Body.Close()
+	defer s.closeLogged(resp.Body, "map response")
 	if resp.StatusCode != http.StatusOK {
 		return mapImage{}, fmt.Errorf("map provider returned %d", resp.StatusCode)
 	}

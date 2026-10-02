@@ -162,6 +162,8 @@ type uploadView struct {
 	MaxVideoSeconds int
 	VideoEnabled    bool
 	Albums          []*models.Album
+	// Result is set when the page answers an upload posted without htmx.
+	Result *uploadResultView
 }
 
 // apiKeysView backs the API key management page and the panel fragment.
@@ -263,6 +265,7 @@ type passwordView struct {
 	HasEmail      bool
 	VerifyPending bool
 	Error         string
+	Credentials   credentialState
 }
 
 // adminMailView backs the outbound mail queue.

@@ -1,0 +1,28 @@
+{{define "reauth_panel"}}
+{{/* Shown to an account that has no password of its own. It sits outside the
+     other forms on the page, because a form cannot contain another. */}}
+{{if not .Credentials.PasswordSet}}
+<section class="panel stack">
+  <h2>Confirm it is you</h2>
+  <p class="muted">
+    This account signs in with {{default "your sign-in provider" .OIDCName}} and has
+    no password of its own. Settings that would ask for a password ask the
+    provider instead: confirm there, and for ten minutes you can change them here.
+  </p>
+  {{if .Credentials.Reauthenticated}}
+  <p><span class="badge">confirmed</span> You can change these settings now.</p>
+  {{else if .Credentials.CanReauthenticate}}
+  <form method="post" action="/settings/reauth">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <input type="hidden" name="next" value="{{.Credentials.Next}}">
+    <button class="btn" type="submit">Confirm with {{default "your provider" .OIDCName}}</button>
+  </form>
+  {{else}}
+  <p class="muted">
+    No provider is connected any more, so ask an administrator for a reset link
+    to choose a password.
+  </p>
+  {{end}}
+</section>
+{{end}}
+{{end}}

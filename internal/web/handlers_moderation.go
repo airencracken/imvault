@@ -105,13 +105,15 @@ func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
 
 	// Where to send them back to, resolved from the target rather than trusting
 	// a redirect carried in the form, and whether it is theirs.
-	back := "/"
-	isOwn := false
+	var (
+		back  string
+		isOwn bool
+	)
 	switch kind {
 	case models.TargetFile:
 		file, err := s.store.FileByID(r.Context(), targetID)
 		if err != nil || !canViewFile(user, file) {
-			s.notFound(w, r, "That image does not exist.")
+			s.notFound(w, r, "That file does not exist.")
 			return
 		}
 		back = "/f/" + file.ID
@@ -124,6 +126,11 @@ func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
 		}
 		back = "/a/" + album.Slug
 		isOwn = ownsAlbum(user, album)
+		// The form names the album by its slug, which is what a person sees,
+		// but the report records its id. A slug is reused as soon as another
+		// album takes the same title, and a report must never come to mean a
+		// different album than the one somebody complained about.
+		targetID = albumReportTarget(album)
 	default:
 		http.Error(w, "invalid report", http.StatusBadRequest)
 		return
@@ -132,11 +139,11 @@ func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
 	// Reporting your own content is not a thing, and neither is reporting
 	// something as a moderator, who can simply remove it.
 	if isOwn {
-		redirectNotice(w, r, back, "error", "That is yours; use Delete instead.")
+		s.redirectFlash(w, r, back, flashError, "That is yours; use Delete instead.")
 		return
 	}
 	if canModerateContent(user) {
-		redirectNotice(w, r, back, "error",
+		s.redirectFlash(w, r, back, flashError,
 			"You can remove it directly rather than reporting it.")
 		return
 	}
@@ -144,12 +151,12 @@ func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
 	created, err := s.store.CreateReport(r.Context(), kind, targetID, user.ID, user.Username, reason, note)
 	if err != nil {
 		if errors.Is(err, store.ErrConflict) {
-			redirectNotice(w, r, back, "notice",
+			s.redirectFlash(w, r, back, flashNotice,
 				"You have already reported this. A moderator will look at it.")
 			return
 		}
 		s.log.Error("create report", "kind", string(kind), "target", targetID, "error", err)
-		redirectNotice(w, r, back, "error", "Could not record the report.")
+		s.redirectFlash(w, r, back, flashError, "Could not record the report.")
 		return
 	}
 
@@ -160,8 +167,25 @@ func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
 		"reason", string(reason),
 		"report", created.ID)
 
-	redirectNotice(w, r, back, "notice",
+	s.redirectFlash(w, r, back, flashNotice,
 		"Thank you. A moderator will look at it.")
+}
+
+// albumReportTarget is how a report refers to an album: by its id, which is
+// never reused.
+func albumReportTarget(album *models.Album) string {
+	return strconv.FormatInt(album.ID, 10)
+}
+
+// reportedAlbum resolves an album report's target. A target that is not an id
+// is a report written before reports used ids, about an album that was already
+// gone when that changed.
+func (s *Server) reportedAlbum(ctx context.Context, target string) (*models.Album, error) {
+	id, err := strconv.ParseInt(target, 10, 64)
+	if err != nil {
+		return nil, store.ErrNotFound
+	}
+	return s.store.AlbumByID(ctx, id)
 }
 
 // reportRowFor resolves a report's target for display.
@@ -170,10 +194,10 @@ func (s *Server) reportRowFor(r *http.Request, report *models.Report) reportRow 
 
 	switch report.TargetKind {
 	case models.TargetAlbum:
-		album, err := s.store.AlbumBySlug(r.Context(), report.TargetID)
+		album, err := s.reportedAlbum(r.Context(), report.TargetID)
 		if err != nil {
 			row.TargetGone = true
-			row.TargetLabel = report.TargetID
+			row.TargetLabel = "a deleted album"
 			return row
 		}
 		row.TargetLabel = album.Title
@@ -278,7 +302,7 @@ func (s *Server) handleResolveReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !report.Open() {
-		redirectNotice(w, r, "/moderation", "notice", "That report has already been dealt with.")
+		s.redirectFlash(w, r, "/moderation", flashNotice, "That report has already been dealt with.")
 		return
 	}
 
@@ -308,7 +332,7 @@ func (s *Server) handleResolveReport(w http.ResponseWriter, r *http.Request) {
 			}
 			s.log.Error("moderation: remove reported content",
 				"report", report.ID, "target", report.TargetID, "error", err)
-			redirectNotice(w, r, "/moderation", "error", "Could not remove the content.")
+			s.redirectFlash(w, r, "/moderation", flashError, "Could not remove the content.")
 			return
 		}
 		status = models.ReportActioned
@@ -320,17 +344,17 @@ func (s *Server) handleResolveReport(w http.ResponseWriter, r *http.Request) {
 		recorded = models.ActionDismissReport
 		message = "Report dismissed."
 	default:
-		redirectNotice(w, r, "/moderation", "error", "Choose whether to remove the content or dismiss the report.")
+		s.redirectFlash(w, r, "/moderation", flashError, "Choose whether to remove the content or dismiss the report.")
 		return
 	}
 
 	if err := s.store.ResolveReport(r.Context(), report.ID, actor.ID, status, note); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			redirectNotice(w, r, "/moderation", "notice", "Another moderator got there first.")
+			s.redirectFlash(w, r, "/moderation", flashNotice, "Another moderator got there first.")
 			return
 		}
 		s.log.Error("moderation: resolve report", "report", report.ID, "error", err)
-		redirectNotice(w, r, "/moderation", "error", "The report could not be closed.")
+		s.redirectFlash(w, r, "/moderation", flashError, "The report could not be closed.")
 		return
 	}
 
@@ -345,7 +369,7 @@ func (s *Server) handleResolveReport(w http.ResponseWriter, r *http.Request) {
 		"status", string(status),
 		"target", report.TargetID)
 
-	redirectNotice(w, r, "/moderation", "notice", message)
+	s.redirectFlash(w, r, "/moderation", flashNotice, message)
 }
 
 // reportLabel names the thing a report is about, for the log entry. It falls
@@ -353,7 +377,7 @@ func (s *Server) handleResolveReport(w http.ResponseWriter, r *http.Request) {
 func (s *Server) reportLabel(r *http.Request, report *models.Report) string {
 	switch report.TargetKind {
 	case models.TargetAlbum:
-		if album, err := s.store.AlbumBySlug(r.Context(), report.TargetID); err == nil {
+		if album, err := s.reportedAlbum(r.Context(), report.TargetID); err == nil {
 			return album.Title
 		}
 	case models.TargetFile:
@@ -376,7 +400,7 @@ func (s *Server) removeReportedTarget(ctx context.Context, actor *models.User,
 
 	switch report.TargetKind {
 	case models.TargetAlbum:
-		album, err := s.store.AlbumBySlug(ctx, report.TargetID)
+		album, err := s.reportedAlbum(ctx, report.TargetID)
 		if err != nil {
 			return "", err
 		}

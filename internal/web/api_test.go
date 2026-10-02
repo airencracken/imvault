@@ -67,7 +67,7 @@ func (h *harness) apiDo(method, path, key string, body io.Reader, contentType st
 	if err != nil {
 		h.t.Fatalf("%s %s: %v", method, path, err)
 	}
-	defer resp.Body.Close()
+	defer mustClose(h.t, resp.Body)
 
 	out, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -308,7 +308,7 @@ func TestAPIUploadOptions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	anonResp.Body.Close()
+	mustClose(t, anonResp.Body)
 	if anonResp.StatusCode != http.StatusOK {
 		t.Errorf("anonymous access to a public upload = %d, want 200", anonResp.StatusCode)
 	}
@@ -316,9 +316,14 @@ func TestAPIUploadOptions(t *testing.T) {
 	// ?format=text returns a bare URL, which is what ShareX expects.
 	var body strings.Builder
 	writer := multipart.NewWriter(&body)
-	part, _ := writer.CreateFormFile("files", "text.png")
-	part.Write(pngFixture(t, 30, 30))
-	writer.Close()
+	part, err := writer.CreateFormFile("files", "text.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := part.Write(pngFixture(t, 30, 30)); err != nil {
+		t.Fatal(err)
+	}
+	mustClose(t, writer)
 
 	resp, raw := h.apiDo(http.MethodPost, "/api/v1/upload?format=text", key,
 		strings.NewReader(body.String()), writer.FormDataContentType())

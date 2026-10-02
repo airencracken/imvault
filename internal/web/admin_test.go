@@ -166,7 +166,7 @@ func TestAdminAreaRequiresAdministrator(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		resp.Body.Close()
+		mustClose(t, resp.Body)
 		if resp.StatusCode != http.StatusForbidden {
 			t.Errorf("non-admin GET %s = %d, want 403", path, resp.StatusCode)
 		}
@@ -191,7 +191,7 @@ func TestAdminAreaRequiresAdministrator(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer anonResp.Body.Close()
+	defer mustClose(t, anonResp.Body)
 	if anonResp.StatusCode != http.StatusSeeOther {
 		t.Errorf("anonymous /admin = %d, want 303", anonResp.StatusCode)
 	}
@@ -274,8 +274,11 @@ func TestDisablingAnAccountRevokesItsAccess(t *testing.T) {
 	}
 	if resp, err := victimClient.Get(h.server.URL + "/gallery"); err != nil {
 		t.Fatal(err)
-	} else if resp.Body.Close(); resp.StatusCode != http.StatusOK {
-		t.Fatalf("session before disabling = %d, want 200", resp.StatusCode)
+	} else {
+		mustClose(t, resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("session before disabling = %d, want 200", resp.StatusCode)
+		}
 	}
 
 	resp, _ := h.postForm("/admin/users/"+itoa64(victim.ID)+"/disabled", url.Values{
@@ -304,7 +307,7 @@ func TestDisablingAnAccountRevokesItsAccess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sessionResp.Body.Close()
+	defer mustClose(t, sessionResp.Body)
 	if sessionResp.StatusCode != http.StatusSeeOther {
 		t.Errorf("disabled account's session = %d, want 303 to the login page", sessionResp.StatusCode)
 	}

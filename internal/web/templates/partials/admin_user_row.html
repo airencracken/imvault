@@ -80,7 +80,7 @@
           hx-target="closest tr" hx-swap="outerHTML">
       <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
       <input type="hidden" name="can_invite" value="{{if .User.CanInvite}}0{{else}}1{{end}}">
-      <button class="btn small" type="submit" aria-label="{{if .User.CanInvite}}Remove invitation access for{{else}}Allow invitations for{{end}} {{.User.Username}}">{{if .User.CanInvite}}Remove invite access{{else}}Allow invites{{end}}</button>
+      <button class="btn small" type="submit" aria-label="{{if .User.CanInvite}}Remove invitation access for{{else}}Allow invitations for{{end}} {{.User.Username}}"{{if .User.CanInvite}} title="Also revokes their open invitations"{{end}}>{{if .User.CanInvite}}Remove invite access{{else}}Allow invites{{end}}</button>
     </form>
     {{end}}
 

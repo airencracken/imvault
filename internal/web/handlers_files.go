@@ -76,7 +76,6 @@ func (s *Server) handleFilePreview(w http.ResponseWriter, r *http.Request) {
 	s.serveObject(w, r, file, key, contentType, "inline")
 }
 
-// serveObject writes a stored object with HTTP caching metadata.
 // objectFor resolves which stored object should be sent, writing the refusal
 // itself when the metadata cannot be removed.
 func (s *Server) objectFor(w http.ResponseWriter, r *http.Request, file *models.File, original string) (string, bool) {
@@ -115,6 +114,7 @@ func (s *Server) metadataUnavailable(w http.ResponseWriter, r *http.Request, fil
 	})
 }
 
+// serveObject writes a stored object with HTTP caching metadata.
 func (s *Server) serveObject(w http.ResponseWriter, r *http.Request, file *models.File, key, contentType, disposition string) {
 	if key == "" {
 		http.NotFound(w, r)
@@ -139,7 +139,7 @@ func (s *Server) serveObject(w http.ResponseWriter, r *http.Request, file *model
 		http.Error(w, "storage error", http.StatusInternalServerError)
 		return
 	}
-	defer f.Close()
+	defer s.closeLogged(f, "stored object")
 
 	if contentType == "" {
 		contentType = "application/octet-stream"
@@ -198,7 +198,7 @@ func (s *Server) handleFileVisibility(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	redirectNotice(w, r, "/f/"+file.ID, "notice", "Visibility updated.")
+	s.redirectFlash(w, r, "/f/"+file.ID, flashNotice, "Visibility updated.")
 }
 
 // handleFileMetadata changes what happens to a file's metadata.
@@ -223,7 +223,7 @@ func (s *Server) handleFileMetadata(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	redirectNotice(w, r, "/f/"+file.ID, "notice", "Metadata setting updated.")
+	s.redirectFlash(w, r, "/f/"+file.ID, flashNotice, "Metadata setting updated.")
 }
 
 // handleFileDelete removes a file and its stored objects.
@@ -237,20 +237,26 @@ func (s *Server) handleFileDelete(w http.ResponseWriter, r *http.Request) {
 	// object can be retried, whereas orphaned bytes are recoverable.
 	if err := s.deleteFileAndRelease(r.Context(), file); err != nil {
 		s.log.Error("delete file", "id", file.ID, "error", err)
-		http.Error(w, "could not delete the image", http.StatusInternalServerError)
+		http.Error(w, "could not delete the file", http.StatusInternalServerError)
 		return
 	}
 	s.recordFileRemoval(r.Context(), currentUser(r.Context()), file, "")
 
 	next := safeNext(r.FormValue("next"))
 	switch {
-	case next != "":
+	case isHTMX(r) && next != "":
 		hxRedirect(w, next)
 	case isHTMX(r):
 		// Empty body with an outerHTML swap removes the card from the grid.
 		w.WriteHeader(http.StatusOK)
 	default:
-		redirectNotice(w, r, "/gallery", "notice", "Image deleted.")
+		// A plain form needs a real redirect. HX-Redirect means nothing to a
+		// browser without htmx, and the 204 that carries it left the page of
+		// a file that no longer exists on screen.
+		if next == "" {
+			next = "/gallery"
+		}
+		s.redirectFlash(w, r, next, flashNotice, "File deleted.")
 	}
 }
 

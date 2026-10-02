@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -35,7 +36,7 @@ func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 
 	s.renderPage(w, http.StatusOK, "home", homeView{
 		base: s.base(r, ""),
-		Grid: s.grid(r, recent, false, false, "", "No public images yet."),
+		Grid: s.grid(r, recent, false, false, "", "Nothing public has been shared yet."),
 	})
 }
 
@@ -101,7 +102,12 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "could not start session", http.StatusInternalServerError)
 			return
 		}
-		http.Redirect(w, r, "/login/2fa", http.StatusSeeOther)
+		// Where the person was going survives the second step.
+		target := "/login/2fa"
+		if next != "" {
+			target += "?next=" + url.QueryEscape(next)
+		}
+		http.Redirect(w, r, target, http.StatusSeeOther)
 		return
 	}
 
@@ -148,33 +154,31 @@ func (s *Server) admit(ctx context.Context, code string) admission {
 		return admission{Refusal: "Registration is disabled on this instance."}
 	}
 
+	// Every refusal reads the same. Telling a stranger whether a code is
+	// unknown, wrong, or spent would confirm which codes exist.
+	const unusable = "That invitation is not valid, or has already been used."
+
 	prefix, ok := invites.Split(code)
 	if !ok {
-		return admission{Refusal: "That invitation is not valid, or has already been used."}
+		return admission{Refusal: unusable}
 	}
-
-	found, err := s.store.InviteByPrefix(ctx, prefix)
+	found, hash, err := s.store.InviteForRedemption(ctx, prefix)
 	if err != nil {
 		if !errors.Is(err, store.ErrNotFound) {
-			return admission{Refusal: "That invitation is not valid, or has already been used."}
+			s.log.Error("admit: look up invitation", "error", err)
 		}
-		return admission{Refusal: "That invitation is not valid, or has already been used."}
+		return admission{Refusal: unusable}
 	}
-
-	// Looking the row up by prefix narrows the search; it does not authenticate
-	// anything. Only a digest match does.
-	hash, err := s.store.InviteCodeHash(ctx, prefix)
-	if err != nil {
-		return admission{Refusal: "That invitation is not valid, or has already been used."}
-	}
+	// Looking the row up by prefix narrows the search; it does not
+	// authenticate anything. Only a digest match does.
 	if !invites.Verify(code, hash) {
-		return admission{Refusal: "That invitation is not valid, or has already been used."}
+		return admission{Refusal: unusable}
 	}
 	// A revoked, expired, or used-up code is refused here for a clear message;
 	// the redemption enforces the same conditions atomically, which is what
 	// stops two people consuming the last use at once.
 	if !found.Usable(time.Now()) {
-		return admission{Refusal: "That invitation is not valid, or has already been used."}
+		return admission{Refusal: unusable}
 	}
 
 	return admission{Invite: found}
@@ -295,7 +299,7 @@ func (s *Server) finishRegistration(w http.ResponseWriter, r *http.Request, user
 		}
 	}
 
-	redirectNotice(w, r, "/gallery", "notice", "Welcome to imvault.")
+	s.redirectFlash(w, r, "/gallery", flashNotice, "Welcome to "+s.branding().SiteName+".")
 }
 
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
@@ -315,12 +319,20 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 // startSession creates a session row and sets the cookie.
 func (s *Server) startSession(ctx context.Context, w http.ResponseWriter, r *http.Request, userID int64) error {
+	_, err := s.newSession(ctx, w, r, userID)
+	return err
+}
+
+// newSession creates a session row, sets its cookie and the CSRF token bound
+// to it, and returns the session token.
+func (s *Server) newSession(ctx context.Context, w http.ResponseWriter, r *http.Request, userID int64) (string, error) {
 	token := ids.Token(32)
 	expires := time.Now().Add(s.cfg.SessionTTL)
 
 	if err := s.store.CreateSession(ctx, hashToken(token), userID, expires); err != nil {
-		return err
+		return "", err
 	}
+	s.setCSRFCookie(w, r, sessionCSRFToken(token))
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookie,
@@ -328,19 +340,38 @@ func (s *Server) startSession(ctx context.Context, w http.ResponseWriter, r *htt
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   s.cfg.SecureCookies || isSecureRequest(r),
+		Secure:   s.secureCookies(r),
 		Expires:  expires,
 		MaxAge:   int(s.cfg.SessionTTL.Seconds()),
 	})
-	return nil
+	return token, nil
 }
 
+// maxNextLength bounds a redirect target carried through a form.
+const maxNextLength = 2048
+
 // safeNext only allows same-site relative redirect targets.
+//
+// A prefix check is not enough on its own. Browsers read a backslash as a
+// slash and drop tabs and newlines from URLs, so "/\evil.example" and
+// "/<TAB>/evil.example" both arrive at another site. So the target has to be
+// plain printable ASCII with no backslash, and has to parse as a path with no
+// scheme and no host.
 func safeNext(next string) string {
-	if next == "" {
+	if next == "" || len(next) > maxNextLength {
 		return ""
 	}
 	if !strings.HasPrefix(next, "/") || strings.HasPrefix(next, "//") {
+		return ""
+	}
+	for i := 0; i < len(next); i++ {
+		if c := next[i]; c <= ' ' || c >= 0x7f || c == '\\' {
+			return ""
+		}
+	}
+	parsed, err := url.Parse(next)
+	if err != nil || parsed.Scheme != "" || parsed.Host != "" || parsed.User != nil ||
+		parsed.Opaque != "" || !strings.HasPrefix(parsed.Path, "/") {
 		return ""
 	}
 	return next

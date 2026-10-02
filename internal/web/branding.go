@@ -35,33 +35,37 @@ func (s *Server) handleBrandingAsset(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "image/png")
 	w.Header().Set("Cache-Control", "public, max-age=0, must-revalidate")
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Write(content)
+	s.writeBody(w, content)
 }
 
 func (s *Server) handleAdminSaveBrandingAssets(w http.ResponseWriter, r *http.Request) {
 	mascot, err := uploadedBrandImage(r, "mascot")
 	if err != nil {
-		redirectNotice(w, r, "/admin/settings", "error", err.Error())
+		s.redirectFlash(w, r, "/admin/settings", flashError, err.Error())
 		return
 	}
 	favicon, err := uploadedBrandImage(r, "favicon")
 	if err != nil {
-		redirectNotice(w, r, "/admin/settings", "error", err.Error())
+		s.redirectFlash(w, r, "/admin/settings", flashError, err.Error())
 		return
 	}
 	removeMascot := r.FormValue("remove_mascot") == "1"
 	removeFavicon := r.FormValue("remove_favicon") == "1"
 	if len(mascot) == 0 && len(favicon) == 0 && !removeMascot && !removeFavicon {
-		redirectNotice(w, r, "/admin/settings", "error", "Choose an image or select one to remove.")
+		s.redirectFlash(w, r, "/admin/settings", flashError, "Choose an image or select one to remove.")
 		return
 	}
 	if err := s.store.SaveBrandingAssets(r.Context(), mascot, favicon, removeMascot, removeFavicon); err != nil {
 		s.log.Error("admin: save branding assets", "error", err)
-		redirectNotice(w, r, "/admin/settings", "error", "Could not save the images.")
+		s.redirectFlash(w, r, "/admin/settings", flashError, "Could not save the images.")
 		return
 	}
-	redirectNotice(w, r, "/admin/settings", "notice", "Brand images saved.")
+	if err := s.reloadSettings(r.Context()); err != nil {
+		s.log.Error("admin: reload after branding assets", "error", err)
+		s.redirectFlash(w, r, "/admin/settings", flashError, "The images were saved but could not be read back.")
+		return
+	}
+	s.redirectFlash(w, r, "/admin/settings", flashNotice, "Brand images saved.")
 }
 
 func uploadedBrandImage(r *http.Request, field string) ([]byte, error) {
@@ -72,7 +76,11 @@ func uploadedBrandImage(r *http.Request, field string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() {
+		// The upload is a temporary multipart file; nothing depends on
+		// closing it beyond releasing the handle.
+		_ = file.Close()
+	}()
 	if header.Size > maxBrandImageBytes {
 		return nil, errors.New("choose an image no larger than 2 MiB")
 	}

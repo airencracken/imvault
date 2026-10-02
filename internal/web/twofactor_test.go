@@ -85,6 +85,9 @@ func (h *harness) enableTwoFactor(t *testing.T, userID int64) []string {
 		t.Fatalf("begin = %d, want 303", resp.StatusCode)
 	}
 
+	// Enrol with the previous window's code, which is still accepted, so the
+	// current one is left for the test to sign in with: the code that confirms
+	// enrolment is spent like any other.
 	resp, page := h.postForm("/settings/2fa/confirm", url.Values{
 		"csrf_token": {h.csrf()},
 		"code":       {h.totpCodeAt(t, userID, time.Now().Add(-totp.Period))},

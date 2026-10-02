@@ -308,5 +308,5 @@ func TestMailQueueIsDurableAcrossARestart(t *testing.T) {
 		t.Errorf("%d messages in the queue, want 1", len(messages))
 	}
 
-	var _ mail.Sender = restarted
+	_ = mail.Sender(restarted)
 }

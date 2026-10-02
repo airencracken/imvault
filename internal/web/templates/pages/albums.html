@@ -51,7 +51,7 @@
   {{range .Albums}}
   <a class="album-card" href="/a/{{.Slug}}">
     <strong>{{.Title}}</strong>
-    <span class="muted">{{.FileCount}} image{{if ne .FileCount 1}}s{{end}}</span>
+    <span class="muted">{{.FileCount}} file{{if ne .FileCount 1}}s{{end}}</span>
     {{if not .Visibility.IsPublic}}<span class="badge private">{{.Visibility.ShortLabel}}</span>{{end}}
     {{if .Access.Shared}}<span class="badge">shared</span>{{end}}
   </a>
@@ -65,14 +65,14 @@
 <h2>Shared with everyone here</h2>
 <p class="muted">
   Albums other people made that you can see. Where one is shared, you can add
-  your own images to it.
+  your own photos and clips to it.
 </p>
 <div class="album-list">
   {{range .Shared}}
   <a class="album-card" href="/a/{{.Slug}}">
     <strong>{{.Title}}</strong>
     <span class="muted">
-      {{.FileCount}} image{{if ne .FileCount 1}}s{{end}} · by {{default "unknown" .Username}}
+      {{.FileCount}} file{{if ne .FileCount 1}}s{{end}} · by {{default "unknown" .Username}}
     </span>
     {{if not .Visibility.IsPublic}}<span class="badge private">{{.Visibility.ShortLabel}}</span>{{end}}
     {{if .Access.Shared}}<span class="badge">shared</span>{{end}}

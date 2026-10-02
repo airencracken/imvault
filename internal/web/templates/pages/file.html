@@ -130,7 +130,8 @@
       <form class="inline-form" method="post" action="/f/{{.File.ID}}/tags"
             hx-post="/f/{{.File.ID}}/tags" hx-target="#tag-chips" hx-swap="outerHTML">
         <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-        <input name="name" placeholder="add a tag" autocomplete="off" maxlength="48">
+        <label class="sr-only" for="tag-add">New tag</label>
+        <input id="tag-add" name="name" placeholder="add a tag" autocomplete="off" maxlength="48">
         <button class="btn small" type="submit">Add</button>
       </form>
       {{end}}
@@ -153,7 +154,7 @@
       <form method="post" action="/f/{{.File.ID}}/delete">
         <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
         <input type="hidden" name="next" value="/gallery">
-        <button class="btn danger" type="submit">Delete {{if .File.IsVideo}}clip{{else}}image{{end}}</button>
+        <button class="btn danger" type="submit">Delete {{if .File.IsVideo}}clip{{else}}photo{{end}}</button>
       </form>
     </section>
     {{end}}
