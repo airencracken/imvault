@@ -41,7 +41,10 @@ func (s *Server) handleForgotPage(w http.ResponseWriter, r *http.Request) {
 // handleForgot issues a reset link.
 //
 // The response is identical whether or not the account exists, so the endpoint
-// cannot be used to discover who has an account here.
+// cannot be used to discover who has an account here. That includes how long
+// it takes: minting the token and talking to the relay happen after the
+// response, because a reply that took a second longer for real accounts would
+// say exactly what the identical text was hiding.
 func (s *Server) handleForgot(w http.ResponseWriter, r *http.Request) {
 	if !s.mail.Enabled() {
 		http.Redirect(w, r, "/forgot", http.StatusSeeOther)
@@ -55,9 +58,11 @@ func (s *Server) handleForgot(w http.ResponseWriter, r *http.Request) {
 	identifier := strings.TrimSpace(r.FormValue("identifier"))
 
 	if user := s.lookupAccount(r.Context(), identifier); user != nil {
-		if err := s.issueReset(r.Context(), r, user, "requested a reset"); err != nil {
-			s.log.Error("forgot: issue reset", "user", user.ID, "error", err)
-		}
+		s.inBackground(func(ctx context.Context) {
+			if err := s.issueReset(ctx, user, "requested a reset"); err != nil {
+				s.log.Error("forgot: issue reset", "user", user.ID, "error", err)
+			}
+		})
 	} else {
 		s.log.Info("forgot: no such account", "identifier", identifier, "remote", r.RemoteAddr)
 	}
@@ -85,7 +90,7 @@ func (s *Server) lookupAccount(ctx context.Context, identifier string) *models.U
 
 // issueReset mints a single-use reset token and, when the account has an email
 // address, sends the link to it. The reason is only used for logging.
-func (s *Server) issueReset(ctx context.Context, r *http.Request, user *models.User, reason string) error {
+func (s *Server) issueReset(ctx context.Context, user *models.User, reason string) error {
 	if user.Email == "" {
 		s.log.Warn("reset requested for an account with no email address",
 			"user", user.ID, "reason", reason)
@@ -104,18 +109,21 @@ func (s *Server) issueReset(ctx context.Context, r *http.Request, user *models.U
 		return err
 	}
 
-	link := s.absoluteURL(r, resetPath+token)
+	link, err := s.emailLink(resetPath + token)
+	if err != nil {
+		return err
+	}
 	return s.mail.Send(ctx, mail.Message{
 		To:      user.Email,
-		Subject: "Reset your imvault password",
-		Body:    resetEmailBody(user.Username, link, s.cfg.PasswordResetTTL),
+		Subject: "Reset your " + s.branding().SiteName + " password",
+		Body:    resetEmailBody(s.branding().SiteName, user.Username, link, s.cfg.PasswordResetTTL),
 	})
 }
 
-func resetEmailBody(username, link string, ttl time.Duration) string {
+func resetEmailBody(siteName, username, link string, ttl time.Duration) string {
 	return fmt.Sprintf(`Hello %s,
 
-Somebody asked to reset the password for your imvault account. If that was you,
+Somebody asked to reset the password for your %s account. If that was you,
 open this link to choose a new one:
 
 %s
@@ -124,7 +132,7 @@ The link can only be used once and expires in %s.
 
 If you did not ask for this, you can ignore this message: your password has not
 changed.
-`, username, link, humanDuration(ttl))
+`, username, siteName, link, humanDuration(ttl))
 }
 
 // humanDuration renders a coarse duration for prose.
@@ -225,7 +233,20 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	redirectNotice(w, r, "/gallery", "notice", "Your password has been changed and you are signed in.")
+	s.redirectFlash(w, r, "/gallery", flashNotice, "Your password has been changed and you are signed in.")
+}
+
+// passwordPage builds the password settings page for the signed-in account.
+func (s *Server) passwordPage(r *http.Request, user *models.User, message string) passwordView {
+	return passwordView{
+		base:          s.base(r, "Password"),
+		User:          user,
+		MailEnabled:   s.mail.Enabled(),
+		HasEmail:      user.Email != "",
+		VerifyPending: user.Email != "" && !user.EmailVerified,
+		Error:         message,
+		Credentials:   s.credentialsFor(r, user, "/settings/password"),
+	}
 }
 
 // handleChangeEmail sets or replaces the signed-in account's email address,
@@ -239,21 +260,14 @@ func (s *Server) handleChangeEmail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	renderErr := func(status int, message string) {
-		s.renderPage(w, status, "password", passwordView{
-			base:          s.base(r, "Password"),
-			User:          user,
-			MailEnabled:   s.mail.Enabled(),
-			HasEmail:      user.Email != "",
-			VerifyPending: user.Email != "" && !user.EmailVerified,
-			Error:         message,
-		})
+		s.renderPage(w, status, "password", s.passwordPage(r, user, message))
 	}
 
 	// Changing where password resets are sent is sensitive enough to warrant
-	// proving you know the current password.
-	current := r.FormValue("current_password")
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(current)); err != nil {
-		renderErr(http.StatusForbidden, "That is not your current password.")
+	// proving you are the owner: the current password, or a fresh provider
+	// sign-in for an account that has none.
+	if err := s.checkCurrentPassword(r, user, r.FormValue("current_password")); err != nil {
+		renderErr(http.StatusForbidden, err.Error())
 		return
 	}
 
@@ -284,7 +298,7 @@ func (s *Server) handleChangeEmail(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	redirectNotice(w, r, "/settings/password", "notice", message)
+	s.redirectFlash(w, r, "/settings/password", flashNotice, message)
 }
 
 // handleVerifyEmail confirms an address.
@@ -307,23 +321,17 @@ func (s *Server) handleVerifyEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	redirectNotice(w, r, "/settings/password", "notice", "Thanks — your email address is confirmed.")
+	s.redirectFlash(w, r, "/settings/password", flashNotice, "Thanks — your email address is confirmed.")
 }
 
 // handleChangePasswordPage shows the change-password form for a signed-in user.
 func (s *Server) handleChangePasswordPage(w http.ResponseWriter, r *http.Request) {
 	user := currentUser(r.Context())
-
-	s.renderPage(w, http.StatusOK, "password", passwordView{
-		base:          s.base(r, "Password"),
-		User:          user,
-		MailEnabled:   s.mail.Enabled(),
-		HasEmail:      user.Email != "",
-		VerifyPending: user.Email != "" && !user.EmailVerified,
-	})
+	s.renderPage(w, http.StatusOK, "password", s.passwordPage(r, user, ""))
 }
 
-// handleChangePassword changes the password of the signed-in account.
+// handleChangePassword changes the password of the signed-in account, or sets
+// the first one for an account made through a provider.
 func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	user := currentUser(r.Context())
 
@@ -332,23 +340,15 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	current := r.FormValue("current_password")
 	password := r.FormValue("password")
 	confirm := r.FormValue("password_confirm")
 
 	renderErr := func(status int, message string) {
-		s.renderPage(w, status, "password", passwordView{
-			base:          s.base(r, "Password"),
-			User:          user,
-			MailEnabled:   s.mail.Enabled(),
-			HasEmail:      user.Email != "",
-			VerifyPending: user.Email != "" && !user.EmailVerified,
-			Error:         message,
-		})
+		s.renderPage(w, status, "password", s.passwordPage(r, user, message))
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(current)); err != nil {
-		renderErr(http.StatusForbidden, "That is not your current password.")
+	if err := s.checkCurrentPassword(r, user, r.FormValue("current_password")); err != nil {
+		renderErr(http.StatusForbidden, err.Error())
 		return
 	}
 	if err := accounts.ValidatePassword(password); err != nil {
@@ -366,7 +366,7 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	redirectNotice(w, r, "/gallery", "notice",
+	s.redirectFlash(w, r, "/gallery", flashNotice,
 		"Your password has been changed. Other devices have been signed out.")
 }
 
@@ -421,17 +421,20 @@ func (s *Server) sendVerificationEmail(ctx context.Context, r *http.Request, use
 		return err
 	}
 
-	link := s.absoluteURL(r, verifyPath+token)
+	link, err := s.emailLink(verifyPath + token)
+	if err != nil {
+		return err
+	}
 	return s.mail.Send(ctx, mail.Message{
 		To:      user.Email,
 		Subject: "Confirm your email address",
 		Body: fmt.Sprintf(`Hello %s,
 
-Open this link to confirm this address for your imvault account:
+Open this link to confirm this address for your %s account:
 
 %s
 
 If you did not create an account, you can ignore this message.
-`, user.Username, link),
+`, user.Username, s.branding().SiteName, link),
 	})
 }

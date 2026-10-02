@@ -87,7 +87,9 @@ func newHarnessFull(t *testing.T, mutate func(*config.Config), mode mailMode) *h
 
 	dir := t.TempDir()
 	cfg := &config.Config{
-		Addr:                  "127.0.0.1:0",
+		Addr: "127.0.0.1:0",
+		// Mirror config.Load's default name.
+		Name:                  "Imvault",
 		DataDir:               dir,
 		DBPath:                filepath.Join(dir, "test.db"),
 		AllowSignup:           true,
@@ -124,7 +126,7 @@ func newHarnessFull(t *testing.T, mutate func(*config.Config), mode mailMode) *h
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	t.Cleanup(func() { database.Close() })
+	t.Cleanup(func() { mustClose(t, database) })
 
 	objects, err := storage.NewDisk(filepath.Join(dir, "objects"))
 	if err != nil {
@@ -169,6 +171,12 @@ func newHarnessFull(t *testing.T, mutate func(*config.Config), mode mailMode) *h
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 
+	// A relay needs a configured address for the links it sends, exactly as
+	// config.Load insists on one.
+	if mode != mailOff && cfg.BaseURL == "" {
+		cfg.BaseURL = ts.URL
+	}
+
 	return &harness{
 		t:         t,
 		server:    ts,
@@ -206,7 +214,7 @@ func (h *harness) get(path string) (*http.Response, string) {
 	if err != nil {
 		h.t.Fatalf("GET %s: %v", path, err)
 	}
-	defer resp.Body.Close()
+	defer mustClose(h.t, resp.Body)
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		h.t.Fatalf("read %s: %v", path, err)
@@ -227,9 +235,11 @@ func (h *harness) postForm(path string, form url.Values) (*http.Response, string
 	if err != nil {
 		h.t.Fatalf("POST %s: %v", path, err)
 	}
-	defer resp.Body.Close()
-	out, _ := io.ReadAll(resp.Body)
-	return resp, string(out)
+	defer closeBody(h.t, resp)
+	out := readAll(h.t, resp.Body)
+	// Anything the request handed off has finished before the test looks.
+	h.srv.waitBackground()
+	return resp, out
 }
 
 // upload posts a multipart body containing the given files.
@@ -270,7 +280,7 @@ func (h *harness) upload(names ...string) (*http.Response, string) {
 	if err != nil {
 		h.t.Fatalf("upload: %v", err)
 	}
-	defer resp.Body.Close()
+	defer mustClose(h.t, resp.Body)
 	out, _ := io.ReadAll(resp.Body)
 	return resp, string(out)
 }
@@ -436,7 +446,7 @@ func TestCSRFIsEnforced(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer mustClose(t, resp.Body)
 	if resp.StatusCode != http.StatusForbidden {
 		t.Errorf("POST without CSRF = %d, want 403", resp.StatusCode)
 	}
@@ -487,10 +497,17 @@ func TestPrivateFilesAreHiddenFromAnonymous(t *testing.T) {
 	// Upload privately by omitting the public field.
 	var body bytes.Buffer
 	mw := multipart.NewWriter(&body)
-	mw.WriteField("csrf_token", h.csrf())
-	part, _ := mw.CreateFormFile("files", "secret.png")
-	part.Write(pngFixture(t, 64, 64))
-	mw.Close()
+	if err := mw.WriteField("csrf_token", h.csrf()); err != nil {
+		t.Fatal(err)
+	}
+	part, err := mw.CreateFormFile("files", "secret.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := part.Write(pngFixture(t, 64, 64)); err != nil {
+		t.Fatal(err)
+	}
+	mustClose(t, mw)
 
 	req, _ := http.NewRequest(http.MethodPost, h.server.URL+"/upload", &body)
 	req.Header.Set("Content-Type", mw.FormDataContentType())
@@ -501,7 +518,7 @@ func TestPrivateFilesAreHiddenFromAnonymous(t *testing.T) {
 		t.Fatal(err)
 	}
 	out, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
+	mustClose(t, resp.Body)
 
 	ids := fileIDRe.FindAllStringSubmatch(string(out), -1)
 	if len(ids) != 1 {
@@ -524,7 +541,7 @@ func TestPrivateFilesAreHiddenFromAnonymous(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer anonResp.Body.Close()
+	defer mustClose(t, anonResp.Body)
 	if anonResp.StatusCode != http.StatusNotFound {
 		t.Errorf("anonymous access to a private file = %d, want 404", anonResp.StatusCode)
 	}

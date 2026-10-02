@@ -12,6 +12,7 @@ import (
 	"path"
 	"time"
 
+	"imvault/internal/ids"
 	"imvault/internal/models"
 	"imvault/internal/store"
 )
@@ -137,34 +138,51 @@ func (s *Server) handleAccountExport(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(
-		`attachment; filename="%s"`, exportFilename(user.Username)))
+		`attachment; filename="%s"`, exportFilename(s.branding().SiteName, user.Username)))
 	w.Header().Set("Cache-Control", "no-store")
 
+	// The archive is only finished once everything is in it. Closing it after a
+	// failure would write a valid directory for a partial archive, and the
+	// download would look complete with files missing from it.
 	archive := zip.NewWriter(w)
-	defer archive.Close()
 
 	if err := writeJSONEntry(archive, "manifest.json", manifest); err != nil {
-		s.log.Error("export: write manifest", "user", user.ID, "error", err)
-		return
+		s.abortExport(user, "", "write manifest", err)
 	}
 
 	written := 0
 	for _, file := range files {
 		if err := s.writeExportEntry(r.Context(), archive, file); err != nil {
-			// The response has already begun, so the best that can be done is
-			// to stop and leave the truncation visible.
-			s.log.Error("export: write file", "user", user.ID, "id", file.ID, "error", err)
-			return
+			s.abortExport(user, file.ID, "write file", err)
 		}
 		written++
 	}
 
+	if err := archive.Close(); err != nil {
+		s.abortExport(user, "", "finish archive", err)
+	}
 	s.log.Info("account exported", "user", user.ID, "files", written)
 }
 
-// exportFilename is the name the browser saves the archive as.
-func exportFilename(username string) string {
-	return fmt.Sprintf("imvault-%s-%s.zip", username, time.Now().UTC().Format("2006-01-02"))
+// abortExport gives up on an export whose response has already begun.
+//
+// The status has been sent, so there is no error to report in it. Aborting the
+// handler makes the server drop the connection without completing the body,
+// which every client reports as a failed download instead of a finished one.
+func (s *Server) abortExport(user *models.User, fileID, step string, err error) {
+	s.log.Error("export: "+step, "user", user.ID, "id", fileID, "error", err)
+	panic(http.ErrAbortHandler)
+}
+
+// exportFilename is the name the browser saves the archive as. It is named for
+// the instance, reduced to characters that are safe in a header and a file
+// name.
+func exportFilename(siteName, username string) string {
+	siteSlug := ids.Slug(siteName)
+	if siteSlug == "" {
+		siteSlug = "imvault"
+	}
+	return fmt.Sprintf("%s-%s-%s.zip", siteSlug, username, time.Now().UTC().Format("2006-01-02"))
 }
 
 // exportableFiles reads the account's file metadata, paging so that a large
@@ -306,7 +324,11 @@ func (s *Server) writeExportEntry(ctx context.Context, archive *zip.Writer, file
 	if err != nil {
 		return err
 	}
-	defer reader.Close()
+	defer func() {
+		if err := reader.Close(); err != nil {
+			s.log.Warn("export: close original", "key", file.ObjectKey, "error", err)
+		}
+	}()
 
 	header := &zip.FileHeader{
 		Name:   file.Path,

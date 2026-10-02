@@ -7,11 +7,11 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
 
-	"golang.org/x/crypto/bcrypt"
 	"rsc.io/qr"
 
 	"imvault/internal/models"
@@ -45,6 +45,7 @@ type twoFactorView struct {
 	RecoveryCodes []string
 	Error         string
 	Notice        string
+	Credentials   credentialState
 }
 
 type pendingEnrolment struct {
@@ -63,11 +64,8 @@ func (s *Server) handleTwoFactorPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	view := twoFactorView{
-		Status: status,
-		Error:  strings.TrimSpace(r.URL.Query().Get("error")),
-		Notice: strings.TrimSpace(r.URL.Query().Get("notice")),
-	}
+	view := twoFactorView{Status: status, Credentials: s.credentialsFor(r, user, "/settings/2fa")}
+	view.Notice, view.Error = s.flash(r)
 	view.base = s.base(r, "Two-factor authentication")
 
 	// A secret that exists but is not enabled means enrolment is under way, and
@@ -129,7 +127,7 @@ func (s *Server) handleTwoFactorQR(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "image/png")
 	// It is specific to the signed-in account and to a pending enrolment.
 	w.Header().Set("Cache-Control", "no-store")
-	w.Write(code.PNG())
+	s.writeBody(w, code.PNG())
 }
 
 // handleTwoFactorBegin starts enrolment by storing a fresh secret.
@@ -137,7 +135,7 @@ func (s *Server) handleTwoFactorBegin(w http.ResponseWriter, r *http.Request) {
 	user := currentUser(r.Context())
 
 	if user.TOTPEnabled {
-		redirectNotice(w, r, "/settings/2fa", "error",
+		s.redirectFlash(w, r, "/settings/2fa", flashError,
 			"Two-factor authentication is already on. Turn it off first to set it up again.")
 		return
 	}
@@ -145,20 +143,20 @@ func (s *Server) handleTwoFactorBegin(w http.ResponseWriter, r *http.Request) {
 	secret, err := totp.GenerateSecret()
 	if err != nil {
 		s.log.Error("two factor: generate secret", "error", err)
-		redirectNotice(w, r, "/settings/2fa", "error", "Could not generate a secret.")
+		s.redirectFlash(w, r, "/settings/2fa", flashError, "Could not generate a secret.")
 		return
 	}
 
 	encrypted, err := s.secrets.Encrypt(secret)
 	if err != nil {
 		s.log.Error("two factor: encrypt secret", "error", err)
-		redirectNotice(w, r, "/settings/2fa", "error", "Could not store the secret.")
+		s.redirectFlash(w, r, "/settings/2fa", flashError, "Could not store the secret.")
 		return
 	}
 
 	if err := s.store.BeginTOTP(r.Context(), user.ID, encrypted); err != nil {
 		s.log.Error("two factor: begin", "user", user.ID, "error", err)
-		redirectNotice(w, r, "/settings/2fa", "error", "Could not start setup.")
+		s.redirectFlash(w, r, "/settings/2fa", flashError, "Could not start setup.")
 		return
 	}
 
@@ -175,44 +173,82 @@ func (s *Server) handleTwoFactorConfirm(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if user.TOTPEnabled {
-		redirectNotice(w, r, "/settings/2fa", "notice", "Two-factor authentication is already on.")
+		s.redirectFlash(w, r, "/settings/2fa", flashNotice, "Two-factor authentication is already on.")
 		return
 	}
 	if user.TOTPSecret == "" {
-		redirectNotice(w, r, "/settings/2fa", "error", "Start setup before confirming a code.")
+		s.redirectFlash(w, r, "/settings/2fa", flashError, "Start setup before confirming a code.")
 		return
 	}
 
 	secret, err := s.secrets.Decrypt(user.TOTPSecret)
 	if err != nil {
 		s.log.Error("two factor: decrypt pending secret", "user", user.ID, "error", err)
-		redirectNotice(w, r, "/settings/2fa", "error", "Could not read the pending secret.")
+		s.redirectFlash(w, r, "/settings/2fa", flashError, "Could not read the pending secret.")
 		return
 	}
 
 	step, ok := totp.Match(secret, r.FormValue("code"), time.Now())
 	if !ok {
-		redirectNotice(w, r, "/settings/2fa", "error",
+		s.redirectFlash(w, r, "/settings/2fa", flashError,
 			"That code did not match. Check the clock on your device and try the current code.")
 		return
 	}
 
+	// EnableTOTP also spends the step that proved the enrolment, so somebody who
+	// saw the code typed cannot sign in with it in the same window.
 	if err := s.store.EnableTOTP(r.Context(), user.ID, user.TOTPSecret, step); err != nil {
+		if errors.Is(err, store.ErrTOTPChanged) {
+			s.redirectFlash(w, r, "/settings/2fa", flashError,
+				"The pending secret changed in another window. Scan the new code and try again.")
+			return
+		}
 		s.log.Error("two factor: enable", "user", user.ID, "error", err)
-		redirectNotice(w, r, "/settings/2fa", "error", "Could not enable two-factor authentication.")
+		s.redirectFlash(w, r, "/settings/2fa", flashError, "Could not enable two-factor authentication.")
+		return
+	}
+
+	// Every session that existed before the second factor was never asked for
+	// it, so they all end here and the caller continues in a fresh one.
+	r, err = s.rotateSession(w, r, user.ID)
+	if err != nil {
+		s.log.Error("two factor: rotate session", "user", user.ID, "error", err)
+		http.Error(w, "could not start a new session", http.StatusInternalServerError)
 		return
 	}
 
 	codes, err := s.issueRecoveryCodes(r.Context(), user.ID)
 	if err != nil {
 		s.log.Error("two factor: issue recovery codes", "user", user.ID, "error", err)
-		redirectNotice(w, r, "/settings/2fa", "notice",
+		s.redirectFlash(w, r, "/settings/2fa", flashNotice,
 			"Two-factor authentication is on, but the recovery codes could not be generated. Generate them again from this page.")
 		return
 	}
 
 	s.log.Info("two-factor authentication enabled", "user", user.ID)
 	s.renderTwoFactorPage(w, r, codes, "", "Two-factor authentication is on. Save your recovery codes now.")
+}
+
+// rotateSession ends every session the account has and starts a fresh one for
+// the caller, returning the request as it now stands: carrying the CSRF token
+// bound to the new session, so the page rendered in the same response works.
+func (s *Server) rotateSession(w http.ResponseWriter, r *http.Request, userID int64) (*http.Request, error) {
+	if err := s.store.DeleteSessionsForUser(r.Context(), userID); err != nil {
+		return r, err
+	}
+	token, err := s.newSession(r.Context(), w, r, userID)
+	if err != nil {
+		return r, err
+	}
+	rotated := r.Clone(withCSRF(r.Context(), sessionCSRFToken(token)))
+	rotated.Header.Del("Cookie")
+	for _, c := range r.Cookies() {
+		if c.Name != sessionCookie {
+			rotated.AddCookie(c)
+		}
+	}
+	rotated.AddCookie(&http.Cookie{Name: sessionCookie, Value: token})
+	return rotated, nil
 }
 
 // handleTwoFactorDisable turns the second factor off.
@@ -224,18 +260,18 @@ func (s *Server) handleTwoFactorDisable(w http.ResponseWriter, r *http.Request) 
 	user := currentUser(r.Context())
 
 	if err := s.verifySensitiveAction(w, r, user); err != nil {
-		redirectNotice(w, r, "/settings/2fa", "error", err.Error())
+		s.redirectFlash(w, r, "/settings/2fa", flashError, err.Error())
 		return
 	}
 
 	if err := s.store.DisableTOTP(r.Context(), user.ID); err != nil {
 		s.log.Error("two factor: disable", "user", user.ID, "error", err)
-		redirectNotice(w, r, "/settings/2fa", "error", "Could not disable two-factor authentication.")
+		s.redirectFlash(w, r, "/settings/2fa", flashError, "Could not disable two-factor authentication.")
 		return
 	}
 
 	s.log.Info("two-factor authentication disabled", "user", user.ID)
-	redirectNotice(w, r, "/settings/2fa", "notice",
+	s.redirectFlash(w, r, "/settings/2fa", flashNotice,
 		"Two-factor authentication is off, and the recovery codes have been discarded.")
 }
 
@@ -244,19 +280,19 @@ func (s *Server) handleTwoFactorRecovery(w http.ResponseWriter, r *http.Request)
 	user := currentUser(r.Context())
 
 	if !user.TOTPEnabled {
-		redirectNotice(w, r, "/settings/2fa", "error", "Two-factor authentication is not on.")
+		s.redirectFlash(w, r, "/settings/2fa", flashError, "Two-factor authentication is not on.")
 		return
 	}
 
 	if err := s.verifySensitiveAction(w, r, user); err != nil {
-		redirectNotice(w, r, "/settings/2fa", "error", err.Error())
+		s.redirectFlash(w, r, "/settings/2fa", flashError, err.Error())
 		return
 	}
 
 	codes, err := s.issueRecoveryCodes(r.Context(), user.ID)
 	if err != nil {
 		s.log.Error("two factor: regenerate recovery codes", "user", user.ID, "error", err)
-		redirectNotice(w, r, "/settings/2fa", "error", "Could not generate new recovery codes.")
+		s.redirectFlash(w, r, "/settings/2fa", flashError, "Could not generate new recovery codes.")
 		return
 	}
 
@@ -280,6 +316,7 @@ func (s *Server) renderTwoFactorPage(w http.ResponseWriter, r *http.Request, cod
 		RecoveryCodes: codes,
 		Error:         errMsg,
 		Notice:        notice,
+		Credentials:   s.credentialsFor(r, currentUser(r.Context()), "/settings/2fa"),
 	}
 	view.base = s.base(r, "Two-factor authentication")
 
@@ -308,18 +345,31 @@ func (s *Server) issueRecoveryCodes(ctx context.Context, userID int64) ([]string
 }
 
 // generateRecoveryCode returns one grouped code, for example "K7QP2-MX4RT".
+//
+// Each character is drawn without bias: a random byte is only used when it
+// falls below the largest multiple of the alphabet's length, since mapping all
+// 256 values with a modulo would make the first few letters slightly likelier.
 func generateRecoveryCode() (string, error) {
-	buf := make([]byte, recoveryCodeLength)
-	if _, err := rand.Read(buf); err != nil {
-		return "", fmt.Errorf("recovery code: %w", err)
-	}
+	return recoveryCodeFrom(rand.Reader)
+}
 
+// recoveryCodeFrom builds a code from a source of random bytes.
+func recoveryCodeFrom(source io.Reader) (string, error) {
+	limit := byte(256 - 256%len(recoveryAlphabet))
 	var b strings.Builder
-	for i, value := range buf {
-		if i == recoveryCodeLength/2 {
+	buf := make([]byte, 1)
+	for written := 0; written < recoveryCodeLength; {
+		if _, err := io.ReadFull(source, buf); err != nil {
+			return "", fmt.Errorf("recovery code: %w", err)
+		}
+		if buf[0] >= limit {
+			continue
+		}
+		if written == recoveryCodeLength/2 {
 			b.WriteByte('-')
 		}
-		b.WriteByte(recoveryAlphabet[int(value)%len(recoveryAlphabet)])
+		b.WriteByte(recoveryAlphabet[int(buf[0])%len(recoveryAlphabet)])
+		written++
 	}
 	return b.String(), nil
 }
@@ -345,12 +395,11 @@ func looksLikeAuthenticatorCode(code string) bool {
 // account.
 func (s *Server) verifySensitiveAction(w http.ResponseWriter, r *http.Request, user *models.User) error {
 	if err := r.ParseForm(); err != nil {
-		return errors.New("That request could not be read.")
+		return userError("That request could not be read.")
 	}
 
-	password := r.FormValue("password")
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
-		return errors.New("That is not your current password.")
+	if err := s.checkCurrentPassword(r, user, r.FormValue("password")); err != nil {
+		return err
 	}
 
 	if !user.TOTPEnabled {
@@ -359,7 +408,7 @@ func (s *Server) verifySensitiveAction(w http.ResponseWriter, r *http.Request, u
 
 	code := strings.TrimSpace(r.FormValue("code"))
 	if code == "" {
-		return errors.New("Enter a code from your authenticator app, or a recovery code.")
+		return userError("Enter a code from your authenticator app, or a recovery code.")
 	}
 
 	if err := s.checkSecondFactor(r.Context(), user, code); err != nil {
@@ -374,32 +423,32 @@ func (s *Server) checkSecondFactor(ctx context.Context, user *models.User, code 
 	if !looksLikeAuthenticatorCode(code) {
 		used, err := s.store.ConsumeRecoveryCode(ctx, user.ID, store.HashRecoveryCode(code))
 		if err != nil {
-			return errors.New("That code could not be checked.")
+			return userError("That code could not be checked.")
 		}
 		if !used {
-			return errors.New("That recovery code is not valid, or has already been used.")
+			return userError("That recovery code is not valid, or has already been used.")
 		}
 		return nil
 	}
 
 	secret, err := s.secrets.Decrypt(user.TOTPSecret)
 	if err != nil {
-		return errors.New("Your authenticator secret could not be read.")
+		return userError("Your authenticator secret could not be read.")
 	}
 
 	step, ok := totp.Match(secret, code, time.Now())
 	if !ok {
-		return errors.New("That code did not match. Try the current one.")
+		return userError("That code did not match. Try the current one.")
 	}
 
 	// Refuse a code that has already been accepted: otherwise one seen over a
 	// shoulder stays usable for the rest of its window.
 	accepted, err := s.store.AcceptTOTPStep(ctx, user.ID, step)
 	if err != nil {
-		return errors.New("That code could not be checked.")
+		return userError("That code could not be checked.")
 	}
 	if !accepted {
-		return errors.New("That code has already been used. Wait for the next one.")
+		return userError("That code has already been used. Wait for the next one.")
 	}
 	return nil
 }
@@ -411,6 +460,8 @@ type twoFactorPromptView struct {
 	base
 	Username string
 	Error    string
+	// Next is where the sign-in was headed before the code was asked for.
+	Next string
 }
 
 // startPendingLogin records that the password was accepted, and hands the
@@ -434,7 +485,7 @@ func (s *Server) startPendingLogin(ctx context.Context, w http.ResponseWriter, r
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   s.cfg.SecureCookies || isSecureRequest(r),
+		Secure:   s.secureCookies(r),
 		MaxAge:   int(pendingTTL.Seconds()),
 	})
 	return nil
@@ -467,7 +518,7 @@ func (s *Server) clearPendingCookie(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   -1,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   s.cfg.SecureCookies || isSecureRequest(r),
+		Secure:   s.secureCookies(r),
 	})
 }
 
@@ -481,6 +532,7 @@ func (s *Server) handleLoginTwoFactorPage(w http.ResponseWriter, r *http.Request
 	s.renderPage(w, http.StatusOK, "login_two_factor", twoFactorPromptView{
 		base:     s.base(r, "Two-factor authentication"),
 		Username: user.Username,
+		Next:     safeNext(r.URL.Query().Get("next")),
 	})
 }
 
@@ -491,17 +543,19 @@ func (s *Server) handleLoginTwoFactor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "malformed form", http.StatusBadRequest)
+		return
+	}
+	next := safeNext(r.PostFormValue("next"))
+
 	renderErr := func(status int, message string) {
 		s.renderPage(w, status, "login_two_factor", twoFactorPromptView{
 			base:     s.base(r, "Two-factor authentication"),
 			Username: user.Username,
 			Error:    message,
+			Next:     next,
 		})
-	}
-
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "malformed form", http.StatusBadRequest)
-		return
 	}
 
 	if user.Disabled {
@@ -533,7 +587,10 @@ func (s *Server) handleLoginTwoFactor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.log.Info("signed in with a second factor", "user", user.ID)
-	http.Redirect(w, r, "/gallery", http.StatusSeeOther)
+	if next == "" {
+		next = "/gallery"
+	}
+	http.Redirect(w, r, next, http.StatusSeeOther)
 }
 
 // --- administration ----------------------------------------------------------

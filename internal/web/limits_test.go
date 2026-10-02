@@ -46,8 +46,12 @@ func TestUploadsStopAtTheInstanceCeiling(t *testing.T) {
 	resp, body = h.uploadFiles(map[string]string{"visibility": "members"}, []uploadFile{
 		{name: "second.png", data: pngFixture(t, 64, 64)},
 	})
-	// The uploader answers with the fragment either way, so the status is not
-	// the signal here; the message is.
+	// The uploader answers with the fragment either way, listing the refusal
+	// among the results, so the request itself succeeds and the message is
+	// the signal.
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("upload into a full instance = %d, want the results fragment", resp.StatusCode)
+	}
 	if !strings.Contains(body, "instance is full") {
 		t.Errorf("the refusal does not say the instance is full: %s", truncate(body))
 	}
@@ -125,6 +129,10 @@ func TestTheInstanceCeilingIsAnInstanceSetting(t *testing.T) {
 		"default_visibility": {"members"},
 		"max_total_mb":       {"lots"},
 	})
+	if resp.StatusCode != http.StatusSeeOther || !strings.Contains(resp.Header.Get("Location"), "error=") {
+		t.Errorf("a nonsense ceiling = %d -> %q, want a redirect carrying an error",
+			resp.StatusCode, resp.Header.Get("Location"))
+	}
 	if got := h.srv.policy().MaxTotalBytes; got != 64<<20 {
 		t.Errorf("a bad value changed the ceiling to %d", got)
 	}

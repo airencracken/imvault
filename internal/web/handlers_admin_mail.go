@@ -42,7 +42,7 @@ func (s *Server) handleAdminMail(w http.ResponseWriter, r *http.Request) {
 		Pending:     pending,
 		Failed:      failed,
 		MailEnabled: s.mail.Enabled(),
-		Notice:      noticeFromQuery(r),
+		Notice:      s.noticeFromQuery(r),
 	}
 	view.base = s.base(r, "Outbound mail")
 	view.UseAlpine = true
@@ -100,7 +100,7 @@ func (s *Server) handleAdminDeleteMail(w http.ResponseWriter, r *http.Request) {
 // everybody else gets a redirect. A nil message removes the row.
 func (s *Server) mailRespond(w http.ResponseWriter, r *http.Request, id int64, message *models.OutboundMail, text string) {
 	if !isHTMX(r) {
-		redirectNotice(w, r, "/admin/mail", "notice", text)
+		s.redirectFlash(w, r, "/admin/mail", flashNotice, text)
 		return
 	}
 

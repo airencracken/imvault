@@ -276,3 +276,75 @@ test("a 503 from htmx is shown rather than swallowed", () => {
   // A detail without an xhr must not throw: the listener runs for every swap.
   handler({ detail: {} });
 });
+
+// loadUploader runs app.js against a shim of the upload page: the file input
+// with the real accept list, the dropzone, the count line and the form.
+function loadUploader() {
+  const elements = {};
+  const listen = () => ({ listeners: {}, addEventListener(name, fn) { this.listeners[name] = fn; } });
+  elements["file-input"] = Object.assign(listen(), {
+    files: [{ name: "kept.png", type: "image/png" }],
+    getAttribute: (name) => (name === "accept" ? "image/*,video/webm,video/mp4,video/quicktime" : null),
+  });
+  elements.dropzone = Object.assign(listen(), { classList: { add() {}, remove() {} } });
+  elements["file-count"] = { textContent: "", title: "" };
+  elements["upload-form"] = listen();
+  const documentListeners = {};
+  const triggered = [];
+  class DataTransfer {
+    constructor() {
+      const files = [];
+      this.files = files;
+      this.items = { add: (file) => files.push(file) };
+    }
+  }
+  const document = {
+    getElementById: (id) => elements[id] || null,
+    addEventListener: (name, fn) => { documentListeners[name] = fn; },
+    body: { addEventListener() {} },
+  };
+  const window = { htmx: { trigger: (el, name) => triggered.push(name) }, addEventListener() {} };
+  vm.runInNewContext(SOURCE, { document, window, DataTransfer });
+  return { elements, documentListeners, triggered };
+}
+
+function drop(elements, files) {
+  const event = { preventDefault() {}, dataTransfer: { files } };
+  elements.dropzone.listeners.drop(event);
+}
+
+test("dropping clips stages them alongside images", () => {
+  const { elements } = loadUploader();
+  drop(elements, [
+    { name: "clip.mp4", type: "video/mp4" },
+    { name: "clip.webm", type: "video/webm" },
+    { name: "clip.mov", type: "video/quicktime" },
+    { name: "photo.jpg", type: "image/jpeg" },
+    { name: "notes.txt", type: "text/plain" },
+    { name: "mystery", type: "" },
+  ]);
+  const names = elements["file-input"].files.map((f) => f.name);
+  assert.deepEqual(names, ["clip.mp4", "clip.webm", "clip.mov", "photo.jpg"]);
+  assert.equal(elements["file-count"].textContent, "4 files selected");
+});
+
+test("dropping nothing usable keeps the current selection", () => {
+  const { elements } = loadUploader();
+  drop(elements, [{ name: "notes.txt", type: "text/plain" }, { name: "x.avi", type: "video/x-msvideo" }]);
+  assert.deepEqual(elements["file-input"].files.map((f) => f.name), ["kept.png"]);
+  assert.match(elements["file-count"].textContent, /None of those files/);
+});
+
+test("pasting a clip uploads it, and pasting nothing usable does not submit", () => {
+  const { elements, documentListeners, triggered } = loadUploader();
+  const paste = (files) => documentListeners.paste({
+    target: { tagName: "BODY" },
+    preventDefault() {},
+    clipboardData: { items: files.map((file) => ({ kind: "file", getAsFile: () => file })) },
+  });
+  paste([{ name: "clip.mp4", type: "video/mp4" }]);
+  assert.deepEqual(triggered, ["submit"]);
+  assert.deepEqual(elements["file-input"].files.map((f) => f.name), ["clip.mp4"]);
+  paste([{ name: "notes.txt", type: "text/plain" }]);
+  assert.deepEqual(triggered, ["submit"], "an unusable paste submitted the form");
+});

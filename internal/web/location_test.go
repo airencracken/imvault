@@ -138,8 +138,10 @@ func TestLocationRouteRequiresOwnerAndCSRF(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	io.Copy(io.Discard, resp.Body)
-	resp.Body.Close()
+	if _, err := io.Copy(io.Discard, resp.Body); err != nil {
+		t.Fatal(err)
+	}
+	mustClose(t, resp.Body)
 	if resp.StatusCode != 403 {
 		t.Fatalf("CSRF: %d", resp.StatusCode)
 	}

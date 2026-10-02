@@ -6,9 +6,12 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
+	"io"
 	"io/fs"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 
@@ -107,13 +110,23 @@ func isHTMX(r *http.Request) bool {
 	return r.Header.Get("HX-Request") == "true"
 }
 
-// isSecureRequest reports whether the request reached us over TLS, directly or
-// via a trusted reverse proxy.
-func isSecureRequest(r *http.Request) bool {
+// secureRequest reports whether the request reached us over TLS, directly or
+// via a reverse proxy this instance has been told to trust.
+//
+// X-Forwarded-Proto is only evidence when a trusted proxy set it. Otherwise any
+// client can send it, and the scheme of a link this server builds would be
+// whatever the request claimed.
+func (s *Server) secureRequest(r *http.Request) bool {
 	if r.TLS != nil {
 		return true
 	}
-	return strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
+	return s.cfg.TrustProxyHeaders && strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
+}
+
+// secureCookies reports whether cookies set on this response should carry the
+// Secure flag.
+func (s *Server) secureCookies(r *http.Request) bool {
+	return s.cfg.SecureCookies || s.secureRequest(r)
 }
 
 // base builds the common template data for a request.
@@ -121,20 +134,19 @@ func (s *Server) base(r *http.Request, title string) base {
 	// The navigation shows whether signup and anonymous uploads are open, so
 	// the instance policy is read on nearly every render.
 	policy := s.policy()
+	notice, problem := s.flash(r)
 
 	user := currentUser(r.Context())
 	branding := s.branding()
 	mascotURL := "/static/img/mascot.png"
 	faviconURL := ""
-	if mascot, favicon, err := s.store.BrandingAssetState(r.Context()); err == nil {
-		if mascot {
+	if current := s.settings.Load(); current != nil {
+		if current.CustomMascot {
 			mascotURL = "/branding/mascot"
 		}
-		if favicon {
+		if current.CustomFavicon {
 			faviconURL = "/branding/favicon"
 		}
-	} else {
-		s.log.Warn("load branding asset state", "error", err)
 	}
 
 	b := base{
@@ -151,8 +163,8 @@ func (s *Server) base(r *http.Request, title string) base {
 		SourceURL:         branding.SourceURL,
 		VisibilityLevels:  models.VisibilityLevels(),
 		DefaultVisibility: policy.DefaultVisibility,
-		Notice:            strings.TrimSpace(r.URL.Query().Get("notice")),
-		Error:             strings.TrimSpace(r.URL.Query().Get("error")),
+		Notice:            notice,
+		Error:             problem,
 		CurrentPath:       r.URL.Path,
 		MetadataLevels:    models.MetadataLevels(),
 		OIDCName:          s.oidc.Name(),
@@ -168,13 +180,6 @@ func (s *Server) base(r *http.Request, title string) base {
 		}
 	}
 
-	return b
-}
-
-// baseErr is base with an error message attached.
-func (s *Server) baseErr(r *http.Request, title, message string) base {
-	b := s.base(r, title)
-	b.Error = message
 	return b
 }
 
@@ -226,7 +231,7 @@ func (s *Server) absoluteURL(r *http.Request, path string) string {
 		return s.cfg.BaseURL + path
 	}
 	scheme := "http"
-	if isSecureRequest(r) {
+	if s.secureRequest(r) {
 		scheme = "https"
 	}
 	host := r.Host
@@ -234,6 +239,47 @@ func (s *Server) absoluteURL(r *http.Request, path string) string {
 		host = "localhost"
 	}
 	return scheme + "://" + host + path
+}
+
+// errNoBaseURL is reported when a link has to leave the browser and there is
+// no configured address to anchor it to.
+var errNoBaseURL = errors.New("IMVAULT_BASE_URL is required to send links by email")
+
+// emailLink builds an absolute URL for a message that leaves this server.
+//
+// Unlike absoluteURL it never falls back to the request. A link in an email is
+// followed later, by somebody else, and a Host header is whatever the sender of
+// the request wanted it to be: deriving a reset link from it would let anybody
+// mail a real token to an address of their choosing.
+func (s *Server) emailLink(path string) (string, error) {
+	if s.cfg.BaseURL == "" {
+		return "", errNoBaseURL
+	}
+	return s.cfg.BaseURL + path, nil
+}
+
+// closeLogged closes something whose failure to close cannot change the
+// outcome any more, recording it rather than losing it.
+func (s *Server) closeLogged(c io.Closer, what string) {
+	if err := c.Close(); err != nil {
+		s.log.Warn("close "+what, "error", err)
+	}
+}
+
+// removeLogged removes a temporary file, recording a failure other than the
+// file already being gone.
+func (s *Server) removeLogged(path string) {
+	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		s.log.Warn("remove temporary file", "path", path, "error", err)
+	}
+}
+
+// writeBody writes a response body. Once the status is out, a failed write
+// means the client went away; there is nobody left to tell.
+func (s *Server) writeBody(w io.Writer, data []byte) {
+	if _, err := w.Write(data); err != nil {
+		s.log.Debug("write response", "error", err)
+	}
 }
 
 // noStore marks a response as uncacheable.
@@ -252,19 +298,6 @@ func immutableCache(next http.Handler) http.Handler {
 // fsSub returns a subtree of an embedded filesystem.
 func fsSub(fsys fs.FS, dir string) (fs.FS, error) {
 	return fs.Sub(fsys, dir)
-}
-
-// redirectNotice sends the browser to path with a human-readable message.
-func redirectNotice(w http.ResponseWriter, r *http.Request, path, key, message string) {
-	q := url.Values{}
-	if message != "" {
-		q.Set(key, message)
-	}
-	target := path
-	if encoded := q.Encode(); encoded != "" {
-		target += "?" + encoded
-	}
-	http.Redirect(w, r, target, http.StatusSeeOther)
 }
 
 // hxRedirect tells HTMX to perform a client-side navigation.

@@ -45,6 +45,11 @@ type oidcAttempt struct {
 	Identity *oidc.Identity `json:"identity,omitempty"`
 	// Invite carries a code supplied before leaving for the provider.
 	Invite string `json:"invite,omitempty"`
+	// Reauth is the account confirming itself, set when an account with no
+	// password of its own is asked to prove it is still its owner.
+	Reauth int64 `json:"reauth,omitempty"`
+	// Next is where a confirmation returns to.
+	Next string `json:"next,omitempty"`
 }
 
 func (s *Server) setOIDCAttempt(w http.ResponseWriter, r *http.Request, attempt oidcAttempt) error {
@@ -63,7 +68,7 @@ func (s *Server) setOIDCAttempt(w http.ResponseWriter, r *http.Request, attempt 
 		Path:     oidcAttemptCookiePath,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   s.cfg.SecureCookies || isSecureRequest(r),
+		Secure:   s.secureCookies(r),
 		MaxAge:   int(oidcAttemptWindow / time.Second),
 	})
 	return nil
@@ -92,7 +97,7 @@ func (s *Server) clearOIDCAttempt(w http.ResponseWriter, r *http.Request) {
 		Value:    "",
 		Path:     oidcAttemptCookiePath,
 		HttpOnly: true,
-		Secure:   s.cfg.SecureCookies || isSecureRequest(r),
+		Secure:   s.secureCookies(r),
 		MaxAge:   -1,
 	})
 }
@@ -123,6 +128,19 @@ func (s *Server) handleOIDCStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	attempt := oidcAttempt{Invite: strings.TrimSpace(r.URL.Query().Get("invite"))}
+
+	// Connecting a provider to the account already signed in, rather than
+	// signing in as whoever the provider names.
+	if user := currentUser(r.Context()); user != nil && r.URL.Query().Get("connect") != "" {
+		attempt.LinkTo = user.ID
+	}
+
+	s.sendToProvider(w, r, attempt)
+}
+
+// sendToProvider seals an attempt and redirects the browser to the provider.
+func (s *Server) sendToProvider(w http.ResponseWriter, r *http.Request, attempt oidcAttempt) {
 	provider, err := s.oidc.Get(r.Context())
 	if err != nil {
 		s.log.Error("oidc: discovery failed", "error", err)
@@ -136,19 +154,10 @@ func (s *Server) handleOIDCStart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	started := provider.Start(s.oidcRedirectURL(r))
-	attempt := oidcAttempt{
-		State:     started.State,
-		Nonce:     started.Nonce,
-		Verifier:  started.Verifier,
-		CreatedAt: started.CreatedAt,
-		Invite:    strings.TrimSpace(r.URL.Query().Get("invite")),
-	}
-
-	// Connecting a provider to the account already signed in, rather than
-	// signing in as whoever the provider names.
-	if user := currentUser(r.Context()); user != nil && r.URL.Query().Get("connect") != "" {
-		attempt.LinkTo = user.ID
-	}
+	attempt.State = started.State
+	attempt.Nonce = started.Nonce
+	attempt.Verifier = started.Verifier
+	attempt.CreatedAt = started.CreatedAt
 
 	if err := s.setOIDCAttempt(w, r, attempt); err != nil {
 		s.log.Error("oidc: seal attempt", "error", err)
@@ -218,6 +227,12 @@ func (s *Server) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 // resolveOIDCIdentity links, signs in, or starts registration only after the
 // callback's state and provider assertion have been verified.
 func (s *Server) resolveOIDCIdentity(w http.ResponseWriter, r *http.Request, attempt oidcAttempt, identity *oidc.Identity) {
+	// Confirming the account that asked, rather than signing anybody in.
+	if attempt.Reauth != 0 {
+		s.finishReauth(w, r, attempt, identity)
+		return
+	}
+
 	// Connecting to the account that asked for it.
 	if attempt.LinkTo != 0 {
 		user := currentUser(r.Context())
@@ -250,31 +265,8 @@ func (s *Server) resolveOIDCIdentity(w http.ResponseWriter, r *http.Request, att
 		return
 	}
 
-	// An address is only evidence if the provider says it checked. Letting an
-	// unverified address link would hand over an account on the strength of a
-	// claim anybody can make to some providers.
-	if identity.EmailVerified && identity.Email != "" {
-		users, err := s.store.UsersByEmail(r.Context(), identity.Email)
-		if err != nil {
-			s.log.Error("oidc: look up email", "error", err)
-			s.oidcFailed(w, r, "Something went wrong on this server.")
-			return
-		}
-
-		switch len(users) {
-		case 1:
-			s.linkAndSignIn(w, r, users[0], identity)
-			return
-		case 0:
-			// Nobody here uses that address, so this is a new account.
-		default:
-			// Addresses are not unique, so this is ambiguous. Guessing would be
-			// a way to sign in as the wrong person.
-			s.log.Warn("oidc: ambiguous address", "email", identity.Email, "accounts", len(users))
-			s.oidcFailed(w, r, "More than one account uses that address. Sign in with "+
-				"your password, then connect the provider from your account page.")
-			return
-		}
+	if done := s.linkByVerifiedAddress(w, r, identity); done {
+		return
 	}
 
 	// An unknown person. Finishing the registration is a step of its own, under
@@ -287,6 +279,50 @@ func (s *Server) resolveOIDCIdentity(w http.ResponseWriter, r *http.Request, att
 		return
 	}
 	http.Redirect(w, r, "/auth/oidc/complete", http.StatusSeeOther)
+}
+
+// linkByVerifiedAddress attaches the identity to the one local account that
+// has proved it owns the same address, reporting whether it wrote a response.
+//
+// The address is only evidence when both sides checked it. The provider's flag
+// covers its half. The local half matters as much: anybody can register here
+// with somebody else's address, and linking on an unconfirmed one would sign
+// the real owner into the squatter's account the first time they used the
+// provider, leaving the squatter a password to it.
+func (s *Server) linkByVerifiedAddress(w http.ResponseWriter, r *http.Request, identity *oidc.Identity) bool {
+	if !identity.EmailVerified || identity.Email == "" {
+		return false
+	}
+	users, err := s.store.UsersByEmail(r.Context(), identity.Email)
+	if err != nil {
+		s.log.Error("oidc: look up email", "error", err)
+		s.oidcFailed(w, r, "Something went wrong on this server.")
+		return true
+	}
+
+	var confirmed []*models.User
+	for _, user := range users {
+		if user.EmailVerified {
+			confirmed = append(confirmed, user)
+		}
+	}
+
+	switch len(confirmed) {
+	case 0:
+		// Nobody here has confirmed that address, so this is a new account,
+		// even if somebody typed the address in without proving it.
+		return false
+	case 1:
+		s.linkAndSignIn(w, r, confirmed[0], identity)
+		return true
+	default:
+		// Addresses are not unique, so this is ambiguous. Guessing would be a
+		// way to sign in as the wrong person.
+		s.log.Warn("oidc: ambiguous address", "email", identity.Email, "accounts", len(confirmed))
+		s.oidcFailed(w, r, "More than one account uses that address. Sign in with "+
+			"your password, then connect the provider from your account page.")
+		return true
+	}
 }
 
 // finishOIDCSignIn creates the session for a verified identity.
@@ -338,18 +374,18 @@ func (s *Server) linkAndSignIn(w http.ResponseWriter, r *http.Request, user *mod
 func (s *Server) connectIdentity(w http.ResponseWriter, r *http.Request, user *models.User, identity *oidc.Identity) {
 	if _, err := s.store.LinkIdentity(r.Context(), user.ID, s.cfg.OIDCIssuer, identity.Subject, identity.Email); err != nil {
 		if errors.Is(err, store.ErrConflict) {
-			redirectNotice(w, r, "/settings/account", "error",
+			s.redirectFlash(w, r, "/settings/account", flashError,
 				"That sign-in is already connected to a different account.")
 			return
 		}
 		s.log.Error("oidc: connect identity", "error", err)
-		redirectNotice(w, r, "/settings/account", "error", "The sign-in could not be connected.")
+		s.redirectFlash(w, r, "/settings/account", flashError, "The sign-in could not be connected.")
 		return
 	}
 
 	s.log.Info("identity connected from the account page",
 		"user", user.ID, "issuer", s.cfg.OIDCIssuer)
-	redirectNotice(w, r, "/settings/account", "notice",
+	s.redirectFlash(w, r, "/settings/account", flashNotice,
 		s.oidc.Name()+" is now connected.")
 }
 
@@ -376,7 +412,7 @@ func (s *Server) handleOIDCComplete(w http.ResponseWriter, r *http.Request) {
 
 	attempt, ok := s.readOIDCAttempt(r)
 	if !ok || attempt.Identity == nil {
-		redirectNotice(w, r, "/login", "error", "That sign-in did not finish. Try again.")
+		s.redirectFlash(w, r, "/login", flashError, "That sign-in did not finish. Try again.")
 		return
 	}
 
@@ -400,7 +436,7 @@ func (s *Server) handleOIDCCompleteSubmit(w http.ResponseWriter, r *http.Request
 
 	attempt, ok := s.readOIDCAttempt(r)
 	if !ok || attempt.Identity == nil {
-		redirectNotice(w, r, "/login", "error", "That sign-in did not finish. Try again.")
+		s.redirectFlash(w, r, "/login", flashError, "That sign-in did not finish. Try again.")
 		return
 	}
 
@@ -454,6 +490,8 @@ func (s *Server) handleOIDCCompleteSubmit(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// The account has no password anybody knows, and the store records that,
+	// so settings that ask for one can ask the provider instead.
 	user, err := s.store.CreateUserWithIdentity(r.Context(), store.NewUser{
 		Username:     username,
 		Email:        attempt.Identity.Email,

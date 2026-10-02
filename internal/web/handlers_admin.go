@@ -5,6 +5,7 @@ package web
 import (
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -122,7 +123,7 @@ func (s *Server) handleAdminDashboard(w http.ResponseWriter, r *http.Request) {
 		MailEnabled:   s.mail.Enabled(),
 		Blobs:         blobs,
 		MaxTotalBytes: s.policy().MaxTotalBytes,
-		Notice:        noticeFromQuery(r),
+		Notice:        s.noticeFromQuery(r),
 	}
 	view.base = s.base(r, "Admin")
 	view.FailedMail = failedMail
@@ -139,7 +140,7 @@ func (s *Server) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if page == 1 {
-		s.renderAdminUsersPage(w, r, http.StatusOK, noticeFromQuery(r))
+		s.renderAdminUsersPage(w, r, http.StatusOK, s.noticeFromQuery(r))
 		return
 	}
 
@@ -156,7 +157,7 @@ func (s *Server) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 	view := adminUsersView{
 		Rows:       s.adminUserRows(r, users),
 		Pagination: pg,
-		Notice:     noticeFromQuery(r),
+		Notice:     s.noticeFromQuery(r),
 	}
 	view.base = s.base(r, "Users")
 	view.UseAlpine = true
@@ -226,11 +227,15 @@ func adminMegabytes(r *http.Request, field string) (int64, bool) {
 	}
 
 	value, err := strconv.ParseInt(raw, 10, 64)
-	if err != nil || value < 0 {
+	if err != nil || value < 0 || value > maxAdminMegabytes {
 		return 0, false
 	}
 	return value, true
 }
+
+// maxAdminMegabytes is the largest MiB figure that still fits in bytes. Past it
+// the conversion would wrap to a negative number, which reads as "no limit".
+const maxAdminMegabytes = math.MaxInt64 >> 20
 
 // limitsMessage describes what was just set, in the terms each limit is thought
 // about: unlimited, or no override.
@@ -381,7 +386,7 @@ func (s *Server) handleAdminSetInvitePermission(w http.ResponseWriter, r *http.R
 	updated := s.reloadAdminUser(r, userID)
 	message := user.Username + " can now issue invitations."
 	if !allowed {
-		message = user.Username + " can no longer issue invitations. Existing invitations remain active."
+		message = user.Username + " can no longer issue invitations, and their open invitations were revoked."
 	}
 	s.adminRespond(w, r, updated, adminNotice{Text: message}, "", "/admin/users")
 }
@@ -418,6 +423,9 @@ func (s *Server) handleAdminDeleteUser(w http.ResponseWriter, r *http.Request) {
 			"Could not delete the account.", "/admin/users")
 		return
 	}
+
+	s.recordModeration(r.Context(), currentUser(r.Context()), models.ActionRemoveAccount,
+		models.TargetAccount, strconv.FormatInt(target.ID, 10), target.Username, "")
 
 	message := fmt.Sprintf("Deleted %s and %d stored file(s).", target.Username, removed)
 	s.adminRespond(w, r, nil, adminNotice{Text: message}, "", "/admin/users")
@@ -512,13 +520,13 @@ func (s *Server) handleAdminFiles(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleAdminDeleteFile(w http.ResponseWriter, r *http.Request) {
 	file, err := s.store.FileByID(r.Context(), r.PathValue("id"))
 	if err != nil {
-		s.notFound(w, r, "That image does not exist.")
+		s.notFound(w, r, "That file does not exist.")
 		return
 	}
 
 	if err := s.deleteFileAndRelease(r.Context(), file); err != nil {
 		s.log.Error("admin: delete file", "id", file.ID, "error", err)
-		http.Error(w, "could not delete the image", http.StatusInternalServerError)
+		http.Error(w, "could not delete the file", http.StatusInternalServerError)
 		return
 	}
 	s.recordFileRemoval(r.Context(), currentUser(r.Context()), file, "")
@@ -528,7 +536,7 @@ func (s *Server) handleAdminDeleteFile(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		return
 	}
-	redirectNotice(w, r, "/admin/files", "notice", "Image deleted.")
+	s.redirectFlash(w, r, "/admin/files", flashNotice, "File deleted.")
 }
 
 // handleAdminRecomputeStorage recalculates every account's usage from the files
@@ -584,11 +592,11 @@ func (s *Server) handleAdminRecomputeBlobs(w http.ResponseWriter, r *http.Reques
 // adminMaintenance reports a maintenance action, updating only the notice.
 func (s *Server) adminMaintenance(w http.ResponseWriter, r *http.Request, notice adminNotice) {
 	if !isHTMX(r) {
-		key := "notice"
+		kind := flashNotice
 		if notice.Error {
-			key = "error"
+			kind = flashError
 		}
-		redirectNotice(w, r, "/admin", key, notice.Text)
+		s.redirectFlash(w, r, "/admin", kind, notice.Text)
 		return
 	}
 	s.renderAdminRow(w, "", nil, notice)

@@ -48,7 +48,7 @@
         <td class="muted">{{humanTime .CreatedAt}}</td>
         <td>
           <form method="post" action="/settings/account/identities/{{.ID}}/delete"
-                onsubmit="return confirm('Disconnect this sign-in? You will need your password afterwards.');">
+                onsubmit="return confirm('Disconnect this sign-in? Afterwards you sign in with your password.');">
             <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
             <button class="btn small danger" type="submit">Disconnect</button>
           </form>
@@ -94,6 +94,8 @@
   </p>
 </section>
 
+{{template "reauth_panel" .}}
+
 <section class="panel stack danger-zone">
   <h2>Delete this account</h2>
 
@@ -109,18 +111,19 @@
     </p>
   </div>
 
-  {{/* The username goes in a JavaScript string literal. Unquoted it renders as
-       a bare identifier, the expression throws, and the guard silently never
-       blocks anything. Usernames are restricted to [A-Za-z0-9_.-], so a quoted
-       literal is safe here. */}}
+  {{/* The username reaches the guard as data, never as part of the
+       expression, so what it may contain does not matter to the script. */}}
   <form class="stack" method="post" action="/settings/account/delete"
+        data-username="{{.Status.User.Username}}"
         x-data="{ typed: '' }"
-        @submit="if (typed !== '{{.Status.User.Username}}') { $event.preventDefault(); }">
+        @submit="if (typed !== $el.dataset.username) { $event.preventDefault(); }">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
 
+    {{if .Credentials.PasswordSet}}
     <label>Current password
       <input name="password" type="password" autocomplete="current-password" required>
     </label>
+    {{end}}
 
     {{if .Status.User.TOTPEnabled}}
     <label>Code

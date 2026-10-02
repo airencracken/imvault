@@ -12,16 +12,6 @@ import (
 	"imvault/internal/config"
 )
 
-// uploadOneAs uploads a single file through the browser uploader and returns
-// the stored record.
-func uploadOneAs(t *testing.T, s *session, name string, data []byte) (*http.Response, string) {
-	t.Helper()
-
-	return s.upload(map[string]string{"public": "1"}, []uploadFile{
-		{name: name, data: data},
-	})
-}
-
 func TestIdenticalUploadsShareTheirBytes(t *testing.T) {
 	h := newHarness(t)
 	h.registerForm("marcus")

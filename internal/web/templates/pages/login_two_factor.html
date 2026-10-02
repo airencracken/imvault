@@ -6,6 +6,7 @@
 
   <form class="panel stack" method="post" action="/login/2fa">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    {{if .Next}}<input type="hidden" name="next" value="{{.Next}}">{{end}}
     <p class="muted">
       Finish signing in as <strong>{{.Username}}</strong>. Enter a code from
       your authenticator app or one of your recovery codes.

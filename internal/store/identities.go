@@ -125,12 +125,15 @@ func (s *Store) UnlinkIdentity(ctx context.Context, id, userID int64) error {
 	return nil
 }
 
-// CreateUserWithIdentity creates an account and links a provider assertion to
-// it, consuming an invitation when one is given, all in one transaction.
+// CreateUserWithIdentity creates an account that signs in through a provider:
+// the account, its identity, the consumed invitation when there is one, and the
+// record that nobody knows its password, all in one transaction.
 //
 // The identity and the account have to arrive together. Creating the account
 // first and linking after would leave an orphan every time the link failed, and
-// the link is the only reason the account is being made.
+// the link is the only reason the account is being made. Marking the password
+// unset in a later statement would leave a window, and a failure, in which the
+// account claims a password nobody has, locking its owner out of settings.
 func (s *Store) CreateUserWithIdentity(ctx context.Context, in NewUser, issuer, subject, email string, inviteID *int64) (*models.User, error) {
 	var user *models.User
 
@@ -156,6 +159,11 @@ func (s *Store) CreateUserWithIdentity(ctx context.Context, in NewUser, issuer, 
 				return ErrConflict
 			}
 			return fmt.Errorf("link identity: %w", err)
+		}
+
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE users SET password_set = 0 WHERE id = ?`, created.ID); err != nil {
+			return fmt.Errorf("mark password unset: %w", err)
 		}
 
 		user = created

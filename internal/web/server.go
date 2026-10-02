@@ -55,7 +55,15 @@ type Server struct {
 	// processing bounds how many uploads are worked on at once, across
 	// everybody. Rate limiting is per identity and does not bound the total.
 	processing *gate
-	content    contentLocks
+	// formReadTimeout and uploadReadTimeout bound how long a request body may
+	// take to arrive. They are fields so a test can shorten them.
+	formReadTimeout   time.Duration
+	uploadReadTimeout time.Duration
+	content           contentLocks
+	// flashKey signs the messages carried across redirects.
+	flashKey []byte
+	// background tracks work a request started and did not wait for.
+	background sync.WaitGroup
 	// mapCache holds fetched static maps so repeated views do not spend a
 	// provider's quota. The key is the fully substituted provider URL.
 	mapMu    sync.Mutex
@@ -82,6 +90,9 @@ func New(cfg *config.Config, st *store.Store, objects storage.Backend, proc *med
 		logins:            ratelimit.New(cfg.LoginRatePerHour, cfg.LoginBurst),
 		mailRetryInterval: cfg.MailRetryInterval,
 		processing:        newGate(cfg.MaxConcurrentUploads),
+		flashKey:          newFlashKey(),
+		formReadTimeout:   formReadTimeout,
+		uploadReadTimeout: uploadReadTimeout,
 		// The provider is not contacted here: discovery happens on first use,
 		// so an issuer that is briefly unreachable does not stop the instance
 		// from serving, and does not need a restart once it is back.
@@ -114,7 +125,7 @@ func New(cfg *config.Config, st *store.Store, objects storage.Backend, proc *med
 	// The semicolon rewrite runs before the CSRF middleware, which parses the
 	// form to find its token, and therefore before anything else can read a
 	// field and find it missing.
-	s.handler = s.recoverMW(s.logMW(s.sessionMW(s.apiAuthMW(s.requestLimitsMW(s.semicolonMW(s.csrfMW(mux)))))))
+	s.handler = s.recoverMW(securityHeadersMW(s.logMW(s.sessionMW(s.apiAuthMW(s.requestLimitsMW(s.semicolonMW(s.csrfMW(mux))))))))
 	return s, nil
 }
 
@@ -146,7 +157,9 @@ func (s *Server) routes() *http.ServeMux {
 
 	mux.HandleFunc("GET /healthz", s.handleHealth)
 
-	// Authentication
+	// Authentication. Everything that checks a credential, mints an account,
+	// or sends mail on an anonymous request shares the sign-in budget, so none
+	// of them is a way around it.
 	mux.HandleFunc("GET /{$}", s.handleHome)
 	mux.HandleFunc("GET /login", s.handleLoginPage)
 	mux.HandleFunc("POST /login", s.rateLimitLogins(s.handleLogin))
@@ -156,13 +169,13 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /auth/oidc/start", s.handleOIDCStart)
 	mux.HandleFunc("GET /auth/oidc/callback", s.handleOIDCCallback)
 	mux.HandleFunc("GET /auth/oidc/complete", s.handleOIDCComplete)
-	mux.HandleFunc("POST /auth/oidc/complete", s.handleOIDCCompleteSubmit)
-	mux.HandleFunc("POST /register", s.handleRegister)
+	mux.HandleFunc("POST /auth/oidc/complete", s.rateLimitLogins(s.handleOIDCCompleteSubmit))
+	mux.HandleFunc("POST /register", s.rateLimitLogins(s.handleRegister))
 	mux.HandleFunc("POST /logout", s.handleLogout)
 	mux.HandleFunc("GET /forgot", s.handleForgotPage)
-	mux.HandleFunc("POST /forgot", s.handleForgot)
+	mux.HandleFunc("POST /forgot", s.rateLimitLogins(s.handleForgot))
 	mux.HandleFunc("GET /reset/{token}", s.handleResetPage)
-	mux.HandleFunc("POST /reset/{token}", s.handleReset)
+	mux.HandleFunc("POST /reset/{token}", s.rateLimitLogins(s.handleReset))
 	mux.HandleFunc("GET /verify/{token}", s.handleVerifyEmail)
 
 	// Library
@@ -212,17 +225,18 @@ func (s *Server) routes() *http.ServeMux {
 	// Account settings
 	mux.HandleFunc("GET /settings/account", s.requireUser(s.handleAccountPage))
 	mux.HandleFunc("GET /settings/account/export", s.requireUser(s.handleAccountExport))
-	mux.HandleFunc("POST /settings/account/delete", s.requireUser(s.handleAccountDelete))
+	mux.HandleFunc("POST /settings/account/delete", s.requireUser(s.rateLimitLogins(s.handleAccountDelete)))
 	mux.HandleFunc("POST /settings/account/identities/{id}/delete", s.requireUser(s.handleUnlinkIdentity))
 	mux.HandleFunc("GET /settings/2fa", s.requireUser(s.handleTwoFactorPage))
 	mux.HandleFunc("GET /settings/2fa/qr", s.requireUser(s.handleTwoFactorQR))
 	mux.HandleFunc("POST /settings/2fa/begin", s.requireUser(s.handleTwoFactorBegin))
 	mux.HandleFunc("POST /settings/2fa/confirm", s.requireUser(s.handleTwoFactorConfirm))
-	mux.HandleFunc("POST /settings/2fa/disable", s.requireUser(s.handleTwoFactorDisable))
-	mux.HandleFunc("POST /settings/2fa/recovery", s.requireUser(s.handleTwoFactorRecovery))
+	mux.HandleFunc("POST /settings/2fa/disable", s.requireUser(s.rateLimitLogins(s.handleTwoFactorDisable)))
+	mux.HandleFunc("POST /settings/2fa/recovery", s.requireUser(s.rateLimitLogins(s.handleTwoFactorRecovery)))
 	mux.HandleFunc("GET /settings/password", s.requireUser(s.handleChangePasswordPage))
-	mux.HandleFunc("POST /settings/password", s.requireUser(s.handleChangePassword))
-	mux.HandleFunc("POST /settings/email", s.requireUser(s.handleChangeEmail))
+	mux.HandleFunc("POST /settings/password", s.requireUser(s.rateLimitLogins(s.handleChangePassword)))
+	mux.HandleFunc("POST /settings/email", s.requireUser(s.rateLimitLogins(s.handleChangeEmail)))
+	mux.HandleFunc("POST /settings/reauth", s.requireUser(s.handleReauthStart))
 	mux.HandleFunc("GET /settings/api-keys", s.requireUser(s.handleAPIKeysPage))
 	mux.HandleFunc("POST /settings/api-keys", s.requireUser(s.handleAPIKeyCreate))
 	mux.HandleFunc("POST /settings/api-keys/{id}/delete", s.requireUser(s.handleAPIKeyDelete))
@@ -242,12 +256,12 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /admin/mail/{id}/delete", s.requireAdmin(s.handleAdminDeleteMail))
 	mux.HandleFunc("POST /admin/maintenance/storage", s.requireAdmin(s.handleAdminRecomputeStorage))
 	mux.HandleFunc("POST /admin/maintenance/blobs", s.requireAdmin(s.handleAdminRecomputeBlobs))
-	mux.HandleFunc("GET /admin/invites", s.requireAdmin(s.handleAdminInvites))
-	mux.HandleFunc("POST /admin/invites", s.requireAdmin(s.handleAdminCreateInvite))
-	mux.HandleFunc("POST /admin/invites/{id}/revoke", s.requireAdmin(s.handleAdminRevokeInvite))
-	mux.HandleFunc("GET /invites", s.requireInviter(s.handleUserInvites))
-	mux.HandleFunc("POST /invites", s.requireInviter(s.handleAdminCreateInvite))
-	mux.HandleFunc("POST /invites/{id}/revoke", s.requireInviter(s.handleUserRevokeInvite))
+	mux.HandleFunc("GET /admin/invites", s.requireAdmin(s.handleInvites))
+	mux.HandleFunc("POST /admin/invites", s.requireAdmin(s.handleCreateInvite))
+	mux.HandleFunc("POST /admin/invites/{id}/revoke", s.requireAdmin(s.handleRevokeInvite))
+	mux.HandleFunc("GET /invites", s.requireInviter(s.handleInvites))
+	mux.HandleFunc("POST /invites", s.requireInviter(s.handleCreateInvite))
+	mux.HandleFunc("POST /invites/{id}/revoke", s.requireInviter(s.handleRevokeInvite))
 	mux.HandleFunc("GET /admin/settings", s.requireAdmin(s.handleAdminSettings))
 	mux.HandleFunc("POST /admin/settings", s.requireAdmin(s.handleAdminSaveSettings))
 	mux.HandleFunc("POST /admin/settings/branding-assets", s.requireAdmin(s.handleAdminSaveBrandingAssets))
@@ -289,5 +303,5 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.Write([]byte("ok"))
+	s.writeBody(w, []byte("ok"))
 }

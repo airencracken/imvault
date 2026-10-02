@@ -24,6 +24,9 @@ type accountView struct {
 	Identities []*models.Identity
 	Error      string
 	Notice     string
+	// Credentials says how the account proves itself, which decides whether
+	// deletion asks for a password and whether a connection may be removed.
+	Credentials credentialState
 }
 
 // handleAccountPage shows the account's own settings, including the way out.
@@ -54,9 +57,9 @@ func (s *Server) handleAccountPage(w http.ResponseWriter, r *http.Request) {
 		FileCount:       count,
 		ExportableBytes: status.User.StorageUsed,
 		Identities:      identities,
-		Error:           r.URL.Query().Get("error"),
-		Notice:          r.URL.Query().Get("notice"),
 	}
+	view.Notice, view.Error = s.flash(r)
+	view.Credentials = s.credentialsFor(r, user, "/settings/account")
 	view.base = s.base(r, "Account")
 	// The confirmation field uses Alpine, so the page has to load it.
 	view.UseAlpine = true
@@ -73,12 +76,12 @@ func (s *Server) handleAccountDelete(w http.ResponseWriter, r *http.Request) {
 	user := currentUser(r.Context())
 
 	if err := s.verifySensitiveAction(w, r, user); err != nil {
-		redirectNotice(w, r, "/settings/account", "error", err.Error())
+		s.redirectFlash(w, r, "/settings/account", flashError, err.Error())
 		return
 	}
 
 	if typed := trimSpace(r.FormValue("confirm")); typed != user.Username {
-		redirectNotice(w, r, "/settings/account", "error",
+		s.redirectFlash(w, r, "/settings/account", flashError,
 			"Type your username exactly to confirm. Nothing has been deleted.")
 		return
 	}
@@ -86,13 +89,13 @@ func (s *Server) handleAccountDelete(w http.ResponseWriter, r *http.Request) {
 	removed, err := s.deleteAccount(r.Context(), user.ID)
 	if err != nil {
 		if errors.Is(err, store.ErrLastAdmin) {
-			redirectNotice(w, r, "/settings/account", "error",
+			s.redirectFlash(w, r, "/settings/account", flashError,
 				"You are the last administrator, so this account cannot be deleted. "+
 					"Grant somebody else the role first.")
 			return
 		}
 		s.log.Error("account: delete", "user", user.ID, "error", err)
-		redirectNotice(w, r, "/settings/account", "error", "Could not delete the account.")
+		s.redirectFlash(w, r, "/settings/account", flashError, "Could not delete the account.")
 		return
 	}
 
@@ -102,7 +105,7 @@ func (s *Server) handleAccountDelete(w http.ResponseWriter, r *http.Request) {
 	s.clearSessionCookie(w, r)
 	s.clearPendingCookie(w, r)
 
-	redirectNotice(w, r, "/", "notice",
+	s.redirectFlash(w, r, "/", flashNotice,
 		"Your account has been deleted, along with everything you uploaded.")
 }
 
@@ -128,8 +131,9 @@ func (s *Server) deleteAccount(ctx context.Context, userID int64) (int, error) {
 
 // handleUnlinkIdentity disconnects a provider from the signed-in account.
 //
-// Every account keeps its password, so this never locks anybody out; it only
-// removes one way in.
+// An account made through a provider has no password anybody knows, so for it
+// the last connection is the only way in. Removing that is refused rather than
+// allowed to lock the account out; setting a password first lifts it.
 func (s *Server) handleUnlinkIdentity(w http.ResponseWriter, r *http.Request) {
 	user := currentUser(r.Context())
 
@@ -139,17 +143,44 @@ func (s *Server) handleUnlinkIdentity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if message := s.unlinkRefusal(r, user); message != "" {
+		s.redirectFlash(w, r, "/settings/account", flashError, message)
+		return
+	}
+
 	if err := s.store.UnlinkIdentity(r.Context(), id, user.ID); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			redirectNotice(w, r, "/settings/account", "error", "That connection does not exist.")
+			s.redirectFlash(w, r, "/settings/account", flashError, "That connection does not exist.")
 			return
 		}
 		s.log.Error("unlink identity", "user", user.ID, "identity", id, "error", err)
-		redirectNotice(w, r, "/settings/account", "error", "Could not disconnect it.")
+		s.redirectFlash(w, r, "/settings/account", flashError, "Could not disconnect it.")
 		return
 	}
 
 	s.log.Info("identity disconnected", "user", user.ID, "identity", id)
-	redirectNotice(w, r, "/settings/account", "notice",
+	s.redirectFlash(w, r, "/settings/account", flashNotice,
 		"Disconnected. You can still sign in with your password.")
+}
+
+// unlinkRefusal explains why the account may not remove a connection, or is
+// empty when it may.
+func (s *Server) unlinkRefusal(r *http.Request, user *models.User) string {
+	set, err := s.store.PasswordSet(r.Context(), user.ID)
+	if err != nil {
+		s.log.Error("unlink: load password state", "user", user.ID, "error", err)
+		return "Could not disconnect it."
+	}
+	if set {
+		return ""
+	}
+	identities, err := s.store.IdentitiesByUser(r.Context(), user.ID)
+	if err != nil {
+		s.log.Error("unlink: list identities", "user", user.ID, "error", err)
+		return "Could not disconnect it."
+	}
+	if len(identities) <= 1 {
+		return "This is the only way into this account. Set a password first, then disconnect it."
+	}
+	return ""
 }

@@ -182,16 +182,19 @@ func (s *Server) apiUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// requestLimitsMW holds the shared upload slot and bounds the body.
-	if err := r.ParseMultipartForm(multipartMemory); err != nil {
-		writeAPIError(w, http.StatusBadRequest, "could not read the upload: "+uploadErrMessage(err))
+	// The key and the rate limit are already checked, so the slot goes to a
+	// caller entitled to it. requestLimitsMW bounds the body and removes the
+	// temporary files.
+	release, ok := s.acquireUpload(w, r)
+	if !ok {
 		return
 	}
-	defer func() {
-		if r.MultipartForm != nil {
-			r.MultipartForm.RemoveAll()
-		}
-	}()
+	defer release()
+
+	if err := r.ParseMultipartForm(multipartMemory); err != nil {
+		writeAPIError(w, uploadErrStatus(err), "could not read the upload: "+uploadErrMessage(err))
+		return
+	}
 
 	parts := uploadParts(r.MultipartForm)
 	if len(parts) == 0 {
@@ -244,7 +247,7 @@ func (s *Server) apiUpload(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		for _, f := range created {
-			io.WriteString(w, f.URL+"\n")
+			s.writeBody(w, []byte(f.URL+"\n"))
 		}
 		return
 	}
@@ -263,10 +266,11 @@ func uploadParts(form *multipart.Form) []*multipart.FileHeader {
 }
 
 // apiAttachToAlbum links an upload to an album named by id or slug, when the
-// caller owns it. Failures are logged rather than failing the upload, which has
-// already succeeded by this point.
+// caller may contribute to it, exactly as the album page decides. Failures are
+// logged rather than failing the upload, which has already succeeded by this
+// point.
 func (s *Server) apiAttachToAlbum(r *http.Request, user *models.User, ref string, file *models.File) {
-	album, err := s.ownedAlbum(r.Context(), user, ref)
+	album, err := s.contributableAlbum(r.Context(), user, ref)
 	if err != nil {
 		s.log.Warn("api upload: album not usable", "album", ref, "user", user.ID)
 		return
@@ -471,6 +475,9 @@ func (s *Server) apiDeleteFile(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusInternalServerError, "could not delete the file")
 		return
 	}
+	// An administrator's key removing somebody else's file is moderation, and
+	// the trail must not depend on which interface it came through.
+	s.recordFileRemoval(r.Context(), currentUser(r.Context()), file, "")
 
 	noStore(w)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted", "id": file.ID})

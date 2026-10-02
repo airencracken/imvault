@@ -5,6 +5,7 @@ package web
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -24,6 +25,10 @@ type settingSource struct {
 	Stored         map[string]bool
 	Branding       models.Branding
 	BrandingStored map[string]bool
+	// CustomMascot and CustomFavicon say whether brand images were uploaded.
+	// They are read on every page, so they are cached with the rest rather
+	// than queried per render.
+	CustomMascot, CustomFavicon bool
 }
 
 // installSettings loads the policy at startup and keeps it in memory.
@@ -49,20 +54,27 @@ func (s *Server) reloadSettings(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	s.settings.Store(&settingSource{Values: values, Stored: stored, Branding: branding, BrandingStored: brandingStored})
+	mascot, favicon, err := s.store.BrandingAssetState(ctx)
+	if err != nil {
+		return err
+	}
+	s.settings.Store(&settingSource{
+		Values: values, Stored: stored,
+		Branding: branding, BrandingStored: brandingStored,
+		CustomMascot: mascot, CustomFavicon: favicon,
+	})
 	return nil
 }
 
 func (s *Server) configBrandingDefaults() models.Branding {
+	// The default name lives in the configuration, so there is one of it.
 	name := s.cfg.Name
-	if name == "" {
-		name = "imvault"
-	}
 	return models.Branding{
 		SiteName:     name,
 		SourceURL:    s.cfg.SourceURL,
 		WelcomeTitle: "Your pictures, your server.",
-		WelcomeText:  "imvault is a small, self-hosted image host. Upload, organise into albums, tag, and share by link.",
+		WelcomeText: name + " is a small, self-hosted home for photos and short clips. " +
+			"Upload, organise into albums, tag, and share by link.",
 	}
 }
 
@@ -207,6 +219,7 @@ func profileFor(key string) (instanceProfile, bool) {
 // handleAdminSettings shows the instance-wide policy.
 func (s *Server) handleAdminSettings(w http.ResponseWriter, r *http.Request) {
 	policy := s.policy()
+	notice, problem := s.flash(r)
 
 	pending, err := s.store.CountFiles(r.Context(), fileQueryAnonymous())
 	if err != nil {
@@ -232,12 +245,11 @@ func (s *Server) handleAdminSettings(w http.ResponseWriter, r *http.Request) {
 		ConfigVisibility:      s.cfg.DefaultVisibility,
 		ConfigMaxTotalMB:      s.cfg.MaxTotalBytes >> 20,
 		AnonymousPending:      pending,
-		Error:                 r.URL.Query().Get("error"),
-		Notice:                r.URL.Query().Get("notice"),
+		Notice:                notice,
+		Error:                 problem,
 	}
-	view.CustomMascot, view.CustomFavicon, err = s.store.BrandingAssetState(r.Context())
-	if err != nil {
-		s.log.Error("admin settings: branding assets", "error", err)
+	if current := s.settings.Load(); current != nil {
+		view.CustomMascot, view.CustomFavicon = current.CustomMascot, current.CustomFavicon
 	}
 	view.base = s.base(r, "Instance settings")
 
@@ -255,7 +267,7 @@ func (s *Server) handleAdminSaveSettings(w http.ResponseWriter, r *http.Request)
 
 	maxTotal, err := parseMegabytes(r.FormValue("max_total_mb"))
 	if err != nil {
-		redirectNotice(w, r, "/admin/settings", "error", err.Error())
+		s.redirectFlash(w, r, "/admin/settings", flashError, err.Error())
 		return
 	}
 
@@ -273,7 +285,7 @@ func (s *Server) handleAdminSaveSettings(w http.ResponseWriter, r *http.Request)
 	if key := strings.TrimSpace(r.FormValue("profile")); key != "" {
 		profile, ok := profileFor(key)
 		if !ok {
-			redirectNotice(w, r, "/admin/settings", "error", "No such profile.")
+			s.redirectFlash(w, r, "/admin/settings", flashError, "No such profile.")
 			return
 		}
 		// A profile sets the policy axes and leaves the retention window as it
@@ -288,7 +300,7 @@ func (s *Server) handleAdminSaveSettings(w http.ResponseWriter, r *http.Request)
 	} else {
 		window, err := parseRetention(r.FormValue("anonymous_ttl"))
 		if err != nil {
-			redirectNotice(w, r, "/admin/settings", "error", err.Error())
+			s.redirectFlash(w, r, "/admin/settings", flashError, err.Error())
 			return
 		}
 		next.AnonymousTTL = window
@@ -303,7 +315,7 @@ func (s *Server) handleAdminSaveSettings(w http.ResponseWriter, r *http.Request)
 			WelcomeText:  strings.TrimSpace(r.FormValue("welcome_text")),
 		}
 		if err := store.ValidateBranding(branding); err != nil {
-			redirectNotice(w, r, "/admin/settings", "error", err.Error())
+			s.redirectFlash(w, r, "/admin/settings", flashError, err.Error())
 			return
 		}
 		saveErr = s.store.SaveSettingsWithBranding(r.Context(), next, branding)
@@ -312,12 +324,12 @@ func (s *Server) handleAdminSaveSettings(w http.ResponseWriter, r *http.Request)
 	}
 	if saveErr != nil {
 		s.log.Error("admin: save settings", "error", saveErr)
-		redirectNotice(w, r, "/admin/settings", "error", "Could not save the settings.")
+		s.redirectFlash(w, r, "/admin/settings", flashError, "Could not save the settings.")
 		return
 	}
 	if err := s.reloadSettings(r.Context()); err != nil {
 		s.log.Error("admin: reload settings", "error", err)
-		redirectNotice(w, r, "/admin/settings", "error", "The settings were saved but could not be read back.")
+		s.redirectFlash(w, r, "/admin/settings", flashError, "The settings were saved but could not be read back.")
 		return
 	}
 
@@ -339,7 +351,7 @@ func (s *Server) handleAdminSaveSettings(w http.ResponseWriter, r *http.Request)
 		changed, err := s.store.ApplyAnonymousRetention(r.Context(), next.AnonymousTTL)
 		if err != nil {
 			s.log.Error("admin: apply retention", "error", err)
-			redirectNotice(w, r, "/admin/settings", "error",
+			s.redirectFlash(w, r, "/admin/settings", flashError,
 				"The settings were saved, but existing uploads could not be updated.")
 			return
 		}
@@ -359,7 +371,7 @@ func (s *Server) handleAdminSaveSettings(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	redirectNotice(w, r, "/admin/settings", "notice", notice)
+	s.redirectFlash(w, r, "/admin/settings", flashNotice, notice)
 }
 
 // handleAdminClearSettings removes the stored overrides, so the configuration
@@ -368,19 +380,25 @@ func (s *Server) handleAdminClearSettings(w http.ResponseWriter, r *http.Request
 	cleared, err := s.store.ClearSettings(r.Context())
 	if err != nil {
 		s.log.Error("admin: clear settings", "error", err)
-		redirectNotice(w, r, "/admin/settings", "error", "Could not clear the settings.")
+		s.redirectFlash(w, r, "/admin/settings", flashError, "Could not clear the settings.")
 		return
 	}
 	if err := s.reloadSettings(r.Context()); err != nil {
 		s.log.Error("admin: reload after clear", "error", err)
-		redirectNotice(w, r, "/admin/settings", "error", "The settings were cleared but could not be read back.")
+		s.redirectFlash(w, r, "/admin/settings", flashError, "The settings were cleared but could not be read back.")
 		return
 	}
 
 	s.log.Info("instance settings cleared", "actor", currentUser(r.Context()).ID, "keys", cleared)
-	redirectNotice(w, r, "/admin/settings", "notice",
+	s.redirectFlash(w, r, "/admin/settings", flashNotice,
 		"Cleared. The configuration file is in charge again.")
 }
+
+// maxRetentionHours is the longest window that still fits in a duration.
+const maxRetentionHours = int64(math.MaxInt64 / int64(time.Hour))
+
+// errRetentionTooLong refuses a window too long to represent.
+const errRetentionTooLong = userError("The retention window is too long.")
 
 // parseRetention reads the retention window from the form.
 //
@@ -390,12 +408,15 @@ func (s *Server) handleAdminClearSettings(w http.ResponseWriter, r *http.Request
 func parseRetention(raw string) (time.Duration, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return 0, fmt.Errorf("The retention window is required.")
+		return 0, userError("The retention window is required.")
 	}
 
 	if hours, err := strconv.ParseInt(raw, 10, 64); err == nil {
 		if hours <= 0 {
-			return 0, fmt.Errorf("The retention window must be positive.")
+			return 0, userError("The retention window must be positive.")
+		}
+		if hours > maxRetentionHours {
+			return 0, errRetentionTooLong
 		}
 		return time.Duration(hours) * time.Hour, nil
 	}
@@ -403,17 +424,20 @@ func parseRetention(raw string) (time.Duration, error) {
 	if days, err := strconv.ParseInt(strings.TrimSuffix(raw, "d"), 10, 64); err == nil &&
 		strings.HasSuffix(raw, "d") {
 		if days <= 0 {
-			return 0, fmt.Errorf("The retention window must be positive.")
+			return 0, userError("The retention window must be positive.")
+		}
+		if days > maxRetentionHours/24 {
+			return 0, errRetentionTooLong
 		}
 		return time.Duration(days) * 24 * time.Hour, nil
 	}
 
 	window, err := time.ParseDuration(raw)
 	if err != nil {
-		return 0, fmt.Errorf("Could not read %q as a duration. Try 24, 24h, or 7d.", raw)
+		return 0, userError(fmt.Sprintf("Could not read %q as a duration. Try 24, 24h, or 7d.", raw))
 	}
 	if window <= 0 {
-		return 0, fmt.Errorf("The retention window must be positive.")
+		return 0, userError("The retention window must be positive.")
 	}
 	return window, nil
 }
@@ -429,8 +453,8 @@ func parseMegabytes(raw string) (int64, error) {
 	}
 
 	megabytes, err := strconv.ParseInt(raw, 10, 64)
-	if err != nil || megabytes < 0 {
-		return 0, fmt.Errorf("The storage ceiling must be a whole number of MiB, or blank for no ceiling.")
+	if err != nil || megabytes < 0 || megabytes > maxAdminMegabytes {
+		return 0, userError("The storage ceiling must be a whole number of MiB, or blank for no ceiling.")
 	}
 	return megabytes << 20, nil
 }

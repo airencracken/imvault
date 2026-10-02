@@ -27,7 +27,10 @@ DIST_FILES := cmd internal docs go.mod go.sum Makefile README.md LICENSE \
 	compose-up compose-down test-browser
 
 .PHONY: release-check release-snapshot test-proxies
-.PHONY: test-invitation-mutations
+.PHONY: test-invitation-mutations test-web-mutations
+
+test-web-mutations: ## Check the web regression tests against deliberate security regressions
+	python3 scripts/test-web-mutations.py
 
 test-invitation-mutations: ## Check invitation tests against deliberate permission regressions
 	python3 scripts/test-invitation-mutations.py

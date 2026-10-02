@@ -17,12 +17,25 @@
     <label>Label <span class="muted">(optional, for your own reference)</span>
       <input name="label" maxlength="64" autocomplete="off" placeholder="e.g. for Sam" value="{{.Label}}">
     </label>
+    {{if .Limited}}
+    <label>Uses <span class="muted">(1 to {{.MaxUsesCap}})</span>
+      <input name="max_uses" type="number" min="1" max="{{.MaxUsesCap}}" required value="{{.MaxUses}}">
+    </label>
+    <label>Expires after <span class="muted">(days, 1 to {{.MaxDaysCap}})</span>
+      <input name="expires_days" type="number" min="1" max="{{.MaxDaysCap}}" required value="{{.ExpiresDays}}">
+    </label>
+    <p class="muted">
+      Your invitations admit at most {{.MaxUsesCap}} people each and lapse within
+      {{.MaxDaysCap}} days. An administrator can issue wider ones.
+    </p>
+    {{else}}
     <label>Uses <span class="muted">(0 for no limit)</span>
-      <input name="max_uses" type="number" min="0" max="10000" value="{{.MaxUses}}">
+      <input name="max_uses" type="number" min="0" max="{{.MaxUsesCap}}" value="{{.MaxUses}}">
     </label>
     <label>Expires after <span class="muted">(days, leave blank for never)</span>
-      <input name="expires_days" type="number" min="1" max="3650" placeholder="never" value="{{.ExpiresDays}}">
+      <input name="expires_days" type="number" min="1" max="{{.MaxDaysCap}}" placeholder="never" value="{{.ExpiresDays}}">
     </label>
+    {{end}}
     <button class="btn primary" type="submit">Create invitation</button>
   </form>
 
@@ -67,6 +80,7 @@
       {{end}}
     </tbody>
   </table>
+  {{template "pagination" .Pagination}}
   {{else}}
   <p class="muted">No invitations yet.</p>
   {{end}}

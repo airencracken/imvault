@@ -18,16 +18,17 @@ func (s *Server) handleBulkTags(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	count, err := s.store.AddTagsToFiles(r.Context(), currentUser(r.Context()).ID, r.PostForm["files"], strings.Split(r.PostForm.Get("tags"), ","))
-	key, message := "notice", fmt.Sprintf("Tags added to %d files.", count)
+	kind, message := flashNotice, fmt.Sprintf("Tags added to %d files.", count)
 	if count == 1 {
 		message = "Tags added to 1 file."
 	}
 	if err != nil {
 		_, message = bulkTagsError(err)
-		key = "error"
+		kind = flashError
 		s.log.Warn("bulk tags", "error", err)
 	}
-	q := url.Values{key: {message}}
+	q := url.Values{}
+	s.flashQuery(q, kind, message)
 	for _, field := range []string{"q", "page"} {
 		if value := r.PostForm.Get(field); value != "" {
 			q.Set(field, value)

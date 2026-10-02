@@ -3,7 +3,7 @@
   <div>
     <h1>{{.Album.Title}}</h1>
     <p class="muted">
-      {{.Album.FileCount}} image{{if ne .Album.FileCount 1}}s{{end}}
+      {{.Album.FileCount}} file{{if ne .Album.FileCount 1}}s{{end}}
       · visible to {{.Album.Visibility.Label}}
       · {{if .Album.Access.Shared}}anyone here can add their own{{else}}only its owner can add{{end}}
       · by {{default "unknown" .Album.Username}}
@@ -12,7 +12,7 @@
   </div>
   {{if .IsOwner}}
   <form method="post" action="/a/{{.Album.Slug}}/delete"
-        onsubmit="return confirm('Delete this album? The images themselves are kept.');">
+        onsubmit="return confirm('Delete this album? The files themselves are kept.');">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
     <button class="btn danger" type="submit">Delete album</button>
   </form>
@@ -25,19 +25,19 @@
 
 {{if .CanContribute}}
 <section class="section">
-  <h2>Add images</h2>
+  <h2>Add photos and clips</h2>
   {{if .Available.Files}}
   <form id="album-add" method="post" action="/a/{{.Album.Slug}}/files"
         hx-post="/a/{{.Album.Slug}}/files" hx-target="#album-add" hx-swap="outerHTML">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
     <p class="muted">
-      Tick the images to add, then save. Only your own images can be added.
+      Tick the files to add, then save. Only your own files can be added.
     </p>
     {{template "file_grid" .Available}}
     <button class="btn primary" type="submit">Add selected</button>
   </form>
   {{else}}
-  <p class="muted">Every image in your gallery is already in this album.</p>
+  <p class="muted">Everything in your gallery is already in this album.</p>
   {{end}}
 </section>
 {{end}}
@@ -87,8 +87,8 @@
     </label>
     <p class="muted">
       A shared album has to be visible to members. Contributors can add their own
-      images and take them back; only you can change the album itself, or remove
-      somebody else's image from it.
+      photos and clips and take them back; only you can change the album itself, or remove
+      somebody else's file from it.
     </p>
     <p class="muted">
       Metadata in this album is a ceiling rather than a setting: it can hide

@@ -58,17 +58,39 @@ shown once.
 ## Cross-site request forgery
 
 Every mutating request that is authenticated by a cookie must present a
-double-submit token, either as the `X-CSRF-Token` header (which htmx sends
-automatically) or as a form field. The token lives in a readable cookie and must
-be echoed back, so a request forged by another site cannot produce it.
+token, either as the `X-CSRF-Token` header (which htmx sends automatically) or
+as a form field. For a signed-in browser the token is derived from its session,
+so a cookie planted by a neighbouring subdomain, or a token from before signing
+in, is refused. A signed-out browser uses a double-submit cookie, which is what
+keeps another site from submitting the sign-in form. A multipart form must put
+its token first: only the first part is read to find it, so a request with no
+token never has its upload read.
+
+Turning on two-factor authentication ends every other session and continues in
+a fresh one, since none of the earlier sessions was ever asked for a code.
+
+Messages shown after a redirect ("Album saved.") travel in the address and are
+signed; an unsigned or altered one is not shown, so a link cannot make a page
+of this site announce something it did not say.
 
 The `/api/v1/...` endpoints are exempt, and that is deliberate: they are never
 authenticated by a cookie. A bearer token is not ambient authority, so a
 cross-site request cannot make a browser attach one.
 
 Cookies are `HttpOnly` and `SameSite=Lax`, and `Secure` when
-`IMVAULT_SECURE_COOKIES` is set. **That setting matters behind TLS**: without it
-a cookie can be read off a plaintext connection.
+`IMVAULT_SECURE_COOKIES` is set, or when a trusted proxy
+(`IMVAULT_TRUST_PROXY_HEADERS=true`) reports `X-Forwarded-Proto: https`. **That
+matters behind TLS**: without it a cookie can be read off a plaintext
+connection.
+
+Every response carries `X-Content-Type-Options: nosniff`,
+`X-Frame-Options: DENY`, `Content-Security-Policy: frame-ancestors 'none'` and
+`Referrer-Policy: same-origin`, so uploads are served as the type they were
+checked to be and no page can be framed by another site.
+
+Links that leave the server by email (password resets, address confirmations)
+are always built from `IMVAULT_BASE_URL`, never from the request's `Host`
+header, which the sender of a request controls.
 
 ## Who can see what
 
@@ -197,15 +219,20 @@ handling](media.md#what-the-page-shows).
 Two budgets, both in memory, both keyed so that one client cannot exhaust
 another's:
 
-- **Sign-in**, by address and the name being tried. This covers the password
-  step and the code prompt together, which matters because a six-digit code is
-  small enough that unlimited guesses would eventually find one.
+- **Sign-in**, by client address. This covers the password step and the code
+  prompt together, which matters because a six-digit code is small enough that
+  unlimited guesses would eventually find one. Registration, password reset
+  requests and redemptions, provider registration, and the current-password
+  checks in the settings pages share the same budget. A reset request answers
+  before any mail is sent, so its timing does not reveal whether the account
+  exists.
 - **Uploads**, by account when signed in and by client address for anonymous
   uploads.
 
 Behind a reverse proxy, every request arrives from the proxy's address, so
 anonymous uploads would share one bucket. `IMVAULT_TRUST_PROXY_HEADERS` reads
-the client from `X-Forwarded-For` instead — **only enable it behind a proxy you
+the client from the right-most `X-Forwarded-For` entry, the one the proxy itself
+added, instead — **only enable it behind a proxy you
 control**, because those headers are otherwise client-supplied, and trusting
 them would let a caller sidestep the limit entirely.
 

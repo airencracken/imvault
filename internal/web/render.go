@@ -100,7 +100,7 @@ func (s *Server) renderPartialStatus(w http.ResponseWriter, status int, name str
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
-	w.Write(buf.Bytes())
+	s.writeBody(w, buf.Bytes())
 }
 
 // renderPage writes a full page, buffering first for the same reason.
@@ -113,7 +113,7 @@ func (s *Server) renderPage(w http.ResponseWriter, status int, name string, data
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
-	w.Write(buf.Bytes())
+	s.writeBody(w, buf.Bytes())
 }
 
 // templateFuncs returns the helpers exposed to templates.

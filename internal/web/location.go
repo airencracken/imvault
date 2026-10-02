@@ -78,5 +78,5 @@ func (s *Server) handleFileLocation(w http.ResponseWriter, r *http.Request) {
 		hxRedirect(w, "/f/"+file.ID)
 		return
 	}
-	redirectNotice(w, r, "/f/"+file.ID, "notice", "Location sharing updated.")
+	s.redirectFlash(w, r, "/f/"+file.ID, flashNotice, "Location sharing updated.")
 }

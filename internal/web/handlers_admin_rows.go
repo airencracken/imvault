@@ -5,6 +5,7 @@ package web
 import (
 	"bytes"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"imvault/internal/models"
@@ -33,12 +34,28 @@ func (s *Server) adminUserRowFor(r *http.Request, user *models.User, errMsg stri
 }
 
 // adminMailRowFor builds the row for one queued message.
+//
+// The queue page is for seeing what was sent and whether it arrived, not for
+// reading it. An undelivered reset or confirmation message carries a live
+// token, so the row gets a copy with no body and with any such link in the
+// relay's error text redacted.
 func (s *Server) adminMailRowFor(r *http.Request, message *models.OutboundMail) adminMailRow {
+	shown := *message
+	shown.Body = ""
+	shown.LastError = redactTokenLinks(shown.LastError)
 	return adminMailRow{
-		Message:   message,
+		Message:   &shown,
 		CSRFToken: csrfToken(r.Context()),
 		Search:    strings.ToLower(message.Recipient + " " + message.Subject + " " + message.MailStatus()),
 	}
+}
+
+// tokenLink matches the path of an emailed one-time link.
+var tokenLink = regexp.MustCompile(`(` + regexp.QuoteMeta(resetPath) + `|` + regexp.QuoteMeta(verifyPath) + `)[A-Za-z0-9_-]+`)
+
+// redactTokenLinks hides the token in any reset or confirmation link.
+func redactTokenLinks(text string) string {
+	return tokenLink.ReplaceAllString(text, "${1}[redacted]")
 }
 
 // adminUserRows loads the account list in the shape the table expects.
@@ -61,11 +78,12 @@ func (s *Server) adminMailRows(r *http.Request, messages []*models.OutboundMail)
 
 // noticeFromQuery rebuilds the notice a redirect carried, so the non-JavaScript
 // path shows the same message the htmx path would have swapped in.
-func noticeFromQuery(r *http.Request) adminNotice {
-	if err := strings.TrimSpace(r.URL.Query().Get("error")); err != "" {
-		return adminNotice{Text: err, Error: true}
+func (s *Server) noticeFromQuery(r *http.Request) adminNotice {
+	notice, problem := s.flash(r)
+	if problem != "" {
+		return adminNotice{Text: problem, Error: true}
 	}
-	return adminNotice{Text: strings.TrimSpace(r.URL.Query().Get("notice"))}
+	return adminNotice{Text: notice}
 }
 
 // renderAdminUsersPage renders the account table in full.
@@ -118,7 +136,7 @@ func (s *Server) renderAdminRow(w http.ResponseWriter, rowTemplate string, row a
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write(buf.Bytes())
+	s.writeBody(w, buf.Bytes())
 }
 
 // adminRespond finishes an admin action: htmx gets the row and a notice, and
@@ -127,15 +145,11 @@ func (s *Server) renderAdminRow(w http.ResponseWriter, rowTemplate string, row a
 // A nil user means the row no longer exists.
 func (s *Server) adminRespond(w http.ResponseWriter, r *http.Request, user *models.User, notice adminNotice, errMsg, redirectPath string) {
 	if !isHTMX(r) {
-		key := "notice"
+		kind, message := flashNotice, notice.Text
 		if errMsg != "" {
-			key = "error"
+			kind, message = flashError, errMsg
 		}
-		message := notice.Text
-		if errMsg != "" {
-			message = errMsg
-		}
-		redirectNotice(w, r, redirectPath, key, message)
+		s.redirectFlash(w, r, redirectPath, kind, message)
 		return
 	}
 
