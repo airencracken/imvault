@@ -9,23 +9,30 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"sync"
 	"testing"
 
 	"imvault/internal/storage"
 )
 
 // openFailsAfter is a backend whose reads start failing after a number of
-// successful opens, standing in for storage that goes away mid-export.
+// successful opens, standing in for storage that goes away mid-export. The
+// server's background workers may open objects while the export runs, so the
+// count is shared and guarded.
 type openFailsAfter struct {
 	storage.Backend
+	mu        sync.Mutex
 	remaining int
 }
 
 func (o *openFailsAfter) Open(ctx context.Context, key string) (io.ReadSeekCloser, error) {
+	o.mu.Lock()
 	if o.remaining <= 0 {
+		o.mu.Unlock()
 		return nil, errors.New("storage went away")
 	}
 	o.remaining--
+	o.mu.Unlock()
 	return o.Backend.Open(ctx, key)
 }
 
