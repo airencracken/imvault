@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -31,11 +32,35 @@ func (s *Store) BeginTOTP(ctx context.Context, userID int64, encryptedSecret str
 	return nil
 }
 
+// ErrTOTPChanged means enrolment could not be finished because the pending
+// secret is no longer the one that was confirmed: another tab started over,
+// or the second factor was already turned on.
+var ErrTOTPChanged = errors.New("store: the pending two-factor secret changed")
+
 // EnableTOTP turns on the second factor for an account.
-func (s *Store) EnableTOTP(ctx context.Context, userID int64) error {
-	if _, err := s.db.ExecContext(ctx,
-		`UPDATE users SET totp_enabled = 1, totp_last_step = 0 WHERE id = ?`, userID); err != nil {
+//
+// It names the encrypted secret the code was checked against, and only enables
+// that one: a second enrolment started in between replaces the pending secret,
+// and enabling it would lock the person out with a secret they never saw
+// working. The step the confirming code belonged to is recorded too, so the
+// same code cannot be replayed to sign in for the rest of its window.
+func (s *Store) EnableTOTP(ctx context.Context, userID int64, encryptedSecret string, acceptedStep uint64) error {
+	if encryptedSecret == "" {
+		return ErrTOTPChanged
+	}
+	res, err := s.db.ExecContext(ctx, `
+		UPDATE users SET totp_enabled = 1, totp_last_step = ?
+		WHERE id = ? AND totp_secret = ? AND totp_enabled = 0`,
+		int64(acceptedStep), userID, encryptedSecret)
+	if err != nil {
 		return fmt.Errorf("enable totp: %w", err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("enable totp rows: %w", err)
+	}
+	if affected != 1 {
+		return ErrTOTPChanged
 	}
 	return nil
 }

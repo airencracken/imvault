@@ -190,13 +190,14 @@ func (s *Server) handleTwoFactorConfirm(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if _, ok := totp.Match(secret, r.FormValue("code"), time.Now()); !ok {
+	step, ok := totp.Match(secret, r.FormValue("code"), time.Now())
+	if !ok {
 		redirectNotice(w, r, "/settings/2fa", "error",
 			"That code did not match. Check the clock on your device and try the current code.")
 		return
 	}
 
-	if err := s.store.EnableTOTP(r.Context(), user.ID); err != nil {
+	if err := s.store.EnableTOTP(r.Context(), user.ID, user.TOTPSecret, step); err != nil {
 		s.log.Error("two factor: enable", "user", user.ID, "error", err)
 		redirectNotice(w, r, "/settings/2fa", "error", "Could not enable two-factor authentication.")
 		return
