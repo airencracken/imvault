@@ -62,7 +62,8 @@ func TestSMTPTimeoutIncludesGreeting(t *testing.T) {
 		if err != nil {
 			return
 		}
-		defer closer.Discard(conn) // may run after the test has finished
+		// This may run after the test has finished, so it cannot report.
+		defer closer.Discard(conn)
 		<-release // Connected relay never sends a greeting.
 	}()
 	host, portText, err := net.SplitHostPort(listener.Addr().String())
