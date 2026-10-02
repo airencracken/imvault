@@ -3,6 +3,7 @@
 package config
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -190,12 +191,21 @@ func TestWhiteboxIdentityHasSourceLinkDefaultsAndEnvironmentOverrides(t *testing
 	t.Setenv("IMVAULT_DATA_DIR", t.TempDir())
 	t.Setenv("IMVAULT_NAME", "")
 	t.Setenv("IMVAULT_SOURCE_URL", "")
+	if err := os.Unsetenv("IMVAULT_SOURCE_URL"); err != nil { // restored by t.Setenv's cleanup
+		t.Fatal(err)
+	}
 	cfg, err := Load()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if cfg.Name != "imvault" || cfg.SourceURL != "https://github.com/airencracken/imvault" {
 		t.Fatalf("identity defaults = %q / %q", cfg.Name, cfg.SourceURL)
+	}
+
+	// Set but blank is how an operator hides the link, as documented.
+	t.Setenv("IMVAULT_SOURCE_URL", "")
+	if cfg, err = Load(); err != nil || cfg.SourceURL != "" {
+		t.Fatalf("a blank source link was not kept blank: %q, %v", cfg.SourceURL, err)
 	}
 
 	t.Setenv("IMVAULT_NAME", "Friends' Album")

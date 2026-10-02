@@ -292,8 +292,9 @@ A few decisions worth knowing about:
 
 Two paths, chosen by whether `IMVAULT_SMTP_HOST` is set.
 
-With a relay configured, `/forgot` takes a username or address, mints a
-single-use token and emails the link. The response is identical whether or not
+With a relay configured — which also requires `IMVAULT_BASE_URL`, so a mailed
+link always points at this instance — `/forgot` takes a username or address,
+mints a single-use token and emails the link. The response is identical whether or not
 the account exists, so the endpoint cannot be used to enumerate accounts.
 
 Without a relay, `/forgot` says so plainly and an administrator issues the link

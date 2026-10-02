@@ -7,7 +7,9 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"math"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -165,71 +167,79 @@ func LoadWithProvisioningPaths(dataDir, dbPath string) (*Config, error) {
 }
 
 func load(dataDirOverride, dbPathOverride string) (*Config, error) {
+	env := &reader{}
 	dataDir := getenv("IMVAULT_DATA_DIR", "./data")
 	if os.Getenv("IMVAULT_DATA_DIR") == "" && dataDirOverride != "" {
 		dataDir = dataDirOverride
 	}
 
 	c := &Config{
-		Name:                  getenv("IMVAULT_NAME", "imvault"),
-		Addr:                  getenv("IMVAULT_ADDR", ":8080"),
-		DataDir:               dataDir,
-		BaseURL:               strings.TrimRight(getenv("IMVAULT_BASE_URL", ""), "/"),
-		SourceURL:             getenv("IMVAULT_SOURCE_URL", "https://github.com/airencracken/imvault"),
-		AllowSignup:           getBool("IMVAULT_ALLOW_SIGNUP", true),
-		InviteOnly:            getBool("IMVAULT_INVITE_ONLY", false),
-		AllowAnonymousUploads: getBool("IMVAULT_ALLOW_ANONYMOUS_UPLOADS", true),
-		AnonymousTTL:          getDuration("IMVAULT_ANONYMOUS_TTL", 24*time.Hour),
+		Name:    getenv("IMVAULT_NAME", "imvault"),
+		Addr:    getenv("IMVAULT_ADDR", ":8080"),
+		DataDir: dataDir,
+		BaseURL: strings.TrimRight(getenv("IMVAULT_BASE_URL", ""), "/"),
+		// Set but empty hides the link, so empty is a value here.
+		SourceURL:             lookupenv("IMVAULT_SOURCE_URL", "https://github.com/airencracken/imvault"),
+		AllowSignup:           env.boolean("IMVAULT_ALLOW_SIGNUP", true),
+		InviteOnly:            env.boolean("IMVAULT_INVITE_ONLY", false),
+		AllowAnonymousUploads: env.boolean("IMVAULT_ALLOW_ANONYMOUS_UPLOADS", true),
+		AnonymousTTL:          env.duration("IMVAULT_ANONYMOUS_TTL", 24*time.Hour),
 		DefaultVisibility:     models.Visibility(getenv("IMVAULT_DEFAULT_VISIBILITY", string(models.VisibilityMembers))),
-		SessionTTL:            getDuration("IMVAULT_SESSION_TTL", 30*24*time.Hour),
-		CleanupInterval:       getDuration("IMVAULT_CLEANUP_INTERVAL", 15*time.Minute),
-		MaxUploadBytes:        getInt64("IMVAULT_MAX_UPLOAD_BYTES", 32<<20),
-		MaxVideoBytes:         getInt64("IMVAULT_MAX_VIDEO_BYTES", 128<<20),
-		MaxVideoDuration:      getDuration("IMVAULT_MAX_VIDEO_DURATION", 60*time.Second),
-		DefaultQuotaBytes:     getInt64("IMVAULT_DEFAULT_QUOTA_BYTES", 5<<30),
-		MaxTotalBytes:         getInt64("IMVAULT_MAX_TOTAL_BYTES", 0),
-		MaxConcurrentUploads:  int(getInt64("IMVAULT_MAX_CONCURRENT_UPLOADS", 0)),
-		UploadRatePerHour:     getFloat("IMVAULT_UPLOAD_RATE_PER_HOUR", 120),
-		UploadBurst:           int(getInt64("IMVAULT_UPLOAD_BURST", 20)),
-		TrustProxyHeaders:     getBool("IMVAULT_TRUST_PROXY_HEADERS", false),
-		FFmpegPath:            getenv("IMVAULT_FFMPEG", "ffmpeg"),
-		FFprobePath:           getenv("IMVAULT_FFPROBE", "ffprobe"),
-		BwrapPath:             getenv("IMVAULT_BWRAP", "bwrap"),
-		SMTPHost:              getenv("IMVAULT_SMTP_HOST", ""),
-		SMTPPort:              int(getInt64("IMVAULT_SMTP_PORT", 587)),
-		SMTPUsername:          getenv("IMVAULT_SMTP_USERNAME", ""),
-		SMTPPassword:          getenv("IMVAULT_SMTP_PASSWORD", ""),
-		SMTPFrom:              getenv("IMVAULT_SMTP_FROM", "imvault <no-reply@localhost>"),
-		SMTPTLS:               getenv("IMVAULT_SMTP_TLS", "starttls"),
-		PasswordResetTTL:      getDuration("IMVAULT_PASSWORD_RESET_TTL", time.Hour),
-		EmailVerifyTTL:        getDuration("IMVAULT_EMAIL_VERIFY_TTL", 24*time.Hour),
-		TOTPIssuer:            getenv("IMVAULT_TOTP_ISSUER", "imvault"),
-		OIDCIssuer:            strings.TrimRight(getenv("IMVAULT_OIDC_ISSUER", ""), "/"),
-		OIDCClientID:          getenv("IMVAULT_OIDC_CLIENT_ID", ""),
-		OIDCClientSecret:      getenv("IMVAULT_OIDC_CLIENT_SECRET", ""),
-		OIDCName:              getenv("IMVAULT_OIDC_NAME", ""),
-		OIDCScopes:            getList("IMVAULT_OIDC_SCOPES"),
-		OIDCAllowedDomains:    getList("IMVAULT_OIDC_ALLOWED_DOMAINS"),
-		SecretKey:             getenv("IMVAULT_SECRET_KEY", ""),
-		LoginRatePerHour:      getFloat("IMVAULT_LOGIN_RATE_PER_HOUR", 30),
-		LoginBurst:            int(getInt64("IMVAULT_LOGIN_BURST", 10)),
-		MailMaxAttempts:       int(getInt64("IMVAULT_MAIL_MAX_ATTEMPTS", 5)),
-		MailRetryInterval:     getDuration("IMVAULT_MAIL_RETRY_INTERVAL", time.Minute),
-		SecureCookies:         getBool("IMVAULT_SECURE_COOKIES", false),
-		ThumbMax:              int(getInt64("IMVAULT_THUMB_MAX", 480)),
-		PreviewMax:            int(getInt64("IMVAULT_PREVIEW_MAX", 1600)),
-		JPEGQuality:           int(getInt64("IMVAULT_JPEG_QUALITY", 82)),
-		MapURL:                getenv("IMVAULT_MAP_URL", ""),
-		MapKey:                getenv("IMVAULT_MAP_KEY", ""),
-		MapZoom:               int(getInt64("IMVAULT_MAP_ZOOM", 13)),
+		SessionTTL:            env.duration("IMVAULT_SESSION_TTL", 30*24*time.Hour),
+		CleanupInterval:       env.duration("IMVAULT_CLEANUP_INTERVAL", 15*time.Minute),
+		MaxUploadBytes:        env.int64("IMVAULT_MAX_UPLOAD_BYTES", 32<<20),
+		MaxVideoBytes:         env.int64("IMVAULT_MAX_VIDEO_BYTES", 128<<20),
+		MaxVideoDuration:      env.duration("IMVAULT_MAX_VIDEO_DURATION", 60*time.Second),
+		DefaultQuotaBytes:     env.int64("IMVAULT_DEFAULT_QUOTA_BYTES", 5<<30),
+		MaxTotalBytes:         env.int64("IMVAULT_MAX_TOTAL_BYTES", 0),
+		MaxConcurrentUploads:  env.integer("IMVAULT_MAX_CONCURRENT_UPLOADS", 0),
+		UploadRatePerHour:     env.float("IMVAULT_UPLOAD_RATE_PER_HOUR", 120),
+		UploadBurst:           env.integer("IMVAULT_UPLOAD_BURST", 20),
+		TrustProxyHeaders:     env.boolean("IMVAULT_TRUST_PROXY_HEADERS", false),
+		// Set but empty turns clip tooling off.
+		FFmpegPath:       lookupenv("IMVAULT_FFMPEG", "ffmpeg"),
+		FFprobePath:      lookupenv("IMVAULT_FFPROBE", "ffprobe"),
+		BwrapPath:        getenv("IMVAULT_BWRAP", "bwrap"),
+		SMTPHost:         getenv("IMVAULT_SMTP_HOST", ""),
+		SMTPPort:         env.integer("IMVAULT_SMTP_PORT", 587),
+		SMTPUsername:     getenv("IMVAULT_SMTP_USERNAME", ""),
+		SMTPPassword:     getenv("IMVAULT_SMTP_PASSWORD", ""),
+		SMTPFrom:         getenv("IMVAULT_SMTP_FROM", "imvault <no-reply@localhost>"),
+		SMTPTLS:          getenv("IMVAULT_SMTP_TLS", "starttls"),
+		PasswordResetTTL: env.duration("IMVAULT_PASSWORD_RESET_TTL", time.Hour),
+		EmailVerifyTTL:   env.duration("IMVAULT_EMAIL_VERIFY_TTL", 24*time.Hour),
+		TOTPIssuer:       getenv("IMVAULT_TOTP_ISSUER", "imvault"),
+		// Kept exactly: discovery compares it byte for byte with what the provider
+		// says its issuer is, and some providers end theirs with a slash.
+		OIDCIssuer:         getenv("IMVAULT_OIDC_ISSUER", ""),
+		OIDCClientID:       getenv("IMVAULT_OIDC_CLIENT_ID", ""),
+		OIDCClientSecret:   getenv("IMVAULT_OIDC_CLIENT_SECRET", ""),
+		OIDCName:           getenv("IMVAULT_OIDC_NAME", ""),
+		OIDCScopes:         getList("IMVAULT_OIDC_SCOPES"),
+		OIDCAllowedDomains: getList("IMVAULT_OIDC_ALLOWED_DOMAINS"),
+		SecretKey:          getenv("IMVAULT_SECRET_KEY", ""),
+		LoginRatePerHour:   env.float("IMVAULT_LOGIN_RATE_PER_HOUR", 30),
+		LoginBurst:         env.integer("IMVAULT_LOGIN_BURST", 10),
+		MailMaxAttempts:    env.integer("IMVAULT_MAIL_MAX_ATTEMPTS", 5),
+		MailRetryInterval:  env.duration("IMVAULT_MAIL_RETRY_INTERVAL", time.Minute),
+		SecureCookies:      env.boolean("IMVAULT_SECURE_COOKIES", false),
+		ThumbMax:           env.integer("IMVAULT_THUMB_MAX", 480),
+		PreviewMax:         env.integer("IMVAULT_PREVIEW_MAX", 1600),
+		JPEGQuality:        env.integer("IMVAULT_JPEG_QUALITY", 82),
+		MapURL:             getenv("IMVAULT_MAP_URL", ""),
+		MapKey:             getenv("IMVAULT_MAP_KEY", ""),
+		MapZoom:            env.integer("IMVAULT_MAP_ZOOM", 13),
 	}
 
-	switch getenv("IMVAULT_MEDIA_SANDBOX", "false") {
+	switch raw := getenv("IMVAULT_MEDIA_SANDBOX", "false"); raw {
 	case "true":
 		c.MediaSandbox = true
 	case "false":
 	default:
-		return nil, fmt.Errorf("IMVAULT_MEDIA_SANDBOX must be true or false")
+		env.fail("IMVAULT_MEDIA_SANDBOX", raw, "true or false")
+	}
+	if err := env.err(); err != nil {
+		return nil, err
 	}
 	var err error
 	c.DBPath = getenv("IMVAULT_DB", filepath.Join(dataDir, "imvault.db"))
@@ -306,6 +316,12 @@ func (c *Config) validateMedia() error {
 	if c.MaxConcurrentUploads < 0 {
 		return fmt.Errorf("IMVAULT_MAX_CONCURRENT_UPLOADS must not be negative, got %d", c.MaxConcurrentUploads)
 	}
+	if c.SessionTTL <= 0 {
+		return fmt.Errorf("IMVAULT_SESSION_TTL must be positive, got %s", c.SessionTTL)
+	}
+	if c.CleanupInterval <= 0 {
+		return fmt.Errorf("IMVAULT_CLEANUP_INTERVAL must be positive, got %s", c.CleanupInterval)
+	}
 	if c.AnonymousTTL <= 0 {
 		return fmt.Errorf("IMVAULT_ANONYMOUS_TTL must be positive, got %s", c.AnonymousTTL)
 	}
@@ -335,6 +351,17 @@ func (c *Config) validateAccounts() error {
 	case "starttls", "implicit", "none":
 	default:
 		return fmt.Errorf("IMVAULT_SMTP_TLS must be starttls, implicit or none, got %q", c.SMTPTLS)
+	}
+	if c.SMTPHost != "" {
+		if c.SMTPPort < 1 || c.SMTPPort > 65535 {
+			return fmt.Errorf("IMVAULT_SMTP_PORT must be within 1..65535, got %d", c.SMTPPort)
+		}
+		// Mailed links have to point somewhere. Building them from the
+		// request would let a forged Host header send somebody's reset link
+		// to an attacker's site.
+		if c.BaseURL == "" {
+			return fmt.Errorf("IMVAULT_BASE_URL is required when IMVAULT_SMTP_HOST is set")
+		}
 	}
 
 	// A partly configured provider would be worse than none: the button would
@@ -396,53 +423,103 @@ func getenv(key, fallback string) string {
 	return fallback
 }
 
-func getBool(key string, fallback bool) bool {
+// lookupenv is getenv for the few settings where an empty value means
+// something: present but blank is an answer, not an absence.
+func lookupenv(key, fallback string) string {
+	if v, ok := os.LookupEnv(key); ok {
+		return v
+	}
+	return fallback
+}
+
+// reader parses typed settings, collecting every malformed one so a single
+// start reports them all. A value that does not parse is never replaced by the
+// default: "IMVAULT_ALLOW_SIGNUP=no" quietly meaning "yes" is exactly the kind
+// of mistake a configuration error exists to catch.
+//
+// An empty value is still unset, as it is for every other setting.
+type reader struct {
+	errs []error
+}
+
+func (r *reader) raw(key string) (string, bool) {
 	raw, ok := os.LookupEnv(key)
 	if !ok || raw == "" {
+		return "", false
+	}
+	return raw, true
+}
+
+func (r *reader) fail(key, raw, want string) {
+	r.errs = append(r.errs, fmt.Errorf("%s must be %s, got %q", key, want, raw))
+}
+
+func (r *reader) err() error { return errors.Join(r.errs...) }
+
+func (r *reader) boolean(key string, fallback bool) bool {
+	raw, ok := r.raw(key)
+	if !ok {
 		return fallback
 	}
 	v, err := strconv.ParseBool(raw)
 	if err != nil {
+		r.fail(key, raw, "true or false")
 		return fallback
 	}
 	return v
 }
 
-func getInt64(key string, fallback int64) int64 {
-	raw, ok := os.LookupEnv(key)
-	if !ok || raw == "" {
+func (r *reader) int64(key string, fallback int64) int64 {
+	raw, ok := r.raw(key)
+	if !ok {
 		return fallback
 	}
 	v, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
+		r.fail(key, raw, "a whole number")
 		return fallback
 	}
 	return v
 }
 
-func getFloat(key string, fallback float64) float64 {
-	raw, ok := os.LookupEnv(key)
-	if !ok || raw == "" {
+func (r *reader) integer(key string, fallback int) int {
+	raw, ok := r.raw(key)
+	if !ok {
+		return fallback
+	}
+	v, err := strconv.ParseInt(raw, 10, 0)
+	if err != nil {
+		r.fail(key, raw, "a whole number")
+		return fallback
+	}
+	return int(v)
+}
+
+func (r *reader) float(key string, fallback float64) float64 {
+	raw, ok := r.raw(key)
+	if !ok {
 		return fallback
 	}
 	v, err := strconv.ParseFloat(raw, 64)
-	if err != nil {
+	if err != nil || math.IsNaN(v) || math.IsInf(v, 0) {
+		r.fail(key, raw, "a number")
 		return fallback
 	}
 	return v
 }
 
-func getDuration(key string, fallback time.Duration) time.Duration {
-	raw, ok := os.LookupEnv(key)
-	if !ok || raw == "" {
+// duration accepts both Go durations ("24h") and bare seconds ("86400").
+func (r *reader) duration(key string, fallback time.Duration) time.Duration {
+	raw, ok := r.raw(key)
+	if !ok {
 		return fallback
 	}
-	// Accept both Go durations ("24h") and bare seconds ("86400").
 	if v, err := time.ParseDuration(raw); err == nil {
 		return v
 	}
-	if secs, err := strconv.ParseInt(raw, 10, 64); err == nil {
+	if secs, err := strconv.ParseInt(raw, 10, 64); err == nil && secs <= math.MaxInt64/int64(time.Second) && secs >= math.MinInt64/int64(time.Second) {
 		return time.Duration(secs) * time.Second
 	}
+	r.fail(key, raw, `a duration such as "90s" or "24h", or a number of seconds`)
 	return fallback
 }
