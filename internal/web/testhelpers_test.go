@@ -396,10 +396,11 @@ func (h *harness) sessionFor(t *testing.T, userID int64) *session {
 		t.Fatalf("parse base url: %v", err)
 	}
 
-	// Seed both the session and a CSRF cookie, as a browser would have.
+	// Seed both the session and its CSRF cookie, as a browser that had signed
+	// in would hold.
 	jar.SetCookies(parsed, []*http.Cookie{
 		{Name: sessionCookie, Value: token, Path: "/"},
-		{Name: csrfCookie, Value: ids.Token(32), Path: "/"},
+		{Name: csrfCookie, Value: sessionCSRFToken(token), Path: "/"},
 	})
 	for _, cookie := range jar.Cookies(parsed) {
 		if cookie.Name == csrfCookie {

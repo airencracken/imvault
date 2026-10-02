@@ -316,12 +316,20 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 // startSession creates a session row and sets the cookie.
 func (s *Server) startSession(ctx context.Context, w http.ResponseWriter, r *http.Request, userID int64) error {
+	_, err := s.newSession(ctx, w, r, userID)
+	return err
+}
+
+// newSession creates a session row, sets its cookie and the CSRF token bound
+// to it, and returns the session token.
+func (s *Server) newSession(ctx context.Context, w http.ResponseWriter, r *http.Request, userID int64) (string, error) {
 	token := ids.Token(32)
 	expires := time.Now().Add(s.cfg.SessionTTL)
 
 	if err := s.store.CreateSession(ctx, hashToken(token), userID, expires); err != nil {
-		return err
+		return "", err
 	}
+	s.setCSRFCookie(w, r, sessionCSRFToken(token))
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookie,
@@ -333,7 +341,7 @@ func (s *Server) startSession(ctx context.Context, w http.ResponseWriter, r *htt
 		Expires:  expires,
 		MaxAge:   int(s.cfg.SessionTTL.Seconds()),
 	})
-	return nil
+	return token, nil
 }
 
 // maxNextLength bounds a redirect target carried through a form.
