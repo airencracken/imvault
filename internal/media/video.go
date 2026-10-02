@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -49,6 +50,11 @@ type VideoTool interface {
 // location atom an iPhone writes, and -map_chapters -1 drops chapter titles
 // that can name places. Stream-level tags are cleared too, since a title is as
 // identifying as a comment.
+//
+// Only picture and sound are carried across. A drone writes its position into
+// a subtitle track once a frame, an action camera into a data track, and cover
+// art is a still image with Exif of its own; "0:V" is video that is not an
+// attached picture.
 func (f *FFmpeg) Scrub(ctx context.Context, src, dst string) error {
 	ctx, cancel := context.WithTimeout(ctx, f.timeout)
 	defer cancel()
@@ -57,7 +63,9 @@ func (f *FFmpeg) Scrub(ctx context.Context, src, dst string) error {
 		"-v", "error", "-nostdin",
 		"-protocol_whitelist", "file,pipe",
 		"-i", src,
-		"-map", "0",
+		"-map", "0:V",
+		"-map", "0:a?",
+		"-sn", "-dn",
 		"-c", "copy",
 		"-map_metadata", "-1",
 		"-map_metadata:s", "-1",
@@ -115,7 +123,7 @@ func (f *FFmpeg) Probe(ctx context.Context, path string) (VideoInfo, error) {
 		"-v", "error",
 		"-protocol_whitelist", "file,pipe",
 		"-select_streams", "v:0",
-		"-show_entries", "stream=width,height",
+		"-show_entries", "stream=width,height,duration:stream_tags=DURATION",
 		"-show_entries", "format=duration",
 		"-of", "json",
 		path,
@@ -132,32 +140,74 @@ func (f *FFmpeg) Probe(ctx context.Context, path string) (VideoInfo, error) {
 	if err := cmd.Run(); err != nil {
 		return VideoInfo{}, fmt.Errorf("ffprobe: %w: %s", err, strings.TrimSpace(stderr.String()))
 	}
+	return parseProbe(stdout.Bytes())
+}
 
+// parseProbe reads ffprobe's JSON. The container's duration is preferred; a
+// fragmented MP4 or a Matroska file written without one still usually records
+// it on the stream, either as a field or, in Matroska, as a DURATION tag.
+// Zero means nobody recorded a duration at all.
+func parseProbe(output []byte) (VideoInfo, error) {
 	var parsed struct {
 		Streams []struct {
-			Width  int `json:"width"`
-			Height int `json:"height"`
+			Width    int    `json:"width"`
+			Height   int    `json:"height"`
+			Duration string `json:"duration"`
+			Tags     struct {
+				Duration string `json:"DURATION"`
+			} `json:"tags"`
 		} `json:"streams"`
 		Format struct {
 			Duration string `json:"duration"`
 		} `json:"format"`
 	}
-	if err := json.Unmarshal(stdout.Bytes(), &parsed); err != nil {
+	if err := json.Unmarshal(output, &parsed); err != nil {
 		return VideoInfo{}, fmt.Errorf("parse ffprobe output: %w", err)
 	}
 	if len(parsed.Streams) == 0 {
 		return VideoInfo{}, fmt.Errorf("the file has no video stream")
 	}
 
-	info := VideoInfo{
-		Width:  parsed.Streams[0].Width,
-		Height: parsed.Streams[0].Height,
-	}
-	// Duration is reported as a string and may be absent or "N/A".
-	if seconds, err := strconv.ParseFloat(parsed.Format.Duration, 64); err == nil && seconds > 0 {
-		info.DurationMS = int64(seconds * 1000)
+	stream := parsed.Streams[0]
+	info := VideoInfo{Width: stream.Width, Height: stream.Height}
+	for _, candidate := range []int64{
+		secondsToMS(parsed.Format.Duration),
+		secondsToMS(stream.Duration),
+		clockToMS(stream.Tags.Duration),
+	} {
+		if candidate > 0 {
+			info.DurationMS = candidate
+			break
+		}
 	}
 	return info, nil
+}
+
+// secondsToMS reads ffprobe's decimal seconds, which may be absent or "N/A".
+func secondsToMS(raw string) int64 {
+	seconds, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
+	if err != nil || !(seconds > 0) {
+		return 0
+	}
+	if seconds >= math.MaxInt64/1000 {
+		return math.MaxInt64 // absurd, and certainly over any limit
+	}
+	return int64(seconds * 1000)
+}
+
+// clockToMS reads a Matroska "HH:MM:SS.fraction" duration tag.
+func clockToMS(raw string) int64 {
+	parts := strings.Split(strings.TrimSpace(raw), ":")
+	if len(parts) != 3 {
+		return 0
+	}
+	hours, errH := strconv.ParseUint(parts[0], 10, 32)
+	minutes, errM := strconv.ParseUint(parts[1], 10, 32)
+	seconds, errS := strconv.ParseFloat(parts[2], 64)
+	if errH != nil || errM != nil || errS != nil || minutes >= 60 || !(seconds >= 0 && seconds < 60) {
+		return 0
+	}
+	return int64(hours)*3_600_000 + int64(minutes)*60_000 + int64(seconds*1000) // hours < 2^32 cannot overflow
 }
 
 // Poster extracts one frame and returns it as PNG bytes.

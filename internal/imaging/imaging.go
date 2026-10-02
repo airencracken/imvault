@@ -23,8 +23,22 @@ import (
 	_ "golang.org/x/image/webp"
 )
 
-// maxPixels guards against decompression bombs.
-const maxPixels = 100 << 20 // 100 megapixels
+// MaxPixels guards against decompression bombs.
+const MaxPixels = 100 << 20 // 100 megapixels
+
+// CheckDimensions refuses an image before any of its pixels are allocated. It
+// is the one place the limit is enforced, so every decoder that can be handed
+// an upload has to go through it first.
+func CheckDimensions(width, height int) error {
+	if width <= 0 || height <= 0 {
+		return fmt.Errorf("image has invalid dimensions %dx%d", width, height)
+	}
+	// Each side is bounded first so the product cannot overflow.
+	if width > MaxPixels || height > MaxPixels || int64(width)*int64(height) > MaxPixels {
+		return fmt.Errorf("image is too large to process (%dx%d)", width, height)
+	}
+	return nil
+}
 
 // Rendition is an encoded derivative image.
 type Rendition struct {
@@ -76,11 +90,8 @@ func Process(r io.Reader, opts Options) (*Result, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unsupported or corrupt image: %w", err)
 	}
-	if cfg.Width <= 0 || cfg.Height <= 0 {
-		return nil, fmt.Errorf("image has invalid dimensions %dx%d", cfg.Width, cfg.Height)
-	}
-	if cfg.Width*cfg.Height > maxPixels {
-		return nil, fmt.Errorf("image is too large to process (%dx%d)", cfg.Width, cfg.Height)
+	if err := CheckDimensions(cfg.Width, cfg.Height); err != nil {
+		return nil, err
 	}
 
 	mime, ext, err := describe(format)

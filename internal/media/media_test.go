@@ -284,7 +284,7 @@ func makeTestClip(t *testing.T) string {
 	return path
 }
 
-func encodeAnimatedGIF(t *testing.T, frames, w, h int) []byte {
+func encodeAnimatedGIF(t testing.TB, frames, w, h int) []byte {
 	t.Helper()
 
 	palette := color.Palette{
