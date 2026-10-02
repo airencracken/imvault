@@ -18,6 +18,7 @@
 # IMVAULT_ADDR=:8080
 
 # Set this to the URL people actually browse, so share links are absolute.
+# Required when email or an OpenID Connect provider is configured.
 # IMVAULT_BASE_URL=https://img.example.com
 
 # Enable when serving over HTTPS, behind a TLS-terminating proxy.
@@ -38,7 +39,8 @@
 # IMVAULT_LOG_LEVEL=info
 
 # Email, for password reset and address confirmation. Leave unset and resets
-# are issued by an administrator from the admin UI instead.
+# are issued by an administrator from the admin UI instead. Setting a relay
+# requires IMVAULT_BASE_URL above, so mailed links point at this instance.
 # IMVAULT_SMTP_HOST=smtp.example.com
 # IMVAULT_SMTP_PORT=587
 # IMVAULT_SMTP_USERNAME=imvault

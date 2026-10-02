@@ -6,6 +6,13 @@ S3-compatible storage, credentials, endpoint settings, and migration.
 Every setting is an environment variable, and every one has a working default.
 It can be run with no configuration at all.
 
+An empty variable counts as unset, except where the table says otherwise. A
+value that is set but cannot be read — `IMVAULT_ALLOW_SIGNUP=no`, or
+`IMVAULT_MAX_UPLOAD_BYTES=32MB` — stops the server with an error naming the
+variable, rather than quietly using the default. Booleans accept `true`/`false`,
+`1`/`0` and `t`/`f`; sizes are whole numbers of bytes; durations are Go
+durations such as `90s` or `24h`, or a whole number of seconds.
+
 Three of them are also editable while it is running; see [Instance
 settings](#instance-settings) below.
 
@@ -14,23 +21,23 @@ settings](#instance-settings) below.
 | `IMVAULT_ADDR` | `:8080` | Listen address |
 | `IMVAULT_DATA_DIR` | `./data` | Root for the database and stored objects |
 | `IMVAULT_DB` | `<data>/imvault.db` | SQLite database path |
-| `IMVAULT_BASE_URL` | *(derived from request)* | Absolute prefix used when building share links |
+| `IMVAULT_BASE_URL` | *(derived from request)* | Absolute prefix used when building share links; required when mail or OpenID Connect is configured |
 | `IMVAULT_NAME` | `imvault` | Default name shown in the page title, header, and footer |
-| `IMVAULT_SOURCE_URL` | `https://github.com/airencracken/imvault` | Source link shown in the footer; blank hides it |
+| `IMVAULT_SOURCE_URL` | `https://github.com/airencracken/imvault` | Source link shown in the footer; set it to an empty value to hide it |
 | `IMVAULT_ALLOW_SIGNUP` | `true` | Whether new accounts can register |
 | `IMVAULT_INVITE_ONLY` | `false` | Whether registering needs an invitation code |
 | `IMVAULT_ALLOW_ANONYMOUS_UPLOADS` | `true` | Whether logged-out visitors may upload |
 | `IMVAULT_ANONYMOUS_TTL` | `24h` | How long anonymous uploads survive |
 | `IMVAULT_DEFAULT_VISIBILITY` | `members` | What a new upload is visible to: `public`, `members`, or `private` |
-| `IMVAULT_SESSION_TTL` | `720h` | Login session lifetime |
-| `IMVAULT_CLEANUP_INTERVAL` | `15m` | How often the reaper runs |
+| `IMVAULT_SESSION_TTL` | `720h` | Login session lifetime; must be positive |
+| `IMVAULT_CLEANUP_INTERVAL` | `15m` | How often the reaper runs; must be positive |
 | `IMVAULT_MAX_UPLOAD_BYTES` | `33554432` (32 MiB) | Per-file limit for images and animations |
 | `IMVAULT_MAX_VIDEO_BYTES` | `134217728` (128 MiB) | Per-file limit for clips |
 | `IMVAULT_MAX_VIDEO_DURATION` | `60s` | Longest accepted clip |
 | `IMVAULT_DEFAULT_QUOTA_BYTES` | `5368709120` (5 GiB) | Storage cap given to new accounts; `0` for unlimited |
 | `IMVAULT_MAX_TOTAL_BYTES` | `0` | Ceiling for the whole instance; `0` for none |
 | `IMVAULT_MAX_CONCURRENT_UPLOADS` | one per CPU, minimum 2 | Uploads processed at once, across everybody |
-| `IMVAULT_SMTP_HOST` | *(empty)* | Mail relay. Empty disables email entirely |
+| `IMVAULT_SMTP_HOST` | *(empty)* | Mail relay. Empty disables email entirely; setting it requires `IMVAULT_BASE_URL` |
 | `IMVAULT_SMTP_PORT` | `587` | Relay port |
 | `IMVAULT_SMTP_USERNAME` | *(empty)* | Skip authentication when empty, for a local relay |
 | `IMVAULT_SMTP_PASSWORD` | *(empty)* | Relay password |
@@ -48,8 +55,8 @@ settings](#instance-settings) below.
 | `IMVAULT_UPLOAD_RATE_PER_HOUR` | `120` | Uploads per hour per identity; `0` disables limiting |
 | `IMVAULT_UPLOAD_BURST` | `20` | How many uploads may be made back to back |
 | `IMVAULT_TRUST_PROXY_HEADERS` | `false` | Read the client address from `X-Forwarded-For` / `X-Real-IP` |
-| `IMVAULT_FFMPEG` | `ffmpeg` | ffmpeg binary; a missing binary only disables clip posters |
-| `IMVAULT_FFPROBE` | `ffprobe` | ffprobe binary |
+| `IMVAULT_FFMPEG` | `ffmpeg` | ffmpeg binary; a missing binary, or an empty value, only disables clip posters |
+| `IMVAULT_FFPROBE` | `ffprobe` | ffprobe binary; an empty value disables clip tooling |
 | `IMVAULT_JPEG_QUALITY` | `82` | Encoder quality for lossy renditions |
 | `IMVAULT_THUMB_MAX` | `480` | Thumbnail bounding box in pixels |
 | `IMVAULT_PREVIEW_MAX` | `1600` | Preview bounding box in pixels |
