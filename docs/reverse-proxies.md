@@ -13,19 +13,22 @@ For a native service and proxy on the same host, set:
 IMVAULT_ADDR="127.0.0.1:8080"
 IMVAULT_BASE_URL="https://img.example.com"
 IMVAULT_SECURE_COOKIES="true"
-IMVAULT_TRUST_PROXY_HEADERS="true"
+IMVAULT_TRUSTED_PROXIES="127.0.0.1/32,::1/128"
 ```
 
 Put these in `/etc/conf.d/imvault` for OpenRC or `/etc/imvault/imvault.env` for
 systemd, then restart imvault. Keep port 8080 private. The examples replace
 incoming forwarding headers with the actual client address and HTTPS scheme;
-Imvault uses those headers for rate limits and secure links.
+Imvault believes those headers only on connections from the addresses in
+`IMVAULT_TRUSTED_PROXIES`, and uses them for rate limits and secure links.
 
 These examples assume the proxy directly accepts visitors' connections.
 If you add a CDN or another proxy, configure the trusted upstream addresses
 in the web server before accepting its client-IP headers. For containers,
 use a private network and the application's service name instead of host
-loopback; do not expose the application's port to the internet.
+loopback, and list the proxy's address on that network in
+`IMVAULT_TRUSTED_PROXIES`; do not expose the application's port to the
+internet.
 
 ## Generate a site configuration
 
@@ -90,8 +93,9 @@ nginx -s reload
 ```
 
 Keep the example's `X-Forwarded-For $remote_addr` assignment. Appending an
-untrusted incoming value with `$proxy_add_x_forwarded_for` would allow a
-visitor to choose the first address that Imvault trusts. See nginx's
+untrusted incoming value with `$proxy_add_x_forwarded_for` would put a
+visitor's claim in the header; Imvault would still skip it, but only while
+every proxy in front is listed in `IMVAULT_TRUSTED_PROXIES`. See nginx's
 [proxy header and buffering reference](https://nginx.org/en/docs/http/ngx_http_proxy_module.html).
 
 ## Apache 2.4

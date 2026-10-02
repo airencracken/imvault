@@ -22,7 +22,7 @@ var examples embed.FS
 const app = "imvault"
 const exampleDomain = "img.example.com"
 const defaultUpstream = "127.0.0.1:8080"
-const proxyEnvironment = "IMVAULT_TRUST_PROXY_HEADERS=true"
+const proxyEnvironment = "IMVAULT_TRUSTED_PROXIES=127.0.0.1/32,::1/128"
 
 type Options struct {
 	Server, Domain, Upstream, Certificate, Key string

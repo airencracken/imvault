@@ -38,8 +38,10 @@ services:
       IMVAULT_DEFAULT_QUOTA_BYTES: "${IMVAULT_DEFAULT_QUOTA_BYTES:-5368709120}"
       IMVAULT_UPLOAD_RATE_PER_HOUR: "${IMVAULT_UPLOAD_RATE_PER_HOUR:-120}"
       IMVAULT_UPLOAD_BURST: "${IMVAULT_UPLOAD_BURST:-20}"
-      # Set to true only behind a reverse proxy you control.
-      IMVAULT_TRUST_PROXY_HEADERS: "${IMVAULT_TRUST_PROXY_HEADERS:-false}"
+      # Addresses or CIDR prefixes of reverse proxies you control, comma
+      # separated, whose X-Forwarded-For and X-Forwarded-Proto are believed.
+      # Empty trusts none.
+      IMVAULT_TRUSTED_PROXIES: "${IMVAULT_TRUSTED_PROXIES:-}"
       # Uncomment to enable email (password reset, address confirmation).
       # IMVAULT_SMTP_HOST: "smtp.example.com"
       # IMVAULT_SMTP_PORT: "587"

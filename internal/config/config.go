@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/netip"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -18,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/airencracken/comfylib/clientip"
 	"github.com/airencracken/comfylib/smtp"
 
 	"imvault/internal/models"
@@ -81,10 +83,11 @@ type Config struct {
 	// make. A rate of zero disables the limit.
 	UploadRatePerHour float64
 	UploadBurst       int
-	// TrustProxyHeaders makes the rate limiter read the client address from
-	// X-Forwarded-For / X-Real-IP. Only enable it when a reverse proxy you
-	// control sets those headers, since they are otherwise client-supplied.
-	TrustProxyHeaders bool
+	// TrustedProxies are the reverse proxies, from IMVAULT_TRUSTED_PROXIES,
+	// whose X-Forwarded-For and X-Forwarded-Proto are believed. Those
+	// headers are otherwise client-supplied, so with none listed they are
+	// ignored on every request, loopback included.
+	TrustedProxies []netip.Prefix
 	// FFmpegPath and FFprobePath locate the tools used to probe clips and
 	// extract poster frames. If they are missing, video support degrades to
 	// placeholder posters instead of failing outright.
@@ -198,7 +201,6 @@ func load(dataDirOverride, dbPathOverride string) (*Config, error) {
 		MaxConcurrentUploads:  env.integer("IMVAULT_MAX_CONCURRENT_UPLOADS", 0),
 		UploadRatePerHour:     env.float("IMVAULT_UPLOAD_RATE_PER_HOUR", 120),
 		UploadBurst:           env.integer("IMVAULT_UPLOAD_BURST", 20),
-		TrustProxyHeaders:     env.boolean("IMVAULT_TRUST_PROXY_HEADERS", false),
 		// Set but empty turns clip tooling off.
 		FFmpegPath:       lookupenv("IMVAULT_FFMPEG", "ffmpeg"),
 		FFprobePath:      lookupenv("IMVAULT_FFPROBE", "ffprobe"),
@@ -241,6 +243,9 @@ func load(dataDirOverride, dbPathOverride string) (*Config, error) {
 		env.fail("IMVAULT_MEDIA_SANDBOX", raw, "true or false")
 	}
 	if err := env.err(); err != nil {
+		return nil, err
+	}
+	if err := c.parseProxies(); err != nil {
 		return nil, err
 	}
 	var err error
@@ -375,6 +380,27 @@ func (c *Config) validateAccounts() error {
 		// choose it, and would break the moment a proxy changes the name.
 		return fmt.Errorf("IMVAULT_BASE_URL is required when an OpenID Connect provider is configured")
 	}
+	return nil
+}
+
+// errReplacedProxySetting refuses the retired IMVAULT_TRUST_PROXY_HEADERS,
+// which believed forwarding headers from any peer. Guessing which proxies it
+// meant could trust too much or too little, so the operator names them.
+var errReplacedProxySetting = errors.New("IMVAULT_TRUST_PROXY_HEADERS was replaced by IMVAULT_TRUSTED_PROXIES; list the proxy addresses, for example IMVAULT_TRUSTED_PROXIES=127.0.0.1/32,::1/128")
+
+// parseProxies reads IMVAULT_TRUSTED_PROXIES, a comma-separated list of proxy
+// addresses and CIDR prefixes. The setting it replaced is refused with any
+// value, even an empty one, so an old configuration cannot start with a
+// different meaning.
+func (c *Config) parseProxies() error {
+	if _, set := os.LookupEnv("IMVAULT_TRUST_PROXY_HEADERS"); set {
+		return errReplacedProxySetting
+	}
+	proxies, err := clientip.ParseTrusted(getenv("IMVAULT_TRUSTED_PROXIES", ""), "IMVAULT_TRUSTED_PROXIES")
+	if err != nil {
+		return err
+	}
+	c.TrustedProxies = proxies
 	return nil
 }
 

@@ -121,23 +121,23 @@ func TestRateLimitKeysAnonymousUploadsByAddress(t *testing.T) {
 }
 
 func TestClientIPIgnoresProxyHeadersByDefault(t *testing.T) {
-	h := newHarnessWith(t, func(cfg *config.Config) { cfg.TrustProxyHeaders = false })
+	h := newHarness(t)
 
 	req, err := http.NewRequest(http.MethodGet, h.server.URL+"/", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	// A spoofed header must not change the bucket, or the limit is trivially
-	// bypassed.
+	// bypassed. Loopback is not trusted by default either.
+	req.RemoteAddr = "127.0.0.1:41000"
 	req.Header.Set("X-Forwarded-For", "203.0.113.9")
 
-	direct := h.srv.clientIP(req)
-	if direct == "203.0.113.9" {
-		t.Error("proxy headers were trusted without being enabled")
+	if got := h.srv.clientIP(req).String(); got != "127.0.0.1" {
+		t.Errorf("without trusted proxies, clientIP = %q, want the peer", got)
 	}
 
-	trusting := newHarnessWith(t, func(cfg *config.Config) { cfg.TrustProxyHeaders = true })
-	if got := trusting.srv.clientIP(req); got != "203.0.113.9" {
-		t.Errorf("with TrustProxyHeaders, clientIP = %q, want the forwarded address", got)
+	trusting := newHarnessWith(t, func(cfg *config.Config) { trustLoopback(cfg, true) })
+	if got := trusting.srv.clientIP(req).String(); got != "203.0.113.9" {
+		t.Errorf("behind a trusted proxy, clientIP = %q, want the forwarded address", got)
 	}
 }

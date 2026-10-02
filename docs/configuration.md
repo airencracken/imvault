@@ -54,7 +54,7 @@ settings](#instance-settings) below.
 | `IMVAULT_MAIL_RETRY_INTERVAL` | `1m` | How often the queue is swept |
 | `IMVAULT_UPLOAD_RATE_PER_HOUR` | `120` | Uploads per hour per identity; `0` disables limiting |
 | `IMVAULT_UPLOAD_BURST` | `20` | How many uploads may be made back to back |
-| `IMVAULT_TRUST_PROXY_HEADERS` | `false` | Read the client address from `X-Forwarded-For` / `X-Real-IP` |
+| `IMVAULT_TRUSTED_PROXIES` | *(empty)* | Comma-separated proxy addresses or CIDR prefixes, such as `127.0.0.1/32,::1/128`, whose `X-Forwarded-For` and `X-Forwarded-Proto` are believed; empty believes none |
 | `IMVAULT_FFMPEG` | `ffmpeg` | ffmpeg binary; a missing binary, or an empty value, only disables clip posters |
 | `IMVAULT_FFPROBE` | `ffprobe` | ffprobe binary; an empty value disables clip tooling |
 | `IMVAULT_JPEG_QUALITY` | `82` | Encoder quality for lossy renditions |
@@ -246,9 +246,15 @@ The limiter is process-local and resets on restart, which is the right trade for
 a single self-hosted instance: no extra dependency, no shared state.
 
 **Behind a reverse proxy**, every request arrives from the proxy's address, so
-anonymous uploads would all share one bucket. Set
-`IMVAULT_TRUST_PROXY_HEADERS=true` to read the client from `X-Forwarded-For`
-instead — but only do so behind a proxy you control, since those headers are
-otherwise client-supplied and would let a caller sidestep the limit entirely.
+anonymous uploads would all share one bucket. List the proxy in
+`IMVAULT_TRUSTED_PROXIES` (`127.0.0.1/32,::1/128` for one on the same host) to
+read the client from `X-Forwarded-For` instead. Only the proxies listed are
+believed, and only the entries they appended: those headers are otherwise
+client-supplied and would let a caller sidestep the limit entirely.
+`X-Real-IP` is not read.
+
+An IPv6 client is limited by its /64, the block one site is normally given, so
+cycling through its own addresses does not buy a fresh budget. Each limiter
+tracks at most 10,000 callers and forgets the least recently seen when full.
 
 ---
