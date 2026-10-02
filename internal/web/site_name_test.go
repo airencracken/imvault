@@ -36,13 +36,17 @@ func TestUserFacingTextUsesTheSiteName(t *testing.T) {
 	}
 }
 
-// With no name configured the product name is written as a name.
-func TestTheDefaultSiteNameIsCapitalised(t *testing.T) {
-	h := newHarnessWith(t, func(c *config.Config) { c.Name = "" })
+// The name comes from the configuration, whose default is the product name
+// written as a name.
+func TestTheSiteNameComesFromTheConfiguration(t *testing.T) {
+	h := newHarness(t)
 	if got := h.srv.branding().SiteName; got != "Imvault" {
-		t.Errorf("default site name = %q, want Imvault", got)
+		t.Errorf("site name = %q, want the configured Imvault", got)
 	}
 	if !strings.HasPrefix(h.srv.branding().WelcomeText, "Imvault is ") {
-		t.Errorf("default welcome text = %q", h.srv.branding().WelcomeText)
+		t.Errorf("welcome text = %q", h.srv.branding().WelcomeText)
+	}
+	if _, page := h.get("/"); !strings.Contains(page, "<title>Imvault</title>") {
+		t.Error("the page title does not use the configured name")
 	}
 }

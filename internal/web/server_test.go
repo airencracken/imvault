@@ -87,7 +87,9 @@ func newHarnessFull(t *testing.T, mutate func(*config.Config), mode mailMode) *h
 
 	dir := t.TempDir()
 	cfg := &config.Config{
-		Addr:                  "127.0.0.1:0",
+		Addr: "127.0.0.1:0",
+		// Mirror config.Load's default name.
+		Name:                  "Imvault",
 		DataDir:               dir,
 		DBPath:                filepath.Join(dir, "test.db"),
 		AllowSignup:           true,

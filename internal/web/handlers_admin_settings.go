@@ -66,14 +66,9 @@ func (s *Server) reloadSettings(ctx context.Context) error {
 	return nil
 }
 
-// defaultSiteName is the product name, used when an instance names nothing.
-const defaultSiteName = "Imvault"
-
 func (s *Server) configBrandingDefaults() models.Branding {
+	// The default name lives in the configuration, so there is one of it.
 	name := s.cfg.Name
-	if name == "" {
-		name = defaultSiteName
-	}
 	return models.Branding{
 		SiteName:     name,
 		SourceURL:    s.cfg.SourceURL,
