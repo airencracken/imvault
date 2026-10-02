@@ -11,6 +11,7 @@ package media
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"image"
 	"image/gif"
@@ -268,17 +269,17 @@ func materialise(src io.ReadSeeker, path string) (string, func(), error) {
 		return "", func() {}, fmt.Errorf("create temp file: %w", err)
 	}
 	name := tmp.Name()
-	cleanup := func() { os.Remove(name) }
+	// A scratch copy in the temporary directory: if removing it fails there
+	// is nobody to tell, and the system cleans the directory in time.
+	cleanup := func() { _ = os.Remove(name) }
 
 	if _, err := src.Seek(0, io.SeekStart); err != nil {
-		tmp.Close()
 		cleanup()
-		return "", func() {}, fmt.Errorf("rewind clip: %w", err)
+		return "", func() {}, errors.Join(fmt.Errorf("rewind clip: %w", err), tmp.Close())
 	}
 	if _, err := io.Copy(tmp, src); err != nil {
-		tmp.Close()
 		cleanup()
-		return "", func() {}, fmt.Errorf("copy clip: %w", err)
+		return "", func() {}, errors.Join(fmt.Errorf("copy clip: %w", err), tmp.Close())
 	}
 	if err := tmp.Close(); err != nil {
 		cleanup()

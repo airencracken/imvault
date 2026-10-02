@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"embed"
+	"errors"
 	"fmt"
 	"io/fs"
 	"net/url"
@@ -15,6 +16,8 @@ import (
 	"time"
 
 	_ "modernc.org/sqlite" // pure-Go SQLite driver, registered as "sqlite"
+
+	"imvault/internal/closer"
 )
 
 //go:embed migrations/*.sql
@@ -36,13 +39,11 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 	sqlDB.SetConnMaxLifetime(0)
 
 	if err := sqlDB.PingContext(ctx); err != nil {
-		sqlDB.Close()
-		return nil, fmt.Errorf("ping sqlite: %w", err)
+		return nil, errors.Join(fmt.Errorf("ping sqlite: %w", err), sqlDB.Close())
 	}
 
 	if err := migrate(ctx, sqlDB); err != nil {
-		sqlDB.Close()
-		return nil, err
+		return nil, errors.Join(err, sqlDB.Close())
 	}
 
 	return sqlDB, nil
@@ -70,24 +71,10 @@ func migrate(ctx context.Context, sqlDB *sql.DB) error {
 		return fmt.Errorf("create schema_migrations: %w", err)
 	}
 
-	applied := map[string]bool{}
-	rows, err := sqlDB.QueryContext(ctx, `SELECT version FROM schema_migrations`)
+	applied, err := appliedMigrations(ctx, sqlDB)
 	if err != nil {
-		return fmt.Errorf("read schema_migrations: %w", err)
+		return err
 	}
-	for rows.Next() {
-		var v string
-		if err := rows.Scan(&v); err != nil {
-			rows.Close()
-			return fmt.Errorf("scan schema_migrations: %w", err)
-		}
-		applied[v] = true
-	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return fmt.Errorf("iterate schema_migrations: %w", err)
-	}
-	rows.Close()
 
 	entries, err := fs.ReadDir(migrationsFS, "migrations")
 	if err != nil {
@@ -112,6 +99,28 @@ func migrate(ctx context.Context, sqlDB *sql.DB) error {
 	return nil
 }
 
+// appliedMigrations reads which migrations have already run. The rows are
+// closed before returning, since the single connection is needed next.
+func appliedMigrations(ctx context.Context, sqlDB *sql.DB) (map[string]bool, error) {
+	rows, err := sqlDB.QueryContext(ctx, `SELECT version FROM schema_migrations`)
+	if err != nil {
+		return nil, fmt.Errorf("read schema_migrations: %w", err)
+	}
+	defer closer.Discard(rows)
+	applied := map[string]bool{}
+	for rows.Next() {
+		var v string
+		if err := rows.Scan(&v); err != nil {
+			return nil, fmt.Errorf("scan schema_migrations: %w", err)
+		}
+		applied[v] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate schema_migrations: %w", err)
+	}
+	return applied, nil
+}
+
 // applyMigration commits both the schema change and its version atomically.
 func applyMigration(ctx context.Context, sqlDB *sql.DB, name string) error {
 	body, err := migrationsFS.ReadFile("migrations/" + name)
@@ -124,15 +133,13 @@ func applyMigration(ctx context.Context, sqlDB *sql.DB, name string) error {
 		return fmt.Errorf("begin migration %s: %w", name, err)
 	}
 	if _, err := tx.ExecContext(ctx, string(body)); err != nil {
-		tx.Rollback()
-		return fmt.Errorf("apply migration %s: %w", name, err)
+		return errors.Join(fmt.Errorf("apply migration %s: %w", name, err), tx.Rollback())
 	}
 	if _, err := tx.ExecContext(ctx,
 		`INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)`,
 		name, time.Now().UTC().Unix(),
 	); err != nil {
-		tx.Rollback()
-		return fmt.Errorf("record migration %s: %w", name, err)
+		return errors.Join(fmt.Errorf("record migration %s: %w", name, err), tx.Rollback())
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit migration %s: %w", name, err)

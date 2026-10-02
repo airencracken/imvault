@@ -12,6 +12,7 @@ import (
 	"io"
 	"sort"
 
+	"imvault/internal/closer"
 	"imvault/internal/models"
 	"imvault/internal/storage"
 	"imvault/internal/store"
@@ -101,7 +102,7 @@ func Fingerprint(ctx context.Context, objects storage.Backend, key string) (Obje
 	if err != nil {
 		return Object{}, err
 	}
-	defer f.Close()
+	defer closer.Discard(f)
 	hash := sha256.New()
 	n, err := io.Copy(hash, storage.ContextReader(ctx, f))
 	if err != nil {
@@ -140,7 +141,7 @@ func CopyVerified(ctx context.Context, source, dest storage.Backend, want Object
 	if err != nil {
 		return actual, false, err
 	}
-	defer src.Close()
+	defer closer.Discard(src)
 	n, err := dest.Save(ctx, want.Key, storage.ContextReader(ctx, src))
 	if err != nil {
 		return actual, false, err

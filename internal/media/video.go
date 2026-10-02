@@ -79,7 +79,7 @@ func (f *FFmpeg) Scrub(ctx context.Context, src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer finish(false)
+	defer abandon(finish)
 
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -134,7 +134,7 @@ func (f *FFmpeg) Probe(ctx context.Context, path string) (VideoInfo, error) {
 	if err != nil {
 		return VideoInfo{}, err
 	}
-	defer finish(false)
+	defer abandon(finish)
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -236,7 +236,7 @@ func (f *FFmpeg) Poster(ctx context.Context, path string, at time.Duration, max 
 	if err != nil {
 		return nil, err
 	}
-	defer finish(false)
+	defer abandon(finish)
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout

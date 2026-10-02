@@ -13,6 +13,7 @@ import (
 	"path"
 	"slices"
 
+	"imvault/internal/closer"
 	"imvault/internal/imaging"
 	"imvault/internal/media"
 	"imvault/internal/models"
@@ -82,7 +83,7 @@ func renderOriginal(ctx context.Context, objects storage.Backend, processor *med
 	if err != nil {
 		return nil, err
 	}
-	defer src.Close()
+	defer closer.Discard(src)
 	head := make([]byte, media.HeadSize)
 	n, err := io.ReadFull(src, head)
 	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {

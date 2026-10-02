@@ -5,12 +5,15 @@ package sandbox
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"syscall"
 	"time"
+
+	"imvault/internal/closer"
 )
 
 // Relay output through the supervisor. Journald can then attribute records to
@@ -28,8 +31,7 @@ func Run(ctx context.Context, binary string, args, env []string) error {
 	if err != nil {
 		return err
 	}
-	defer reader.Close()
-	defer writer.Close()
+	defer closer.Discard(reader)
 	options := []string{"--as-pid-1", "--die-with-parent", "--json-status-fd", "3"}
 	cmd := exec.Command(binary, append(options, args...)...)
 	cmd.Env = env
@@ -37,10 +39,17 @@ func Run(ctx context.Context, binary string, args, env []string) error {
 	cmd.Stdout, cmd.Stderr = serviceLog{os.Stdout}, serviceLog{os.Stderr}
 	cmd.WaitDelay = 2 * time.Second
 	if err := cmd.Start(); err != nil {
-		return err
+		return errors.Join(err, writer.Close())
 	}
-	writer.Close()
-	defer cmd.Process.Kill()
+	// The launcher holds its own copy of the write end. Ours has to close, or
+	// the status reader would never see the end of the stream.
+	if err := writer.Close(); err != nil {
+		_ = cmd.Process.Kill() // the close failure is the error to report
+		return errors.Join(err, cmd.Wait())
+	}
+	// On the way out the launcher has either exited already, when killing it
+	// fails harmlessly, or it must not outlive the supervisor.
+	defer func() { _ = cmd.Process.Kill() }()
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
 	status := make(chan struct {
@@ -56,7 +65,7 @@ func Run(ctx context.Context, binary string, args, env []string) error {
 		if err == nil && value.PID > 0 {
 			process, err = os.FindProcess(value.PID)
 		} else if err == nil {
-			err = fmt.Errorf("Bubblewrap did not report its server process")
+			err = errors.New("the Bubblewrap launcher did not report its server process")
 		}
 		status <- struct {
 			process *os.Process
@@ -64,22 +73,24 @@ func Run(ctx context.Context, binary string, args, env []string) error {
 		}{process, err}
 		// Keep the status pipe open until exit so Bubblewrap can write its final
 		// status without SIGPIPE. No application output travels through it.
-		io.Copy(io.Discard, reader)
+		_, _ = io.Copy(io.Discard, reader) // drained, not read: errors mean nothing here
 	}()
 	var child *os.Process
 	select {
 	case value := <-status:
 		if value.err != nil {
-			return fmt.Errorf("Bubblewrap startup: %w", value.err)
+			return fmt.Errorf("starting the Bubblewrap sandbox: %w", value.err)
 		}
 		child = value.process
-		defer child.Release()
+		// Release only frees the handle; the process itself is waited for
+		// through the launcher.
+		defer func() { _ = child.Release() }()
 	case err := <-done:
-		return fmt.Errorf("Bubblewrap exited before reporting its server: %v", err)
+		return fmt.Errorf("the Bubblewrap launcher exited before reporting its server: %w", err)
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-time.After(5 * time.Second):
-		return fmt.Errorf("Bubblewrap did not report its server within five seconds")
+		return errors.New("the Bubblewrap launcher did not report its server within five seconds")
 	}
 	return waitForServer(ctx, child, done)
 }
@@ -89,7 +100,7 @@ func waitForServer(ctx context.Context, child *os.Process, done <-chan error) er
 	case err := <-done:
 		return err
 	case <-ctx.Done():
-		if err := child.Signal(syscall.SIGTERM); err != nil && err != os.ErrProcessDone {
+		if err := child.Signal(syscall.SIGTERM); err != nil && !errors.Is(err, os.ErrProcessDone) {
 			return err
 		}
 		select {

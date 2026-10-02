@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -62,7 +63,14 @@ func main() {
 	}
 }
 
-func run() error {
+// closeInto closes c when the function returns and keeps its error alongside
+// any other. A database or lock that fails to close may not have flushed, and
+// the operator should hear about it rather than see a clean exit.
+func closeInto(err *error, c io.Closer) {
+	*err = errors.Join(*err, c.Close())
+}
+
+func run() (err error) {
 	// Built first, so a configuration failure is reported the same way as
 	// everything else.
 	logger := logging.New(os.Stdout, logging.LevelFromEnv())
@@ -86,13 +94,13 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	defer lock.Close()
+	defer closeInto(&err, lock)
 
 	database, err := db.Open(ctx, cfg.DBPath)
 	if err != nil {
 		return err
 	}
-	defer database.Close()
+	defer closeInto(&err, database)
 
 	objects, err := storage.New(ctx, cfg.Storage)
 	if err != nil {

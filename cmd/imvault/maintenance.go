@@ -54,7 +54,7 @@ func runMaintenance(command string, args []string, out io.Writer) error {
 	})
 }
 
-func withMaintenance(ctx context.Context, cfg *config.Config, run func(*store.Store, storage.Backend) error) error {
+func withMaintenance(ctx context.Context, cfg *config.Config, run func(*store.Store, storage.Backend) error) (err error) {
 	if _, err := os.Stat(cfg.DBPath); err != nil {
 		return fmt.Errorf("open existing database: %w", err)
 	}
@@ -62,12 +62,12 @@ func withMaintenance(ctx context.Context, cfg *config.Config, run func(*store.St
 	if err != nil {
 		return err
 	}
-	defer lock.Close()
+	defer closeInto(&err, lock)
 	database, err := db.Open(ctx, cfg.DBPath)
 	if err != nil {
 		return err
 	}
-	defer database.Close()
+	defer closeInto(&err, database)
 	objects, err := storage.New(ctx, cfg.Storage)
 	if err != nil {
 		return err

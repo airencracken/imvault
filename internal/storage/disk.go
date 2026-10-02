@@ -12,6 +12,8 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+
+	"imvault/internal/closer"
 )
 
 // ErrNotFound is returned when an object key does not exist.
@@ -87,8 +89,10 @@ func (d *Disk) Save(ctx context.Context, key string, r io.Reader) (int64, error)
 	tmpName := tmp.Name()
 	defer func() {
 		if tmp != nil {
-			tmp.Close()
-			os.Remove(tmpName)
+			// The write has already failed and that is the error returned. A
+			// leftover ".upload-*" file is the lesser problem, and visibly so.
+			_ = tmp.Close()
+			_ = os.Remove(tmpName)
 		}
 	}()
 
@@ -108,8 +112,7 @@ func (d *Disk) Save(ctx context.Context, key string, r io.Reader) (int64, error)
 	tmp = nil
 
 	if err := os.Rename(tmpName, full); err != nil {
-		os.Remove(tmpName)
-		return 0, fmt.Errorf("storage: commit %s: %w", key, err)
+		return 0, errors.Join(fmt.Errorf("storage: commit %s: %w", key, err), os.Remove(tmpName))
 	}
 	return n, nil
 }
@@ -127,7 +130,7 @@ func (d *Disk) Open(ctx context.Context, key string) (io.ReadSeekCloser, error) 
 	if err != nil {
 		return nil, err
 	}
-	defer root.Close()
+	defer closer.Discard(root) // the opened file outlives the root handle
 	rel, err := filepath.Rel(d.root, full)
 	if err != nil {
 		return nil, err
@@ -190,6 +193,6 @@ func (d *Disk) Stat(ctx context.Context, key string) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer f.Close()
+	defer closer.Discard(f)
 	return f.Seek(0, io.SeekEnd)
 }

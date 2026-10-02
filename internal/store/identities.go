@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	"imvault/internal/closer"
 	"imvault/internal/models"
 )
 
@@ -47,7 +48,7 @@ func (s *Store) IdentitiesByUser(ctx context.Context, userID int64) ([]*models.I
 	if err != nil {
 		return nil, fmt.Errorf("list identities: %w", err)
 	}
-	defer rows.Close()
+	defer closer.Discard(rows)
 
 	var identities []*models.Identity
 	for rows.Next() {

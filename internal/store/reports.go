@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	"imvault/internal/closer"
 	"imvault/internal/models"
 )
 
@@ -131,7 +132,7 @@ func (s *Store) ListReports(ctx context.Context, status models.ReportStatus, lim
 	if err != nil {
 		return nil, 0, fmt.Errorf("list reports: %w", err)
 	}
-	defer rows.Close()
+	defer closer.Discard(rows)
 
 	var reports []*models.Report
 	for rows.Next() {
@@ -234,7 +235,7 @@ func (s *Store) ListModerationLog(ctx context.Context, limit, offset int) ([]*mo
 	if err != nil {
 		return nil, 0, fmt.Errorf("list moderation log: %w", err)
 	}
-	defer rows.Close()
+	defer closer.Discard(rows)
 
 	var entries []*models.ModerationEntry
 	for rows.Next() {

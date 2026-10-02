@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"imvault/internal/closer"
 	"imvault/internal/models"
 )
 
@@ -269,7 +270,7 @@ func (s *Store) ListFiles(ctx context.Context, q FileQuery) ([]*models.File, err
 	if err != nil {
 		return nil, fmt.Errorf("list files: %w", err)
 	}
-	defer rows.Close()
+	defer closer.Discard(rows)
 
 	var files []*models.File
 	for rows.Next() {
@@ -322,7 +323,7 @@ func (s *Store) attachTags(ctx context.Context, files []*models.File) error {
 	if err != nil {
 		return fmt.Errorf("load file tags: %w", err)
 	}
-	defer rows.Close()
+	defer closer.Discard(rows)
 
 	for rows.Next() {
 		var (
@@ -402,7 +403,7 @@ func (s *Store) ExpiredFiles(ctx context.Context, at time.Time, limit int) ([]*m
 	if err != nil {
 		return nil, fmt.Errorf("list expired files: %w", err)
 	}
-	defer rows.Close()
+	defer closer.Discard(rows)
 
 	var files []*models.File
 	for rows.Next() {

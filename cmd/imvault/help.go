@@ -67,7 +67,9 @@ func commandFlags(command string, out io.Writer) *flag.FlagSet {
 	flags := flag.NewFlagSet("imvault "+command, flag.ContinueOnError)
 	flags.SetOutput(out)
 	flags.Usage = func() {
-		fmt.Fprintf(out, "Usage: imvault %s [OPTIONS]\n\n%s\n\n", command, commandDescriptions[command])
+		// Usage cannot return an error, and a terminal that cannot take the
+		// help text cannot take an error message either.
+		_, _ = fmt.Fprintf(out, "Usage: imvault %s [OPTIONS]\n\n%s\n\n", command, commandDescriptions[command])
 		flags.PrintDefaults()
 	}
 	return flags

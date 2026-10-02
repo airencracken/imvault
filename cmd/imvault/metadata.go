@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 
+	"imvault/internal/closer"
 	"imvault/internal/config"
 	"imvault/internal/db"
 	"imvault/internal/instance"
@@ -19,7 +20,7 @@ import (
 	"imvault/internal/store"
 )
 
-func refreshMetadata(args []string, stdout io.Writer) error {
+func refreshMetadata(args []string, stdout io.Writer) (err error) {
 	flags := commandFlags("refresh-metadata", stdout)
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -45,12 +46,12 @@ func refreshMetadata(args []string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	defer lock.Close()
+	defer closeInto(&err, lock)
 	database, err := db.Open(ctx, cfg.DBPath)
 	if err != nil {
 		return err
 	}
-	defer database.Close()
+	defer closeInto(&err, database)
 	objects, err := storage.New(ctx, cfg.Storage)
 	if err != nil {
 		return err
@@ -90,7 +91,7 @@ func refreshBlobMetadata(ctx context.Context, st *store.Store, objects storage.B
 	if err != nil {
 		return false, err
 	}
-	defer src.Close()
+	defer closer.Discard(src)
 	details, err := metadata.ExtractStored(src)
 	if errors.Is(err, metadata.ErrRead) {
 		return false, err

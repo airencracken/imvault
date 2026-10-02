@@ -11,6 +11,8 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+
+	"imvault/internal/closer"
 )
 
 // s3Reader fetches at most 1 MiB per request. Seeks only change the next range;
@@ -70,7 +72,7 @@ func (r *s3Reader) openRange() error {
 	}
 	wantRange := fmt.Sprintf("bytes %d-%d/%d", r.offset, end, r.size)
 	if aws.ToString(out.ContentRange) != wantRange || aws.ToInt64(out.ContentLength) != end-r.offset+1 {
-		out.Body.Close()
+		closer.Discard(out.Body)
 		return errors.New("S3 returned an invalid byte range")
 	}
 	r.body = out.Body
@@ -105,7 +107,7 @@ func (r *s3Reader) Seek(offset int64, whence int) (int64, error) {
 
 func (r *s3Reader) closeBody() {
 	if r.body != nil {
-		r.body.Close()
+		closer.Discard(r.body) // a response body that was only read
 		r.body = nil
 	}
 }

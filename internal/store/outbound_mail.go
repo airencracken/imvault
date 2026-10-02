@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"imvault/internal/closer"
 	"imvault/internal/models"
 )
 
@@ -76,7 +77,7 @@ func (s *Store) DueMail(ctx context.Context, at time.Time, limit int) ([]*models
 	if err != nil {
 		return nil, fmt.Errorf("list due mail: %w", err)
 	}
-	defer rows.Close()
+	defer closer.Discard(rows)
 
 	return collectOutboundMail(rows)
 }
@@ -94,7 +95,7 @@ func (s *Store) ListMail(ctx context.Context, limit int) ([]*models.OutboundMail
 	if err != nil {
 		return nil, fmt.Errorf("list mail: %w", err)
 	}
-	defer rows.Close()
+	defer closer.Discard(rows)
 
 	return collectOutboundMail(rows)
 }
