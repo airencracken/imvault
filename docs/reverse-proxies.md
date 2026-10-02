@@ -1,11 +1,11 @@
 # HTTPS reverse proxies
 
 **Caddy is the recommended setup**, with automatic certificate issuance and
-renewal. nginx and Apache 2.4 are supported alternatives. Each serves imvault
+renewal. nginx and Apache 2.4 are supported alternatives. Each serves Imvault
 at the root of its own hostname, such as `https://img.example.com`; a URL
 prefix such as `/imvault/` is not supported by these examples.
 
-## Configure imvault
+## Configure Imvault
 
 For a native service and proxy on the same host, set:
 
@@ -19,7 +19,7 @@ IMVAULT_TRUST_PROXY_HEADERS="true"
 Put these in `/etc/conf.d/imvault` for OpenRC or `/etc/imvault/imvault.env` for
 systemd, then restart imvault. Keep port 8080 private. The examples replace
 incoming forwarding headers with the actual client address and HTTPS scheme;
-imvault uses those headers for rate limits and secure links.
+Imvault uses those headers for rate limits and secure links.
 
 These examples assume the proxy directly accepts visitors' connections.
 If you add a CDN or another proxy, configure the trusted upstream addresses
@@ -77,7 +77,7 @@ The example redirects HTTP to HTTPS, preserves the host and application
 headers, replaces client-IP headers, and disables request/response buffering
 and proxy caching. This permits streaming uploads, exports, and media ranges.
 Its **256 MiB limit applies to the whole request**, including every file and
-multipart overhead. Adjust it to fit your batch sizes and imvault limits.
+multipart overhead. Adjust it to fit your batch sizes and Imvault limits.
 The 300-second proxy timeouts allow quiet intervals during media processing;
 they do not change the application's own limits.
 
@@ -91,7 +91,7 @@ nginx -s reload
 
 Keep the example's `X-Forwarded-For $remote_addr` assignment. Appending an
 untrusted incoming value with `$proxy_add_x_forwarded_for` would allow a
-visitor to choose the first address that imvault trusts. See nginx's
+visitor to choose the first address that Imvault trusts. See nginx's
 [proxy header and buffering reference](https://nginx.org/en/docs/http/ngx_http_proxy_module.html).
 
 ## Apache 2.4

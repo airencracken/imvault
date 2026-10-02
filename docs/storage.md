@@ -2,7 +2,7 @@
 
 Local disk is the default. An optional S3 backend keeps originals, thumbnails,
 previews, and metadata-free copies in a private bucket. The database, encryption
-key, and video-processing scratch files stay on the imvault host.
+key, and video-processing scratch files stay on the Imvault host.
 
 ## Choosing storage
 
@@ -44,15 +44,15 @@ credential provider. Never put them into a repository or a public URL.
 On OpenRC these settings belong in `/etc/conf.d/imvault`; restrict its
 permissions if it contains credentials. No changes to Caddy are needed.
 
-Give imvault permission to read, write, and delete objects beneath its prefix,
+Give Imvault permission to read, write, and delete objects beneath its prefix,
 and to start, upload, complete, and abort multipart uploads. On AWS this normally
 means `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`, and
 `s3:AbortMultipartUpload`, plus `s3:ListBucket` scoped to the prefix so missing
-objects produce a distinguishable `404`. The bucket must already exist. imvault
+objects produce a distinguishable `404`. The bucket must already exist. Imvault
 does not create buckets, change bucket policy, or set public ACLs.
 
 Use a dedicated prefix for each instance. One running server is allowed per
-database. All readers fetch bytes through imvault, so file visibility and EXIF
+database. All readers fetch bytes through Imvault, so file visibility and EXIF
 policy apply before an object is served. Bucket URLs and credentials are never
 exposed to viewers.
 
@@ -93,7 +93,7 @@ switch to the account an installed systemd or OpenRC service names, exactly as
 files behind that the service cannot read.
 `migrate-storage`, `rebuild-thumbnails`, and `backup` require the server to be
 stopped. An instance lock rejects concurrent servers and maintenance; locks
-are released automatically if the process exits. Older imvault binaries do not
+are released automatically if the process exits. Older Imvault binaries do not
 honor this lock, so stop any older service too. Avoid manual database writes or
 other writers to the bucket during maintenance.
 

@@ -1,6 +1,6 @@
 # Maintainer: Marcus J. Hildum <airencracken@users.noreply.github.com>
 #
-# Alpine Linux package for imvault.
+# Alpine Linux package for Imvault.
 #
 # Alpine's build system will not read this from the source tree: an APKBUILD
 # lives in aports. This file is here so the package can be built and submitted

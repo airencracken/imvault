@@ -21,7 +21,7 @@ func AcquireServer(database string) (*ServerLock, error) {
 	process := flock.New(shared.Path()+".server", flock.SetPermissions(0o600))
 	ok, err := process.TryLock()
 	if err != nil || !ok {
-		return nil, errors.Join(errors.New("another imvault server is using this database"), err, process.Close(), shared.Close())
+		return nil, errors.Join(errors.New("another Imvault server is using this database"), err, process.Close(), shared.Close())
 	}
 	return &ServerLock{shared, process}, nil
 }
@@ -58,7 +58,7 @@ func Acquire(database string, exclusive bool) (*flock.Flock, error) {
 		return nil, errors.Join(err, lock.Close())
 	}
 	if !ok {
-		return nil, errors.Join(errors.New("instance is busy; stop imvault and other maintenance commands before retrying"), lock.Close())
+		return nil, errors.Join(errors.New("instance is busy; stop Imvault and other maintenance commands before retrying"), lock.Close())
 	}
 	return lock, nil
 }

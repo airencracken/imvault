@@ -31,7 +31,7 @@ Ensure logrotate is scheduled. Gentoo's default `cron` USE flag installs
 the daily jobs. A systemd host can use `logrotate.timer`. Installing the rule
 alone does not schedule it.
 
-OpenRC redirects stdout and stderr to an open file descriptor, and imvault has
+OpenRC redirects stdout and stderr to an open file descriptor, and Imvault has
 no signal handler to reopen it. The rule uses `copytruncate` to preserve that
 descriptor, ownership, and permissions without a service restart. A few lines
 can be lost between copying and truncating; this is the documented
@@ -42,7 +42,7 @@ by journald. It does not need this file-based rule.
 
 ## Backups and restore drills
 
-imvault needs the database, media, and encryption key together:
+Imvault needs the database, media, and encryption key together:
 
 | Path | What it is |
 | --- | --- |

@@ -51,14 +51,14 @@ func buildVersion() string {
 func main() {
 	if handled, status, err := reexecProvisioningAsService(os.Args[1:]); handled {
 		if err != nil {
-			slog.Error("imvault", "error", err)
+			slog.Error("Imvault", "error", err)
 		}
 		os.Exit(status)
 	}
 	if err := runCommand(os.Args[1:], os.Stdin, os.Stdout); err != nil {
 		// Goes through slog so that every line this process emits, including
 		// its last, is a logfmt record.
-		slog.Error("imvault", "error", err)
+		slog.Error("Imvault", "error", err)
 		os.Exit(1)
 	}
 }
@@ -155,7 +155,7 @@ func run() (err error) {
 
 	serveErr := make(chan error, 1)
 	go func() {
-		logger.Info("imvault listening",
+		logger.Info("Imvault listening",
 			"version", buildVersion(),
 			"addr", cfg.Addr,
 			"data_dir", cfg.DataDir,

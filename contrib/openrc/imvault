@@ -1,7 +1,7 @@
 #!/sbin/openrc-run
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# OpenRC service script for imvault, for Alpine Linux and Gentoo.
+# OpenRC service script for Imvault, for Alpine Linux and Gentoo.
 #
 #   install -Dm755 contrib/openrc/imvault /etc/init.d/imvault
 #   install -Dm600 contrib/openrc/imvault.confd /etc/conf.d/imvault

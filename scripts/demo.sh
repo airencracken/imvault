@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Boot a throwaway imvault, seeded with a small but representative instance, so
+# Boot a throwaway Imvault, seeded with a small but representative instance, so
 # you can look at everything without registering by hand.
 #
 # Nothing here touches your real ./data directory: it wipes and uses
@@ -79,7 +79,7 @@ rm -rf -- "$DATA_DIR" || die "cannot remove the old $DATA_DIR"
 mkdir -p -- "$DATA_DIR" || die "cannot create $DATA_DIR"
 : > "$DATA_DIR/$MARKER" || die "cannot mark $DATA_DIR as the demo's"
 
-say "Building imvault"
+say "Building Imvault"
 go build -o "$BINARY" ./cmd/imvault || die "the build failed"
 
 say "Provisioning the demo administrator"
@@ -306,7 +306,7 @@ fi
 
 bold() { printf '\033[1m%s\033[0m' "$*"; }
 
-printf '\n  %s\n\n' "$(bold 'imvault is running')"
+printf '\n  %s\n\n' "$(bold 'Imvault is running')"
 printf '    %-14s %s\n' \
   'Open'     "$BASE" \
   'Sign in'  "$ADMIN / $PASSWORD  (administrator)" \

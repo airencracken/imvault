@@ -1,6 +1,6 @@
 # Deployment
 
-Running imvault on a server, without Docker.
+Running Imvault on a server, without Docker.
 
 GitHub Releases provide static Linux binaries and Debian packages for amd64
 and arm64. See [binary releases](releases.md) for downloads, installation,
@@ -50,7 +50,7 @@ first start.
 `ProtectSystem=strict` will make it read-only and the service will not start.
 
 The hardening is deliberately the safe subset. A system call filter
-(`SystemCallFilter=@system-service`) is a reasonable addition, but imvault shells
+(`SystemCallFilter=@system-service`) is a reasonable addition, but Imvault shells
 out to ffmpeg for clip posters and a filter that turns out to be too tight would
 break video silently, so it is left for you to add once you have checked the
 journal after an upload.
@@ -96,7 +96,7 @@ scratch-space requirements. Stop the service before offline maintenance.
 `make install-openrc` also installs `/etc/logrotate.d/imvault`, preserving an
 existing rule. On Gentoo, install `app-admin/logrotate` and make sure its cron
 job or timer runs regularly. Existing installs can add just the rule with
-`sudo make install-logrotate`; no imvault restart is needed. If you change
+`sudo make install-logrotate`; no Imvault restart is needed. If you change
 `IMVAULT_LOG_FILE`, update the rule's path too. See
 [log rotation](operations.md#log-rotation) for the policy and validation command.
 
@@ -131,13 +131,13 @@ For a machine on a trusted network, or for trying the proxy out before pointing
 a domain at it, `contrib/caddy/Caddyfile.local` does the same over plain HTTP on
 port 8081.
 
-`contrib/caddy/docker-compose.yml` runs Caddy and imvault together, with imvault
+`contrib/caddy/docker-compose.yml` runs Caddy and Imvault together, with Imvault
 publishing no ports of its own: an application port left open beside a TLS
 terminator is a way around it.
 
 ### The three things that matter
 
-1. **Bind imvault to loopback.** `IMVAULT_ADDR=127.0.0.1:8080` means the only
+1. **Bind Imvault to loopback.** `IMVAULT_ADDR=127.0.0.1:8080` means the only
    way in is through the proxy. Publishing 8080 as well would let anyone reach
    the plaintext origin and its non-Secure cookies.
 
@@ -146,7 +146,7 @@ terminator is a way around it.
    one rate-limit bucket.
 
 3. **You probably do not need `IMVAULT_SECURE_COOKIES`.** Caddy sets
-   `X-Forwarded-Proto`, and imvault marks cookies `Secure` when it sees `https`.
+   `X-Forwarded-Proto`, and Imvault marks cookies `Secure` when it sees `https`.
    Set it anyway if you would rather not depend on the header.
 
 ### What was checked
@@ -155,7 +155,7 @@ The example config was run against a real instance, and the following were
 observed rather than assumed:
 
 - **Caddy discards a client-supplied `X-Forwarded-For`** and replaces it with
-  the peer it accepted the connection from, so the header imvault trusts is the
+  the peer it accepted the connection from, so the header Imvault trusts is the
   real one. The rate limiter was confirmed to key on the forwarded address
   (`key=login:198.51.100.9:marcus`) when the proxy reported it.
 - **Range requests survive the proxy**, which matters for scrubbing a clip.
@@ -168,7 +168,7 @@ observed rather than assumed:
 ### One thing to be careful of
 
 **Do not add a strict `Content-Security-Policy` without reading
-[Security](security.md) first.** imvault's admin pages use inline Alpine
+[Security](security.md) first.** Imvault's admin pages use inline Alpine
 expressions, which are evaluated with `new Function`, so a policy without
 `unsafe-eval` will break the confirmation dialog and the table filter — silently,
 as a console error rather than a visible failure.
@@ -221,7 +221,7 @@ the `master` branch through `git-r3` and vendors the modules with
 `go-module_live_vendor`, so there is no version to bump, no manifest to
 regenerate, and no `EGO_SUM` to keep in step with `go.sum` — which the eclass now
 deprecates in favour of a dependency tarball in any case. The `LICENSE` line
-covers imvault and every module linked into the binary, worked out from
+covers Imvault and every module linked into the binary, worked out from
 `go list -deps` rather than from the module graph, so it does not list the
 test-only dependencies that never end up in it.
 

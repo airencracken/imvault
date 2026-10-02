@@ -1,6 +1,6 @@
-# imvault behind Caddy, both in containers.
+# Imvault behind Caddy, both in containers.
 #
-# Caddy publishes 80 and 443 and handles certificates; imvault publishes
+# Caddy publishes 80 and 443 and handles certificates; Imvault publishes
 # nothing, so the only way in is through the proxy. That is the point: an
 # application port left open beside a TLS terminator is a way around it.
 #
@@ -31,7 +31,7 @@ services:
       # Caddy sets X-Forwarded-For to the peer it accepted the connection from,
       # discarding anything the client claimed, so this is safe here.
       IMVAULT_TRUST_PROXY_HEADERS: "true"
-      # Caddy also sets X-Forwarded-Proto, so imvault marks cookies Secure on a
+      # Caddy also sets X-Forwarded-Proto, so Imvault marks cookies Secure on a
       # TLS site without being told. Set this anyway if you would rather be
       # explicit.
       IMVAULT_SECURE_COOKIES: "true"

@@ -5,7 +5,7 @@ EAPI=8
 
 inherit acct-group
 
-DESCRIPTION="Service group for imvault"
+DESCRIPTION="Service group for Imvault"
 KEYWORDS="~amd64 ~arm64"
 # Overlay accounts use dynamically allocated IDs.
 ACCT_GROUP_ID=-1

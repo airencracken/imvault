@@ -62,4 +62,4 @@ git ls-files -- cmd internal docs scripts contrib go.mod go.sum Makefile README.
 while IFS= read -r source_file; do
 	cmp "$source_file" "$work/source/$source_file" || fail "Source archive differs: $source_file"
 done < "$work/source-files"
-printf '%s release artifact checks passed.\n' imvault
+printf '%s release artifact checks passed.\n' Imvault
