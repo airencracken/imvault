@@ -264,6 +264,27 @@ func (s *Server) detailsVisibility(ctx context.Context, file *models.File, viewe
 	return policies.Metadata == models.MetadataShown, policies.Location == models.MetadataShown
 }
 
+// withholdDetails returns the part of a file's details a viewer may be told.
+// It copies rather than editing in place, because the details may be shared.
+func withholdDetails(details *metadata.Details, exifShown, locationShown bool) *metadata.Details {
+	if details == nil || (exifShown && locationShown) {
+		return details
+	}
+	var out metadata.Details
+	if exifShown {
+		out = *details
+	}
+	if locationShown {
+		out.Latitude, out.Longitude, out.Altitude = details.Latitude, details.Longitude, details.Altitude
+	} else {
+		out.Latitude, out.Longitude, out.Altitude = nil, nil, nil
+	}
+	if out.Empty() {
+		return nil
+	}
+	return &out
+}
+
 // MetadataGap describes why a file's metadata cannot be removed, or is empty
 // when there is no gap.
 //
