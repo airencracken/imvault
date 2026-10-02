@@ -102,7 +102,12 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "could not start session", http.StatusInternalServerError)
 			return
 		}
-		http.Redirect(w, r, "/login/2fa", http.StatusSeeOther)
+		// Where the person was going survives the second step.
+		target := "/login/2fa"
+		if next != "" {
+			target += "?next=" + url.QueryEscape(next)
+		}
+		http.Redirect(w, r, target, http.StatusSeeOther)
 		return
 	}
 
@@ -149,33 +154,31 @@ func (s *Server) admit(ctx context.Context, code string) admission {
 		return admission{Refusal: "Registration is disabled on this instance."}
 	}
 
+	// Every refusal reads the same. Telling a stranger whether a code is
+	// unknown, wrong, or spent would confirm which codes exist.
+	const unusable = "That invitation is not valid, or has already been used."
+
 	prefix, ok := invites.Split(code)
 	if !ok {
-		return admission{Refusal: "That invitation is not valid, or has already been used."}
+		return admission{Refusal: unusable}
 	}
-
-	found, err := s.store.InviteByPrefix(ctx, prefix)
+	found, hash, err := s.store.InviteForRedemption(ctx, prefix)
 	if err != nil {
 		if !errors.Is(err, store.ErrNotFound) {
-			return admission{Refusal: "That invitation is not valid, or has already been used."}
+			s.log.Error("admit: look up invitation", "error", err)
 		}
-		return admission{Refusal: "That invitation is not valid, or has already been used."}
+		return admission{Refusal: unusable}
 	}
-
-	// Looking the row up by prefix narrows the search; it does not authenticate
-	// anything. Only a digest match does.
-	hash, err := s.store.InviteCodeHash(ctx, prefix)
-	if err != nil {
-		return admission{Refusal: "That invitation is not valid, or has already been used."}
-	}
+	// Looking the row up by prefix narrows the search; it does not
+	// authenticate anything. Only a digest match does.
 	if !invites.Verify(code, hash) {
-		return admission{Refusal: "That invitation is not valid, or has already been used."}
+		return admission{Refusal: unusable}
 	}
 	// A revoked, expired, or used-up code is refused here for a clear message;
 	// the redemption enforces the same conditions atomically, which is what
 	// stops two people consuming the last use at once.
 	if !found.Usable(time.Now()) {
-		return admission{Refusal: "That invitation is not valid, or has already been used."}
+		return admission{Refusal: unusable}
 	}
 
 	return admission{Invite: found}

@@ -5,6 +5,7 @@ package web
 import (
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -226,11 +227,15 @@ func adminMegabytes(r *http.Request, field string) (int64, bool) {
 	}
 
 	value, err := strconv.ParseInt(raw, 10, 64)
-	if err != nil || value < 0 {
+	if err != nil || value < 0 || value > maxAdminMegabytes {
 		return 0, false
 	}
 	return value, true
 }
+
+// maxAdminMegabytes is the largest MiB figure that still fits in bytes. Past it
+// the conversion would wrap to a negative number, which reads as "no limit".
+const maxAdminMegabytes = math.MaxInt64 >> 20
 
 // limitsMessage describes what was just set, in the terms each limit is thought
 // about: unlimited, or no override.

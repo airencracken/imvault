@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -341,18 +342,31 @@ func (s *Server) issueRecoveryCodes(ctx context.Context, userID int64) ([]string
 }
 
 // generateRecoveryCode returns one grouped code, for example "K7QP2-MX4RT".
+//
+// Each character is drawn without bias: a random byte is only used when it
+// falls below the largest multiple of the alphabet's length, since mapping all
+// 256 values with a modulo would make the first few letters slightly likelier.
 func generateRecoveryCode() (string, error) {
-	buf := make([]byte, recoveryCodeLength)
-	if _, err := rand.Read(buf); err != nil {
-		return "", fmt.Errorf("recovery code: %w", err)
-	}
+	return recoveryCodeFrom(rand.Reader)
+}
 
+// recoveryCodeFrom builds a code from a source of random bytes.
+func recoveryCodeFrom(source io.Reader) (string, error) {
+	limit := byte(256 - 256%len(recoveryAlphabet))
 	var b strings.Builder
-	for i, value := range buf {
-		if i == recoveryCodeLength/2 {
+	buf := make([]byte, 1)
+	for written := 0; written < recoveryCodeLength; {
+		if _, err := io.ReadFull(source, buf); err != nil {
+			return "", fmt.Errorf("recovery code: %w", err)
+		}
+		if buf[0] >= limit {
+			continue
+		}
+		if written == recoveryCodeLength/2 {
 			b.WriteByte('-')
 		}
-		b.WriteByte(recoveryAlphabet[int(value)%len(recoveryAlphabet)])
+		b.WriteByte(recoveryAlphabet[int(buf[0])%len(recoveryAlphabet)])
+		written++
 	}
 	return b.String(), nil
 }
@@ -443,6 +457,8 @@ type twoFactorPromptView struct {
 	base
 	Username string
 	Error    string
+	// Next is where the sign-in was headed before the code was asked for.
+	Next string
 }
 
 // startPendingLogin records that the password was accepted, and hands the
@@ -513,6 +529,7 @@ func (s *Server) handleLoginTwoFactorPage(w http.ResponseWriter, r *http.Request
 	s.renderPage(w, http.StatusOK, "login_two_factor", twoFactorPromptView{
 		base:     s.base(r, "Two-factor authentication"),
 		Username: user.Username,
+		Next:     safeNext(r.URL.Query().Get("next")),
 	})
 }
 
@@ -523,17 +540,19 @@ func (s *Server) handleLoginTwoFactor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "malformed form", http.StatusBadRequest)
+		return
+	}
+	next := safeNext(r.PostFormValue("next"))
+
 	renderErr := func(status int, message string) {
 		s.renderPage(w, status, "login_two_factor", twoFactorPromptView{
 			base:     s.base(r, "Two-factor authentication"),
 			Username: user.Username,
 			Error:    message,
+			Next:     next,
 		})
-	}
-
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "malformed form", http.StatusBadRequest)
-		return
 	}
 
 	if user.Disabled {
@@ -565,7 +584,10 @@ func (s *Server) handleLoginTwoFactor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.log.Info("signed in with a second factor", "user", user.ID)
-	http.Redirect(w, r, "/gallery", http.StatusSeeOther)
+	if next == "" {
+		next = "/gallery"
+	}
+	http.Redirect(w, r, next, http.StatusSeeOther)
 }
 
 // --- administration ----------------------------------------------------------
