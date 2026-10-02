@@ -88,17 +88,15 @@ func (s *Store) AddTag(ctx context.Context, fileID string, ownerID *int64, name 
 }
 
 // lookupTagTx finds a tag by name within one namespace.
-//
-// "IS" rather than "=", because the anonymous namespace is spelled NULL and
-// `user_id = NULL` is never true.
 func lookupTagTx(ctx context.Context, tx *sql.Tx, ownerID *int64, name string) (*models.Tag, error) {
 	var (
 		t      models.Tag
 		userID sql.NullInt64
 	)
+	namespace, args := namespaceClause("tags", ownerID)
 	err := tx.QueryRowContext(ctx,
 		`SELECT id, user_id, name, slug FROM tags
-		 WHERE user_id IS ? AND name = ? COLLATE NOCASE`, nullableInt64(ownerID), name).
+		 WHERE `+namespace+` AND name = ? COLLATE NOCASE`, append(args, name)...).
 		Scan(&t.ID, &userID, &t.Name, &t.Slug)
 	if err != nil {
 		return nil, err
@@ -108,6 +106,20 @@ func lookupTagTx(ctx context.Context, tx *sql.Tx, ownerID *int64, name string) (
 		t.UserID = &id
 	}
 	return &t, nil
+}
+
+// namespaceClause restricts tags to one namespace: an account's, or the shared
+// anonymous one, which is spelled NULL.
+//
+// The two are written differently rather than as "user_id IS ?". The unique
+// indexes on tags are partial, one per kind of namespace, and SQLite will only
+// use a partial index when the query visibly implies its condition, which a
+// bound parameter never does.
+func namespaceClause(alias string, ownerID *int64) (string, []any) {
+	if ownerID == nil {
+		return alias + ".user_id IS NULL", nil
+	}
+	return alias + ".user_id = ?", []any{*ownerID}
 }
 
 // insertTagTx creates a tag, deriving a slug that is unique within the
@@ -201,9 +213,10 @@ func (s *Store) TagsForFile(ctx context.Context, fileID string) ([]models.Tag, e
 
 // TagBySlugInNamespace resolves a tag inside one namespace.
 func (s *Store) TagBySlugInNamespace(ctx context.Context, ownerID *int64, slug string) (*models.Tag, error) {
+	namespace, args := namespaceClause("t", ownerID)
 	row := s.db.QueryRowContext(ctx,
-		`SELECT `+tagColumns+` `+tagFrom+` WHERE t.user_id IS ? AND t.slug = ?`,
-		nullableInt64(ownerID), slug)
+		`SELECT `+tagColumns+` `+tagFrom+` WHERE `+namespace+` AND t.slug = ?`,
+		append(args, slug)...)
 	t, err := scanTag(row)
 	if err != nil {
 		return nil, mapErr(err)
@@ -230,9 +243,10 @@ func (s *Store) TagByRefInNamespace(ctx context.Context, ownerID *int64, ref str
 }
 
 func (s *Store) tagBy(ctx context.Context, ownerID *int64, where string, arg any) (*models.Tag, error) {
+	namespace, args := namespaceClause("t", ownerID)
 	row := s.db.QueryRowContext(ctx,
-		`SELECT `+tagColumns+` `+tagFrom+` WHERE t.user_id IS ? AND `+where,
-		nullableInt64(ownerID), arg)
+		`SELECT `+tagColumns+` `+tagFrom+` WHERE `+namespace+` AND `+where,
+		append(args, arg)...)
 	t, err := scanTag(row)
 	if err != nil {
 		return nil, mapErr(err)
@@ -262,7 +276,7 @@ func (s *Store) ListTags(ctx context.Context, viewerID *int64, limit int) ([]mod
 		LEFT JOIN users u ON u.id = t.user_id
 		JOIN file_tags ft ON ft.tag_id = t.id
 		JOIN files f ON f.id = ft.file_id
-		WHERE `+visibility+` AND `+expiryClause("f")+`
+		WHERE `+visibility+` AND `+expiryClause+`
 		GROUP BY t.id
 		ORDER BY n DESC, t.name COLLATE NOCASE, t.id
 		LIMIT ?`, args...)
@@ -303,7 +317,7 @@ func (s *Store) CountTagVisibleTo(ctx context.Context, tagID int64, viewerID *in
 		SELECT COUNT(*)
 		FROM file_tags ft
 		JOIN files f ON f.id = ft.file_id
-		WHERE ft.tag_id = ? AND `+visibility+` AND `+expiryClause("f"), args...).Scan(&n)
+		WHERE ft.tag_id = ? AND `+visibility+` AND `+expiryClause, args...).Scan(&n)
 	if err != nil {
 		return 0, fmt.Errorf("count visible files for tag: %w", err)
 	}

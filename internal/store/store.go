@@ -10,6 +10,9 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 )
 
 // Sentinel errors returned by store methods.
@@ -101,16 +104,21 @@ func boolToInt(b bool) int {
 	return 0
 }
 
-// isUniqueViolation reports whether err is a UNIQUE constraint failure, and on
-// which column it occurred.
+// isUniqueViolation reports whether err is a UNIQUE or primary key constraint
+// failure, and on which column it occurred.
+//
+// The kind is read from SQLite's extended result code rather than from the
+// message, which is meant for people. Only the column, which the code does not
+// carry, still comes from the message.
 func isUniqueViolation(err error) (bool, string) {
-	if err == nil {
+	var sqliteErr *sqlite.Error
+	if !errors.As(err, &sqliteErr) {
+		return false, ""
+	}
+	if code := sqliteErr.Code(); code != sqlite3.SQLITE_CONSTRAINT_UNIQUE && code != sqlite3.SQLITE_CONSTRAINT_PRIMARYKEY {
 		return false, ""
 	}
 	msg := err.Error()
-	if !strings.Contains(msg, "UNIQUE constraint failed") {
-		return false, ""
-	}
 	if i := strings.LastIndex(msg, ":"); i >= 0 {
 		return true, strings.TrimSpace(msg[i+1:])
 	}
@@ -130,10 +138,9 @@ func placeholders(n int) string {
 // has removed the row and the bytes, so listings never show things that the
 // detail route would already refuse to serve.
 //
-// It carries one placeholder argument (the current time).
-func expiryClause(alias string) string {
-	return fmt.Sprintf("(%s.expires_at IS NULL OR %s.expires_at > ?)", alias, alias)
-}
+// It applies to the files table under the alias "f", which every query that
+// uses it shares, and carries one placeholder argument (the current time).
+const expiryClause = "(f.expires_at IS NULL OR f.expires_at > ?)"
 
 // visibilityClause restricts files to those a viewer may see: everything
 // public, plus everything shared with members when they are signed in, plus

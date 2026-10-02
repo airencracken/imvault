@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"imvault/internal/models"
-) // CreateSession records a login session. Only the hash of the session token is
+)
+
+// CreateSession records a login session. Only the hash of the session token is
 // stored, so a database leak does not hand over live sessions.
 func (s *Store) CreateSession(ctx context.Context, tokenHash string, userID int64, expiresAt time.Time) error {
 	_, err := s.db.ExecContext(ctx, `

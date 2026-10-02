@@ -17,8 +17,9 @@ CREATE TABLE user_identities (
     email      TEXT    NOT NULL DEFAULT '',
     created_at INTEGER NOT NULL,
     last_login INTEGER,
-    -- One identity per issuer per account, enforced by the database rather than
-    -- by a check that two callbacks could race past.
+    -- Each identity at an issuer belongs to one account, enforced by the
+    -- database rather than by a check that two callbacks could race past. An
+    -- account may still link several subjects from the same issuer.
     UNIQUE (issuer, subject)
 );
 

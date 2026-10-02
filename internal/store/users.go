@@ -413,14 +413,14 @@ func (s *Store) ReserveStorage(ctx context.Context, userID, size, totalLimit int
 		return fmt.Errorf("reserve storage rows: %w", err)
 	}
 	if affected == 0 {
-		return s.refusalReason(ctx, userID, size, totalLimit)
+		return s.refusalReason(ctx, size, totalLimit)
 	}
 	return nil
 }
 
 // refusalReason works out which ceiling a refused reservation hit, so the
 // message can say something useful. It only runs on the refusal path.
-func (s *Store) refusalReason(ctx context.Context, userID, size, totalLimit int64) error {
+func (s *Store) refusalReason(ctx context.Context, size, totalLimit int64) error {
 	if totalLimit > 0 {
 		if total, err := s.TotalStoredBytes(ctx); err == nil && total+size > totalLimit {
 			return ErrInstanceFull
