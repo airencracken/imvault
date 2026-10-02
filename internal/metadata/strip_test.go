@@ -18,7 +18,7 @@ import (
 // sampleJPEG is a small real JPEG, encoded by the standard library. It carries
 // a JFIF segment and nothing else, which makes it the baseline the injected
 // metadata is added to.
-func sampleJPEG(t *testing.T) []byte {
+func sampleJPEG(t testing.TB) []byte {
 	t.Helper()
 
 	img := image.NewRGBA(image.Rect(0, 0, 8, 8))
@@ -36,7 +36,7 @@ func sampleJPEG(t *testing.T) []byte {
 }
 
 // samplePNG is a small real PNG, likewise with only the chunks it needs.
-func samplePNG(t *testing.T) []byte {
+func samplePNG(t testing.TB) []byte {
 	t.Helper()
 
 	img := image.NewRGBA(image.Rect(0, 0, 8, 8))
@@ -55,7 +55,7 @@ func samplePNG(t *testing.T) []byte {
 
 // insertAfterSOI puts a segment immediately after the start-of-image marker,
 // which is where a real encoder would have written it.
-func insertAfterSOI(t *testing.T, jpegData, segment []byte) []byte {
+func insertAfterSOI(t testing.TB, jpegData, segment []byte) []byte {
 	t.Helper()
 
 	if len(jpegData) < 2 || jpegData[0] != 0xFF || jpegData[1] != 0xD8 {

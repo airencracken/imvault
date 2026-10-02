@@ -35,9 +35,7 @@ func Strip(data []byte, mime string) ([]byte, bool) {
 	case looksLikeGIF(data):
 		return stripGIF(data)
 	case looksLikeBMP(data):
-		// BMP has no Exif and no text chunks: there is genuinely nothing to
-		// remove, which is different from not knowing how.
-		return data, true
+		return stripBMP(data)
 	}
 	return nil, false
 }
@@ -60,21 +58,56 @@ const (
 	jpegEOI = 0xD9
 	jpegSOS = 0xDA
 	jpegCOM = 0xFE
-	// APP1 carries Exif and XMP, APP13 carries IPTC and Photoshop's resource
-	// block. Both are metadata end to end.
-	jpegAPP1  = 0xE1
-	jpegAPP13 = 0xED
-	// APP14 records the colour transform an Adobe CMYK file needs. It is not
-	// metadata and dropping it changes how the image decodes.
-	jpegAPP14 = 0xEE
+	// APP1 carries Exif and XMP. Filter writes a rebuilt one back when some
+	// metadata is meant to stay.
+	jpegAPP1 = 0xE1
+	// The application segments run from APP0 to APP15.
+	jpegAPP0  = 0xE0
+	jpegAPP15 = 0xEF
 )
+
+// jpegKeptApplications are the only application segments that survive: the
+// JFIF header, an ICC colour profile, and Adobe's colour transform. Each
+// changes how the pixels decode, and none describes the photograph.
+//
+// It is an allow-list because the alternative never ends. Exif and XMP live in
+// APP1, IPTC in APP13, a multi-picture index in APP2, Photoshop's "Ducky" text
+// in APP12, and every vendor is free to invent another.
+var jpegKeptApplications = []struct {
+	marker byte
+	prefix string
+}{
+	{0xE0, "JFIF\x00"},
+	{0xE2, "ICC_PROFILE\x00"},
+	{0xEE, "Adobe"},
+}
 
 func looksLikeJPEG(data []byte) bool {
 	return len(data) >= 2 && data[0] == 0xFF && data[1] == jpegSOI
 }
 
-// stripJPEG walks the segment list and drops the metadata ones, copying the
-// entropy-coded scan verbatim.
+// keepJPEGSegment reports whether a segment survives stripping.
+func keepJPEGSegment(marker byte, payload []byte) bool {
+	if marker == jpegCOM {
+		return false
+	}
+	if marker < jpegAPP0 || marker > jpegAPP15 {
+		return true // frame, table and restart definitions are the picture
+	}
+	for _, kept := range jpegKeptApplications {
+		if marker == kept.marker && hasPrefix(payload, kept.prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// stripJPEG walks the segment list and drops the metadata ones, copying each
+// entropy-coded scan verbatim and stopping at the end-of-image marker.
+//
+// Stopping there matters as much as the segments do. A phone commonly appends
+// further images after the first one's EOI — a multi-picture depth map, or a
+// whole motion-photo clip — each with its own Exif and coordinates.
 func stripJPEG(data []byte) ([]byte, bool) {
 	if !looksLikeJPEG(data) {
 		return nil, false
@@ -83,8 +116,7 @@ func stripJPEG(data []byte) ([]byte, bool) {
 	out := make([]byte, 0, len(data))
 	out = append(out, 0xFF, jpegSOI)
 
-	i := 2
-	for i < len(data) {
+	for i := 2; i < len(data); {
 		marker, next, ok := readJPEGMarker(data, i)
 		if !ok {
 			return nil, false
@@ -94,8 +126,9 @@ func stripJPEG(data []byte) ([]byte, bool) {
 		// Standalone markers carry no length or payload.
 		switch {
 		case marker == jpegEOI:
-			out = append(out, 0xFF, jpegEOI)
-			return out, true
+			return append(out, 0xFF, jpegEOI), true
+		case marker == jpegSOI:
+			return nil, false // a second image where a segment should be
 		case marker >= 0xD0 && marker <= 0xD7, marker == 0x01:
 			out = append(out, 0xFF, marker)
 			continue
@@ -108,36 +141,57 @@ func stripJPEG(data []byte) ([]byte, bool) {
 		if length < 2 || i+length > len(data) {
 			return nil, false
 		}
-		payload := data[i+2 : i+length]
-
-		switch {
-		case marker == jpegSOS:
-			// Everything from the start of scan to the end of file is entropy
-			// coded data, which cannot be parsed as segments and must be copied
-			// exactly. That includes any EOI.
-			out = append(out, 0xFF, jpegSOS)
-			out = append(out, data[i:]...)
-			return out, true
-
-		case marker == jpegAPP1, marker == jpegAPP13, marker == jpegCOM:
-			// Dropped. APP1 holds Exif and XMP along with Exif's own embedded
-			// thumbnail, which is a second copy of the image and the classic
-			// way to "strip metadata" and still ship the location.
-
-		case marker == 0xE0 && hasPrefix(payload, "JFXX"):
-			// A JFXX extension segment carries a thumbnail. The JFIF segment
-			// beside it is colour information and is kept.
-
-		default:
+		if keepJPEGSegment(marker, data[i+2:i+length]) {
 			out = append(out, 0xFF, marker)
 			out = append(out, data[i:i+length]...)
 		}
-
 		i += length
+
+		if marker == jpegSOS {
+			// The scan's entropy-coded data follows its header. It cannot be
+			// parsed as segments, so it is copied exactly up to the next real
+			// marker, which is either another progressive scan's tables or EOI.
+			end, eof := jpegScanEnd(data, i)
+			out = append(out, data[i:end]...)
+			if eof {
+				// A scan that runs off the end of the file has no EOI to stop
+				// at. Nothing can follow it, so supply the marker it lacked.
+				return append(out, 0xFF, jpegEOI), true
+			}
+			i = end
+		}
 	}
 
 	// Ran out of data without a scan or an end marker.
 	return nil, false
+}
+
+// jpegScanEnd returns where the entropy-coded data starting at i ends: the
+// first 0xFF that begins a marker. eof reports that the file ended first, in
+// which case end excludes any dangling fill bytes that never became a marker.
+//
+// Inside a scan, 0xFF is always followed by a stuffed zero or a restart marker;
+// any number of fill bytes may precede a real marker.
+func jpegScanEnd(data []byte, i int) (end int, eof bool) {
+	for i < len(data) {
+		if data[i] != 0xFF {
+			i++
+			continue
+		}
+		next := i + 1
+		for next < len(data) && data[next] == 0xFF {
+			next++
+		}
+		if next >= len(data) {
+			return i, true
+		}
+		if b := data[next]; b == 0x00 || (b >= 0xD0 && b <= 0xD7) {
+			i = next + 1
+			continue
+		}
+		return i, false
+	}
+	return len(data), true
 }
 
 // readJPEGMarker skips legal FF padding and locates the marker's payload.
@@ -267,6 +321,12 @@ func stripWebP(data []byte) ([]byte, bool) {
 		return nil, false
 	}
 
+	// The RIFF size bounds the container. Bytes past it are not part of the
+	// image, whatever they look like.
+	if size := uint64(binary.LittleEndian.Uint32(data[4:8])) + 8; size < uint64(len(data)) {
+		data = data[:size]
+	}
+
 	out := make([]byte, 0, len(data))
 	out = append(out, data[0:12]...)
 
@@ -316,6 +376,20 @@ func stripWebP(data []byte) ([]byte, bool) {
 
 func looksLikeBMP(data []byte) bool {
 	return len(data) >= 2 && data[0] == 'B' && data[1] == 'M'
+}
+
+// stripBMP truncates a bitmap to the size its header declares. BMP has no Exif
+// and no text chunks, so within that size there is genuinely nothing to remove;
+// past it is whatever somebody appended. Some old writers leave the size zero,
+// and a truncated file declares more than it has: neither can hide anything.
+func stripBMP(data []byte) ([]byte, bool) {
+	if len(data) < 6 {
+		return nil, false
+	}
+	if size := uint64(binary.LittleEndian.Uint32(data[2:6])); size >= 14 && size < uint64(len(data)) {
+		return data[:size], true
+	}
+	return data, true
 }
 
 // --- GIF -------------------------------------------------------------------
@@ -384,8 +458,9 @@ func stripGIF(data []byte) ([]byte, bool) {
 	for i < len(data) {
 		switch data[i] {
 		case gifTrailer:
-			out = append(out, data[i:]...)
-			return out, true
+			// Anything after the trailer is not part of the picture, and is
+			// exactly where an appended file would hide.
+			return append(out, gifTrailer), true
 
 		case gifImageDescriptor:
 			// An image block runs to the end of its LZW sub-block chain, and

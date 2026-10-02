@@ -19,7 +19,7 @@ func TestFilterKeepsEXIFAndGPSIndependently(t *testing.T) {
 	webp := append(sampleWebP(t, false), webpChunk("EXIF", block)...)
 	webp = append(webp, webpChunk("XMP ", []byte("hidden-copy-of-GPS"))...)
 	binary.LittleEndian.PutUint32(webp[4:], uint32(len(webp)-8))
-	jpeg = insertAfterSOI(t, jpeg, segment(jpegAPP13, []byte("hidden-copy-of-GPS")))
+	jpeg = insertAfterSOI(t, jpeg, segment(0xED, []byte("hidden-copy-of-GPS")))
 	for name, data := range map[string][]byte{"jpeg": jpeg, "png": pngData, "webp": webp} {
 		for _, camera := range []bool{true, false} {
 			t.Run(name+map[bool]string{true: "-camera", false: "-location"}[camera], func(t *testing.T) {

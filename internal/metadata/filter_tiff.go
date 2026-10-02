@@ -6,7 +6,9 @@ import "encoding/binary"
 
 // Only fields with self-contained values are copied. Pointers, maker notes,
 // thumbnails and private tags cannot be relocated safely or classified as
-// location-free. Keep the camera, date, exposure, lens and attribution fields.
+// location-free. Keep the camera, date, exposure, lens and attribution fields,
+// but not the owner's name or the body and lens serial numbers: those identify
+// a person or a device across every photograph it takes.
 var cameraTags = map[uint16]bool{
 	0x010f: true, 0x0110: true, 0x0112: true, 0x0131: true, 0x0132: true, 0x013b: true, 0x8298: true,
 }
@@ -18,7 +20,7 @@ var exposureTags = map[uint16]bool{
 	0xa000: true, 0xa001: true, 0xa002: true, 0xa003: true, 0xa20e: true, 0xa20f: true, 0xa210: true,
 	0xa217: true, 0xa300: true, 0xa301: true, 0xa401: true, 0xa402: true, 0xa403: true, 0xa404: true,
 	0xa405: true, 0xa406: true, 0xa407: true, 0xa408: true, 0xa409: true, 0xa40a: true,
-	0xa430: true, 0xa431: true, 0xa432: true, 0xa433: true, 0xa434: true, 0xa435: true,
+	0xa432: true, 0xa433: true, 0xa434: true,
 }
 
 type filteredEntry struct {
