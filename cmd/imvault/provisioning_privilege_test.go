@@ -1,8 +1,10 @@
 package main
 
 import (
+	"io"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -29,6 +31,47 @@ func TestProvisioningHelpDoesNotReexecuteAsServiceUser(t *testing.T) {
 		handled, status, err := reexecProvisioningAsService(args)
 		if handled || status != 0 || err != nil {
 			t.Fatalf("reexec for %v = handled %t status %d err %v", args, handled, status, err)
+		}
+	}
+}
+
+// asRoot pretends the process is root for the duration of a test.
+func asRoot(t *testing.T) {
+	t.Helper()
+	previous := geteuid
+	geteuid = func() int { return 0 }
+	t.Cleanup(func() { geteuid = previous })
+}
+
+func TestCommandsThatWriteTheInstanceRunAsTheServiceUser(t *testing.T) {
+	asRoot(t)
+	for _, command := range []string{"create-admin", "backup", "migrate-storage", "rebuild-thumbnails", "refresh-metadata"} {
+		if !shouldReexecProvisioning([]string{command}) {
+			t.Errorf("%s would run as root", command)
+		}
+		if shouldReexecProvisioning([]string{command, "--help"}) {
+			t.Errorf("%s --help would switch user", command)
+		}
+	}
+	for _, command := range []string{"restore", "proxy-config", "help", "serve"} {
+		if shouldReexecProvisioning([]string{command}) {
+			t.Errorf("%s would switch to the service user", command)
+		}
+	}
+}
+
+func TestMaintenanceRefusesRootWithoutAServiceToBecome(t *testing.T) {
+	asRoot(t)
+	t.Setenv("IMVAULT_DATA_DIR", t.TempDir())
+	for _, args := range [][]string{
+		{"backup", "--output", filepath.Join(t.TempDir(), "out")},
+		{"rebuild-thumbnails"},
+		{"migrate-storage"},
+		{"refresh-metadata"},
+	} {
+		err := runCommand(args, nil, io.Discard)
+		if err == nil || !strings.Contains(err.Error(), "must not run as root") {
+			t.Errorf("%v as root: %v", args, err)
 		}
 	}
 }

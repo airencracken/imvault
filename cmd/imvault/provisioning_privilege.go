@@ -12,8 +12,10 @@ import (
 	"syscall"
 )
 
-// reexecProvisioningAsService makes `sudo imvault create-admin` use the same
-// filesystem identity as the installed service. The child receives the
+// reexecProvisioningAsService makes `sudo imvault create-admin`, and the
+// maintenance commands, use the same filesystem identity as the installed
+// service. Run as root, they would leave root-owned database journals and
+// objects the service can no longer read. The child receives the
 // already-resolved data directory so it does not need to read root-only config.
 func reexecProvisioningAsService(args []string) (bool, int, error) {
 	if !shouldReexecProvisioning(args) {
@@ -28,7 +30,7 @@ func reexecProvisioningAsService(args []string) (bool, int, error) {
 		return false, 0, nil
 	}
 	if username == "root" {
-		return true, 1, errors.New("the configured Imvault service user is root; create-admin refuses to write its database as root")
+		return true, 1, fmt.Errorf("the configured service user is root; %s refuses to write the instance's files as root", args[0])
 	}
 	dataDir, err := resolveProvisioningDataDir(paths)
 	if err != nil {
@@ -52,7 +54,7 @@ func provisioningDBPathForChild(dataDir, dbPath string) string {
 func reexecAsServiceUser(args []string, username, groupName, dataDir, dbPath string, dbPathSet bool) (bool, int, error) {
 	account, err := user.Lookup(username)
 	if err != nil {
-		return true, 1, fmt.Errorf("look up Imvault service user %q: %w", username, err)
+		return true, 1, fmt.Errorf("look up service user %q: %w", username, err)
 	}
 	credential, err := serviceCredential(account, groupName)
 	if err != nil {
@@ -60,7 +62,7 @@ func reexecAsServiceUser(args []string, username, groupName, dataDir, dbPath str
 	}
 	executable, err := os.Executable()
 	if err != nil {
-		return true, 1, fmt.Errorf("find Imvault executable: %w", err)
+		return true, 1, fmt.Errorf("find the imvault executable: %w", err)
 	}
 	command := exec.Command(executable, args...)
 	command.Stdin, command.Stdout, command.Stderr = os.Stdin, os.Stdout, os.Stderr
@@ -74,26 +76,49 @@ func reexecAsServiceUser(args []string, username, groupName, dataDir, dbPath str
 		if errors.As(err, &exitError) {
 			return true, exitError.ExitCode(), nil
 		}
-		return true, 1, fmt.Errorf("run create-admin as service user %q: %w", username, err)
+		return true, 1, fmt.Errorf("run %s as service user %q: %w", args[0], username, err)
 	}
 	return true, 0, nil
 }
 
+// geteuid is replaced in tests.
+var geteuid = os.Geteuid
+
+// serviceUserCommands are the commands that write the live instance's files and
+// so must run as the service's account. restore is not among them: it writes a
+// new directory, which the operator then hands to the service.
+var serviceUserCommands = map[string]bool{
+	"create-admin":       true,
+	"backup":             true,
+	"migrate-storage":    true,
+	"rebuild-thumbnails": true,
+	"refresh-metadata":   true,
+}
+
 func shouldReexecProvisioning(args []string) bool {
-	return os.Geteuid() == 0 && len(args) > 0 && args[0] == "create-admin" && !hasHelpFlag(args[1:])
+	return geteuid() == 0 && len(args) > 0 && serviceUserCommands[args[0]] && !hasHelpFlag(args[1:])
+}
+
+// refuseRootMaintenance stops a maintenance command run as root when no
+// installed service says which account it should run as instead.
+func refuseRootMaintenance(command string) error {
+	if geteuid() != 0 {
+		return nil
+	}
+	return fmt.Errorf("%s writes the instance's files and must not run as root; run it as the service account, for example: sudo -u imvault env IMVAULT_DATA_DIR=/var/lib/imvault imvault %s", command, command)
 }
 
 func serviceCredential(account *user.User, groupName string) (*syscall.Credential, error) {
 	uid, err := strconv.ParseUint(account.Uid, 10, 32)
 	if err != nil || uid == 0 {
-		return nil, fmt.Errorf("Imvault service user %q must have a non-root numeric UID", account.Username)
+		return nil, fmt.Errorf("the service user %q must have a non-root numeric UID", account.Username)
 	}
 	gid, err := serviceGroupID(groupName, account.Gid)
 	if err != nil {
 		return nil, err
 	}
 	if gid == 0 {
-		return nil, fmt.Errorf("Imvault service group %q must have a non-root numeric GID", groupName)
+		return nil, fmt.Errorf("the service group %q must have a non-root numeric GID", groupName)
 	}
 	groups, err := serviceSupplementaryGroups(account)
 	if err != nil {
@@ -105,16 +130,16 @@ func serviceCredential(account *user.User, groupName string) (*syscall.Credentia
 func serviceSupplementaryGroups(account *user.User) ([]uint32, error) {
 	groupIDs, err := account.GroupIds()
 	if err != nil {
-		return nil, fmt.Errorf("look up groups for Imvault service user %q: %w", account.Username, err)
+		return nil, fmt.Errorf("look up groups for service user %q: %w", account.Username, err)
 	}
 	groups := make([]uint32, 0, len(groupIDs))
 	for _, id := range groupIDs {
 		parsed, err := strconv.ParseUint(id, 10, 32)
 		if err != nil {
-			return nil, fmt.Errorf("invalid supplementary group ID %q for Imvault service user %q", id, account.Username)
+			return nil, fmt.Errorf("invalid supplementary group ID %q for service user %q", id, account.Username)
 		}
 		if parsed == 0 {
-			return nil, fmt.Errorf("Imvault service user %q belongs to the root group", account.Username)
+			return nil, fmt.Errorf("the service user %q belongs to the root group", account.Username)
 		}
 		groups = append(groups, uint32(parsed))
 	}

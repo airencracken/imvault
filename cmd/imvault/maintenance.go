@@ -40,6 +40,9 @@ func runMaintenance(command string, args []string, out io.Writer) error {
 	if flags.NArg() != 0 || (command == "backup" && output == "") {
 		return fmt.Errorf("invalid arguments; use imvault %s --help", command)
 	}
+	if err := refuseRootMaintenance(command); err != nil {
+		return err
+	}
 	cfg, err := config.Load()
 	if err != nil {
 		return err
