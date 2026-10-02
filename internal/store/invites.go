@@ -17,6 +17,18 @@ import (
 // would confirm that a code exists.
 var ErrInviteUnusable = errors.New("invite unusable")
 
+// ErrInviteTooBroad means a delegated issuer asked for more than delegation
+// allows: too many uses, or a lifetime past the ceiling.
+var ErrInviteTooBroad = errors.New("store: invitation exceeds what a delegated issuer may grant")
+
+// Limits on codes issued by members with invitation permission. An
+// administrator is trusted with the instance and is not limited; a member
+// handing out an unlimited, permanent code would be.
+const (
+	MaxDelegatedInviteUses     = 25
+	MaxDelegatedInviteLifetime = 30 * 24 * time.Hour
+)
+
 // execer is the subset of a database handle that a statement needs. It lets the
 // same helper run inside a transaction or on its own.
 type execer interface {
@@ -50,6 +62,12 @@ func scanInvite(sc rowScanner) (*models.Invite, error) {
 
 // CreateInvite records a freshly minted code. Only the digest is stored; the
 // code itself is shown once and never kept.
+//
+// The issuer's permission is checked in the same statement that inserts the
+// row. A member who is not an administrator is held to the delegated limits:
+// between one and MaxDelegatedInviteUses uses, and a lifetime of at most
+// MaxDelegatedInviteLifetime, which is also the lifetime given when none is
+// asked for. The web form applies the same limits; this is the backstop.
 func (s *Store) CreateInvite(ctx context.Context, createdBy int64, label, prefix, hash string,
 	maxUses int, expiresAt *time.Time) (*models.Invite, error) {
 
@@ -57,36 +75,80 @@ func (s *Store) CreateInvite(ctx context.Context, createdBy int64, label, prefix
 		maxUses = 0
 	}
 	created := nowUnix()
+	ceiling := created + int64(MaxDelegatedInviteLifetime/time.Second)
 
-	res, err := s.db.ExecContext(ctx, `
-		INSERT INTO invites (prefix, code_hash, label, created_by, created_at, expires_at, max_uses)
-		SELECT ?, ?, ?, u.id, ?, ?, ? FROM users u
-		WHERE u.id = ? AND u.disabled = 0 AND (u.role = 'admin' OR u.can_invite = 1)`,
-		prefix, hash, label, created, nullableTime(expiresAt), maxUses, createdBy)
-	if err != nil {
-		if ok, col := isUniqueViolation(err); ok {
-			return nil, fmt.Errorf("%w: invite %s", ErrConflict, col)
+	var invite *models.Invite
+	err := s.withTx(ctx, func(tx *sql.Tx) error {
+		role, err := inviteIssuerRole(ctx, tx, createdBy)
+		if err != nil {
+			return err
 		}
-		return nil, fmt.Errorf("insert invite: %w", err)
-	}
-	if affected, _ := res.RowsAffected(); affected != 1 {
-		return nil, ErrNotFound
-	}
+		if role != models.RoleAdmin {
+			if maxUses < 1 || maxUses > MaxDelegatedInviteUses ||
+				(expiresAt != nil && ts(*expiresAt) > ceiling) {
+				return ErrInviteTooBroad
+			}
+			if expiresAt == nil {
+				limit := toTime(ceiling)
+				expiresAt = &limit
+			}
+		}
 
-	id, err := res.LastInsertId()
+		res, err := tx.ExecContext(ctx, `
+			INSERT INTO invites (prefix, code_hash, label, created_by, created_at, expires_at, max_uses)
+			VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			prefix, hash, label, createdBy, created, nullableTime(expiresAt), maxUses)
+		if err != nil {
+			if ok, col := isUniqueViolation(err); ok {
+				return fmt.Errorf("%w: invite %s", ErrConflict, col)
+			}
+			return fmt.Errorf("insert invite: %w", err)
+		}
+		id, err := res.LastInsertId()
+		if err != nil {
+			return fmt.Errorf("invite id: %w", err)
+		}
+		invite = &models.Invite{
+			ID:        id,
+			Prefix:    prefix,
+			Label:     label,
+			CreatedBy: &createdBy,
+			CreatedAt: toTime(created),
+			ExpiresAt: expiresAt,
+			MaxUses:   maxUses,
+		}
+		return nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("invite id: %w", err)
+		return nil, err
 	}
+	return invite, nil
+}
 
-	return &models.Invite{
-		ID:        id,
-		Prefix:    prefix,
-		Label:     label,
-		CreatedBy: &createdBy,
-		CreatedAt: toTime(created),
-		ExpiresAt: expiresAt,
-		MaxUses:   maxUses,
-	}, nil
+// inviteIssuerRole returns the role of an account that may currently issue
+// invitations, or ErrNotFound for one that may not: missing, disabled, or
+// neither an administrator nor granted the permission.
+func inviteIssuerRole(ctx context.Context, tx *sql.Tx, userID int64) (models.Role, error) {
+	var role string
+	err := tx.QueryRowContext(ctx, `
+		SELECT role FROM users
+		WHERE id = ? AND disabled = 0 AND (role = 'admin' OR can_invite = 1)`, userID).Scan(&role)
+	if err != nil {
+		return "", mapErr(err)
+	}
+	return models.ParseRole(role), nil
+}
+
+// revokeOpenInvitesByCreator withdraws every code an account issued that is
+// still open. It runs inside the transaction that takes the account's
+// permission away, so no code outlives the authority that issued it.
+func revokeOpenInvitesByCreator(ctx context.Context, tx *sql.Tx, userID int64) error {
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE invites SET revoked_at = ? WHERE created_by = ? AND revoked_at IS NULL`,
+		nowUnix(), userID); err != nil {
+		return fmt.Errorf("revoke invitations: %w", err)
+	}
+	return nil
 }
 
 // InviteByPrefix finds the row a presented code redeems against. The caller
@@ -208,6 +270,11 @@ func (s *Store) RevokeInvite(ctx context.Context, id int64) error {
 // The checks live in the UPDATE rather than before it so that two people racing
 // to redeem the last use of a code cannot both succeed: the condition and the
 // increment are one statement.
+//
+// A code with no issuer is refused. Deleting an account revokes its codes, so
+// none should exist; this is the second lock on the same door, and it is what
+// keeps a disabled issuer's codes from coming back to life when the account is
+// then deleted.
 func redeemInvite(ctx context.Context, ex execer, id int64) error {
 	res, err := ex.ExecContext(ctx, `
 		UPDATE invites SET uses = uses + 1
@@ -215,6 +282,7 @@ func redeemInvite(ctx context.Context, ex execer, id int64) error {
 		  AND revoked_at IS NULL
 		  AND (expires_at IS NULL OR expires_at > ?)
 		  AND (max_uses = 0 OR uses < max_uses)
+		  AND created_by IS NOT NULL
 		  AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id = invites.created_by AND u.disabled = 1)`, id, nowUnix())
 	if err != nil {
 		return fmt.Errorf("redeem invite: %w", err)

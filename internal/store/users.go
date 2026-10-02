@@ -129,17 +129,27 @@ func scanUser(sc rowScanner) (*models.User, error) {
 
 // SetUserInvitePermission grants or removes the separately controlled ability
 // to issue invitations.
+//
+// Removing it also revokes every code the member issued that is still open, in
+// the same transaction: taking the permission away is how an administrator
+// stops a member's invitations, and leaving their codes working would make it
+// a gesture.
 func (s *Store) SetUserInvitePermission(ctx context.Context, userID int64, allowed bool) error {
-	result, err := s.db.ExecContext(ctx, `UPDATE users SET can_invite = ? WHERE id = ? AND role != 'admin'`, allowed, userID)
-	if err != nil {
-		return fmt.Errorf("set invite permission: %w", err)
-	}
-	if affected, err := result.RowsAffected(); err != nil {
-		return fmt.Errorf("set invite permission: %w", err)
-	} else if affected != 1 {
-		return ErrNotFound
-	}
-	return nil
+	return s.withTx(ctx, func(tx *sql.Tx) error {
+		result, err := tx.ExecContext(ctx, `UPDATE users SET can_invite = ? WHERE id = ? AND role != 'admin'`, allowed, userID)
+		if err != nil {
+			return fmt.Errorf("set invite permission: %w", err)
+		}
+		if affected, err := result.RowsAffected(); err != nil {
+			return fmt.Errorf("set invite permission: %w", err)
+		} else if affected != 1 {
+			return ErrNotFound
+		}
+		if allowed {
+			return nil
+		}
+		return revokeOpenInvitesByCreator(ctx, tx, userID)
+	})
 }
 
 // UserByUsername looks up an account by its (case-insensitive) username.
@@ -347,9 +357,16 @@ func (s *Store) CountAdmins(ctx context.Context) (int, error) {
 
 // DeleteUser removes an account. The caller is responsible for deleting the
 // account's stored objects first; the database rows cascade.
+//
+// The account's open invitations are revoked first, in the same transaction.
+// The foreign key only clears their issuer, and a code nobody stands behind any
+// more should not keep admitting people.
 func (s *Store) DeleteUser(ctx context.Context, userID int64) error {
 	return s.withTx(ctx, func(tx *sql.Tx) error {
 		if err := protectEnabledAdmin(ctx, tx, userID); err != nil {
+			return err
+		}
+		if err := revokeOpenInvitesByCreator(ctx, tx, userID); err != nil {
 			return err
 		}
 		_, err := tx.ExecContext(ctx, `DELETE FROM users WHERE id = ?`, userID)

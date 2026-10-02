@@ -153,11 +153,16 @@ snapshot of the issuer's username, so the administrator can follow who invited
 whom even if an account is later renamed or removed. New accounts are still
 ordinary members and do not inherit invitation permission.
 
+A member's codes are limited: each admits between 1 and 25 accounts and lasts
+at most 30 days, which is also how long one lasts when no expiry is chosen.
+Administrators' codes have no such limits.
+
 **Remove invite access** immediately stops the member from creating or managing
-codes. Invitations already issued remain active; an administrator can revoke
-them individually. Disabling an issuer also prevents their codes from admitting
-new accounts until the issuer is enabled again. Password and provider signups
-both retain the invitation's issuer.
+codes, and revokes every code of theirs that is still open. Granting the access
+again does not bring those codes back. Disabling an issuer suspends their codes
+until the issuer is enabled again; deleting any account, administrator or not,
+revokes its open codes. Password and provider signups both retain the
+invitation's issuer.
 
 Issuing a code with several uses is for a group you trust together, and `0`
 means no limit at all. A code's uses are consumed in the same transaction that
