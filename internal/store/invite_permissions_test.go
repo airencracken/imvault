@@ -46,7 +46,9 @@ func TestInviteWritesRecheckIssuerPermission(t *testing.T) {
 				t.Fatalf("revocation with stale permission: %v", err)
 			}
 			after, err := s.InviteByID(ctx, invitation.ID)
-			if err != nil || after.Revoked() || after.Uses != 0 {
+			// Removing the permission revokes what was issued under it;
+			// disabling suspends it, so the code is left as it was.
+			if err != nil || after.Revoked() != (state == "permission removed") || after.Uses != 0 {
 				t.Fatalf("denied writes changed invitation: %+v, %v", after, err)
 			}
 			_, count, err := s.ListInvites(ctx, 10, 0)
@@ -98,13 +100,20 @@ func TestDisabledIssuerCannotAdmitPasswordOrProvider(t *testing.T) {
 	}
 }
 
-func TestInvitePermissionRevocationLeavesIssuedCodes(t *testing.T) {
+func TestInvitePermissionRemovalRevokesIssuedCodes(t *testing.T) {
 	s, ctx, issuer, invitation := invitationFixture(t)
 	if err := s.SetUserInvitePermission(ctx, issuer.ID, false); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.RegisterWithInvite(ctx, NewUser{Username: "friend"}, invitation.ID); err != nil {
-		t.Fatalf("permission removal revoked existing code: %v", err)
+	if _, err := s.RegisterWithInvite(ctx, NewUser{Username: "friend"}, invitation.ID); !errors.Is(err, ErrInviteUnusable) {
+		t.Fatalf("a code outlived its issuer's permission: %v", err)
+	}
+	// Granting the permission again does not resurrect what was revoked.
+	if err := s.SetUserInvitePermission(ctx, issuer.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.RegisterWithInvite(ctx, NewUser{Username: "friend"}, invitation.ID); !errors.Is(err, ErrInviteUnusable) {
+		t.Fatalf("a revoked code came back with the permission: %v", err)
 	}
 }
 
@@ -150,6 +159,13 @@ func TestInviteUseLimitsAndAttributionProperty(t *testing.T) {
 	for limit := 0; limit <= 3; limit++ {
 		t.Run(fmt.Sprint(limit), func(t *testing.T) {
 			s, ctx, issuer, _ := invitationFixture(t)
+			if limit == 0 {
+				// Only an administrator may issue a code with no limit.
+				var err error
+				if issuer, err = s.CreateUser(ctx, NewUser{Username: "admin", Role: models.RoleAdmin}); err != nil {
+					t.Fatal(err)
+				}
+			}
 			generated := invites.Generate()
 			invitation, err := s.CreateInvite(ctx, issuer.ID, "bounded", generated.Prefix, generated.Hash, limit, nil)
 			if err != nil {
