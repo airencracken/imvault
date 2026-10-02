@@ -146,8 +146,10 @@ terminator is a way around it.
    one rate-limit bucket.
 
 3. **You probably do not need `IMVAULT_SECURE_COOKIES`.** Caddy sets
-   `X-Forwarded-Proto`, and imvault marks cookies `Secure` when it sees `https`.
-   Set it anyway if you would rather not depend on the header.
+   `X-Forwarded-Proto`, and with `IMVAULT_TRUST_PROXY_HEADERS=true` Imvault
+   marks cookies `Secure` when it sees `https`. The header is ignored without
+   that setting, since any client could send it. Set `IMVAULT_SECURE_COOKIES`
+   anyway if you would rather not depend on the header.
 
 ### What was checked
 

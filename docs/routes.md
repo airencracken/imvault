@@ -18,6 +18,13 @@ Everything the server answers.
 | `GET` `POST` | `/settings/account`, `/settings/account/delete` | Account summary and deletion |
 | `GET` `POST` | `/login/2fa` | The second sign-in step |
 | `POST` | `/settings/email` | Set or clear the email address |
+
+Every state-changing route needs the CSRF token: the `X-CSRF-Token` header,
+or a `csrf_token` field (the first field of a multipart form, since only the
+first part is read to find it). The routes that check a credential, register
+an account, or send mail for a signed-out visitor (`/login`, `/login/2fa`,
+`/register`, `/forgot`, `/reset/{token}`, `/auth/oidc/complete`, and the
+current-password checks under `/settings`) share the sign-in rate limit.
 | `GET` | `/gallery` | Your uploads (supports `?q=` and `?page=`) |
 | `POST` | `/gallery/tags` | Add comma-separated tags to selected own files; session and CSRF required |
 | `GET` | `/favorites` | Your private favorites (supports `?q=` and `?page=`) |
@@ -48,7 +55,8 @@ Everything the server answers.
 | `GET` | `/auth/oidc/start` | Begin signing in with the identity provider |
 | `GET` | `/auth/oidc/callback` | Where the provider sends the browser back |
 | `GET` `POST` | `/auth/oidc/complete` | Choose a username after a first provider sign-in |
-| `POST` | `/settings/account/identities/{id}/delete` | Disconnect a provider from your account |
+| `POST` | `/settings/account/identities/{id}/delete` | Disconnect a provider from your account (refused for the last way into an account with no password) |
+| `POST` | `/settings/reauth` | Confirm at the provider, for an account with no password of its own; good for ten minutes in that session |
 | `POST` | `/reports` | Report a file or an album (any signed-in member) |
 | `GET` | `/moderation` | The report queue (moderators and administrators) |
 | `GET` | `/moderation/log` | The audit trail of removals and decisions |
@@ -56,8 +64,10 @@ Everything the server answers.
 | `GET` | `/admin` | Admin overview |
 | `GET` | `/admin/users` | Account list with usage |
 | `POST` | `/admin/users/{id}/quota` | Set an account's storage cap |
-| `GET` `POST` | `/admin/invites` | List and issue invitation codes |
+| `GET` `POST` | `/admin/invites` | List (paginated, `?page=`) and issue invitation codes |
 | `POST` | `/admin/invites/{id}/revoke` | Withdraw an invitation |
+| `GET` `POST` | `/invites` | A delegated member's own invitations: list and issue (capped at 25 uses and 30 days) |
+| `POST` | `/invites/{id}/revoke` | Withdraw one of your own invitations |
 | `POST` | `/admin/users/{id}/role` | Set an account's role: member, moderator, or administrator |
 | `POST` | `/admin/users/{id}/disabled` | Disable or enable an account |
 | `POST` | `/admin/users/{id}/delete` | Delete an account and its files |
