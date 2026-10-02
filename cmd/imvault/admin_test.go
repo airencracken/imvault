@@ -12,6 +12,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/airencracken/comfylib/svcconfig"
 	"golang.org/x/crypto/bcrypt"
 
 	"imvault/internal/db"
@@ -105,6 +106,12 @@ func TestCreateAdminAndRefuseExistingAccount(t *testing.T) {
 	}
 }
 
+// imvaultPaths fills in what svcconfig.Detect would for Imvault.
+func imvaultPaths(p svcconfig.Paths) svcconfig.Paths {
+	p.Name, p.Prefix, p.DefaultDataDir = "Imvault", "IMVAULT_", serviceDataDir
+	return p
+}
+
 func TestCreateAdminUsesOpenRCDataDirectoryWithoutEnvironment(t *testing.T) {
 	adminTestEnvironment(t)
 	t.Setenv("IMVAULT_DATA_DIR", "")
@@ -115,7 +122,7 @@ func TestCreateAdminUsesOpenRCDataDirectoryWithoutEnvironment(t *testing.T) {
 	if err := os.WriteFile(configPath, []byte("IMVAULT_DATA_DIR=\""+dataDir+"\" # service data\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	paths := provisioningConfigPaths{openRCConfig: configPath, openRCInstalled: true, serviceDefault: "/var/lib/imvault"}
+	paths := imvaultPaths(svcconfig.Paths{OpenRCConfig: configPath, OpenRCInstalled: true})
 	args := []string{"--username", "marcus", "--password-stdin"}
 	if err := createAdminWithConfigPaths(args, strings.NewReader("valid-password"), &bytes.Buffer{}, paths); err != nil {
 		t.Fatal(err)
@@ -146,7 +153,7 @@ func TestCreateAdminUsesSystemdEnvironmentFileAndHonorsExplicitEnvironment(t *te
 	if err := os.WriteFile(unitPath, []byte(unit), 0600); err != nil {
 		t.Fatal(err)
 	}
-	paths := provisioningConfigPaths{systemdUnit: unitPath, serviceDefault: "/var/lib/imvault"}
+	paths := imvaultPaths(svcconfig.Paths{SystemdUnit: unitPath})
 	args := []string{"--username", "marcus", "--password-stdin"}
 	if err := createAdminWithConfigPaths(args, strings.NewReader("valid-password"), &bytes.Buffer{}, paths); err != nil {
 		t.Fatal(err)
@@ -178,7 +185,7 @@ func TestAdminProvisioningRejectsAmbiguousServiceDataDirectories(t *testing.T) {
 	if err := os.WriteFile(unitPath, []byte("[Service]\nEnvironment=IMVAULT_DATA_DIR=/var/lib/systemd\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	paths := provisioningConfigPaths{openRCConfig: openRCPath, openRCInstalled: true, systemdUnit: unitPath, serviceDefault: "/var/lib/imvault"}
+	paths := imvaultPaths(svcconfig.Paths{OpenRCConfig: openRCPath, OpenRCInstalled: true, SystemdUnit: unitPath})
 	err := createAdminWithConfigPaths([]string{"--username", "marcus", "--password-stdin"}, strings.NewReader("valid-password"), &bytes.Buffer{}, paths)
 	if err == nil || !strings.Contains(err.Error(), "different Imvault data directories") {
 		t.Fatalf("ambiguous service configuration error = %v", err)
