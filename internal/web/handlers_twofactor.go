@@ -63,11 +63,8 @@ func (s *Server) handleTwoFactorPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	view := twoFactorView{
-		Status: status,
-		Error:  strings.TrimSpace(r.URL.Query().Get("error")),
-		Notice: strings.TrimSpace(r.URL.Query().Get("notice")),
-	}
+	view := twoFactorView{Status: status}
+	view.Notice, view.Error = s.flash(r)
 	view.base = s.base(r, "Two-factor authentication")
 
 	// A secret that exists but is not enabled means enrolment is under way, and
@@ -137,7 +134,7 @@ func (s *Server) handleTwoFactorBegin(w http.ResponseWriter, r *http.Request) {
 	user := currentUser(r.Context())
 
 	if user.TOTPEnabled {
-		redirectNotice(w, r, "/settings/2fa", "error",
+		s.redirectFlash(w, r, "/settings/2fa", flashError,
 			"Two-factor authentication is already on. Turn it off first to set it up again.")
 		return
 	}
@@ -145,20 +142,20 @@ func (s *Server) handleTwoFactorBegin(w http.ResponseWriter, r *http.Request) {
 	secret, err := totp.GenerateSecret()
 	if err != nil {
 		s.log.Error("two factor: generate secret", "error", err)
-		redirectNotice(w, r, "/settings/2fa", "error", "Could not generate a secret.")
+		s.redirectFlash(w, r, "/settings/2fa", flashError, "Could not generate a secret.")
 		return
 	}
 
 	encrypted, err := s.secrets.Encrypt(secret)
 	if err != nil {
 		s.log.Error("two factor: encrypt secret", "error", err)
-		redirectNotice(w, r, "/settings/2fa", "error", "Could not store the secret.")
+		s.redirectFlash(w, r, "/settings/2fa", flashError, "Could not store the secret.")
 		return
 	}
 
 	if err := s.store.BeginTOTP(r.Context(), user.ID, encrypted); err != nil {
 		s.log.Error("two factor: begin", "user", user.ID, "error", err)
-		redirectNotice(w, r, "/settings/2fa", "error", "Could not start setup.")
+		s.redirectFlash(w, r, "/settings/2fa", flashError, "Could not start setup.")
 		return
 	}
 
@@ -175,37 +172,37 @@ func (s *Server) handleTwoFactorConfirm(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if user.TOTPEnabled {
-		redirectNotice(w, r, "/settings/2fa", "notice", "Two-factor authentication is already on.")
+		s.redirectFlash(w, r, "/settings/2fa", flashNotice, "Two-factor authentication is already on.")
 		return
 	}
 	if user.TOTPSecret == "" {
-		redirectNotice(w, r, "/settings/2fa", "error", "Start setup before confirming a code.")
+		s.redirectFlash(w, r, "/settings/2fa", flashError, "Start setup before confirming a code.")
 		return
 	}
 
 	secret, err := s.secrets.Decrypt(user.TOTPSecret)
 	if err != nil {
 		s.log.Error("two factor: decrypt pending secret", "user", user.ID, "error", err)
-		redirectNotice(w, r, "/settings/2fa", "error", "Could not read the pending secret.")
+		s.redirectFlash(w, r, "/settings/2fa", flashError, "Could not read the pending secret.")
 		return
 	}
 
 	if _, ok := totp.Match(secret, r.FormValue("code"), time.Now()); !ok {
-		redirectNotice(w, r, "/settings/2fa", "error",
+		s.redirectFlash(w, r, "/settings/2fa", flashError,
 			"That code did not match. Check the clock on your device and try the current code.")
 		return
 	}
 
 	if err := s.store.EnableTOTP(r.Context(), user.ID); err != nil {
 		s.log.Error("two factor: enable", "user", user.ID, "error", err)
-		redirectNotice(w, r, "/settings/2fa", "error", "Could not enable two-factor authentication.")
+		s.redirectFlash(w, r, "/settings/2fa", flashError, "Could not enable two-factor authentication.")
 		return
 	}
 
 	codes, err := s.issueRecoveryCodes(r.Context(), user.ID)
 	if err != nil {
 		s.log.Error("two factor: issue recovery codes", "user", user.ID, "error", err)
-		redirectNotice(w, r, "/settings/2fa", "notice",
+		s.redirectFlash(w, r, "/settings/2fa", flashNotice,
 			"Two-factor authentication is on, but the recovery codes could not be generated. Generate them again from this page.")
 		return
 	}
@@ -223,18 +220,18 @@ func (s *Server) handleTwoFactorDisable(w http.ResponseWriter, r *http.Request) 
 	user := currentUser(r.Context())
 
 	if err := s.verifySensitiveAction(w, r, user); err != nil {
-		redirectNotice(w, r, "/settings/2fa", "error", err.Error())
+		s.redirectFlash(w, r, "/settings/2fa", flashError, err.Error())
 		return
 	}
 
 	if err := s.store.DisableTOTP(r.Context(), user.ID); err != nil {
 		s.log.Error("two factor: disable", "user", user.ID, "error", err)
-		redirectNotice(w, r, "/settings/2fa", "error", "Could not disable two-factor authentication.")
+		s.redirectFlash(w, r, "/settings/2fa", flashError, "Could not disable two-factor authentication.")
 		return
 	}
 
 	s.log.Info("two-factor authentication disabled", "user", user.ID)
-	redirectNotice(w, r, "/settings/2fa", "notice",
+	s.redirectFlash(w, r, "/settings/2fa", flashNotice,
 		"Two-factor authentication is off, and the recovery codes have been discarded.")
 }
 
@@ -243,19 +240,19 @@ func (s *Server) handleTwoFactorRecovery(w http.ResponseWriter, r *http.Request)
 	user := currentUser(r.Context())
 
 	if !user.TOTPEnabled {
-		redirectNotice(w, r, "/settings/2fa", "error", "Two-factor authentication is not on.")
+		s.redirectFlash(w, r, "/settings/2fa", flashError, "Two-factor authentication is not on.")
 		return
 	}
 
 	if err := s.verifySensitiveAction(w, r, user); err != nil {
-		redirectNotice(w, r, "/settings/2fa", "error", err.Error())
+		s.redirectFlash(w, r, "/settings/2fa", flashError, err.Error())
 		return
 	}
 
 	codes, err := s.issueRecoveryCodes(r.Context(), user.ID)
 	if err != nil {
 		s.log.Error("two factor: regenerate recovery codes", "user", user.ID, "error", err)
-		redirectNotice(w, r, "/settings/2fa", "error", "Could not generate new recovery codes.")
+		s.redirectFlash(w, r, "/settings/2fa", flashError, "Could not generate new recovery codes.")
 		return
 	}
 
@@ -433,7 +430,7 @@ func (s *Server) startPendingLogin(ctx context.Context, w http.ResponseWriter, r
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   s.cfg.SecureCookies || isSecureRequest(r),
+		Secure:   s.secureCookies(r),
 		MaxAge:   int(pendingTTL.Seconds()),
 	})
 	return nil
@@ -466,7 +463,7 @@ func (s *Server) clearPendingCookie(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   -1,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   s.cfg.SecureCookies || isSecureRequest(r),
+		Secure:   s.secureCookies(r),
 	})
 }
 

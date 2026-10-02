@@ -198,7 +198,7 @@ func (s *Server) handleFileVisibility(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	redirectNotice(w, r, "/f/"+file.ID, "notice", "Visibility updated.")
+	s.redirectFlash(w, r, "/f/"+file.ID, flashNotice, "Visibility updated.")
 }
 
 // handleFileMetadata changes what happens to a file's metadata.
@@ -223,7 +223,7 @@ func (s *Server) handleFileMetadata(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	redirectNotice(w, r, "/f/"+file.ID, "notice", "Metadata setting updated.")
+	s.redirectFlash(w, r, "/f/"+file.ID, flashNotice, "Metadata setting updated.")
 }
 
 // handleFileDelete removes a file and its stored objects.
@@ -250,7 +250,7 @@ func (s *Server) handleFileDelete(w http.ResponseWriter, r *http.Request) {
 		// Empty body with an outerHTML swap removes the card from the grid.
 		w.WriteHeader(http.StatusOK)
 	default:
-		redirectNotice(w, r, "/gallery", "notice", "Image deleted.")
+		s.redirectFlash(w, r, "/gallery", flashNotice, "Image deleted.")
 	}
 }
 

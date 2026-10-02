@@ -122,7 +122,7 @@ func (s *Server) handleAdminDashboard(w http.ResponseWriter, r *http.Request) {
 		MailEnabled:   s.mail.Enabled(),
 		Blobs:         blobs,
 		MaxTotalBytes: s.policy().MaxTotalBytes,
-		Notice:        noticeFromQuery(r),
+		Notice:        s.noticeFromQuery(r),
 	}
 	view.base = s.base(r, "Admin")
 	view.FailedMail = failedMail
@@ -139,7 +139,7 @@ func (s *Server) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if page == 1 {
-		s.renderAdminUsersPage(w, r, http.StatusOK, noticeFromQuery(r))
+		s.renderAdminUsersPage(w, r, http.StatusOK, s.noticeFromQuery(r))
 		return
 	}
 
@@ -156,7 +156,7 @@ func (s *Server) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 	view := adminUsersView{
 		Rows:       s.adminUserRows(r, users),
 		Pagination: pg,
-		Notice:     noticeFromQuery(r),
+		Notice:     s.noticeFromQuery(r),
 	}
 	view.base = s.base(r, "Users")
 	view.UseAlpine = true
@@ -528,7 +528,7 @@ func (s *Server) handleAdminDeleteFile(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		return
 	}
-	redirectNotice(w, r, "/admin/files", "notice", "Image deleted.")
+	s.redirectFlash(w, r, "/admin/files", flashNotice, "Image deleted.")
 }
 
 // handleAdminRecomputeStorage recalculates every account's usage from the files
@@ -584,11 +584,11 @@ func (s *Server) handleAdminRecomputeBlobs(w http.ResponseWriter, r *http.Reques
 // adminMaintenance reports a maintenance action, updating only the notice.
 func (s *Server) adminMaintenance(w http.ResponseWriter, r *http.Request, notice adminNotice) {
 	if !isHTMX(r) {
-		key := "notice"
+		kind := flashNotice
 		if notice.Error {
-			key = "error"
+			kind = flashError
 		}
-		redirectNotice(w, r, "/admin", key, notice.Text)
+		s.redirectFlash(w, r, "/admin", kind, notice.Text)
 		return
 	}
 	s.renderAdminRow(w, "", nil, notice)

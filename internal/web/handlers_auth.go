@@ -296,7 +296,7 @@ func (s *Server) finishRegistration(w http.ResponseWriter, r *http.Request, user
 		}
 	}
 
-	redirectNotice(w, r, "/gallery", "notice", "Welcome to imvault.")
+	s.redirectFlash(w, r, "/gallery", flashNotice, "Welcome to imvault.")
 }
 
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
@@ -329,7 +329,7 @@ func (s *Server) startSession(ctx context.Context, w http.ResponseWriter, r *htt
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   s.cfg.SecureCookies || isSecureRequest(r),
+		Secure:   s.secureCookies(r),
 		Expires:  expires,
 		MaxAge:   int(s.cfg.SessionTTL.Seconds()),
 	})

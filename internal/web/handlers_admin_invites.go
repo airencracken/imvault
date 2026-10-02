@@ -125,11 +125,13 @@ func (s *Server) renderInvitesPanel(w http.ResponseWriter, r *http.Request, newC
 
 // handleAdminInvites shows the invitation list and its controls.
 func (s *Server) handleAdminInvites(w http.ResponseWriter, r *http.Request) {
-	s.renderInvitesPanel(w, r, "", strings.TrimSpace(r.URL.Query().Get("error")))
+	_, problem := s.flash(r)
+	s.renderInvitesPanel(w, r, "", problem)
 }
 
 func (s *Server) handleUserInvites(w http.ResponseWriter, r *http.Request) {
-	s.renderInvitesPanel(w, r, "", strings.TrimSpace(r.URL.Query().Get("error")))
+	_, problem := s.flash(r)
+	s.renderInvitesPanel(w, r, "", problem)
 }
 
 // handleAdminCreateInvite mints a code and reveals it once.

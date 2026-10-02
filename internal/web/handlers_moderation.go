@@ -132,11 +132,11 @@ func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
 	// Reporting your own content is not a thing, and neither is reporting
 	// something as a moderator, who can simply remove it.
 	if isOwn {
-		redirectNotice(w, r, back, "error", "That is yours; use Delete instead.")
+		s.redirectFlash(w, r, back, flashError, "That is yours; use Delete instead.")
 		return
 	}
 	if canModerateContent(user) {
-		redirectNotice(w, r, back, "error",
+		s.redirectFlash(w, r, back, flashError,
 			"You can remove it directly rather than reporting it.")
 		return
 	}
@@ -144,12 +144,12 @@ func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
 	created, err := s.store.CreateReport(r.Context(), kind, targetID, user.ID, user.Username, reason, note)
 	if err != nil {
 		if errors.Is(err, store.ErrConflict) {
-			redirectNotice(w, r, back, "notice",
+			s.redirectFlash(w, r, back, flashNotice,
 				"You have already reported this. A moderator will look at it.")
 			return
 		}
 		s.log.Error("create report", "kind", string(kind), "target", targetID, "error", err)
-		redirectNotice(w, r, back, "error", "Could not record the report.")
+		s.redirectFlash(w, r, back, flashError, "Could not record the report.")
 		return
 	}
 
@@ -160,7 +160,7 @@ func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
 		"reason", string(reason),
 		"report", created.ID)
 
-	redirectNotice(w, r, back, "notice",
+	s.redirectFlash(w, r, back, flashNotice,
 		"Thank you. A moderator will look at it.")
 }
 
@@ -278,7 +278,7 @@ func (s *Server) handleResolveReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !report.Open() {
-		redirectNotice(w, r, "/moderation", "notice", "That report has already been dealt with.")
+		s.redirectFlash(w, r, "/moderation", flashNotice, "That report has already been dealt with.")
 		return
 	}
 
@@ -308,7 +308,7 @@ func (s *Server) handleResolveReport(w http.ResponseWriter, r *http.Request) {
 			}
 			s.log.Error("moderation: remove reported content",
 				"report", report.ID, "target", report.TargetID, "error", err)
-			redirectNotice(w, r, "/moderation", "error", "Could not remove the content.")
+			s.redirectFlash(w, r, "/moderation", flashError, "Could not remove the content.")
 			return
 		}
 		status = models.ReportActioned
@@ -320,17 +320,17 @@ func (s *Server) handleResolveReport(w http.ResponseWriter, r *http.Request) {
 		recorded = models.ActionDismissReport
 		message = "Report dismissed."
 	default:
-		redirectNotice(w, r, "/moderation", "error", "Choose whether to remove the content or dismiss the report.")
+		s.redirectFlash(w, r, "/moderation", flashError, "Choose whether to remove the content or dismiss the report.")
 		return
 	}
 
 	if err := s.store.ResolveReport(r.Context(), report.ID, actor.ID, status, note); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			redirectNotice(w, r, "/moderation", "notice", "Another moderator got there first.")
+			s.redirectFlash(w, r, "/moderation", flashNotice, "Another moderator got there first.")
 			return
 		}
 		s.log.Error("moderation: resolve report", "report", report.ID, "error", err)
-		redirectNotice(w, r, "/moderation", "error", "The report could not be closed.")
+		s.redirectFlash(w, r, "/moderation", flashError, "The report could not be closed.")
 		return
 	}
 
@@ -345,7 +345,7 @@ func (s *Server) handleResolveReport(w http.ResponseWriter, r *http.Request) {
 		"status", string(status),
 		"target", report.TargetID)
 
-	redirectNotice(w, r, "/moderation", "notice", message)
+	s.redirectFlash(w, r, "/moderation", flashNotice, message)
 }
 
 // reportLabel names the thing a report is about, for the log entry. It falls

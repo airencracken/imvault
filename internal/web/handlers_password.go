@@ -228,7 +228,7 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	redirectNotice(w, r, "/gallery", "notice", "Your password has been changed and you are signed in.")
+	s.redirectFlash(w, r, "/gallery", flashNotice, "Your password has been changed and you are signed in.")
 }
 
 // handleChangeEmail sets or replaces the signed-in account's email address,
@@ -287,7 +287,7 @@ func (s *Server) handleChangeEmail(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	redirectNotice(w, r, "/settings/password", "notice", message)
+	s.redirectFlash(w, r, "/settings/password", flashNotice, message)
 }
 
 // handleVerifyEmail confirms an address.
@@ -310,7 +310,7 @@ func (s *Server) handleVerifyEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	redirectNotice(w, r, "/settings/password", "notice", "Thanks — your email address is confirmed.")
+	s.redirectFlash(w, r, "/settings/password", flashNotice, "Thanks — your email address is confirmed.")
 }
 
 // handleChangePasswordPage shows the change-password form for a signed-in user.
@@ -369,7 +369,7 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	redirectNotice(w, r, "/gallery", "notice",
+	s.redirectFlash(w, r, "/gallery", flashNotice,
 		"Your password has been changed. Other devices have been signed out.")
 }
 

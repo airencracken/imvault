@@ -137,7 +137,7 @@ func (s *Server) csrfMW(next http.Handler) http.Handler {
 				Value:    token,
 				Path:     "/",
 				SameSite: http.SameSiteLaxMode,
-				Secure:   s.cfg.SecureCookies || isSecureRequest(r),
+				Secure:   s.secureCookies(r),
 				HttpOnly: false, // the page must be able to read it
 				MaxAge:   30 * 24 * 60 * 60,
 			})
@@ -445,7 +445,7 @@ func (s *Server) clearSessionCookie(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   -1,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   s.cfg.SecureCookies || isSecureRequest(r),
+		Secure:   s.secureCookies(r),
 	})
 }
 

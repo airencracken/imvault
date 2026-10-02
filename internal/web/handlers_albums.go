@@ -63,14 +63,14 @@ func (s *Server) handleAlbumCreate(w http.ResponseWriter, r *http.Request) {
 
 	title := strings.TrimSpace(r.FormValue("title"))
 	if title == "" {
-		redirectNotice(w, r, "/albums", "error", "An album needs a title.")
+		s.redirectFlash(w, r, "/albums", flashError, "An album needs a title.")
 		return
 	}
 
 	visibility := models.ParseVisibility(r.FormValue("visibility"))
 	access := models.ParseAlbumAccess(r.FormValue("access"))
 	if message := albumVisibilityError(visibility, access); message != "" {
-		redirectNotice(w, r, "/albums", "error", message)
+		s.redirectFlash(w, r, "/albums", flashError, message)
 		return
 	}
 
@@ -89,7 +89,7 @@ func (s *Server) handleAlbumCreate(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		s.log.Error("create album", "error", err)
-		redirectNotice(w, r, "/albums", "error", "Could not create the album.")
+		s.redirectFlash(w, r, "/albums", flashError, "Could not create the album.")
 		return
 	}
 
@@ -119,14 +119,14 @@ func (s *Server) handleAlbumUpdate(w http.ResponseWriter, r *http.Request) {
 
 	title := strings.TrimSpace(r.FormValue("title"))
 	if title == "" {
-		redirectNotice(w, r, "/a/"+album.Slug, "error", "An album needs a title.")
+		s.redirectFlash(w, r, "/a/"+album.Slug, flashError, "An album needs a title.")
 		return
 	}
 
 	visibility := models.ParseVisibility(r.FormValue("visibility"))
 	access := models.ParseAlbumAccess(r.FormValue("access"))
 	if message := albumVisibilityError(visibility, access); message != "" {
-		redirectNotice(w, r, "/a/"+album.Slug, "error", message)
+		s.redirectFlash(w, r, "/a/"+album.Slug, flashError, message)
 		return
 	}
 
@@ -144,13 +144,13 @@ func (s *Server) handleAlbumUpdate(w http.ResponseWriter, r *http.Request) {
 		Location:    location,
 	}); err != nil {
 		s.log.Error("update album", "id", album.ID, "error", err)
-		redirectNotice(w, r, "/a/"+album.Slug, "error", "Could not save the album.")
+		s.redirectFlash(w, r, "/a/"+album.Slug, flashError, "Could not save the album.")
 		return
 	}
 
 	s.log.Info("album updated", "album", album.ID, "actor", currentUser(r.Context()).ID,
 		"visibility", string(visibility), "access", string(access))
-	redirectNotice(w, r, "/a/"+album.Slug, "notice", "Album saved.")
+	s.redirectFlash(w, r, "/a/"+album.Slug, flashNotice, "Album saved.")
 }
 
 // handleAlbumPage shows an album to its owner or, when shared, to anyone it is
@@ -284,7 +284,7 @@ func (s *Server) handleAlbumDelete(w http.ResponseWriter, r *http.Request) {
 		hxRedirect(w, "/albums")
 		return
 	}
-	redirectNotice(w, r, "/albums", "notice", "Album deleted.")
+	s.redirectFlash(w, r, "/albums", flashNotice, "Album deleted.")
 }
 
 // handleAlbumAddFiles links selected files into the album.
@@ -343,7 +343,7 @@ func (s *Server) handleAlbumAddFiles(w http.ResponseWriter, r *http.Request) {
 		hxRedirect(w, "/a/"+album.Slug)
 		return
 	}
-	redirectNotice(w, r, "/a/"+album.Slug, "notice", notice)
+	s.redirectFlash(w, r, "/a/"+album.Slug, flashNotice, notice)
 }
 
 // handleAlbumRemoveFile unlinks a file from the album.
@@ -382,7 +382,7 @@ func (s *Server) handleAlbumRemoveFile(w http.ResponseWriter, r *http.Request) {
 		hxRedirect(w, "/a/"+album.Slug)
 		return
 	}
-	redirectNotice(w, r, "/a/"+album.Slug, "notice", "Removed from album.")
+	s.redirectFlash(w, r, "/a/"+album.Slug, flashNotice, "Removed from album.")
 }
 
 // albumByRef resolves an album reference: a numeric id or a slug.
