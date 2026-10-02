@@ -51,7 +51,7 @@ help: ## Show the available targets
 all: check build ## Format, vet, test and build
 
 build: ## Build the server into bin/imvault
-	go build $(GOFLAGS) -o bin/$(BINARY) $(PKG)
+	go build $(GOFLAGS) -ldflags "-X main.version=$(VERSION)" -o bin/$(BINARY) $(PKG)
 
 run: ## Run on :8080 using ./data (override PORT=, DATA_DIR=)
 	IMVAULT_ADDR=$(ADDR) IMVAULT_DATA_DIR=$(DATA_DIR) go run $(GOFLAGS) $(PKG)

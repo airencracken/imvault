@@ -211,7 +211,7 @@ older code. The trade taken here is to track them.
 
 Only a native build is affected. The container compiles with the upstream
 `golang` image, and **running needs no Go at all**, so any Alpine runs the
-static binary: the supplied Dockerfile runs it on 3.20.
+static binary: the supplied Dockerfile runs it on 3.23.
 
 The APKBUILD needs `abuild checksum` run once against the release tarball to fill
 in the checksum.

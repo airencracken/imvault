@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -29,6 +30,22 @@ import (
 	"imvault/internal/store"
 	"imvault/internal/web"
 )
+
+// version is set at build time with -ldflags "-X main.version=...", which the
+// Makefile and the release configuration both do.
+var version = ""
+
+// buildVersion reports what this binary is: the stamped version, else the
+// module version `go install` records, else "devel".
+func buildVersion() string {
+	if version != "" {
+		return version
+	}
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+		return info.Main.Version
+	}
+	return "devel"
+}
 
 func main() {
 	if handled, status, err := reexecProvisioningAsService(os.Args[1:]); handled {
@@ -131,6 +148,7 @@ func run() error {
 	serveErr := make(chan error, 1)
 	go func() {
 		logger.Info("imvault listening",
+			"version", buildVersion(),
 			"addr", cfg.Addr,
 			"data_dir", cfg.DataDir,
 			"anonymous_uploads", cfg.AllowAnonymousUploads,

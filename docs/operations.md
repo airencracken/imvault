@@ -65,13 +65,14 @@ and supply it from wherever you already keep secrets. Note that changing or
 losing this value has the same effect as losing the file.
 
 Use the verified backup command with the service stopped. For a default disk
-installation on Gentoo:
+installation on Gentoo, where the package puts the binary in `/usr/bin` (a
+`make install` from source uses `/usr/local/bin`):
 
 ```bash
 sudo install -d -o imvault -g imvault -m 0700 /var/backups/imvault
 sudo rc-service imvault stop
 sudo -u imvault env IMVAULT_DATA_DIR=/var/lib/imvault \
-  /usr/local/bin/imvault backup \
+  /usr/bin/imvault backup \
   --output "/var/backups/imvault/$(date +%Y%m%d-%H%M%S)"
 sudo rc-service imvault start
 ```

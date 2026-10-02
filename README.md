@@ -158,7 +158,10 @@ docker run -d --name imvault \
   imvault
 ```
 
-The image includes ffmpeg. The local Compose stack is one command away:
+The image includes ffmpeg and runs as uid 10001. A named volume, as above and in
+the Compose file, takes that ownership automatically; to bind-mount a host
+directory instead, `chown 10001:10001` it first. The local Compose stack is one
+command away:
 
 ```bash
 make compose-up

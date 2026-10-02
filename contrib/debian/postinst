@@ -16,7 +16,7 @@ case "$1" in
 		install -d -o imvault -g imvault -m 0700 /var/lib/imvault || exit 1
 		if [ -d /run/systemd/system ]; then
 			systemctl daemon-reload || exit 1
-			# Restart an already-running board on upgrade; never start or enable
+			# Restart an already-running instance on upgrade; never start or enable
 			# a new installation before the operator has configured it.
 			deb-systemd-invoke try-restart imvault.service || exit 1
 		fi

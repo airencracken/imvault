@@ -14,9 +14,14 @@ RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/imvault ./cmd/imva
 # multipart uploads spill to a temporary directory, and /tmp must be writable.
 #
 # ffmpeg provides clip poster frames and duration checks. It is optional: drop
-# it from this line (and set IMVAULT_FFMPEG/IMVAULT_FFPROBE to nothing) to
-# shrink the image, and clips will be accepted with placeholder posters.
-FROM alpine:3.20
+# it from this line (and set IMVAULT_FFMPEG and IMVAULT_FFPROBE to empty
+# values) to shrink the image, and clips will be accepted with placeholder
+# posters.
+#
+# /data belongs to the imvault user (uid 10001), so a named volume mounted
+# there inherits that ownership. A bind mount does not: chown the host
+# directory to 10001:10001 first.
+FROM alpine:3.23
 
 RUN apk add --no-cache ca-certificates tzdata ffmpeg \
  && adduser -D -u 10001 -h /data imvault \
