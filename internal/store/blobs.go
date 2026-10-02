@@ -59,11 +59,15 @@ func (s *Store) SetBlobDetails(ctx context.Context, sha, details string) error {
 	return nil
 }
 
-// BlobsAfter pages through unique originals for metadata maintenance without
-// keeping a database cursor open while their contents are read.
+// BlobsAfter pages through unique originals that something still refers to,
+// for maintenance, without keeping a database cursor open while their
+// contents are read.
+//
+// Unreferenced content is left out. It is the server's sweep's to remove, and
+// its objects may already be partly gone.
 func (s *Store) BlobsAfter(ctx context.Context, sha string, limit int) ([]*models.Blob, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT `+blobColumns+` FROM blobs WHERE sha256 > ? ORDER BY sha256 LIMIT ?`, sha, limit)
+		`SELECT `+blobColumns+` FROM blobs WHERE sha256 > ? AND refcount > 0 ORDER BY sha256 LIMIT ?`, sha, limit)
 	if err != nil {
 		return nil, fmt.Errorf("list blobs: %w", err)
 	}
@@ -216,4 +220,18 @@ func (s *Store) BlobSummary(ctx context.Context) (BlobStats, error) {
 		return BlobStats{}, fmt.Errorf("blob summary: %w", err)
 	}
 	return stats, nil
+}
+
+// ObjectKeyInUse reports whether any content record still names key, in any
+// of its roles. Maintenance asks before deleting an object it replaced, since
+// identical renditions of different content could in principle share a key.
+func (s *Store) ObjectKeyInUse(ctx context.Context, key string) (bool, error) {
+	var used bool
+	err := s.db.QueryRowContext(ctx, `
+		SELECT EXISTS (SELECT 1 FROM blobs WHERE ? IN
+			(object_key, thumb_key, preview_key, clean_key, camera_key, location_key))`, key).Scan(&used)
+	if err != nil {
+		return false, fmt.Errorf("object key in use: %w", err)
+	}
+	return used, nil
 }

@@ -44,6 +44,11 @@ func TestRefreshMetadataRepairsExistingUploads(t *testing.T) {
 		if err := st.EnsureBlob(t.Context(), sha, int64(len(data)), key, "", "", `{"camera":"TestCam One"}`); err != nil {
 			t.Fatal(err)
 		}
+		if i > 0 {
+			if err := st.CreateFile(t.Context(), &models.File{ID: fmt.Sprintf("file%d", i), SHA256: sha, OriginalName: "photo.jpg"}); err != nil {
+				t.Fatal(err)
+			}
+		}
 	}
 	sha := fmt.Sprintf("%064d", 0)
 	for _, id := range []string{"first", "duplicate"} {
