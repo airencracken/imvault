@@ -35,7 +35,6 @@ func (s *Server) handleBrandingAsset(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "image/png")
 	w.Header().Set("Cache-Control", "public, max-age=0, must-revalidate")
-	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Write(content)
 }
 

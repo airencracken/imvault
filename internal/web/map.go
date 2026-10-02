@@ -86,7 +86,6 @@ func (s *Server) handleFileMap(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", image.contentType)
 	w.Header().Set("Cache-Control", "private, max-age=0, must-revalidate")
-	w.Header().Set("X-Content-Type-Options", "nosniff")
 	if r.Method != http.MethodHead {
 		_, _ = w.Write(image.data)
 	}

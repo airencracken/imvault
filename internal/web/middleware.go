@@ -69,6 +69,26 @@ func (s *Server) recoverMW(next http.Handler) http.Handler {
 	})
 }
 
+// securityHeadersMW sets the response headers every page and file needs.
+//
+// nosniff stops a browser second-guessing the content types this server
+// chose, which matters for user uploads above all. The framing headers keep
+// every page out of other sites' frames, so a button here cannot be dressed up
+// as something else and clicked by somebody who thinks they are elsewhere;
+// both forms are sent because older browsers only know X-Frame-Options. Only
+// frame-ancestors is set in the policy: a full Content-Security-Policy would
+// have to allow the inline Alpine expressions, and is the operator's choice.
+func securityHeadersMW(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		header := w.Header()
+		header.Set("X-Content-Type-Options", "nosniff")
+		header.Set("X-Frame-Options", "DENY")
+		header.Set("Content-Security-Policy", "frame-ancestors 'none'")
+		header.Set("Referrer-Policy", "same-origin")
+		next.ServeHTTP(w, r)
+	})
+}
+
 // logMW records one line per request.
 func (s *Server) logMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -415,12 +435,15 @@ func (s *Server) rateLimitKey(r *http.Request) string {
 //
 // Proxy headers are only consulted when explicitly trusted: they are otherwise
 // trivially spoofable, which would let a caller sidestep the limit entirely.
+// Even then only the right-most X-Forwarded-For entry counts. That is the one
+// the trusted proxy itself appended; anything to its left arrived from the
+// client, so a proxy configured to append rather than replace would otherwise
+// let every request choose its own bucket.
 func (s *Server) clientIP(r *http.Request) string {
 	if s.cfg.TrustProxyHeaders {
-		if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
-			// The left-most entry is the original client.
-			first, _, _ := strings.Cut(forwarded, ",")
-			if ip := strings.TrimSpace(first); ip != "" {
+		if forwarded := r.Header.Values("X-Forwarded-For"); len(forwarded) > 0 {
+			entries := strings.Split(forwarded[len(forwarded)-1], ",")
+			if ip := strings.TrimSpace(entries[len(entries)-1]); ip != "" {
 				return ip
 			}
 		}
