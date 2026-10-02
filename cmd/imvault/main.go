@@ -131,20 +131,7 @@ func run() (err error) {
 		video,
 	)
 
-	st := store.New(database)
-	sender, err := mailSender(cfg, st, logger)
-	if err != nil {
-		return err
-	}
-
-	// The key beside the database encrypts the few values that have to be
-	// readable again, which today means TOTP secrets.
-	cipher, err := secrets.Load(cfg.SecretKeyFile, cfg.SecretKey)
-	if err != nil {
-		return err
-	}
-
-	srv, err := web.New(cfg, st, objects, processor, sender, cipher, logger)
+	srv, err := newServer(cfg, store.New(database), objects, processor, logger)
 	if err != nil {
 		return err
 	}
@@ -190,6 +177,21 @@ func run() (err error) {
 	}
 	logger.Info("stopped")
 	return nil
+}
+
+// newServer wires the web server to its mail sender and secret key.
+func newServer(cfg *config.Config, st *store.Store, objects storage.Backend, processor *media.Processor, logger *slog.Logger) (*web.Server, error) {
+	sender, err := mailSender(cfg, st, logger)
+	if err != nil {
+		return nil, err
+	}
+	// The key beside the database encrypts the few values that have to be
+	// readable again, which today means TOTP secrets.
+	cipher, err := secrets.Load(cfg.SecretKeyFile, cfg.SecretKey)
+	if err != nil {
+		return nil, err
+	}
+	return web.New(cfg, st, objects, processor, sender, cipher, logger)
 }
 
 // mailSender returns an SMTP sender when a relay is configured, and one that
