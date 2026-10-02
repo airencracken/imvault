@@ -107,6 +107,12 @@ application itself. Bubblewrap is not a CPU, memory or disk quota. Existing
 request limits and timeouts still apply; use your service manager for resource
 limits.
 
+The sandbox's `/tmp` is a private tmpfs, which is memory. Multipart uploads past
+8 MiB, S3 upload spools and clip scratch copies all land there, so a busy
+instance's temporary files count against the service's memory, not its disk.
+Size `MemoryMax=` (systemd) or the container's memory with
+`IMVAULT_MAX_CONCURRENT_UPLOADS` × `IMVAULT_MAX_VIDEO_BYTES` in mind.
+
 ## Verification
 
 `make test-sandbox` requires real Bubblewrap namespaces. It tests hidden host
