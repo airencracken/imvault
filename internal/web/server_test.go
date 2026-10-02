@@ -233,9 +233,11 @@ func (h *harness) postForm(path string, form url.Values) (*http.Response, string
 	if err != nil {
 		h.t.Fatalf("POST %s: %v", path, err)
 	}
-	defer resp.Body.Close()
-	out, _ := io.ReadAll(resp.Body)
-	return resp, string(out)
+	defer closeBody(h.t, resp)
+	out := readAll(h.t, resp.Body)
+	// Anything the request handed off has finished before the test looks.
+	h.srv.waitBackground()
+	return resp, out
 }
 
 // upload posts a multipart body containing the given files.

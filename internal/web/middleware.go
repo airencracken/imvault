@@ -449,7 +449,10 @@ func (s *Server) clearSessionCookie(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// rateLimitLogins bounds sign-in attempts.
+// rateLimitLogins bounds sign-in attempts, and every other route that checks a
+// credential or acts for an anonymous caller in a way worth repeating: asking
+// for reset mail, registering, redeeming a reset link, and the current-password
+// checks behind the settings pages.
 //
 // This matters more once a second factor exists: a six-digit code is small
 // enough that unlimited guesses would eventually find one, so the code prompt
