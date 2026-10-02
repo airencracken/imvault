@@ -59,7 +59,7 @@ func TestTokenIsHexOfTheRequestedEntropy(t *testing.T) {
 			t.Errorf("Token(%d) = %q", n, token)
 		}
 	}
-	if Token(32) == Token(32) {
+	if first, second := Token(32), Token(32); first == second {
 		t.Fatal("two tokens were equal")
 	}
 }
