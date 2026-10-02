@@ -302,7 +302,7 @@ func TestHeadersCannotBeInjected(t *testing.T) {
 	// injected text may survive inside the original value, which is harmless.
 	allowed := map[string]bool{
 		"From": true, "To": true, "Subject": true, "Date": true,
-		"MIME-Version": true, "Content-Type": true,
+		"Message-ID": true, "MIME-Version": true, "Content-Type": true,
 		"Content-Transfer-Encoding": true,
 	}
 

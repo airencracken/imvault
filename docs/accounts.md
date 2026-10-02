@@ -317,7 +317,9 @@ losing it. A worker retries with a growing backoff (roughly 1m, 4m, 16m, 1h,
 4h), and after `IMVAULT_MAIL_MAX_ATTEMPTS` the message is parked as failed and
 surfaced at `/admin/mail`, where it can be requeued or discarded by hand. This
 also means a message survives a restart: the queue is in the database, not in
-memory. Changing a password signs out every
+memory. A delivered message's body, which holds the link, is cleared as soon as
+the relay accepts it; delivered and failed messages are removed after a week.
+Changing a password signs out every
 other device; API keys are deliberately left alone, since revoking a script's
 credentials on an ordinary password change would be surprising.
 

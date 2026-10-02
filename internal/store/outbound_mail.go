@@ -111,10 +111,14 @@ func collectOutboundMail(rows *sql.Rows) ([]*models.OutboundMail, error) {
 	return messages, rows.Err()
 }
 
-// MarkMailSent records a successful delivery.
+// MarkMailSent records a successful delivery and forgets the body.
+//
+// A body is a reset or confirmation link with a live token in it. Tokens are
+// otherwise stored only as digests, so a delivered message must not leave the
+// working link sitting in the database for the retention window.
 func (s *Store) MarkMailSent(ctx context.Context, id int64, at time.Time) error {
 	if _, err := s.db.ExecContext(ctx,
-		`UPDATE outbound_mail SET sent_at = ?, last_error = '' WHERE id = ?`,
+		`UPDATE outbound_mail SET sent_at = ?, last_error = '', body = '' WHERE id = ?`,
 		ts(at), id); err != nil {
 		return fmt.Errorf("mark mail sent: %w", err)
 	}
@@ -180,11 +184,15 @@ func (s *Store) MailBacklog(ctx context.Context) (pending, failed int, err error
 	return pending, failed, nil
 }
 
-// PruneSentMail removes delivered messages older than the cutoff, so the table
-// does not grow without bound.
+// PruneSentMail removes delivered messages, and messages abandoned as failed,
+// older than the cutoff, so the table does not grow without bound. A failed
+// message keeps its body so an administrator can requeue it, but not forever:
+// the link inside it expired long before the cutoff.
 func (s *Store) PruneSentMail(ctx context.Context, before time.Time) (int64, error) {
-	res, err := s.db.ExecContext(ctx,
-		`DELETE FROM outbound_mail WHERE sent_at IS NOT NULL AND sent_at <= ?`, ts(before))
+	res, err := s.db.ExecContext(ctx, `
+		DELETE FROM outbound_mail
+		WHERE (sent_at IS NOT NULL AND sent_at <= ?)
+		   OR (sent_at IS NULL AND failed_at IS NOT NULL AND failed_at <= ?)`, ts(before), ts(before))
 	if err != nil {
 		return 0, fmt.Errorf("prune sent mail: %w", err)
 	}
