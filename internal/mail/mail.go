@@ -10,10 +10,14 @@ package mail
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/tls"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"mime"
 	"net"
+	netmail "net/mail"
 	"net/smtp"
 	"strconv"
 	"strings"
@@ -95,21 +99,22 @@ func (s *SMTP) Send(ctx context.Context, msg Message) error {
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	// Every path below ends with the connection closed, by Quit on success.
+	// A second close reports an error nobody can act on, so it is dropped.
+	defer func() { _ = conn.Close() }()
 	deadline, _ := ctx.Deadline()
 	if err := conn.SetDeadline(deadline); err != nil {
 		return fmt.Errorf("smtp: set deadline: %w", err)
 	}
-	stop := context.AfterFunc(ctx, func() { conn.Close() })
+	stop := context.AfterFunc(ctx, func() { _ = conn.Close() })
 	defer stop()
 
 	client, err := smtp.NewClient(conn, s.cfg.Host)
 	if err != nil {
-		conn.Close()
 		return fmt.Errorf("smtp: greeting: %w", err)
 	}
 	// Quit closes the connection; Close is a safety net for the error paths.
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	if s.cfg.Mode == TLSStartTLS {
 		if ok, _ := client.Extension("STARTTLS"); !ok {
@@ -146,7 +151,8 @@ func (s *SMTP) Send(ctx context.Context, msg Message) error {
 		return fmt.Errorf("smtp: start body: %w", err)
 	}
 	if _, err := writer.Write(buildMessage(s.cfg.From, msg)); err != nil {
-		writer.Close()
+		// The write already failed; the close cannot add anything useful.
+		_ = writer.Close()
 		return fmt.Errorf("smtp: write body: %w", err)
 	}
 	if err := writer.Close(); err != nil {
@@ -170,7 +176,7 @@ func (s *SMTP) dial(ctx context.Context) (net.Conn, error) {
 		MinVersion: tls.VersionTLS12,
 	})
 	if err := tlsConn.HandshakeContext(ctx); err != nil {
-		conn.Close()
+		_ = conn.Close() // the handshake error is the one worth reporting
 		return nil, fmt.Errorf("smtp: handshake: %w", err)
 	}
 	return tlsConn, nil
@@ -216,10 +222,11 @@ func envelopeSender(from string) string {
 func buildMessage(from string, msg Message) []byte {
 	var buf bytes.Buffer
 
-	writeHeader(&buf, "From", from)
+	writeHeader(&buf, "From", encodeAddress(from))
 	writeHeader(&buf, "To", msg.To)
-	writeHeader(&buf, "Subject", msg.Subject)
+	writeHeader(&buf, "Subject", mime.QEncoding.Encode("utf-8", sanitiseHeader(msg.Subject)))
 	writeHeader(&buf, "Date", time.Now().Format(time.RFC1123Z))
+	writeHeader(&buf, "Message-ID", messageID(envelopeSender(from)))
 	writeHeader(&buf, "MIME-Version", "1.0")
 	writeHeader(&buf, "Content-Type", `text/plain; charset="utf-8"`)
 	writeHeader(&buf, "Content-Transfer-Encoding", "8bit")
@@ -227,6 +234,36 @@ func buildMessage(from string, msg Message) []byte {
 
 	buf.WriteString(normaliseBody(msg.Body))
 	return buf.Bytes()
+}
+
+// encodeAddress renders a "Name <addr>" sender with any non-ASCII display name
+// encoded as RFC 2047 requires. A value that does not parse is passed through.
+func encodeAddress(from string) string {
+	for i := 0; i < len(from); i++ {
+		if from[i] > 0x7E {
+			if parsed, err := netmail.ParseAddress(sanitiseHeader(from)); err == nil {
+				return parsed.String()
+			}
+			return from
+		}
+	}
+	return from // already plain ASCII, and kept exactly as configured
+}
+
+// messageID returns a unique Message-ID in the sender's domain. Many relays
+// and spam filters treat a message without one as suspect.
+func messageID(sender string) string {
+	domain := "localhost"
+	if at := strings.LastIndexByte(sender, '@'); at >= 0 && at+1 < len(sender) {
+		domain = sender[at+1:]
+	}
+	var id [16]byte
+	if _, err := rand.Read(id[:]); err != nil {
+		// crypto/rand does not fail on supported systems; the time still
+		// makes the identifier unique on this host.
+		return fmt.Sprintf("<%d@%s>", time.Now().UnixNano(), domain)
+	}
+	return "<" + hex.EncodeToString(id[:]) + "@" + domain + ">"
 }
 
 func writeHeader(buf *bytes.Buffer, name, value string) {
