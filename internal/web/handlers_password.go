@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/airencracken/comfylib/smtp"
 	tokens "github.com/airencracken/comfylib/token"
 	"golang.org/x/crypto/bcrypt"
 
 	"imvault/internal/accounts"
-	"imvault/internal/mail"
 	"imvault/internal/models"
 	"imvault/internal/store"
 )
@@ -113,7 +113,7 @@ func (s *Server) issueReset(ctx context.Context, user *models.User, reason strin
 	if err != nil {
 		return err
 	}
-	return s.mail.Send(ctx, mail.Message{
+	return s.mail.Send(ctx, smtp.Message{
 		To:      user.Email,
 		Subject: "Reset your " + s.branding().SiteName + " password",
 		Body:    resetEmailBody(s.branding().SiteName, user.Username, link, s.cfg.PasswordResetTTL),
@@ -425,7 +425,7 @@ func (s *Server) sendVerificationEmail(ctx context.Context, r *http.Request, use
 	if err != nil {
 		return err
 	}
-	return s.mail.Send(ctx, mail.Message{
+	return s.mail.Send(ctx, smtp.Message{
 		To:      user.Email,
 		Subject: "Confirm your email address",
 		Body: fmt.Sprintf(`Hello %s,

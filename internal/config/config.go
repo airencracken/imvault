@@ -18,6 +18,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/airencracken/comfylib/smtp"
+
 	"imvault/internal/models"
 )
 
@@ -98,8 +100,9 @@ type Config struct {
 	SMTPPort     int
 	SMTPUsername string
 	SMTPPassword string
-	SMTPFrom     string
-	SMTPTLS      string
+	// SMTPFrom is the sender in canonical form, checked by smtp.ParseFrom.
+	SMTPFrom string
+	SMTPTLS  smtp.TLSMode
 
 	// PasswordResetTTL and EmailVerifyTTL bound the lifetime of the one-time
 	// tokens those flows issue.
@@ -205,7 +208,6 @@ func load(dataDirOverride, dbPathOverride string) (*Config, error) {
 		SMTPUsername:     getenv("IMVAULT_SMTP_USERNAME", ""),
 		SMTPPassword:     getenv("IMVAULT_SMTP_PASSWORD", ""),
 		SMTPFrom:         getenv("IMVAULT_SMTP_FROM", "Imvault <no-reply@localhost>"),
-		SMTPTLS:          getenv("IMVAULT_SMTP_TLS", "starttls"),
 		PasswordResetTTL: env.duration("IMVAULT_PASSWORD_RESET_TTL", time.Hour),
 		EmailVerifyTTL:   env.duration("IMVAULT_EMAIL_VERIFY_TTL", 24*time.Hour),
 		TOTPIssuer:       getenv("IMVAULT_TOTP_ISSUER", "Imvault"),
@@ -347,10 +349,8 @@ func (c *Config) validateAccounts() error {
 	if c.MailRetryInterval <= 0 {
 		return fmt.Errorf("IMVAULT_MAIL_RETRY_INTERVAL must be positive")
 	}
-	switch c.SMTPTLS {
-	case "starttls", "implicit", "none":
-	default:
-		return fmt.Errorf("IMVAULT_SMTP_TLS must be starttls, implicit or none, got %q", c.SMTPTLS)
+	if err := c.parseMail(); err != nil {
+		return err
 	}
 	if c.SMTPHost != "" {
 		if c.SMTPPort < 1 || c.SMTPPort > 65535 {
@@ -375,6 +375,23 @@ func (c *Config) validateAccounts() error {
 		// choose it, and would break the moment a proxy changes the name.
 		return fmt.Errorf("IMVAULT_BASE_URL is required when an OpenID Connect provider is configured")
 	}
+	return nil
+}
+
+// parseMail checks the relay's TLS mode and sender once, at startup, so a typo
+// is reported before the first reset link is due rather than when it fails to
+// send. An unknown mode is refused: it must never quietly mean plain text.
+func (c *Config) parseMail() error {
+	mode, err := smtp.ParseTLSMode(getenv("IMVAULT_SMTP_TLS", string(smtp.TLSStartTLS)))
+	if err != nil {
+		return fmt.Errorf("IMVAULT_SMTP_TLS: %w", err)
+	}
+	c.SMTPTLS = mode
+	from, err := smtp.ParseFrom(c.SMTPFrom)
+	if err != nil {
+		return fmt.Errorf("IMVAULT_SMTP_FROM: %w", err)
+	}
+	c.SMTPFrom = from
 	return nil
 }
 

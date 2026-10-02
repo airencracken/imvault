@@ -15,8 +15,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/airencracken/comfylib/smtp"
+
 	"imvault/internal/config"
-	"imvault/internal/mail"
 	"imvault/internal/media"
 	"imvault/internal/oidc"
 	"imvault/internal/ratelimit"
@@ -37,7 +38,7 @@ type Server struct {
 	store   *store.Store
 	objects storage.Backend
 	media   *media.Processor
-	mail    mail.Sender
+	mail    smtp.Sender
 	secrets *secrets.Cipher
 	log     *slog.Logger
 	render  *renderer
@@ -71,7 +72,7 @@ type Server struct {
 }
 
 // New constructs a Server and installs the middleware chain.
-func New(cfg *config.Config, st *store.Store, objects storage.Backend, proc *media.Processor, sender mail.Sender, cipher *secrets.Cipher, log *slog.Logger) (*Server, error) {
+func New(cfg *config.Config, st *store.Store, objects storage.Backend, proc *media.Processor, sender smtp.Sender, cipher *secrets.Cipher, log *slog.Logger) (*Server, error) {
 	r, err := newRenderer()
 	if err != nil {
 		return nil, err

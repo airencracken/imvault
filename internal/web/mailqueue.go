@@ -7,7 +7,8 @@ import (
 	"log/slog"
 	"time"
 
-	"imvault/internal/mail"
+	"github.com/airencracken/comfylib/smtp"
+
 	"imvault/internal/models"
 	"imvault/internal/store"
 )
@@ -38,7 +39,7 @@ const (
 // caller can honestly tell somebody to check their inbox.
 type mailQueue struct {
 	store       *store.Store
-	sender      mail.Sender
+	sender      smtp.Sender
 	log         *slog.Logger
 	maxAttempts int
 	interval    time.Duration
@@ -47,7 +48,7 @@ type mailQueue struct {
 }
 
 // NewMailQueue wraps a sender in a durable, retrying queue.
-func NewMailQueue(st *store.Store, sender mail.Sender, maxAttempts int, interval time.Duration, log *slog.Logger) mail.Sender {
+func NewMailQueue(st *store.Store, sender smtp.Sender, maxAttempts int, interval time.Duration, log *slog.Logger) smtp.Sender {
 	if maxAttempts <= 0 {
 		maxAttempts = 5
 	}
@@ -68,7 +69,7 @@ func NewMailQueue(st *store.Store, sender mail.Sender, maxAttempts int, interval
 func (q *mailQueue) Enabled() bool { return q.sender.Enabled() }
 
 // Send queues a message and makes one delivery attempt.
-func (q *mailQueue) Send(ctx context.Context, msg mail.Message) error {
+func (q *mailQueue) Send(ctx context.Context, msg smtp.Message) error {
 	record, err := q.store.EnqueueMail(ctx, msg.To, msg.Subject, msg.Body)
 	if err != nil {
 		// The queue itself is broken. Trying the relay directly is a better
@@ -100,7 +101,7 @@ func (q *mailQueue) attempt(ctx context.Context, record *models.OutboundMail) {
 		return
 	}
 
-	err = q.sender.Send(ctx, mail.Message{
+	err = q.sender.Send(ctx, smtp.Message{
 		To:      record.Recipient,
 		Subject: record.Subject,
 		Body:    record.Body,

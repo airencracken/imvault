@@ -20,9 +20,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/airencracken/comfylib/smtp"
+
 	"imvault/internal/config"
 	"imvault/internal/db"
-	"imvault/internal/mail"
 	"imvault/internal/media"
 	"imvault/internal/models"
 	"imvault/internal/secrets"
@@ -153,7 +154,7 @@ func newHarnessFull(t *testing.T, mutate func(*config.Config), mode mailMode) *h
 
 	mailer := &captureMail{enabled: mode != mailOff}
 
-	var sender mail.Sender = mailer
+	var sender smtp.Sender = mailer
 	if mode == mailQueued {
 		sender = NewMailQueue(st, mailer, cfg.MailMaxAttempts, cfg.MailRetryInterval, logger)
 	}

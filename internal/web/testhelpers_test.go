@@ -21,10 +21,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/airencracken/comfylib/smtp"
 	"golang.org/x/crypto/bcrypt"
 
 	"imvault/internal/ids"
-	"imvault/internal/mail"
 )
 
 // newJar returns an empty cookie jar.
@@ -109,7 +109,7 @@ func doForm(t *testing.T, client *http.Client, base, path string, form url.Value
 // reset link the way a recipient would.
 type captureMail struct {
 	mu       sync.Mutex
-	messages []mail.Message
+	messages []smtp.Message
 	enabled  bool
 	// failWith makes Send report an error, standing in for an unreachable relay.
 	failWith error
@@ -122,7 +122,7 @@ type captureMail struct {
 
 func (c *captureMail) Enabled() bool { return c.enabled }
 
-func (c *captureMail) Send(_ context.Context, msg mail.Message) error {
+func (c *captureMail) Send(_ context.Context, msg smtp.Message) error {
 	if c.gate != nil {
 		if c.entered != nil {
 			c.entered <- struct{}{}
@@ -171,14 +171,14 @@ func extractResetLink(t *testing.T, page string) string {
 }
 
 // sent returns a copy of everything captured so far.
-func (c *captureMail) sent() []mail.Message {
+func (c *captureMail) sent() []smtp.Message {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return append([]mail.Message(nil), c.messages...)
+	return append([]smtp.Message(nil), c.messages...)
 }
 
 // last returns the most recent message, failing if there is none.
-func (c *captureMail) last(t *testing.T) mail.Message {
+func (c *captureMail) last(t *testing.T) smtp.Message {
 	t.Helper()
 
 	c.mu.Lock()
@@ -190,7 +190,7 @@ func (c *captureMail) last(t *testing.T) mail.Message {
 }
 
 // resetTokenFrom extracts the token from the reset link in a message body.
-func resetTokenFrom(t *testing.T, msg mail.Message) string {
+func resetTokenFrom(t *testing.T, msg smtp.Message) string {
 	t.Helper()
 
 	for _, field := range strings.Fields(msg.Body) {
@@ -203,7 +203,7 @@ func resetTokenFrom(t *testing.T, msg mail.Message) string {
 }
 
 // verifyTokenFrom extracts the token from the confirmation link in a body.
-func verifyTokenFrom(t *testing.T, msg mail.Message) string {
+func verifyTokenFrom(t *testing.T, msg smtp.Message) string {
 	t.Helper()
 
 	for _, field := range strings.Fields(msg.Body) {

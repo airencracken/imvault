@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"imvault/internal/mail"
+	"github.com/airencracken/comfylib/smtp"
 )
 
 // A message being delivered by the request that queued it is not picked up a
@@ -21,7 +21,7 @@ func TestASlowDeliveryIsNotSentTwice(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if err := h.srv.mail.Send(t.Context(), mail.Message{To: "a@example.com", Subject: "s", Body: "b"}); err != nil {
+		if err := h.srv.mail.Send(t.Context(), smtp.Message{To: "a@example.com", Subject: "s", Body: "b"}); err != nil {
 			t.Error(err)
 		}
 	}()
