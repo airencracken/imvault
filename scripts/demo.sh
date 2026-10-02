@@ -4,7 +4,10 @@
 # you can look at everything without registering by hand.
 #
 # Nothing here touches your real ./data directory: it wipes and uses
-# ./demo-data instead (gitignored), which `make clean-demo` removes.
+# ./demo-data instead (gitignored), which `make clean-demo` removes. Point it
+# elsewhere inside the repository with IMVAULT_DEMO_DATA_DIR; a path outside the
+# repository, or a directory this script did not create, is refused rather than
+# wiped.
 #
 #   make demo
 #   PORT=9000 make demo
@@ -12,12 +15,18 @@
 # The administrator is provisioned with the local CLI. Members and content are
 # seeded through the signup form, API, report form, and admin pages.
 #
-set -euo pipefail
+# Errors are handled where they happen rather than with `set -e`, which skips
+# the checks inside functions and conditions that most of this script is made of.
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.."
+say() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
+warn() { printf '\033[1;33mwarning:\033[0m %s\n' "$*" >&2; }
+die() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
+
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)" || die "cannot find the repository"
+cd "$REPO" || die "cannot enter $REPO"
 
 PORT="${PORT:-8080}"
-DATA_DIR="${DATA_DIR:-$PWD/demo-data}"
+DATA_DIR="${IMVAULT_DEMO_DATA_DIR:-$REPO/demo-data}"
 BASE="http://127.0.0.1:$PORT"
 PASSWORD="${PASSWORD:-demo-password}"
 
@@ -25,26 +34,40 @@ ADMIN="demo"
 MEMBER="freya"
 MODERATOR="mod"
 
-JAR="$(mktemp)"
-WORK="$(mktemp -d)"
+# A marker the script leaves in every directory it creates, so it only ever
+# wipes one of its own.
+MARKER=".imvault-demo"
+
+# The data directory is deleted below, so it has to be one of ours: inside the
+# repository, not the repository itself, and either new or made by this script.
+resolved="$(realpath -m -- "$DATA_DIR")" || die "cannot resolve $DATA_DIR"
+case "$resolved" in
+  "$REPO"/?*) ;;
+  *) die "refusing to use $DATA_DIR: the demo data directory must be inside $REPO" ;;
+esac
+if [[ -e "$resolved" && ! -e "$resolved/$MARKER" ]]; then
+  die "refusing to wipe $resolved: it was not created by this script (no $MARKER inside)"
+fi
+DATA_DIR="$resolved"
+
+JAR="$(mktemp)" || die "cannot create a cookie jar"
+WORK="$(mktemp -d)" || die "cannot create a work directory"
 BINARY="$WORK/imvault"
 SERVER_PID=""
 
 cleanup() {
   if [[ -n "$SERVER_PID" ]]; then
-    kill "$SERVER_PID" 2>/dev/null || true
-    wait "$SERVER_PID" 2>/dev/null || true
+    kill "$SERVER_PID" 2>/dev/null
+    wait "$SERVER_PID" 2>/dev/null
   fi
   rm -f "$JAR"
   rm -rf "$WORK"
 }
-trap cleanup EXIT INT TERM
-
-say() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
-warn() { printf '\033[1;33mwarning:\033[0m %s\n' "$*" >&2; }
-die() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
+trap cleanup EXIT
+trap 'exit 130' INT TERM
 
 command -v go >/dev/null 2>&1 || die "go is not on PATH"
+command -v curl >/dev/null 2>&1 || die "curl is not on PATH"
 
 # Do not stomp on something already listening.
 if curl -fsS -o /dev/null "$BASE/healthz" 2>/dev/null; then
@@ -52,10 +75,12 @@ if curl -fsS -o /dev/null "$BASE/healthz" 2>/dev/null; then
 fi
 
 say "Resetting the demo data directory ($DATA_DIR)"
-rm -rf "$DATA_DIR"
+rm -rf -- "$DATA_DIR" || die "cannot remove the old $DATA_DIR"
+mkdir -p -- "$DATA_DIR" || die "cannot create $DATA_DIR"
+: > "$DATA_DIR/$MARKER" || die "cannot mark $DATA_DIR as the demo's"
 
 say "Building imvault"
-go build -o "$BINARY" ./cmd/imvault
+go build -o "$BINARY" ./cmd/imvault || die "the build failed"
 
 say "Provisioning the demo administrator"
 printf '%s\n' "$PASSWORD" | IMVAULT_DATA_DIR="$DATA_DIR" \
@@ -84,7 +109,7 @@ csrf() { awk '/imvault_csrf/ {print $7}' "$1" | tail -1; }
 account_form() { # account_form <login|register> <username> <jar>
   local action="$1" user="$2" jar="$3"
   rm -f "$jar"
-  curl -sS -c "$jar" -b "$jar" -o /dev/null "$BASE/"
+  curl -fsS -c "$jar" -b "$jar" -o /dev/null "$BASE/" || return 1
   curl -sS -c "$jar" -b "$jar" -o /dev/null -X POST "$BASE/$action" \
     -d "csrf_token=$(csrf "$jar")" --data-urlencode "username=$user" --data-urlencode "password=$PASSWORD"
 }
@@ -137,29 +162,29 @@ web() { # web <jar> <path> [form fields...]
 # --- the instance -----------------------------------------------------------
 
 say "Signing in as $ADMIN, the administrator"
-account_form login "$ADMIN" "$JAR"
+account_form login "$ADMIN" "$JAR" || die "could not sign in as $ADMIN"
 ADMIN_KEY="$(mint_key "$JAR" 'demo script')"
 [[ -n "$ADMIN_KEY" ]] || die "could not mint an API key for $ADMIN"
 
 say "Creating $MEMBER, an ordinary member"
 MEMBER_JAR="$WORK/member.jar"
-account_form register "$MEMBER" "$MEMBER_JAR"
+account_form register "$MEMBER" "$MEMBER_JAR" || die "could not register $MEMBER"
 MEMBER_KEY="$(mint_key "$MEMBER_JAR" 'demo script')"
 [[ -n "$MEMBER_KEY" ]] || die "could not mint an API key for $MEMBER"
 
 say "Creating $MODERATOR, who will be given the moderator role"
 MOD_JAR="$WORK/mod.jar"
-account_form register "$MODERATOR" "$MOD_JAR"
+account_form register "$MODERATOR" "$MOD_JAR" || die "could not register $MODERATOR"
 MOD_KEY="$(mint_key "$MOD_JAR" 'demo script')"
 [[ -n "$MOD_KEY" ]] || die "could not mint an API key for $MODERATOR"
 
 MOD_ID="$(me "$MOD_KEY")"
 [[ -n "$MOD_ID" ]] || die "could not look $MODERATOR up"
-web "$JAR" "/admin/users/$MOD_ID/role" "role=moderator"
+web "$JAR" "/admin/users/$MOD_ID/role" "role=moderator" || warn "could not make $MODERATOR a moderator"
 
 say "Generating sample media"
-mkdir -p "$WORK/media"
-go run ./scripts/genmedia -dir "$WORK/media"
+mkdir -p "$WORK/media" || die "cannot create $WORK/media"
+go run ./scripts/genmedia -dir "$WORK/media" || die "could not generate the sample media"
 
 # A clip makes the video path visible, but it is entirely optional.
 if command -v ffmpeg >/dev/null 2>&1; then
