@@ -4,6 +4,7 @@ package web
 
 import (
 	"context"
+	"errors"
 	"crypto/sha256"
 	"encoding/hex"
 	"io/fs"
@@ -234,6 +235,23 @@ func (s *Server) absoluteURL(r *http.Request, path string) string {
 		host = "localhost"
 	}
 	return scheme + "://" + host + path
+}
+
+// errNoBaseURL is reported when a link has to leave the browser and there is
+// no configured address to anchor it to.
+var errNoBaseURL = errors.New("IMVAULT_BASE_URL is required to send links by email")
+
+// emailLink builds an absolute URL for a message that leaves this server.
+//
+// Unlike absoluteURL it never falls back to the request. A link in an email is
+// followed later, by somebody else, and a Host header is whatever the sender of
+// the request wanted it to be: deriving a reset link from it would let anybody
+// mail a real token to an address of their choosing.
+func (s *Server) emailLink(path string) (string, error) {
+	if s.cfg.BaseURL == "" {
+		return "", errNoBaseURL
+	}
+	return s.cfg.BaseURL + path, nil
 }
 
 // noStore marks a response as uncacheable.

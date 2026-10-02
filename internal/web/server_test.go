@@ -169,6 +169,12 @@ func newHarnessFull(t *testing.T, mutate func(*config.Config), mode mailMode) *h
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 
+	// A relay needs a configured address for the links it sends, exactly as
+	// config.Load insists on one.
+	if mode != mailOff && cfg.BaseURL == "" {
+		cfg.BaseURL = ts.URL
+	}
+
 	return &harness{
 		t:         t,
 		server:    ts,
