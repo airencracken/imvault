@@ -607,16 +607,20 @@ func (i *Invite) UsesLabel() string {
 type TargetKind string
 
 const (
-	TargetFile  TargetKind = "file"
-	TargetAlbum TargetKind = "album"
+	TargetFile    TargetKind = "file"
+	TargetAlbum   TargetKind = "album"
+	TargetAccount TargetKind = "account"
 )
 
 // Label is the name shown in the interface.
 func (k TargetKind) Label() string {
-	if k == TargetAlbum {
+	switch k {
+	case TargetAlbum:
 		return "album"
+	case TargetAccount:
+		return "account"
 	}
-	return "image"
+	return "file"
 }
 
 // ReportReason is why somebody raised a report.
@@ -727,13 +731,16 @@ const (
 	ActionRemoveAlbum   ModerationAction = "remove_album"
 	ActionResolveReport ModerationAction = "resolve_report"
 	ActionDismissReport ModerationAction = "dismiss_report"
+	ActionRemoveAccount ModerationAction = "remove_account"
 )
 
 // Label is the phrase shown in the interface.
 func (a ModerationAction) Label() string {
 	switch a {
 	case ActionRemoveFile:
-		return "removed an image"
+		return "removed a file"
+	case ActionRemoveAccount:
+		return "deleted an account"
 	case ActionRemoveAlbum:
 		return "removed an album"
 	case ActionResolveReport:

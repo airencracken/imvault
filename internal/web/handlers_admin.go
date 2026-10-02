@@ -419,6 +419,9 @@ func (s *Server) handleAdminDeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.recordModeration(r.Context(), currentUser(r.Context()), models.ActionRemoveAccount,
+		models.TargetAccount, strconv.FormatInt(target.ID, 10), target.Username, "")
+
 	message := fmt.Sprintf("Deleted %s and %d stored file(s).", target.Username, removed)
 	s.adminRespond(w, r, nil, adminNotice{Text: message}, "", "/admin/users")
 }

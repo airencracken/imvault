@@ -297,6 +297,7 @@ func (s *Server) apiDeleteAlbum(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusInternalServerError, "could not delete the album")
 		return
 	}
+	s.recordAlbumRemoval(r.Context(), user, album, "")
 
 	noStore(w)
 	writeJSON(w, http.StatusOK, map[string]any{
