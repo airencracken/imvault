@@ -41,7 +41,10 @@ func (s *Server) handleForgotPage(w http.ResponseWriter, r *http.Request) {
 // handleForgot issues a reset link.
 //
 // The response is identical whether or not the account exists, so the endpoint
-// cannot be used to discover who has an account here.
+// cannot be used to discover who has an account here. That includes how long
+// it takes: minting the token and talking to the relay happen after the
+// response, because a reply that took a second longer for real accounts would
+// say exactly what the identical text was hiding.
 func (s *Server) handleForgot(w http.ResponseWriter, r *http.Request) {
 	if !s.mail.Enabled() {
 		http.Redirect(w, r, "/forgot", http.StatusSeeOther)
@@ -55,9 +58,11 @@ func (s *Server) handleForgot(w http.ResponseWriter, r *http.Request) {
 	identifier := strings.TrimSpace(r.FormValue("identifier"))
 
 	if user := s.lookupAccount(r.Context(), identifier); user != nil {
-		if err := s.issueReset(r.Context(), r, user, "requested a reset"); err != nil {
-			s.log.Error("forgot: issue reset", "user", user.ID, "error", err)
-		}
+		s.inBackground(func(ctx context.Context) {
+			if err := s.issueReset(ctx, user, "requested a reset"); err != nil {
+				s.log.Error("forgot: issue reset", "user", user.ID, "error", err)
+			}
+		})
 	} else {
 		s.log.Info("forgot: no such account", "identifier", identifier, "remote", r.RemoteAddr)
 	}
@@ -85,7 +90,7 @@ func (s *Server) lookupAccount(ctx context.Context, identifier string) *models.U
 
 // issueReset mints a single-use reset token and, when the account has an email
 // address, sends the link to it. The reason is only used for logging.
-func (s *Server) issueReset(ctx context.Context, r *http.Request, user *models.User, reason string) error {
+func (s *Server) issueReset(ctx context.Context, user *models.User, reason string) error {
 	if user.Email == "" {
 		s.log.Warn("reset requested for an account with no email address",
 			"user", user.ID, "reason", reason)

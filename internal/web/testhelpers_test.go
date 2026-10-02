@@ -332,8 +332,11 @@ func (s *session) post(path string, form url.Values) (*http.Response, string) {
 	if err != nil {
 		s.t.Fatalf("POST %s: %v", path, err)
 	}
-	defer resp.Body.Close()
-	return resp, readAll(s.t, resp.Body)
+	defer closeBody(s.t, resp)
+	body := readAll(s.t, resp.Body)
+	// Anything the request handed off has finished before the test looks.
+	s.h.srv.waitBackground()
+	return resp, body
 }
 
 // signedIn reports whether the session can reach an authenticated page.

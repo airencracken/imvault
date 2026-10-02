@@ -36,6 +36,7 @@ func postForgotWithHost(t *testing.T, h *harness, identifier, host string) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("forgot = %d", resp.StatusCode)
 	}
+	h.srv.waitBackground()
 }
 
 // A reset link is a credential delivered to somebody else, so it must point at
