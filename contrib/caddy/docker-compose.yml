@@ -6,7 +6,7 @@
 #
 #   docker compose -f contrib/caddy/docker-compose.yml up -d --build
 #
-# Edit the site address in Caddyfile before starting, or Caddy will try to get a
+# Edit the site address in Caddyfile.compose before starting, or Caddy will try to get a
 # certificate for a name that does not resolve here.
 
 services:
@@ -53,7 +53,7 @@ services:
       - "443:443"
       - "443:443/udp"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./Caddyfile.compose:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
     networks:

@@ -144,7 +144,8 @@ port 8081.
 
 `contrib/caddy/docker-compose.yml` runs Caddy and Imvault together, with Imvault
 publishing no ports of its own: an application port left open beside a TLS
-terminator is a way around it.
+terminator is a way around it. That stack mounts `contrib/caddy/Caddyfile.compose`,
+which reaches Imvault by its service name; edit the site address there.
 
 ### The three things that matter
 
