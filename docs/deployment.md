@@ -44,7 +44,11 @@ journalctl -u imvault -f
 The unit keeps everything but `/var/lib/imvault` read-only, drops privileges,
 and gives the service its own `/tmp` for the temporary copies ffmpeg makes.
 `StateDirectory=imvault` creates the data directory with the right ownership on
-first start.
+first start, at mode 0700, and `UMask=0077` keeps what the server writes there
+private to the service account. The data directory holds account credentials,
+the encryption key and private uploads, so nobody else on the host should be
+able to list it. Starting the service also tightens a directory an older
+version created at 0750.
 
 **If you move the data directory**, add it to `ReadWritePaths` in the unit or
 `ProtectSystem=strict` will make it read-only and the service will not start.
@@ -83,6 +87,13 @@ sudo rc-service imvault start
 a service that starts and immediately stops.
 
 Keep `/etc/conf.d/imvault` at mode 0600 because it can contain SMTP credentials.
+
+On start, the init script refuses a relative `IMVAULT_DATA_DIR`, `IMVAULT_BIN`
+or `IMVAULT_LOG_FILE`, creates or tightens the data directory to mode 0700, and
+runs the server with umask 0077, for the same reasons as the systemd unit.
+Starting waits a second to see that the server stays up, so one that refuses
+its configuration or database fails the start. Stopping waits 25 seconds for
+in-flight requests before killing the server.
 
 Settings in `/etc/conf.d/imvault` use the same `IMVAULT_*` names the server
 reads from its environment. The init script re-reads that file with `allexport`

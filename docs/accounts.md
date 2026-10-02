@@ -43,7 +43,7 @@ command too. The service account must already exist and be able to write the
 data directory. For a new native installation, prepare it with:
 
 ```bash
-sudo install -d -o imvault -g imvault -m 0750 /var/lib/imvault
+sudo install -d -o imvault -g imvault -m 0700 /var/lib/imvault
 ```
 
 For Docker, use `docker exec -it imvault /usr/local/bin/imvault create-admin

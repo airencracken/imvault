@@ -14,21 +14,28 @@ SyslogIdentifier=imvault
 #   useradd --system --home-dir /var/lib/imvault --shell /usr/sbin/nologin imvault
 User=imvault
 Group=imvault
+# Files the server creates (the database, its journal, uploaded objects) are
+# readable by the service account alone.
+UMask=0077
 
 # Optional overrides. Anything here wins over the Environment= lines below.
 EnvironmentFile=-/etc/imvault/imvault.env
 
 # StateDirectory creates /var/lib/imvault with the right ownership and keeps it
-# writable even under ProtectSystem=strict.
+# writable even under ProtectSystem=strict. It holds account credentials and
+# private uploads, so nobody but the service account may list it; systemd also
+# tightens an existing directory to this mode on start.
 Environment=IMVAULT_DATA_DIR=/var/lib/imvault
 StateDirectory=imvault
-StateDirectoryMode=0750
+StateDirectoryMode=0700
 
 ExecStart=/usr/local/bin/imvault
 
 Restart=on-failure
 RestartSec=5s
-TimeoutStopSec=20s
+# The server gives requests in flight 15 seconds after SIGTERM, and the
+# sandbox launcher waits up to 20 for the server; leave room for both.
+TimeoutStopSec=25s
 
 # --- Hardening -------------------------------------------------------------
 #

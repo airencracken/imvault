@@ -35,7 +35,7 @@ func Acquire(database string, exclusive bool) (*flock.Flock, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(filepath.Dir(abs), 0o750); err != nil {
+	if err := os.MkdirAll(filepath.Dir(abs), 0o700); err != nil {
 		return nil, err
 	}
 	if resolved, err := filepath.EvalSymlinks(abs); err == nil {

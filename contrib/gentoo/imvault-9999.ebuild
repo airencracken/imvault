@@ -89,7 +89,7 @@ src_install() {
 	# The database and the uploaded bytes live here.
 	keepdir /var/lib/imvault
 	fowners imvault:imvault /var/lib/imvault
-	fperms 0750 /var/lib/imvault
+	fperms 0700 /var/lib/imvault
 
 	newinitd contrib/openrc/imvault imvault
 	newconfd contrib/openrc/imvault.confd imvault

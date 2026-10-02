@@ -11,6 +11,6 @@ KEYWORDS="~amd64 ~arm64"
 ACCT_USER_ID=-1
 ACCT_USER_GROUPS=( imvault )
 ACCT_USER_HOME=/var/lib/imvault
-ACCT_USER_HOME_PERMS=0750
+ACCT_USER_HOME_PERMS=0700
 
 acct-user_add_deps

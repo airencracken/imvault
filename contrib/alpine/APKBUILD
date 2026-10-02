@@ -32,6 +32,10 @@ options="net"
 # -openrc subpackage, which keeps this APKBUILD valid as written. Split them
 # into $pkgname-openrc if you are submitting to aports.
 install="$pkgname.pre-install"
+# The pre-install script creates this account; abuild needs it named here to
+# give the data directory to it.
+pkgusers="$pkgname"
+pkggroups="$pkgname"
 subpackages=""
 source="$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz"
 
@@ -57,8 +61,9 @@ package() {
 	install -Dm755 contrib/openrc/imvault "$pkgdir/etc/init.d/imvault"
 	install -Dm600 contrib/openrc/imvault.confd "$pkgdir/etc/conf.d/imvault"
 
-	# The service runs as its own unprivileged account.
-	install -d -m755 "$pkgdir/var/lib/imvault"
+	# The service runs as its own unprivileged account, and the data directory
+	# holds credentials and private uploads, so only that account may list it.
+	install -d -m700 -o imvault -g imvault "$pkgdir/var/lib/imvault"
 }
 
 sha512sums="

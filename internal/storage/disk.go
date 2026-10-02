@@ -46,7 +46,7 @@ func NewDisk(root string) (*Disk, error) {
 	if err != nil {
 		return nil, fmt.Errorf("storage: resolve root: %w", err)
 	}
-	if err := os.MkdirAll(abs, 0o755); err != nil {
+	if err := os.MkdirAll(abs, 0o700); err != nil {
 		return nil, fmt.Errorf("storage: create root: %w", err)
 	}
 	return &Disk{root: abs}, nil
@@ -85,7 +85,7 @@ func (d *Disk) Save(ctx context.Context, key string, r io.Reader) (int64, error)
 	}
 	defer closer.Discard(root)
 	dir := filepath.Dir(rel)
-	if err := root.MkdirAll(dir, 0o755); err != nil {
+	if err := root.MkdirAll(dir, 0o700); err != nil {
 		return 0, fmt.Errorf("storage: create dir for %s: %w", key, err)
 	}
 

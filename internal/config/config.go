@@ -378,7 +378,10 @@ func (c *Config) validateAccounts() error {
 	return nil
 }
 
-// EnsureDirs creates the directories the server needs to run.
+// EnsureDirs creates the directories the server needs to run. They hold
+// account credentials and private uploads, so they are created for the service
+// account alone. An existing directory keeps its mode: the init scripts and
+// packages tighten the default one, and a custom one is the operator's choice.
 func (c *Config) EnsureDirs() error {
 	dirs := []string{c.DataDir}
 	if c.Storage.Driver == "disk" || c.Storage.Driver == "" {
@@ -389,7 +392,7 @@ func (c *Config) EnsureDirs() error {
 		dirs = append(dirs, directory)
 	}
 	for _, dir := range dirs {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return fmt.Errorf("create %s: %w", dir, err)
 		}
 	}
