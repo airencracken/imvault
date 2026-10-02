@@ -159,7 +159,13 @@ func locationDirectory(tags Tags) *dir {
 		gps.entries = append(gps.entries, rational(0x0002, sexagesimal(tags.Latitude)...))
 		gps.entries = append(gps.entries, ascii(0x0003, lonRef))
 		gps.entries = append(gps.entries, rational(0x0004, sexagesimal(tags.Longitude)...))
-		gps.entries = append(gps.entries, byteValue(0x0005, 0))
+		// The reference says which side of sea level the magnitude below is
+		// on; the rational itself is unsigned.
+		var altitudeRef byte
+		if tags.Altitude < 0 {
+			altitudeRef = 1
+		}
+		gps.entries = append(gps.entries, byteValue(0x0005, altitudeRef))
 		if tags.Altitude != 0 {
 			gps.entries = append(gps.entries, rational(0x0006, [2]uint32{
 				uint32(math.Round(math.Abs(tags.Altitude) * 10)), 10,
