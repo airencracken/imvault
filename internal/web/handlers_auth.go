@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -335,12 +336,31 @@ func (s *Server) startSession(ctx context.Context, w http.ResponseWriter, r *htt
 	return nil
 }
 
+// maxNextLength bounds a redirect target carried through a form.
+const maxNextLength = 2048
+
 // safeNext only allows same-site relative redirect targets.
+//
+// A prefix check is not enough on its own. Browsers read a backslash as a
+// slash and drop tabs and newlines from URLs, so "/\evil.example" and
+// "/<TAB>/evil.example" both arrive at another site. So the target has to be
+// plain printable ASCII with no backslash, and has to parse as a path with no
+// scheme and no host.
 func safeNext(next string) string {
-	if next == "" {
+	if next == "" || len(next) > maxNextLength {
 		return ""
 	}
 	if !strings.HasPrefix(next, "/") || strings.HasPrefix(next, "//") {
+		return ""
+	}
+	for i := 0; i < len(next); i++ {
+		if c := next[i]; c <= ' ' || c >= 0x7f || c == '\\' {
+			return ""
+		}
+	}
+	parsed, err := url.Parse(next)
+	if err != nil || parsed.Scheme != "" || parsed.Host != "" || parsed.User != nil ||
+		parsed.Opaque != "" || !strings.HasPrefix(parsed.Path, "/") {
 		return ""
 	}
 	return next
