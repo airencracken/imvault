@@ -1,0 +1,330 @@
+[
+    {
+        "name": "provider links only confirmed addresses",
+        "file": "internal/web/handlers_oidc.go",
+        "before": "\t\tif user.EmailVerified {",
+        "after": "\t\tif true {",
+        "package": "./internal/web",
+        "run": "^TestOIDCDoesNotLinkToAnUnconfirmedLocalAddress$"
+    },
+    {
+        "name": "emailed links need a base URL",
+        "file": "internal/web/helpers.go",
+        "before": "\tif s.cfg.BaseURL == \"\" {\n\t\treturn \"\", errNoBaseURL",
+        "after": "\tif false {\n\t\treturn \"\", errNoBaseURL",
+        "package": "./internal/web",
+        "run": "^TestEmailedLinksNeedABaseURL$"
+    },
+    {
+        "name": "album API lists only visible files",
+        "file": "internal/web/api_albums.go",
+        "before": "\t\tVisibleTo: &user.ID,\n",
+        "after": "",
+        "package": "./internal/web",
+        "run": "^TestAPIAlbumListingAuthorizationMatrix$"
+    },
+    {
+        "name": "album API withholds hidden details",
+        "file": "internal/web/api_albums.go",
+        "before": "\t\tif !canChangeFile(user, f) {",
+        "after": "\t\tif false {",
+        "package": "./internal/web",
+        "run": "^TestAPIAlbumListingAuthorizationMatrix$"
+    },
+    {
+        "name": "redirect targets refuse backslashes",
+        "file": "internal/web/handlers_auth.go",
+        "before": "c >= 0x7f || c == '\\\\' {",
+        "after": "c >= 0x7f {",
+        "package": "./internal/web",
+        "run": "^TestSafeNextRefusesEverythingElse$"
+    },
+    {
+        "name": "tokenless multipart reads only its first part",
+        "file": "internal/web/middleware.go",
+        "before": "\treturn firstPartToken(r)\n}",
+        "after": "\treturn \"\", r.ParseMultipartForm(multipartMemory)\n}",
+        "package": "./internal/web",
+        "run": "^TestTokenlessMultipartReadsOnlyTheFirstPart$"
+    },
+    {
+        "name": "passwordless accounts must confirm first",
+        "file": "internal/web/reauth.go",
+        "before": "\t\tif s.recentlyReauthenticated(r, user) {",
+        "after": "\t\tif true {",
+        "package": "./internal/web",
+        "run": "^TestProviderAccountsHaveNoPasswordToAskFor$"
+    },
+    {
+        "name": "a confirmation is bound to its session",
+        "file": "internal/web/reauth.go",
+        "before": "proof.Session == session &&",
+        "after": "true &&",
+        "package": "./internal/web",
+        "run": "^TestConfirmationIsBoundToSessionAndWindow$"
+    },
+    {
+        "name": "the last way in cannot be removed",
+        "file": "internal/web/handlers_account.go",
+        "before": "\tif len(identities) <= 1 {",
+        "after": "\tif len(identities) < 0 {",
+        "package": "./internal/web",
+        "run": "^TestTheLastWayInCannotBeDisconnected$"
+    },
+    {
+        "name": "provider accounts start without a password",
+        "file": "internal/store/identities.go",
+        "before": "`UPDATE users SET password_set = 0 WHERE id = ?`",
+        "after": "`UPDATE users SET password_set = password_set WHERE id = ?`",
+        "package": "./internal/store",
+        "run": "^TestProviderAccountsStartWithoutAPassword$"
+    },
+    {
+        "name": "provider accounts record their invitation",
+        "file": "internal/store/identities.go",
+        "before": "\t\t\tin, err = invitedUser(ctx, tx, in, *inviteID)",
+        "after": "\t\t\terr = redeemInvite(ctx, tx, *inviteID)",
+        "package": "./internal/store",
+        "run": "^TestProviderAccountsRecordTheirInvitation$"
+    },
+    {
+        "name": "member invitations are capped",
+        "file": "internal/web/handlers_admin_invites.go",
+        "before": "\tcase limited && (parsed < 1 || parsed > memberMaxInviteUses):",
+        "after": "\tcase false:",
+        "package": "./internal/web",
+        "run": "^TestMemberInvitationsAreCapped$"
+    },
+    {
+        "name": "album reports record the album id",
+        "file": "internal/web/handlers_moderation.go",
+        "before": "\t\ttargetID = albumReportTarget(album)\n",
+        "after": "",
+        "package": "./internal/web",
+        "run": "^TestAnAlbumReportStillReachesItsAlbum$"
+    },
+    {
+        "name": "plain delete forms get a real redirect",
+        "file": "internal/web/handlers_files.go",
+        "before": "\tcase isHTMX(r) && next != \"\":",
+        "after": "\tcase next != \"\":",
+        "package": "./internal/web",
+        "run": "^TestPlainDeleteFormRedirects$"
+    },
+    {
+        "name": "a failed export is aborted",
+        "file": "internal/web/handlers_export.go",
+        "before": "\t\t\ts.abortExport(user, file.ID, \"write file\", err)",
+        "after": "\t\t\tcontinue",
+        "package": "./internal/web",
+        "run": "^TestAFailedExportIsNotAValidArchive$"
+    },
+    {
+        "name": "queued mail is claimed before delivery",
+        "file": "internal/web/mailqueue.go",
+        "before": "\tclaimed, err := q.store.ClaimMail(ctx, record.ID, claimedAt, claimedAt.Add(mailClaimLease))",
+        "after": "\tclaimed, err := !claimedAt.IsZero(), error(nil)",
+        "package": "./internal/web",
+        "run": "^TestASlowDeliveryIsNotSentTwice$"
+    },
+    {
+        "name": "reset requests share the sign-in budget",
+        "file": "internal/web/server.go",
+        "before": "s.rateLimitLogins(s.handleForgot)",
+        "after": "s.handleForgot",
+        "package": "./internal/web",
+        "run": "^TestCredentialRoutesShareTheSignInBudget$"
+    },
+    {
+        "name": "flash messages are signed",
+        "file": "internal/web/flash.go",
+        "before": "\t\thmac.Equal([]byte(sig), []byte(s.flashSignature(flashNotice,",
+        "after": "\t\ttrue || hmac.Equal([]byte(sig), []byte(s.flashSignature(flashNotice,",
+        "package": "./internal/web",
+        "run": "^TestTamperedFlashMessagesAreNotShown$"
+    },
+    {
+        "name": "forwarded scheme needs a trusted proxy",
+        "file": "internal/web/helpers.go",
+        "before": "\treturn s.clients().ForwardedHTTPS(r)\n",
+        "after": "\treturn r.TLS != nil || strings.EqualFold(r.Header.Get(\"X-Forwarded-Proto\"), \"https\")\n",
+        "package": "./internal/web",
+        "run": "^TestForwardedProtoNeedsATrustedProxy$"
+    },
+    {
+        "name": "client addresses come only through configured proxies",
+        "file": "internal/web/middleware.go",
+        "before": "\treturn clientip.Resolver{Trusted: s.cfg.TrustedProxies}\n",
+        "after": "\treturn clientip.Resolver{Trusted: []netip.Prefix{netip.MustParsePrefix(\"0.0.0.0/0\"), netip.MustParsePrefix(\"::/0\")}}\n",
+        "package": "./internal/web",
+        "run": "^TestClientIPBelievesOnlyConfiguredProxies$"
+    },
+    {
+        "name": "pages refuse to be framed",
+        "file": "internal/web/middleware.go",
+        "before": "\t\theader.Set(\"X-Frame-Options\", \"DENY\")\n",
+        "after": "",
+        "package": "./internal/web",
+        "run": "^TestEveryResponseCarriesSecurityHeaders$"
+    },
+    {
+        "name": "CSRF tokens are bound to the session",
+        "file": "internal/web/middleware.go",
+        "before": "\t\ttoken = sessionCSRFToken(session.Value)",
+        "after": "\t\t_ = session",
+        "package": "./internal/web",
+        "run": "^TestPlantedCSRFCookieIsRefusedForASession$"
+    },
+    {
+        "name": "enabling a second factor rotates the session",
+        "file": "internal/web/handlers_twofactor.go",
+        "before": "\tr, err = s.rotateSession(w, r, user.ID)",
+        "after": "\terr = nil",
+        "package": "./internal/web",
+        "run": "^TestEnablingTwoFactorRotatesTheSession$"
+    },
+    {
+        "name": "the enrolment code is spent",
+        "file": "internal/web/handlers_twofactor.go",
+        "before": "s.store.EnableTOTP(r.Context(), user.ID, user.TOTPSecret, step)",
+        "after": "s.store.EnableTOTP(r.Context(), user.ID, user.TOTPSecret, step-step)",
+        "package": "./internal/web",
+        "run": "^TestTheEnrolmentCodeIsSpent$"
+    },
+    {
+        "name": "next survives the second factor safely",
+        "file": "internal/web/handlers_twofactor.go",
+        "before": "\tnext := safeNext(r.PostFormValue(\"next\"))",
+        "after": "\tnext := r.PostFormValue(\"next\")",
+        "package": "./internal/web",
+        "run": "^TestNextSurvivesTheSecondFactor$"
+    },
+    {
+        "name": "uploads join only contributable albums",
+        "file": "internal/web/handlers_upload.go",
+        "before": "\tif err != nil || !canContributeToAlbum(user, album) {",
+        "after": "\tif err != nil {",
+        "package": "./internal/web",
+        "run": "^TestUploadingIntoAnAlbumFollowsTheAlbumRules$"
+    },
+    {
+        "name": "recovery codes discard biased bytes",
+        "file": "internal/web/handlers_twofactor.go",
+        "before": "\t\tif buf[0] >= limit {",
+        "after": "\t\tif buf[0] >= limit && limit == 0 {",
+        "package": "./internal/web",
+        "run": "^TestRecoveryCodesRejectBiasedBytes$"
+    },
+    {
+        "name": "administrator limits cannot overflow",
+        "file": "internal/web/handlers_admin.go",
+        "before": "value < 0 || value > maxAdminMegabytes {",
+        "after": "value < 0 {",
+        "package": "./internal/web",
+        "run": "^TestAdminMegabytesRefusesOverflow$"
+    },
+    {
+        "name": "clean copies wait for the content lock",
+        "file": "internal/web/metadata.go",
+        "before": "\tunlock, err := s.content.acquire(ctx, file.SHA256)",
+        "after": "\tunlock, err := func() {}, error(nil)",
+        "package": "./internal/web",
+        "run": "^TestCleanCopyWaitsForTheContentLock$"
+    },
+    {
+        "name": "administrator API removals are logged",
+        "file": "internal/web/api.go",
+        "before": "\ts.recordFileRemoval(r.Context(), currentUser(r.Context()), file, \"\")\n",
+        "after": "",
+        "package": "./internal/web",
+        "run": "^TestAPIRemovalsReachTheModerationLog$"
+    },
+    {
+        "name": "secure cookies take the __Host- prefix",
+        "file": "internal/web/helpers.go",
+        "before": "\tif s.secureCookies(r) {\n\t\treturn hostCookiePrefix + name",
+        "after": "\tif false {\n\t\treturn hostCookiePrefix + name",
+        "package": "./internal/web",
+        "run": "^TestSessionAndCSRFCookieNamesFollowTheMode$"
+    },
+    {
+        "name": "a session is read only under its mode's name",
+        "file": "internal/web/middleware.go",
+        "before": "\t\tc, err := r.Cookie(s.cookieName(r, sessionCookie))",
+        "after": "\t\tc, err := r.Cookie(sessionCookie)",
+        "package": "./internal/web",
+        "run": "^TestWrongModeCookiesAreIgnored$"
+    },
+    {
+        "name": "a CSRF cookie is read only under its mode's name",
+        "file": "internal/web/middleware.go",
+        "before": "\tif c, err := r.Cookie(s.cookieName(r, csrfCookie)); err == nil {",
+        "after": "\tif c, err := r.Cookie(csrfCookie); err == nil {",
+        "package": "./internal/web",
+        "run": "^TestWrongModeCookiesAreIgnored$"
+    },
+    {
+        "name": "sign-out clears the cookie it set",
+        "file": "internal/web/middleware.go",
+        "before": "\t\tName:     s.cookieName(r, sessionCookie),\n\t\tValue:    \"\",",
+        "after": "\t\tName:     sessionCookie,\n\t\tValue:    \"\",",
+        "package": "./internal/web",
+        "run": "^TestSessionAndCSRFCookieNamesFollowTheMode$"
+    },
+    {
+        "name": "a newer database is refused",
+        "file": "internal/db/db.go",
+        "before": "\tif len(unknown) != 0 {",
+        "after": "\tif false {",
+        "package": "./internal/db",
+        "run": "^TestOpenRefusesADatabaseFromANewerImvault$"
+    },
+    {
+        "name": "a newer database is refused before migrating",
+        "file": "internal/db/db.go",
+        "before": "\tpending, err := pendingAgainst(applied)\n\tif err != nil {\n\t\treturn err\n\t}\n\tfor _, name := range pending {\n\t\tif err := applyMigration(ctx, sqlDB, name); err != nil {\n\t\t\treturn err\n\t\t}\n\t}\n\treturn nil\n}",
+        "after": "\tpending, _ := embeddedMigrations()\n\tfor _, name := range pending {\n\t\tif applied[name] {\n\t\t\tcontinue\n\t\t}\n\t\tif err := applyMigration(ctx, sqlDB, name); err != nil {\n\t\t\treturn err\n\t\t}\n\t}\n\t_, err = pendingAgainst(applied)\n\treturn err\n}",
+        "package": "./internal/db",
+        "run": "^TestANewerDatabaseIsNotMigratedFurther$"
+    },
+    {
+        "name": "every command refuses a newer database",
+        "file": "internal/db/db.go",
+        "before": "\t\treturn nil, &NewerSchemaError{Unknown: unknown}",
+        "after": "\t\treturn nil, nil",
+        "package": "./cmd/imvault",
+        "run": "^TestEveryDatabaseCommandRefusesANewerDatabase$"
+    },
+    {
+        "name": "backup does not migrate",
+        "file": "cmd/imvault/maintenance.go",
+        "before": "\t\treturn db.OpenCurrent",
+        "after": "\t\treturn db.Open",
+        "package": "./cmd/imvault",
+        "run": "^TestBackupDoesNotMigrateAnOlderDatabase$"
+    },
+    {
+        "name": "restore refuses a newer backup",
+        "file": "internal/maintenance/backup.go",
+        "before": "\tif _, err := db.Pending(ctx, database); err != nil {",
+        "after": "\tif _, err := db.Pending(ctx, database); err != nil && false {",
+        "package": "./internal/maintenance",
+        "run": "^TestRestoreRefusesABackupFromANewerImvault$"
+    },
+    {
+        "name": "anonymous upload keys group IPv6 by network",
+        "file": "internal/web/middleware.go",
+        "before": "\treturn \"ip:\" + clientip.NetworkKey(s.clientIP(r))",
+        "after": "\treturn \"ip:\" + s.clientIP(r).String()",
+        "package": "./internal/web",
+        "run": "^TestAnonymousRateLimitKeysGroupIPv6ByNetwork$"
+    },
+    {
+        "name": "sign-in keys group IPv6 by network",
+        "file": "internal/web/middleware.go",
+        "before": "key := \"login:\" + clientip.NetworkKey(s.clientIP(r))",
+        "after": "key := \"login:\" + s.clientIP(r).String()",
+        "package": "./internal/web",
+        "run": "^TestSignInBudgetIsSharedAcrossAnIPv6Network$"
+    }
+]

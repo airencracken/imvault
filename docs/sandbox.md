@@ -123,7 +123,8 @@ Size `MemoryMax=` (systemd) or the container's memory with
 `make test-sandbox` requires real Bubblewrap namespaces. It tests hidden host
 files, environment filtering, writable data, retained server networking and
 graceful shutdown. Setup failures fail the tests rather than skipping them.
-`make test-sandbox-mutations` checks deliberate policy regressions.
+`make test-sandbox-mutations` checks deliberate policy regressions, from
+`scripts/mutations/sandbox.json`; `make test-mutations` runs every table.
 
 ## Media subprocesses
 

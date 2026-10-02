@@ -28,13 +28,23 @@ DIST_FILES := cmd internal docs go.mod go.sum Makefile README.md LICENSE \
 	compose-up compose-down test-browser
 
 .PHONY: release-check release-snapshot test-proxies
-.PHONY: test-invitation-mutations test-web-mutations
+.PHONY: test-invitation-mutations test-web-mutations test-settings-mutations test-mutations
+
+# The mutation engine is comfylib's tools/mutate.py, copied to scripts/ because
+# it runs from a copy of the tree with the module proxy off. Each table lists
+# deliberate defects the named test must catch.
+MUTATE := GOWORK=off python3 scripts/mutate.py
 
 test-web-mutations: ## Check the web regression tests against deliberate security regressions
-	python3 scripts/test-web-mutations.py
+	$(MUTATE) scripts/mutations/web.json
 
 test-invitation-mutations: ## Check invitation tests against deliberate permission regressions
-	python3 scripts/test-invitation-mutations.py
+	$(MUTATE) scripts/mutations/invitation.json
+
+test-settings-mutations: ## Check configuration, mail, rate-limit, key and service-account regressions
+	$(MUTATE) scripts/mutations/settings.json
+
+test-mutations: test-sandbox-mutations test-invitation-mutations test-web-mutations test-settings-mutations ## Run every mutation table
 
 test-proxies: ## Test nginx and Apache TLS proxy examples (needs both servers)
 	go test $(GOFLAGS) -tags=proxyintegration -count=1 -timeout=60s ./contrib/proxy
@@ -194,5 +204,5 @@ clean-demo: ## Remove the demo data directory
 test-sandbox: ## Require real Bubblewrap boundary and lifecycle tests (Linux)
 	COMFYWARE_SANDBOX_TEST=1 go test $(GOFLAGS) -race -count=1 ./internal/media ./internal/web ./cmd/imvault -run 'Sandbox|Real|MediaArgument'
 
-test-sandbox-mutations: ## Verify sandbox regressions reject deliberate defects (Python 3)
-	python3 scripts/test-sandbox-mutations.py
+test-sandbox-mutations: ## Verify sandbox regressions reject deliberate defects (needs bwrap)
+	$(MUTATE) scripts/mutations/sandbox.json

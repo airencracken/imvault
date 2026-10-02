@@ -1,0 +1,154 @@
+[
+    {
+        "name": "trusted proxies are parsed",
+        "file": "internal/config/config.go",
+        "before": "\tc.TrustedProxies = proxies\n",
+        "after": "\tc.TrustedProxies = proxies[:0]\n",
+        "package": "./internal/config",
+        "run": "^TestTrustedProxiesMatrix$"
+    },
+    {
+        "name": "invalid trusted proxies stop startup",
+        "file": "internal/config/config.go",
+        "before": "\tproxies, err := clientip.ParseTrusted(getenv(\"IMVAULT_TRUSTED_PROXIES\", \"\"), \"IMVAULT_TRUSTED_PROXIES\")\n\tif err != nil {\n\t\treturn err\n\t}",
+        "after": "\tproxies, _ := clientip.ParseTrusted(getenv(\"IMVAULT_TRUSTED_PROXIES\", \"\"), \"IMVAULT_TRUSTED_PROXIES\")",
+        "package": "./internal/config",
+        "run": "^TestInvalidTrustedProxiesStopStartup$"
+    },
+    {
+        "name": "the replaced proxy setting is refused",
+        "file": "internal/config/config.go",
+        "before": "\tif _, set := os.LookupEnv(\"IMVAULT_TRUST_PROXY_HEADERS\"); set {",
+        "after": "\tif false {",
+        "package": "./internal/config",
+        "run": "^TestTheReplacedProxySettingStopsStartup$"
+    },
+    {
+        "name": "the replaced proxy setting is refused even when false",
+        "file": "internal/config/config.go",
+        "before": "\tif _, set := os.LookupEnv(\"IMVAULT_TRUST_PROXY_HEADERS\"); set {",
+        "after": "\tif os.Getenv(\"IMVAULT_TRUST_PROXY_HEADERS\") == \"true\" {",
+        "package": "./internal/config",
+        "run": "^TestTheReplacedProxySettingStopsStartup$"
+    },
+    {
+        "name": "the sender is checked at startup",
+        "file": "internal/config/config.go",
+        "before": "\tfrom, err := smtp.ParseFrom(c.SMTPFrom)",
+        "after": "\tfrom, err := c.SMTPFrom, error(nil)",
+        "package": "./internal/config",
+        "run": "^TestMalformedSMTPFromIsRefused$"
+    },
+    {
+        "name": "the sender is kept in canonical form",
+        "file": "internal/config/config.go",
+        "before": "\tc.SMTPFrom = from\n",
+        "after": "\t_ = from\n",
+        "package": "./internal/config",
+        "run": "^TestSMTPFromIsCheckedAndCanonicalAtStartup$"
+    },
+    {
+        "name": "an unknown TLS mode stops startup",
+        "file": "internal/config/config.go",
+        "before": "\tmode, err := smtp.ParseTLSMode(getenv(\"IMVAULT_SMTP_TLS\", string(smtp.TLSStartTLS)))",
+        "after": "\tmode, err := smtp.TLSMode(getenv(\"IMVAULT_SMTP_TLS\", string(smtp.TLSStartTLS))), error(nil)",
+        "package": "./internal/config",
+        "run": "^TestUnknownSMTPTLSModesAreRefused$"
+    },
+    {
+        "name": "an invalid relay stops startup",
+        "file": "cmd/imvault/main.go",
+        "before": "\t\tMode:     cfg.SMTPTLS,\n\t})\n\tif err != nil {\n\t\treturn nil, err\n\t}",
+        "after": "\t\tMode:     cfg.SMTPTLS,\n\t})\n\t_ = err",
+        "package": "./cmd/imvault",
+        "run": "^TestAConfiguredRelayIsQueuedAndAnInvalidOneStopsStartup$"
+    },
+    {
+        "name": "the rate limiter is capped",
+        "file": "internal/ratelimit/ratelimit.go",
+        "before": "\tfor len(l.buckets) >= l.maxKeys {",
+        "after": "\tfor false {",
+        "package": "./internal/ratelimit",
+        "run": "^TestAFloodOfNewKeysCannotFreeAnActiveOne$"
+    },
+    {
+        "name": "the default limiter has a cap",
+        "file": "internal/ratelimit/ratelimit.go",
+        "before": "\t\tmaxKeys: defaultMaxKeys,",
+        "after": "\t\tmaxKeys: 1 << 30,",
+        "package": "./internal/ratelimit",
+        "run": "^TestTheDefaultLimiterIsCapped$"
+    },
+    {
+        "name": "the least recently used key is evicted",
+        "file": "internal/ratelimit/ratelimit.go",
+        "before": "\t\tl.removeLocked(l.order.Back())",
+        "after": "\t\tl.removeLocked(l.order.Front())",
+        "package": "./internal/ratelimit",
+        "run": "^TestTheLeastRecentlyUsedKeyIsTheOneForgotten$"
+    },
+    {
+        "name": "a used key becomes the most recent",
+        "file": "internal/ratelimit/ratelimit.go",
+        "before": "\t\tl.order.MoveToFront(element)\n",
+        "after": "",
+        "package": "./internal/ratelimit",
+        "run": "^TestAFloodOfNewKeysCannotFreeAnActiveOne$"
+    },
+    {
+        "name": "existing key files keep their hex form",
+        "file": "internal/secrets/secrets.go",
+        "before": "keyfile.LoadOrCreate(keyFile, KeySize, keyfile.Hex)",
+        "after": "keyfile.LoadOrCreate(keyFile, KeySize, keyfile.Raw)",
+        "package": "./internal/secrets",
+        "run": "^TestExistingKeyFilesKeepDecryptingStoredSecrets$"
+    },
+    {
+        "name": "IMVAULT_SECRET_KEY keeps its forms",
+        "file": "internal/secrets/secrets.go",
+        "before": "keyfile.Decode([]byte(explicitKey), KeySize, keyfile.Hex)",
+        "after": "keyfile.Decode([]byte(explicitKey), KeySize, keyfile.Raw)",
+        "package": "./internal/secrets",
+        "run": "^TestExistingSecretKeyValuesKeepDecryptingStoredSecrets$"
+    },
+    {
+        "name": "a re-run command gets the default database",
+        "file": "cmd/imvault/service.go",
+        "before": "filepath.Join(dataDir, \"imvault.db\")",
+        "after": "filepath.Join(dataDir, \"other.db\")",
+        "package": "./cmd/imvault",
+        "run": "^TestChildDatabaseIsResolvedBeforeDroppingPrivileges$"
+    },
+    {
+        "name": "backup runs as the service account",
+        "file": "cmd/imvault/service.go",
+        "before": "\t\"backup\":             true,\n",
+        "after": "",
+        "package": "./cmd/imvault",
+        "run": "^TestCommandsThatWriteTheInstanceRunAsTheServiceUser$"
+    },
+    {
+        "name": "maintenance refuses root",
+        "file": "cmd/imvault/service.go",
+        "before": "privdrop.RefuseRoot(geteuid(), command,",
+        "after": "privdrop.RefuseRoot(1000, command,",
+        "package": "./cmd/imvault",
+        "run": "^TestMaintenanceRefusesRootWithoutAServiceToBecome$"
+    },
+    {
+        "name": "go.mod refuses replace directives",
+        "file": "scripts/module_test.go",
+        "before": "\t\tcase \"replace\":",
+        "after": "\t\tcase \"replace-never\":",
+        "package": "./scripts",
+        "run": "^TestModuleCheckRejectsReplacementsAndUnpinnedVersions$"
+    },
+    {
+        "name": "comfylib is pinned to a release",
+        "file": "scripts/module_test.go",
+        "before": "\t\t\t\tif !releaseVersion.MatchString(fields[2]) {",
+        "after": "\t\t\t\tif false {",
+        "package": "./scripts",
+        "run": "^TestModuleCheckRejectsReplacementsAndUnpinnedVersions$"
+    }
+]
