@@ -18,6 +18,14 @@ import (
 // the code an authenticator app would be showing right now.
 func (h *harness) totpCodeFor(t *testing.T, userID int64) string {
 	t.Helper()
+	return h.totpCodeAt(t, userID, time.Now())
+}
+
+// totpCodeAt returns the code for another moment. Enrolment records the step it
+// was confirmed with, so tests that go on to sign in confirm with the previous
+// step's code, as a slightly slow phone would.
+func (h *harness) totpCodeAt(t *testing.T, userID int64, at time.Time) string {
+	t.Helper()
 
 	user, err := h.store.UserByID(t.Context(), userID)
 	if err != nil {
@@ -27,7 +35,7 @@ func (h *harness) totpCodeFor(t *testing.T, userID int64) string {
 	if err != nil {
 		t.Fatalf("decrypt secret: %v", err)
 	}
-	code, err := totp.Code(secret, time.Now())
+	code, err := totp.Code(secret, at)
 	if err != nil {
 		t.Fatalf("generate code: %v", err)
 	}
@@ -50,7 +58,7 @@ func (h *harness) enableTwoFactorFor(t *testing.T, userID int64) string {
 	if err := h.store.BeginTOTP(t.Context(), userID, encrypted); err != nil {
 		t.Fatal(err)
 	}
-	if err := h.store.EnableTOTP(t.Context(), userID); err != nil {
+	if err := h.store.EnableTOTP(t.Context(), userID, encrypted, 0); err != nil {
 		t.Fatal(err)
 	}
 	return secret
@@ -79,7 +87,7 @@ func (h *harness) enableTwoFactor(t *testing.T, userID int64) []string {
 
 	resp, page := h.postForm("/settings/2fa/confirm", url.Values{
 		"csrf_token": {h.csrf()},
-		"code":       {h.totpCodeFor(t, userID)},
+		"code":       {h.totpCodeAt(t, userID, time.Now().Add(-totp.Period))},
 	})
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("confirm = %d, want the rendered page", resp.StatusCode)
