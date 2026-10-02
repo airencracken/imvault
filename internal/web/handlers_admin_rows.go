@@ -5,6 +5,7 @@ package web
 import (
 	"bytes"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"imvault/internal/models"
@@ -33,12 +34,28 @@ func (s *Server) adminUserRowFor(r *http.Request, user *models.User, errMsg stri
 }
 
 // adminMailRowFor builds the row for one queued message.
+//
+// The queue page is for seeing what was sent and whether it arrived, not for
+// reading it. An undelivered reset or confirmation message carries a live
+// token, so the row gets a copy with no body and with any such link in the
+// relay's error text redacted.
 func (s *Server) adminMailRowFor(r *http.Request, message *models.OutboundMail) adminMailRow {
+	shown := *message
+	shown.Body = ""
+	shown.LastError = redactTokenLinks(shown.LastError)
 	return adminMailRow{
-		Message:   message,
+		Message:   &shown,
 		CSRFToken: csrfToken(r.Context()),
 		Search:    strings.ToLower(message.Recipient + " " + message.Subject + " " + message.MailStatus()),
 	}
+}
+
+// tokenLink matches the path of an emailed one-time link.
+var tokenLink = regexp.MustCompile(`(` + regexp.QuoteMeta(resetPath) + `|` + regexp.QuoteMeta(verifyPath) + `)[A-Za-z0-9_-]+`)
+
+// redactTokenLinks hides the token in any reset or confirmation link.
+func redactTokenLinks(text string) string {
+	return tokenLink.ReplaceAllString(text, "${1}[redacted]")
 }
 
 // adminUserRows loads the account list in the shape the table expects.

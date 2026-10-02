@@ -22,7 +22,8 @@ const (
 	// A member trusted with invitations is trusted to bring in a few people,
 	// not to reopen registration. Their codes admit at most this many accounts
 	// and lapse within this many days; only an administrator can mint an
-	// unlimited or long-lived one.
+	// unlimited or long-lived one. The store enforces the same bounds; these
+	// are checked first so the form can say which bound was crossed.
 	memberMaxInviteUses = 25
 	memberMaxInviteDays = 30
 
