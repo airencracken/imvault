@@ -28,6 +28,8 @@ var (
 )
 
 const (
+	// sessionCookie and csrfCookie are the names over plain HTTP. Secure
+	// responses use them with hostCookiePrefix; see cookieName.
 	sessionCookie = "imvault_session"
 	csrfCookie    = "imvault_csrf"
 	csrfHeader    = "X-CSRF-Token"
@@ -127,6 +129,24 @@ func (s *Server) secureRequest(r *http.Request) bool {
 // Secure flag.
 func (s *Server) secureCookies(r *http.Request) bool {
 	return s.cfg.SecureCookies || s.secureRequest(r)
+}
+
+// hostCookiePrefix makes a browser accept a cookie only when it is Secure, has
+// Path=/ and names no Domain. A sibling subdomain, or a page on the same host
+// reached over plain HTTP, can then neither set nor overwrite it, which is
+// what planting a session or CSRF token would take.
+const hostCookiePrefix = "__Host-"
+
+// cookieName is the name the session and CSRF cookies have on this request.
+// Plain HTTP cannot carry a __Host- cookie, so local development keeps the
+// bare name. Only the name for the request's own mode is ever read: a bare
+// cookie presented over HTTPS may have been set by anyone who could reach the
+// host over HTTP, and is ignored.
+func (s *Server) cookieName(r *http.Request, name string) string {
+	if s.secureCookies(r) {
+		return hostCookiePrefix + name
+	}
+	return name
 }
 
 // base builds the common template data for a request.

@@ -83,6 +83,15 @@ Cookies are `HttpOnly` and `SameSite=Lax`, and `Secure` when
 matters behind TLS**: without it a cookie can be read off a plaintext
 connection.
 
+A `Secure` session or CSRF cookie is named with the `__Host-` prefix
+(`__Host-imvault_session`, `__Host-imvault_csrf`), and has `Path=/` and no
+`Domain`. Browsers then refuse to let a sibling subdomain, or a page on the
+same host served over plain HTTP, set or overwrite it, which closes the usual
+way of planting a session or token. Over plain HTTP, as in local development,
+the cookies keep their bare names, since a browser will not store a `__Host-`
+cookie without `Secure`. The server reads only the name for the request's own
+mode: a bare cookie on an HTTPS request is ignored.
+
 Every response carries `X-Content-Type-Options: nosniff`,
 `X-Frame-Options: DENY`, `Content-Security-Policy: frame-ancestors 'none'` and
 `Referrer-Policy: same-origin`, so uploads are served as the type they were
