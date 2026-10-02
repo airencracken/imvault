@@ -171,7 +171,7 @@ func load(dataDirOverride, dbPathOverride string) (*Config, error) {
 	}
 
 	c := &Config{
-		Name:                  getenv("IMVAULT_NAME", "imvault"),
+		Name:                  getenv("IMVAULT_NAME", "Imvault"),
 		Addr:                  getenv("IMVAULT_ADDR", ":8080"),
 		DataDir:               dataDir,
 		BaseURL:               strings.TrimRight(getenv("IMVAULT_BASE_URL", ""), "/"),

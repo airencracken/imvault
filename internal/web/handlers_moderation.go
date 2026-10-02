@@ -113,7 +113,7 @@ func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
 	case models.TargetFile:
 		file, err := s.store.FileByID(r.Context(), targetID)
 		if err != nil || !canViewFile(user, file) {
-			s.notFound(w, r, "That image does not exist.")
+			s.notFound(w, r, "That file does not exist.")
 			return
 		}
 		back = "/f/" + file.ID

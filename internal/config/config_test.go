@@ -194,7 +194,7 @@ func TestWhiteboxIdentityHasSourceLinkDefaultsAndEnvironmentOverrides(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Name != "imvault" || cfg.SourceURL != "https://github.com/airencracken/imvault" {
+	if cfg.Name != "Imvault" || cfg.SourceURL != "https://github.com/airencracken/imvault" {
 		t.Fatalf("identity defaults = %q / %q", cfg.Name, cfg.SourceURL)
 	}
 

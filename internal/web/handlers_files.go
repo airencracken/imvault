@@ -237,7 +237,7 @@ func (s *Server) handleFileDelete(w http.ResponseWriter, r *http.Request) {
 	// object can be retried, whereas orphaned bytes are recoverable.
 	if err := s.deleteFileAndRelease(r.Context(), file); err != nil {
 		s.log.Error("delete file", "id", file.ID, "error", err)
-		http.Error(w, "could not delete the image", http.StatusInternalServerError)
+		http.Error(w, "could not delete the file", http.StatusInternalServerError)
 		return
 	}
 	s.recordFileRemoval(r.Context(), currentUser(r.Context()), file, "")

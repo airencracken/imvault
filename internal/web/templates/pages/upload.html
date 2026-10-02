@@ -2,7 +2,7 @@
 <header class="page-head">
   <h1>Upload</h1>
   <p class="muted">
-    Images and animations up to {{.MaxUploadMB}} MiB.
+    Photos and animations up to {{.MaxUploadMB}} MiB.
     {{if .VideoEnabled}}
       Clips up to {{.MaxVideoMB}} MiB and {{.MaxVideoSeconds}} seconds
       (WebM, MP4, MOV). GIFs keep their animation.
@@ -22,7 +22,7 @@
   <div id="dropzone" class="dropzone">
     <input id="file-input" class="sr-only" type="file" name="files" multiple
            accept="image/*,video/webm,video/mp4,video/quicktime">
-    <p class="drop-title">Drop images or clips here</p>
+    <p class="drop-title">Drop photos or clips here</p>
     <p class="muted">or <label class="link" for="file-input">choose files</label> — you can also paste from the clipboard.</p>
     <p id="file-count" class="muted"></p>
   </div>

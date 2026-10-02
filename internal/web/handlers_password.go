@@ -115,15 +115,15 @@ func (s *Server) issueReset(ctx context.Context, user *models.User, reason strin
 	}
 	return s.mail.Send(ctx, mail.Message{
 		To:      user.Email,
-		Subject: "Reset your imvault password",
-		Body:    resetEmailBody(user.Username, link, s.cfg.PasswordResetTTL),
+		Subject: "Reset your " + s.branding().SiteName + " password",
+		Body:    resetEmailBody(s.branding().SiteName, user.Username, link, s.cfg.PasswordResetTTL),
 	})
 }
 
-func resetEmailBody(username, link string, ttl time.Duration) string {
+func resetEmailBody(siteName, username, link string, ttl time.Duration) string {
 	return fmt.Sprintf(`Hello %s,
 
-Somebody asked to reset the password for your imvault account. If that was you,
+Somebody asked to reset the password for your %s account. If that was you,
 open this link to choose a new one:
 
 %s
@@ -132,7 +132,7 @@ The link can only be used once and expires in %s.
 
 If you did not ask for this, you can ignore this message: your password has not
 changed.
-`, username, link, humanDuration(ttl))
+`, username, siteName, link, humanDuration(ttl))
 }
 
 // humanDuration renders a coarse duration for prose.
@@ -430,11 +430,11 @@ func (s *Server) sendVerificationEmail(ctx context.Context, r *http.Request, use
 		Subject: "Confirm your email address",
 		Body: fmt.Sprintf(`Hello %s,
 
-Open this link to confirm this address for your imvault account:
+Open this link to confirm this address for your %s account:
 
 %s
 
 If you did not create an account, you can ignore this message.
-`, user.Username, link),
+`, user.Username, s.branding().SiteName, link),
 	})
 }

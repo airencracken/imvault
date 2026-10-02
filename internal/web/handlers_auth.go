@@ -36,7 +36,7 @@ func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 
 	s.renderPage(w, http.StatusOK, "home", homeView{
 		base: s.base(r, ""),
-		Grid: s.grid(r, recent, false, false, "", "No public images yet."),
+		Grid: s.grid(r, recent, false, false, "", "Nothing public has been shared yet."),
 	})
 }
 
@@ -296,7 +296,7 @@ func (s *Server) finishRegistration(w http.ResponseWriter, r *http.Request, user
 		}
 	}
 
-	s.redirectFlash(w, r, "/gallery", flashNotice, "Welcome to imvault.")
+	s.redirectFlash(w, r, "/gallery", flashNotice, "Welcome to "+s.branding().SiteName+".")
 }
 
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
