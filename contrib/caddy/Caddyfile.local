@@ -1,4 +1,4 @@
-# imvault behind Caddy, over plain HTTP.
+# Imvault behind Caddy, over plain HTTP.
 #
 # For a machine on a trusted network, or for trying the proxy out before
 # pointing a domain at it. There is no TLS here, so a session cookie can be read

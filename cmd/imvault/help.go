@@ -9,7 +9,7 @@ import (
 	"io"
 )
 
-const commandHelp = `imvault - a photo and clip home for your people
+const commandHelp = `Imvault - a photo and clip home for your people
 
 Usage: imvault [COMMAND] [OPTIONS]
 

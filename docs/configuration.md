@@ -22,7 +22,7 @@ settings](#instance-settings) below.
 | `IMVAULT_DATA_DIR` | `./data` | Root for the database and stored objects |
 | `IMVAULT_DB` | `<data>/imvault.db` | SQLite database path |
 | `IMVAULT_BASE_URL` | *(derived from request)* | Absolute prefix used when building share links; required when mail or OpenID Connect is configured |
-| `IMVAULT_NAME` | `imvault` | Default name shown in the page title, header, and footer |
+| `IMVAULT_NAME` | `Imvault` | Default name shown in the page title, header, and footer |
 | `IMVAULT_SOURCE_URL` | `https://github.com/airencracken/imvault` | Source link shown in the footer; set it to an empty value to hide it |
 | `IMVAULT_ALLOW_SIGNUP` | `true` | Whether new accounts can register |
 | `IMVAULT_INVITE_ONLY` | `false` | Whether registering needs an invitation code |
@@ -41,9 +41,9 @@ settings](#instance-settings) below.
 | `IMVAULT_SMTP_PORT` | `587` | Relay port |
 | `IMVAULT_SMTP_USERNAME` | *(empty)* | Skip authentication when empty, for a local relay |
 | `IMVAULT_SMTP_PASSWORD` | *(empty)* | Relay password |
-| `IMVAULT_SMTP_FROM` | `imvault <no-reply@localhost>` | Envelope and header sender |
+| `IMVAULT_SMTP_FROM` | `Imvault <no-reply@localhost>` | Envelope and header sender |
 | `IMVAULT_SMTP_TLS` | `starttls` | `starttls`, `implicit` (port 465) or `none` |
-| `IMVAULT_TOTP_ISSUER` | `imvault` | Name an authenticator app shows for the account |
+| `IMVAULT_TOTP_ISSUER` | `Imvault` | Name an authenticator app shows for the account |
 | `IMVAULT_SECRET_KEY` | *(empty)* | Key for encrypting TOTP secrets; overrides the key file |
 | `IMVAULT_SECRET_KEY_FILE` | `<data>/secret.key` | Where that key is kept, created on first run |
 | `IMVAULT_LOGIN_RATE_PER_HOUR` | `30` | Sign-in attempts per hour per address, shared by password and second-factor steps; `0` disables |
@@ -150,7 +150,7 @@ environment.
 
 The same page lets an administrator customize the site name, footer source
 link, and welcome copy, then upload a favicon and mascot for this instance.
-Images can be PNG, JPEG, or GIF up to 2 MiB; imvault converts them to PNG
+Images can be PNG, JPEG, or GIF up to 2 MiB; Imvault converts them to PNG
 before serving them. The source link starts at `IMVAULT_SOURCE_URL` and can be
 changed or hidden in the page.
 

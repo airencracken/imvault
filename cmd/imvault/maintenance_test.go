@@ -46,7 +46,7 @@ func TestBackupCommandRequiresStoppedInstanceAndRestoresWithoutSourceConfig(t *t
 	}
 	backup := filepath.Join(t.TempDir(), "snapshot")
 	args := []string{"backup", "--output", backup}
-	if err := runCommand(args, nil, io.Discard); err == nil || !strings.Contains(err.Error(), "stop imvault") {
+	if err := runCommand(args, nil, io.Discard); err == nil || !strings.Contains(err.Error(), "stop Imvault") {
 		t.Fatal("backup did not reject running server", err)
 	}
 	if _, err := os.Stat(backup); !os.IsNotExist(err) {

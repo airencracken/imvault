@@ -1,6 +1,6 @@
 # Security
 
-What imvault does to protect an instance, and what it does not. The second list
+What Imvault does to protect an instance, and what it does not. The second list
 is the more useful one.
 
 ## Credentials are stored as digests
@@ -220,7 +220,7 @@ data directory read-only, gives the service a private `/tmp` for the temporary
 copies ffmpeg makes, and drops the privileges that would let it load kernel
 modules, create device nodes, or change the clock.
 
-`SystemCallFilter` is deliberately not set. imvault shells out to ffmpeg for
+`SystemCallFilter` is deliberately not set. Imvault shells out to ffmpeg for
 clip posters, and a filter that turned out to be too tight would break video
 silently rather than loudly. It is a reasonable addition once you have checked
 the journal for `EPERM` after an upload.

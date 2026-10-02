@@ -170,7 +170,7 @@ func matchingProvisioningDBPath(paths provisioningConfigPaths) (string, bool, er
 		return "", false, err
 	}
 	if openRCSet != systemdSet || openRC != systemd {
-		return "", false, fmt.Errorf("OpenRC and systemd configure different database paths; set IMVAULT_DB explicitly or run under the active service manager")
+		return "", false, fmt.Errorf("OpenRC and systemd configure different Imvault database paths; set IMVAULT_DB explicitly or run under the active service manager")
 	}
 	return openRC, openRCSet, nil
 }

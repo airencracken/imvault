@@ -14,5 +14,5 @@ if [ -n "$imvault_missing_tools" ]; then
 		'Video uploads will use placeholder thumbnails and cannot be checked for duration.' \
 		'Install ffmpeg (including ffprobe) to enable video thumbnails.' \
 		'On Gentoo: emerge --ask media-video/ffmpeg' \
-		'Restart imvault after installing; existing placeholders are not regenerated automatically.'
+		'Restart Imvault after installing; existing placeholders are not regenerated automatically.'
 fi

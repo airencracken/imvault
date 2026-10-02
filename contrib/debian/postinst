@@ -10,7 +10,7 @@ case "$1" in
 				--no-create-home --shell /usr/sbin/nologin imvault || exit 1
 		fi
 		if [ "$(id -u imvault)" = 0 ] || [ "$(getent group imvault | cut -d: -f3)" = 0 ]; then
-			echo 'Refusing to run imvault with a root service account or group.' >&2
+			echo 'Refusing to run Imvault with a root service account or group.' >&2
 			exit 1
 		fi
 		install -d -o imvault -g imvault -m 0700 /var/lib/imvault || exit 1

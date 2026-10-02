@@ -1,6 +1,6 @@
 # Media handling
 
-What imvault accepts, and what it does with it.
+What Imvault accepts, and what it does with it.
 
 ## Limits
 
@@ -120,7 +120,7 @@ unless the operator sets `IMVAULT_MAP_URL`, a static-map URL template carrying
 `IMVAULT_MAP_KEY` when the template wants one. Any provider that serves a static
 image by coordinates will do.
 
-imvault fetches the image **server-side** and streams it, so the key never
+Imvault fetches the image **server-side** and streams it, so the key never
 reaches the browser and the content security policy stays `'self'`. The map is
 drawn only when the viewer may see the location, following the same policy as
 the coordinates themselves: a withheld location has no map, not a blank one. The
@@ -198,17 +198,17 @@ so a photo taken on a phone is not shown sideways, and transparency is kept:
 an image with any non-opaque pixel is encoded as PNG, and an opaque one as JPEG.
 
 Animated assets are never re-encoded: the original bytes are served, so quality
-and timing are preserved exactly. Clips are likewise stored untouched — imvault
+and timing are preserved exactly. Clips are likewise stored untouched — Imvault
 is a host, not a transcoder.
 
 ffmpeg is used in two narrow ways for clips: `ffprobe` reads dimensions and
 duration (so the duration limit can be enforced), and `ffmpeg` extracts one
-still frame for the poster. If either binary is missing, imvault logs a warning
+still frame for the poster. If either binary is missing, Imvault logs a warning
 at startup and keeps working — clips are accepted on their magic bytes and get a
 generated placeholder poster.
 
 `make install` also warns when either tool is missing. On Gentoo, install
-`media-video/ffmpeg` and restart imvault so it detects the tools. New uploads then
+`media-video/ffmpeg` and restart Imvault so it detects the tools. New uploads then
 get video posters. To repair existing placeholder posters, stop the service and
 run `imvault rebuild-thumbnails --videos-only` with the service's environment
 and OS user. See [rebuilding thumbnails](storage.md#rebuilding-thumbnails-and-posters).

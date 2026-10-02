@@ -174,7 +174,7 @@ func load(dataDirOverride, dbPathOverride string) (*Config, error) {
 	}
 
 	c := &Config{
-		Name:    getenv("IMVAULT_NAME", "imvault"),
+		Name:    getenv("IMVAULT_NAME", "Imvault"),
 		Addr:    getenv("IMVAULT_ADDR", ":8080"),
 		DataDir: dataDir,
 		BaseURL: strings.TrimRight(getenv("IMVAULT_BASE_URL", ""), "/"),
@@ -204,11 +204,11 @@ func load(dataDirOverride, dbPathOverride string) (*Config, error) {
 		SMTPPort:         env.integer("IMVAULT_SMTP_PORT", 587),
 		SMTPUsername:     getenv("IMVAULT_SMTP_USERNAME", ""),
 		SMTPPassword:     getenv("IMVAULT_SMTP_PASSWORD", ""),
-		SMTPFrom:         getenv("IMVAULT_SMTP_FROM", "imvault <no-reply@localhost>"),
+		SMTPFrom:         getenv("IMVAULT_SMTP_FROM", "Imvault <no-reply@localhost>"),
 		SMTPTLS:          getenv("IMVAULT_SMTP_TLS", "starttls"),
 		PasswordResetTTL: env.duration("IMVAULT_PASSWORD_RESET_TTL", time.Hour),
 		EmailVerifyTTL:   env.duration("IMVAULT_EMAIL_VERIFY_TTL", 24*time.Hour),
-		TOTPIssuer:       getenv("IMVAULT_TOTP_ISSUER", "imvault"),
+		TOTPIssuer:       getenv("IMVAULT_TOTP_ISSUER", "Imvault"),
 		// Kept exactly: discovery compares it byte for byte with what the provider
 		// says its issuer is, and some providers end theirs with a slash.
 		OIDCIssuer:         getenv("IMVAULT_OIDC_ISSUER", ""),

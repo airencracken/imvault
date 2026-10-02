@@ -1,7 +1,7 @@
 # Copyright 2026 Marcus J. Hildum
 # Distributed under the terms of the GNU Affero General Public License v3
 
-# Live ebuild for imvault: builds the master branch.
+# Live ebuild for Imvault: builds the master branch.
 #
 # Gentoo does not read ebuilds from a source tree, so this belongs in an overlay:
 #
@@ -29,7 +29,7 @@ EGIT_REPO_URI="https://github.com/airencracken/imvault.git"
 # The project's default branch is master rather than main.
 EGIT_BRANCH="master"
 
-# imvault, then the licence of every module linked into the binary: Go links
+# Imvault, then the licence of every module linked into the binary: Go links
 # statically, and the eclass asks for this to be accurate. Worked out with
 #
 #   go list -deps -f '{{if .Module}}{{.Module.Path}}{{end}}' ./cmd/imvault
@@ -37,7 +37,7 @@ EGIT_BRANCH="master"
 # which is the list of what actually ends up in the binary rather than
 # everything in the module graph. The Apache-2.0 pair are the OpenID Connect
 # libraries and the BSD-2-Clause one is pkg/errors; nothing here is copyleft
-# beyond imvault's own licence.
+# beyond Imvault's own licence.
 LICENSE="AGPL-3+ Apache-2.0 BSD-2 BSD MIT"
 SLOT="0"
 # A live ebuild has no version to keyword.

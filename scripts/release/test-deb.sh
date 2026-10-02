@@ -55,16 +55,16 @@ grep -q "/usr/bin/$app" "/usr/lib/systemd/system/$app.service" || fail 'Service 
 for setting in StandardOutput=journal StandardError=journal SyslogIdentifier=$app; do
 	grep -qx "$setting" "/usr/lib/systemd/system/$app.service" || fail "Missing journal logging setting: $setting"
 done
-env "$upper"_DATA_DIR="$work/no-data" "/usr/bin/$app" --help > "$work/help" || fail 'Installed help failed.'
+env "${upper}_DATA_DIR=$work/no-data" "/usr/bin/$app" --help > "$work/help" || fail 'Installed help failed.'
 grep -q 'proxy-config' "$work/help" || fail 'Help omits the proxy helper.'
 for proxy in caddy nginx apache; do
-	env "$upper"_DATA_DIR="$work/no-data" "/usr/bin/$app" proxy-config "$proxy" --domain board.example.net > "$work/$proxy.conf" || fail "Installed $proxy helper failed."
-	grep -q 'board.example.net' "$work/$proxy.conf" || fail 'Generated proxy config has the wrong hostname.'
+	env "${upper}_DATA_DIR=$work/no-data" "/usr/bin/$app" proxy-config "$proxy" --domain img.example.net > "$work/$proxy.conf" || fail "Installed $proxy helper failed."
+	grep -q 'img.example.net' "$work/$proxy.conf" || fail 'Generated proxy config has the wrong hostname.'
 done
 [ ! -e "$work/no-data" ] || fail 'Help or config generation created application data.'
 printf '\n# Local operator setting\n%s_ADDR=127.0.0.1:18080\n' "$upper" >> "$config" || exit 1
 cp "$config" "$work/config" || exit 1
-printf 'keep this board\n' > "$data/release-test-marker" || exit 1
+printf 'keep this instance\n' > "$data/release-test-marker" || exit 1
 printf '%s\n' 'release-test-password' | "/usr/bin/$app" create-admin \
 	--username release_test --password-stdin || fail 'Owner provisioning failed.'
 [ "$(stat -c '%U:%G' "$data/imvault.db")" = "$app:$app" ] || fail 'Provisioning did not create the database as the service user.'
@@ -100,7 +100,7 @@ if [ "${RELEASE_SANDBOX_TEST:-0}" = 1 ]; then
 	systemctl restart "$app" || fail 'Sandboxed service startup failed.'
 	health
 	journalctl -u "$app" --after-cursor "$cursor" --no-pager -n 40 > "$work/sandbox-journal" || exit 1
-	grep -Eq 'imvault listening|Witmoot is ready' "$work/sandbox-journal" || fail 'Sandboxed server logs did not reach journald.'
+	grep -q 'Imvault listening' "$work/sandbox-journal" || fail 'Sandboxed server logs did not reach journald.'
 	systemctl stop "$app" || fail 'Sandboxed service did not stop.'
 	[ "$(systemctl show -p Result --value "$app")" = success ] || fail 'Sandboxed shutdown was not graceful.'
 	rm "/etc/systemd/system/$app.service.d/release-sandbox.conf" || exit 1
@@ -141,11 +141,11 @@ dpkg --remove "$app" || fail 'Package removal failed.'
 cmp "$config" "$work/config" || fail 'Removal lost the conffile.'
 dpkg --purge "$app" || fail 'Package purge failed.'
 [ ! -e "$config" ] || fail 'Purge retained package configuration.'
-grep -qx 'keep this board' "$data/release-test-marker" || fail 'Removal or purge deleted application data.'
+grep -qx 'keep this instance' "$data/release-test-marker" || fail 'Removal or purge deleted application data.'
 [ "$(id -u "$app")" = "$service_uid" ] || fail 'Removal or purge changed the service account.'
 dpkg -i "$package" || fail 'Reinstall after purge failed.'
 inactive
-grep -qx 'keep this board' "$data/release-test-marker" || fail 'Reinstall deleted application data.'
+grep -qx 'keep this instance' "$data/release-test-marker" || fail 'Reinstall deleted application data.'
 [ "$(id -u "$app")" = "$service_uid" ] || fail 'Reinstall changed the service account.'
 dpkg --purge "$app" || exit 1
 printf '%s package install, upgrade, removal, purge, and reinstall passed (systemd=%s).\n' "$app" "$init"

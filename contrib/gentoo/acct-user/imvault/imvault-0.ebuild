@@ -5,7 +5,7 @@ EAPI=8
 
 inherit acct-user
 
-DESCRIPTION="Service account for imvault"
+DESCRIPTION="Service account for Imvault"
 KEYWORDS="~amd64 ~arm64"
 # Overlay accounts use dynamically allocated IDs.
 ACCT_USER_ID=-1

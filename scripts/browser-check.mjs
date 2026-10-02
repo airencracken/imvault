@@ -220,7 +220,7 @@ async function main() {
   });
   const buildCode = await new Promise((resolve) => build.on("exit", resolve));
   if (buildCode !== 0) {
-    console.error("could not build imvault");
+    console.error("could not build Imvault");
     return 1;
   }
 

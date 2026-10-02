@@ -1,5 +1,5 @@
 [Unit]
-Description=imvault image and clip host
+Description=Imvault image and clip host
 Documentation=https://github.com/airencracken/imvault
 After=network-online.target
 Wants=network-online.target
@@ -34,7 +34,7 @@ TimeoutStopSec=20s
 #
 # These are deliberately the safe subset. A system call filter
 # (SystemCallFilter=@system-service) and MemoryDenyWriteExecute=yes are both
-# reasonable additions, but imvault shells out to ffmpeg for clip posters, and
+# reasonable additions, but Imvault shells out to ffmpeg for clip posters, and
 # a filter that turns out to be too tight would break video silently. Add them
 # only after checking the journal for EPERM after an upload.
 NoNewPrivileges=yes

@@ -1,6 +1,6 @@
 # Binary releases
 
-Download imvault from [GitHub Releases](https://github.com/airencracken/imvault/releases).
+Download Imvault from [GitHub Releases](https://github.com/airencracken/imvault/releases).
 Each version has Linux **amd64** (x86-64) and **arm64** (AArch64) builds:
 
 - `imvault_VERSION_linux_ARCH.tar.gz`: a static binary, documentation,

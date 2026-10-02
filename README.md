@@ -1,11 +1,11 @@
-# imvault
+# Imvault
 
-<img src="internal/web/static/img/mascot.png" alt="The imvault keeper: a smiling blue vault with a photograph on its door" width="144" height="144" align="right">
+<img src="internal/web/static/img/mascot.png" alt="The Imvault keeper: a smiling blue vault with a photograph on its door" width="144" height="144" align="right">
 
 **A little vault for your big collection of “I should save that.”**
 
 Photographs, screenshots, GIFs, and short clips deserve a home that you run.
-imvault is a small, self-hosted image host in the spirit of MLKSHK, Picsur,
+Imvault is a small, self-hosted image host in the spirit of MLKSHK, Picsur,
 [Chibisafe](https://github.com/chibisafe/chibisafe), and
 [Imgur](https://imgur.com): part personal library, part clubhouse noticeboard.
 
@@ -29,7 +29,7 @@ Public for an audience, members-only for your people, private for the
 
 <br clear="right">
 
-![The imvault recent feed with the keeper, images, an animation, a clip, and visibility labels](docs/images/recent.png)
+![The Imvault recent feed with the keeper, images, an animation, a clip, and visibility labels](docs/images/recent.png)
 
 *The actual local demo, stocked with sample media.*
 
@@ -191,7 +191,7 @@ metadata handling, and the limits of those protections.
 
 ## The honest rough edges
 
-- Clips keep their original codecs. If a browser cannot play one, imvault does
+- Clips keep their original codecs. If a browser cannot play one, Imvault does
   not transcode it into something it can. There is no HLS or adaptive streaming.
 - Without ffmpeg, clips get placeholder posters and their duration cannot be
   checked. Animated WebP posters also depend on the decoder's first-frame support.
@@ -206,7 +206,7 @@ metadata handling, and the limits of those protections.
   admin dashboard can recalculate it.
 - Two-factor authentication is TOTP with recovery codes; there is no WebAuthn
   or hardware-key support yet.
-- The optional location map is the one outbound request imvault makes on its own.
+- The optional location map is the one outbound request Imvault makes on its own.
   It is off unless `IMVAULT_MAP_URL` is set, and the provider then sees the
   coordinates and your server's address.
 
@@ -231,7 +231,7 @@ tests, and a cyclomatic-complexity ceiling of 15 for production Go functions.
 
 ## Support
 
-You can [support imvault on Ko-fi](https://ko-fi.com/airencracken).
+You can [support Imvault on Ko-fi](https://ko-fi.com/airencracken).
 
 ## License
 

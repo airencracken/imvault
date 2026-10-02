@@ -1,4 +1,4 @@
-# imvault behind Caddy.
+# Imvault behind Caddy.
 #
 # Caddy obtains and renews a certificate on its own, so the only things needed
 # are a hostname pointed at this machine and that hostname in the site address
@@ -13,7 +13,7 @@ img.example.com {
 	# compressed and would only cost processor time.
 	encode zstd gzip
 
-	# Optional. imvault enforces its own per-file and per-account limits, so
+	# Optional. Imvault enforces its own per-file and per-account limits, so
 	# this is a second line rather than the only one. It stops an oversized
 	# request from being received in full. It covers every file in a batch
 	# plus multipart overhead; raise it for larger batches or file limits.
@@ -22,13 +22,13 @@ img.example.com {
 	}
 
 	reverse_proxy 127.0.0.1:8080 {
-		# imvault streams: large uploads arrive over minutes, and a full-account
+		# Imvault streams: large uploads arrive over minutes, and a full-account
 		# export is a zip written straight to the connection. Flushing as data
 		# arrives keeps nothing waiting in a buffer for more.
 		flush_interval -1
 	}
 
-	# imvault sets its own security-relevant headers, and its pages use inline
+	# Imvault sets its own security-relevant headers, and its pages use inline
 	# Alpine expressions, so a strict Content-Security-Policy would need
 	# 'unsafe-eval' and is deliberately left unset here. See
 	# docs/security.md before adding one.
