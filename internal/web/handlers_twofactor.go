@@ -242,12 +242,13 @@ func (s *Server) rotateSession(w http.ResponseWriter, r *http.Request, userID in
 	}
 	rotated := r.Clone(withCSRF(r.Context(), sessionCSRFToken(token)))
 	rotated.Header.Del("Cookie")
+	name := s.cookieName(r, sessionCookie)
 	for _, c := range r.Cookies() {
-		if c.Name != sessionCookie {
+		if c.Name != name {
 			rotated.AddCookie(c)
 		}
 	}
-	rotated.AddCookie(&http.Cookie{Name: sessionCookie, Value: token})
+	rotated.AddCookie(&http.Cookie{Name: name, Value: token})
 	return rotated, nil
 }
 

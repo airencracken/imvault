@@ -303,7 +303,7 @@ func (s *Server) finishRegistration(w http.ResponseWriter, r *http.Request, user
 }
 
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
-	if c, err := r.Cookie(sessionCookie); err == nil && c.Value != "" {
+	if c, err := r.Cookie(s.cookieName(r, sessionCookie)); err == nil && c.Value != "" {
 		if err := s.store.DeleteSession(r.Context(), hashToken(c.Value)); err != nil {
 			s.log.Error("logout: delete session", "error", err)
 		}
@@ -335,7 +335,7 @@ func (s *Server) newSession(ctx context.Context, w http.ResponseWriter, r *http.
 	s.setCSRFCookie(w, r, sessionCSRFToken(token))
 
 	http.SetCookie(w, &http.Cookie{
-		Name:     sessionCookie,
+		Name:     s.cookieName(r, sessionCookie),
 		Value:    token,
 		Path:     "/",
 		HttpOnly: true,

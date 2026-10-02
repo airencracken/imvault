@@ -76,8 +76,8 @@ func (s *Server) credentialsFor(r *http.Request, user *models.User, next string)
 }
 
 // sessionDigest is the stored form of the request's session token.
-func sessionDigest(r *http.Request) string {
-	c, err := r.Cookie(sessionCookie)
+func (s *Server) sessionDigest(r *http.Request) string {
+	c, err := r.Cookie(s.cookieName(r, sessionCookie))
 	if err != nil || c.Value == "" {
 		return ""
 	}
@@ -99,7 +99,7 @@ func (s *Server) recentlyReauthenticated(r *http.Request, user *models.User) boo
 	if err := json.Unmarshal([]byte(payload), &proof); err != nil {
 		return false
 	}
-	session := sessionDigest(r)
+	session := s.sessionDigest(r)
 	age := time.Since(proof.At)
 	return proof.UserID == user.ID && session != "" && proof.Session == session &&
 		age >= 0 && age <= reauthWindow
@@ -107,7 +107,7 @@ func (s *Server) recentlyReauthenticated(r *http.Request, user *models.User) boo
 
 // grantReauth records a confirmation for the current session.
 func (s *Server) grantReauth(w http.ResponseWriter, r *http.Request, user *models.User) error {
-	payload, err := json.Marshal(reauthProof{UserID: user.ID, Session: sessionDigest(r), At: time.Now().UTC()})
+	payload, err := json.Marshal(reauthProof{UserID: user.ID, Session: s.sessionDigest(r), At: time.Now().UTC()})
 	if err != nil {
 		return err
 	}

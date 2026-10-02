@@ -126,7 +126,7 @@ func (s *Server) logMW(next http.Handler) http.Handler {
 // sessionMW resolves the session cookie into a user on the request context.
 func (s *Server) sessionMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c, err := r.Cookie(sessionCookie)
+		c, err := r.Cookie(s.cookieName(r, sessionCookie))
 		if err != nil || c.Value == "" {
 			next.ServeHTTP(w, r)
 			return
@@ -269,12 +269,12 @@ func firstPartToken(r *http.Request) (string, error) {
 // that holds it when the browser does not already have the right one.
 func (s *Server) expectedCSRF(w http.ResponseWriter, r *http.Request) string {
 	current := ""
-	if c, err := r.Cookie(csrfCookie); err == nil {
+	if c, err := r.Cookie(s.cookieName(r, csrfCookie)); err == nil {
 		current = c.Value
 	}
 
 	token := current
-	if session, err := r.Cookie(sessionCookie); err == nil && session.Value != "" && currentUser(r.Context()) != nil {
+	if session, err := r.Cookie(s.cookieName(r, sessionCookie)); err == nil && session.Value != "" && currentUser(r.Context()) != nil {
 		token = sessionCSRFToken(session.Value)
 	} else if len(token) < 32 {
 		token = ids.Token(32)
@@ -297,7 +297,7 @@ func sessionCSRFToken(sessionToken string) string {
 // setCSRFCookie hands the browser the token its forms and htmx headers echo.
 func (s *Server) setCSRFCookie(w http.ResponseWriter, r *http.Request, token string) {
 	http.SetCookie(w, &http.Cookie{
-		Name:     csrfCookie,
+		Name:     s.cookieName(r, csrfCookie),
 		Value:    token,
 		Path:     "/",
 		SameSite: http.SameSiteLaxMode,
@@ -523,7 +523,7 @@ func (s *Server) clientIP(r *http.Request) string {
 // clearSessionCookie expires the session cookie.
 func (s *Server) clearSessionCookie(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
-		Name:     sessionCookie,
+		Name:     s.cookieName(r, sessionCookie),
 		Value:    "",
 		Path:     "/",
 		MaxAge:   -1,

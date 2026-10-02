@@ -95,9 +95,13 @@ func TestForwardedProtoNeedsATrustedProxy(t *testing.T) {
 			t.Fatal(err)
 		}
 		closeBody(t, resp)
-		secure, found := cookieSecure(resp, csrfCookie)
+		name := csrfCookie
+		if trusted {
+			name = hostCookiePrefix + csrfCookie
+		}
+		secure, found := cookieSecure(resp, name)
 		if !found {
-			t.Fatal("no CSRF cookie was set")
+			t.Fatalf("no %s cookie was set", name)
 		}
 		if secure != trusted {
 			t.Errorf("trusted=%v: Secure = %v", trusted, secure)
