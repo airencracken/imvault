@@ -18,6 +18,12 @@ import (
 // the code an authenticator app would be showing right now.
 func (h *harness) totpCodeFor(t *testing.T, userID int64) string {
 	t.Helper()
+	return h.totpCodeAt(t, userID, time.Now())
+}
+
+// totpCodeAt is the account's authenticator code for a given moment.
+func (h *harness) totpCodeAt(t *testing.T, userID int64, at time.Time) string {
+	t.Helper()
 
 	user, err := h.store.UserByID(t.Context(), userID)
 	if err != nil {
@@ -27,7 +33,7 @@ func (h *harness) totpCodeFor(t *testing.T, userID int64) string {
 	if err != nil {
 		t.Fatalf("decrypt secret: %v", err)
 	}
-	code, err := totp.Code(secret, time.Now())
+	code, err := totp.Code(secret, at)
 	if err != nil {
 		t.Fatalf("generate code: %v", err)
 	}
@@ -77,9 +83,12 @@ func (h *harness) enableTwoFactor(t *testing.T, userID int64) []string {
 		t.Fatalf("begin = %d, want 303", resp.StatusCode)
 	}
 
+	// Enrol with the previous window's code, which is still accepted, so the
+	// current one is left for the test to sign in with: the code that confirms
+	// enrolment is spent like any other.
 	resp, page := h.postForm("/settings/2fa/confirm", url.Values{
 		"csrf_token": {h.csrf()},
-		"code":       {h.totpCodeFor(t, userID)},
+		"code":       {h.totpCodeAt(t, userID, time.Now().Add(-totp.Period))},
 	})
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("confirm = %d, want the rendered page", resp.StatusCode)

@@ -4,7 +4,10 @@ package web
 
 import (
 	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/hex"
 	"errors"
 	"io"
 	"log/slog"
@@ -142,26 +145,17 @@ func (s *Server) sessionMW(next http.Handler) http.Handler {
 	})
 }
 
-// csrfMW implements double-submit-cookie CSRF protection. The token lives in a
-// readable cookie; mutating requests must echo it via header or form field.
+// csrfMW implements CSRF protection. Mutating requests must echo the token via
+// header or form field.
+//
+// A signed-in request's token is derived from its session, so it cannot be
+// planted: a cookie set by a neighbouring subdomain, or left over from before
+// sign-in, is not the token this session expects. A signed-out request has no
+// session to bind to and uses a double-submit cookie, which is still what keeps
+// a stranger from submitting the sign-in form on somebody's behalf.
 func (s *Server) csrfMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		token := ""
-		if c, err := r.Cookie(csrfCookie); err == nil && len(c.Value) >= 32 {
-			token = c.Value
-		}
-		if token == "" {
-			token = ids.Token(32)
-			http.SetCookie(w, &http.Cookie{
-				Name:     csrfCookie,
-				Value:    token,
-				Path:     "/",
-				SameSite: http.SameSiteLaxMode,
-				Secure:   s.secureCookies(r),
-				HttpOnly: false, // the page must be able to read it
-				MaxAge:   30 * 24 * 60 * 60,
-			})
-		}
+		token := s.expectedCSRF(w, r)
 
 		if isMutating(r.Method) && !isAPIKeyAuth(r.Context()) && !isAPIPath(r) {
 			provided, err := providedCSRF(r)
@@ -244,6 +238,48 @@ func firstPartToken(r *http.Request) (string, error) {
 		return "", nil
 	}
 	return string(value), nil
+}
+
+// expectedCSRF returns the token this request must carry, issuing the cookie
+// that holds it when the browser does not already have the right one.
+func (s *Server) expectedCSRF(w http.ResponseWriter, r *http.Request) string {
+	current := ""
+	if c, err := r.Cookie(csrfCookie); err == nil {
+		current = c.Value
+	}
+
+	token := current
+	if session, err := r.Cookie(sessionCookie); err == nil && session.Value != "" && currentUser(r.Context()) != nil {
+		token = sessionCSRFToken(session.Value)
+	} else if len(token) < 32 {
+		token = ids.Token(32)
+	}
+	if token != current {
+		s.setCSRFCookie(w, r, token)
+	}
+	return token
+}
+
+// sessionCSRFToken derives a session's CSRF token from its secret. The session
+// token never leaves its HttpOnly cookie, so nobody without it can compute
+// this, and the derivation is one-way, so publishing this reveals nothing.
+func sessionCSRFToken(sessionToken string) string {
+	mac := hmac.New(sha256.New, []byte(sessionToken))
+	mac.Write([]byte("imvault-csrf-v1"))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// setCSRFCookie hands the browser the token its forms and htmx headers echo.
+func (s *Server) setCSRFCookie(w http.ResponseWriter, r *http.Request, token string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     csrfCookie,
+		Value:    token,
+		Path:     "/",
+		SameSite: http.SameSiteLaxMode,
+		Secure:   s.secureCookies(r),
+		HttpOnly: false, // the page must be able to read it
+		MaxAge:   30 * 24 * 60 * 60,
+	})
 }
 
 func isMutating(method string) bool {

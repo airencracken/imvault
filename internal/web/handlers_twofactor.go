@@ -186,7 +186,8 @@ func (s *Server) handleTwoFactorConfirm(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if _, ok := totp.Match(secret, r.FormValue("code"), time.Now()); !ok {
+	step, ok := totp.Match(secret, r.FormValue("code"), time.Now())
+	if !ok {
 		s.redirectFlash(w, r, "/settings/2fa", flashError,
 			"That code did not match. Check the clock on your device and try the current code.")
 		return
@@ -195,6 +196,20 @@ func (s *Server) handleTwoFactorConfirm(w http.ResponseWriter, r *http.Request) 
 	if err := s.store.EnableTOTP(r.Context(), user.ID); err != nil {
 		s.log.Error("two factor: enable", "user", user.ID, "error", err)
 		s.redirectFlash(w, r, "/settings/2fa", flashError, "Could not enable two-factor authentication.")
+		return
+	}
+	// The code that proved the enrolment is spent like any other, so somebody
+	// who saw it typed cannot sign in with it in the same window.
+	if _, err := s.store.AcceptTOTPStep(r.Context(), user.ID, step); err != nil {
+		s.log.Error("two factor: record enrolment step", "user", user.ID, "error", err)
+	}
+
+	// Every session that existed before the second factor was never asked for
+	// it, so they all end here and the caller continues in a fresh one.
+	r, err = s.rotateSession(w, r, user.ID)
+	if err != nil {
+		s.log.Error("two factor: rotate session", "user", user.ID, "error", err)
+		http.Error(w, "could not start a new session", http.StatusInternalServerError)
 		return
 	}
 
@@ -208,6 +223,28 @@ func (s *Server) handleTwoFactorConfirm(w http.ResponseWriter, r *http.Request) 
 
 	s.log.Info("two-factor authentication enabled", "user", user.ID)
 	s.renderTwoFactorPage(w, r, codes, "", "Two-factor authentication is on. Save your recovery codes now.")
+}
+
+// rotateSession ends every session the account has and starts a fresh one for
+// the caller, returning the request as it now stands: carrying the CSRF token
+// bound to the new session, so the page rendered in the same response works.
+func (s *Server) rotateSession(w http.ResponseWriter, r *http.Request, userID int64) (*http.Request, error) {
+	if err := s.store.DeleteSessionsForUser(r.Context(), userID); err != nil {
+		return r, err
+	}
+	token, err := s.newSession(r.Context(), w, r, userID)
+	if err != nil {
+		return r, err
+	}
+	rotated := r.Clone(withCSRF(r.Context(), sessionCSRFToken(token)))
+	rotated.Header.Del("Cookie")
+	for _, c := range r.Cookies() {
+		if c.Name != sessionCookie {
+			rotated.AddCookie(c)
+		}
+	}
+	rotated.AddCookie(&http.Cookie{Name: sessionCookie, Value: token})
+	return rotated, nil
 }
 
 // handleTwoFactorDisable turns the second factor off.
