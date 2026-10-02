@@ -55,23 +55,42 @@
     count.title = names.join("\n");
   }
 
+  // accepts reports whether the file input would take a file, by the same
+  // accept list the picker uses, so a clip dropped or pasted is treated exactly
+  // like one chosen by hand. The server validates properly; this only avoids
+  // staging something obviously wrong.
+  function accepts(file) {
+    var type = (file && file.type) || "";
+    if (!type) return false;
+    var allowed = (input.getAttribute("accept") || "").split(",");
+    for (var i = 0; i < allowed.length; i++) {
+      var rule = allowed[i].trim();
+      if (!rule) continue;
+      if (rule.slice(-2) === "/*" ? type.indexOf(rule.slice(0, -1)) === 0 : type === rule) return true;
+    }
+    return false;
+  }
+
   // Assigning to input.files requires a DataTransfer, which every browser that
   // supports drag-and-drop provides. It is built on demand rather than at load,
-  // so an environment without it still gets the rest of this script.
+  // so an environment without it still gets the rest of this script. It reports
+  // how many files were staged; when none qualify the current selection is left
+  // alone rather than replaced with nothing.
   function stage(files) {
-    if (typeof DataTransfer === "undefined") return;
+    if (typeof DataTransfer === "undefined") return 0;
 
     var transfer = new DataTransfer();
     for (var i = 0; i < files.length; i++) {
-      var file = files[i];
-      // Only images here; the server validates properly, this is just to avoid
-      // staging something obviously wrong.
-      if (!file.type || file.type.indexOf("image/") !== 0) continue;
-      transfer.items.add(file);
+      if (accepts(files[i])) transfer.items.add(files[i]);
+    }
+    if (transfer.files.length === 0) {
+      if (count) count.textContent = "None of those files can be uploaded here.";
+      return 0;
     }
 
     input.files = transfer.files;
     render(input.files);
+    return transfer.files.length;
   }
 
   if (dropzone && input && form) {
@@ -122,8 +141,7 @@
     if (picked.length === 0) return;
 
     e.preventDefault();
-    stage(picked);
-    if (window.htmx) window.htmx.trigger(form, "submit");
+    if (stage(picked) > 0 && window.htmx) window.htmx.trigger(form, "submit");
   });
 
   // Clear the selection once an upload completes so the next one starts fresh.
@@ -168,9 +186,10 @@
 /* ---------------------------------------------------------------------------
  * Alpine.js components.
  *
- * Alpine is loaded only on the admin pages, where a little client-side state
- * earns its keep: htmx owns every server round trip, and Alpine owns the state
- * that never needs one.
+ * Alpine is loaded only on the pages that ask for it (the admin area, the
+ * account and invitation pages), where a little client-side state earns its
+ * keep: htmx owns every server round trip, and Alpine owns the state that never
+ * needs one.
  * ------------------------------------------------------------------------- */
 
 document.addEventListener("alpine:init", function () {
