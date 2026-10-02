@@ -18,14 +18,16 @@ RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/imvault ./cmd/imva
 # values) to shrink the image, and clips will be accepted with placeholder
 # posters.
 #
-# /data belongs to the imvault user (uid 10001), so a named volume mounted
-# there inherits that ownership. A bind mount does not: chown the host
-# directory to 10001:10001 first.
+# /data belongs to the imvault user (uid 10001) at mode 0700: it holds
+# account credentials, the encryption key and private uploads. A new named
+# volume mounted there inherits that ownership and mode. A bind mount does
+# not: chown the host directory to 10001:10001 and chmod it 0700 first.
 FROM alpine:3.23
 
 RUN apk add --no-cache ca-certificates tzdata ffmpeg \
  && adduser -D -u 10001 -h /data imvault \
- && chown -R imvault:imvault /data
+ && chown -R imvault:imvault /data \
+ && chmod 0700 /data
 
 COPY --from=build /out/imvault /usr/local/bin/imvault
 
@@ -42,6 +44,13 @@ ENV IMVAULT_DATA_DIR=/data \
 
 VOLUME ["/data"]
 EXPOSE 8080
+
+# /healthz answers once the server is listening and its database responds.
+# Busybox's wget is already in the image, so the probe adds nothing. It
+# follows IMVAULT_ADDR's port; an instance bound to one specific non-loopback
+# address needs this probe overridden in the run or compose configuration.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD port="${IMVAULT_ADDR##*:}"; wget -q -T 4 -O /dev/null "http://127.0.0.1:${port:-8080}/healthz" || exit 1
 
 USER imvault
 ENTRYPOINT ["/usr/local/bin/imvault"]

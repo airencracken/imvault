@@ -35,3 +35,8 @@ version's release notes.
   `IMVAULT_BIN` or `IMVAULT_LOG_FILE` as well as `IMVAULT_DATA_DIR`, fails a
   start when the server exits within a second, and no longer resets the mode of
   an existing log directory.
+- **Container health.** The image now has a `HEALTHCHECK` that probes
+  `/healthz` with the busybox `wget` already in the image, following
+  `IMVAULT_ADDR`'s port. The Compose file's own probe is gone in its favour.
+  `/data` is created at mode 0700; an existing named volume keeps its mode
+  until you change it (`chmod 0700` inside the volume).
