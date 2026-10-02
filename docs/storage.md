@@ -22,7 +22,9 @@ key, and video-processing scratch files stay on the imvault host.
 
 Without explicit credentials, S3 uses the AWS SDK's normal credential chain,
 including `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, profiles, and instance
-roles. A custom endpoint supports S3-compatible services such as R2 and
+roles. Under the Bubblewrap sandbox the chain's variables are forwarded, but a
+profile or credentials file has to be made visible with `--read-file`; see
+[Linux confinement](sandbox.md#what-the-server-can-access). A custom endpoint supports S3-compatible services such as R2 and
 self-hosted object stores. Use HTTPS for remote endpoints. Certificate
 verification is always enabled.
 

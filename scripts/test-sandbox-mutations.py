@@ -9,7 +9,11 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 MUTATIONS = [
  ("media networking", "internal/sandbox/sandbox.go", '"--unshare-net", "--die-with-parent"', '"--die-with-parent"', "./internal/sandbox", "TestRealBubblewrapMediaBoundary"),
- ("environment filtering", "internal/sandbox/sandbox.go", 'strings.HasPrefix(key, s.Prefix) && key != s.Prefix+"DATA_DIR"', 'key != s.Prefix+"DATA_DIR"', "./internal/sandbox", "TestServicePolicyKeepsSecretsOutOfArguments"),
+ ("environment filtering", "internal/sandbox/sandbox.go", '(strings.HasPrefix(key, s.Prefix) || forwardedEnv[key]) && key != s.Prefix+"DATA_DIR"', 'key != s.Prefix+"DATA_DIR"', "./internal/sandbox", "TestServicePolicyKeepsSecretsOutOfArguments"),
+ ("credential chain forwarding", "internal/sandbox/sandbox.go", '(strings.HasPrefix(key, s.Prefix) || forwardedEnv[key])', 'strings.HasPrefix(key, s.Prefix)', "./internal/sandbox", "TestServicePolicyKeepsSecretsOutOfArguments"),
+ ("nested namespaces", "internal/sandbox/sandbox.go", 'if !s.NestedSandbox {', 'if false {', "./internal/sandbox", "TestServicePolicyKeepsSecretsOutOfArguments"),
+ ("orphan reaping", "internal/sandbox/reaper.go", 'if _, mine := owned.pids[pid]; mine || !zombieChildOf(pid, self) {', 'if _, mine := owned.pids[pid]; mine || !zombieChildOf(pid, self) || true {', "./internal/sandbox", "TestRealOrphanedMediaJobsAreReaped"),
+ ("tracked children", "internal/sandbox/reaper.go", 'if _, mine := owned.pids[pid]; mine || !zombieChildOf(pid, self) {', 'if !zombieChildOf(pid, self) {', "./internal/sandbox", "TestReaperLeavesTrackedChildrenForTheirOwner"),
  ("broad filesystem mounts", "internal/sandbox/sandbox.go", 'name == "/" ||', 'false ||', "./internal/sandbox", "TestWritableDirectoriesRejectBroadAndAdversarialPaths"),
 ]
 if (ROOT / "internal/media/sandbox.go").exists():

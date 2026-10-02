@@ -23,6 +23,7 @@ import (
 	"imvault/internal/logging"
 	"imvault/internal/mail"
 	"imvault/internal/media"
+	"imvault/internal/sandbox"
 	"imvault/internal/secrets"
 	"imvault/internal/storage"
 	"imvault/internal/store"
@@ -61,6 +62,9 @@ func run() error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	// Inside the service sandbox this process is PID 1 and inherits every
+	// orphan in the namespace; elsewhere this does nothing.
+	sandbox.StartReaper(ctx)
 	lock, err := instance.AcquireServer(cfg.DBPath)
 	if err != nil {
 		return err

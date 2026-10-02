@@ -14,13 +14,14 @@ import (
 func TestServicePolicyKeepsSecretsOutOfArguments(t *testing.T) {
 	data := t.TempDir()
 	args, env, err := (Service{Prefix: "TEST_", DataDir: data, Executable: "/usr/bin/true", Env: []string{
-		"TEST_SMTP_PASSWORD=secret-value", "TEST_DATA_DIR=wrong", "AWS_SECRET_ACCESS_KEY=unrelated", "LD_PRELOAD=host-loader", "TMPDIR=/host/tmp",
+		"TEST_SMTP_PASSWORD=secret-value", "TEST_DATA_DIR=wrong", "AWS_SECRET_ACCESS_KEY=chain-secret", "TZ=Europe/London",
+		"GITHUB_TOKEN=unrelated", "AWS_SECRET_ACCESS_KEYX=lookalike", "LD_PRELOAD=host-loader", "TMPDIR=/host/tmp",
 	}}).Policy()
 	if err != nil {
 		t.Fatal(err)
 	}
 	joined := strings.Join(args, "\n")
-	for _, required := range []string{"--unshare-user", "--unshare-pid", "--unshare-ipc", "--unshare-uts", "--cap-drop", "--new-session", "--tmpfs", "--ro-bind", data} {
+	for _, required := range []string{"--unshare-user", "--unshare-pid", "--unshare-ipc", "--unshare-uts", "--cap-drop", "--new-session", "--tmpfs", "--ro-bind", "--disable-userns", data} {
 		if !strings.Contains(joined, required) {
 			t.Errorf("missing confinement: %s", required)
 		}
@@ -31,15 +32,27 @@ func TestServicePolicyKeepsSecretsOutOfArguments(t *testing.T) {
 		}
 	}
 	joined = strings.Join(env, "\n")
-	for _, required := range []string{"TEST_SMTP_PASSWORD=secret-value", "TEST_DATA_DIR=" + data, "TMPDIR=/tmp"} {
+	// The AWS credential chain and the time zone are forwarded by name; the
+	// application's own settings by prefix.
+	for _, required := range []string{"TEST_SMTP_PASSWORD=secret-value", "TEST_DATA_DIR=" + data, "TMPDIR=/tmp", "AWS_SECRET_ACCESS_KEY=chain-secret", "TZ=Europe/London"} {
 		if !strings.Contains(joined, required) {
 			t.Errorf("environment missing %s", required)
 		}
 	}
-	for _, forbidden := range []string{"LD_PRELOAD", "AWS_SECRET", "=wrong", "/host/tmp"} {
+	for _, forbidden := range []string{"LD_PRELOAD", "GITHUB_TOKEN", "lookalike", "=wrong", "/host/tmp"} {
 		if strings.Contains(joined, forbidden) {
 			t.Errorf("environment leaks %s", forbidden)
 		}
+	}
+}
+
+func TestNestedSandboxKeepsUserNamespaces(t *testing.T) {
+	args, _, err := (Service{Prefix: "TEST_", DataDir: t.TempDir(), Executable: "/usr/bin/true", NestedSandbox: true}).Policy()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(strings.Join(args, "\n"), "--disable-userns") {
+		t.Fatal("the media sandbox could not be built inside this policy")
 	}
 }
 

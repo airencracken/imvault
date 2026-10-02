@@ -5,6 +5,7 @@
 package sandbox
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -36,13 +37,25 @@ func Base(network bool) ([]string, error) {
 
 // Check verifies that the requested namespaces actually work. The caller must
 // treat an error as fatal, including when kernel or service policy forbids them.
+//
+// The probe is the host's own true(1), wherever it lives: /usr/bin on most
+// systems, /bin where busybox provides it. Both are bound read-only by Base.
 func Check(ctx context.Context, binary string, args []string, env []string) error {
+	probe, err := exec.LookPath("true")
+	if err != nil {
+		return fmt.Errorf("the Bubblewrap sandbox check needs true(1): %w", err)
+	}
+	if probe, err = filepath.Abs(probe); err != nil {
+		return err
+	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, binary, append(append([]string{}, args...), "--", "/usr/bin/true")...)
+	cmd := exec.CommandContext(ctx, binary, append(append([]string{}, args...), "--", probe)...)
 	cmd.Env = env
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("Bubblewrap sandbox unavailable: %w: %s", err, strings.TrimSpace(string(output)))
+	var output bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &output, &output
+	if err := RunChild(cmd); err != nil {
+		return fmt.Errorf("the Bubblewrap sandbox is unavailable: %w: %s", err, strings.TrimSpace(output.String()))
 	}
 	return nil
 }
@@ -57,7 +70,7 @@ func RuntimeEnv() []string {
 func Binary(path string) (string, error) {
 	binary, err := exec.LookPath(path)
 	if err != nil {
-		return "", fmt.Errorf("Bubblewrap is required: %w", err)
+		return "", fmt.Errorf("the Bubblewrap launcher is required: %w", err)
 	}
 	binary, err = filepath.Abs(binary)
 	if err != nil {
@@ -68,7 +81,7 @@ func Binary(path string) (string, error) {
 		return "", err
 	}
 	if info.Mode()&os.ModeSetuid != 0 {
-		return "", fmt.Errorf("setuid Bubblewrap is unsupported; use unprivileged user namespaces")
+		return "", fmt.Errorf("a setuid Bubblewrap is unsupported; use unprivileged user namespaces")
 	}
 	return binary, nil
 }
@@ -79,6 +92,37 @@ type Service struct {
 	Prefix, DataDir, Executable string
 	WriteDirs, ReadFiles        []string
 	Env                         []string
+	// NestedSandbox keeps user namespaces available inside the server, which
+	// the media sandbox needs to build its own. Without it they are disabled,
+	// so a compromised server has that much less kernel to reach.
+	NestedSandbox bool
+}
+
+// forwardedEnv are the variables outside the application's prefix that the
+// server still needs. The AWS SDK reads its credential chain from these when
+// no explicit S3 keys are configured; TZ sets the zone logs are written in.
+// Files they name, such as a shared credentials file, have to be added with
+// --read-file.
+var forwardedEnv = map[string]bool{
+	"TZ":                                     true,
+	"AWS_ACCESS_KEY_ID":                      true,
+	"AWS_SECRET_ACCESS_KEY":                  true,
+	"AWS_SESSION_TOKEN":                      true,
+	"AWS_REGION":                             true,
+	"AWS_DEFAULT_REGION":                     true,
+	"AWS_PROFILE":                            true,
+	"AWS_CONFIG_FILE":                        true,
+	"AWS_SHARED_CREDENTIALS_FILE":            true,
+	"AWS_CA_BUNDLE":                          true,
+	"AWS_ENDPOINT_URL":                       true,
+	"AWS_ENDPOINT_URL_S3":                    true,
+	"AWS_ROLE_ARN":                           true,
+	"AWS_ROLE_SESSION_NAME":                  true,
+	"AWS_WEB_IDENTITY_TOKEN_FILE":            true,
+	"AWS_EC2_METADATA_DISABLED":              true,
+	"AWS_CONTAINER_CREDENTIALS_FULL_URI":     true,
+	"AWS_CONTAINER_CREDENTIALS_RELATIVE_URI": true,
+	"AWS_CONTAINER_AUTHORIZATION_TOKEN":      true,
 }
 
 func (s Service) Policy() ([]string, []string, error) {
@@ -119,9 +163,12 @@ func (s Service) Policy() ([]string, []string, error) {
 	}
 	for _, entry := range s.Env {
 		key, _, _ := strings.Cut(entry, "=")
-		if strings.HasPrefix(key, s.Prefix) && key != s.Prefix+"DATA_DIR" {
+		if (strings.HasPrefix(key, s.Prefix) || forwardedEnv[key]) && key != s.Prefix+"DATA_DIR" {
 			env = append(env, entry)
 		}
+	}
+	if !s.NestedSandbox {
+		args = append(args, "--disable-userns")
 	}
 	env = append(env, s.Prefix+"DATA_DIR="+data)
 	return args, env, nil

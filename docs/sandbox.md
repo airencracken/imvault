@@ -75,9 +75,21 @@ data directory is writable on the host by default. Other home directories,
 `/etc/shadow`, host temporary files and host Unix sockets are absent.
 
 Application settings are passed in the environment, including credentials the
-server needs. Unrelated environment variables and dynamic-loader settings are
+server needs. So are `TZ` and the AWS SDK's own variables (`AWS_ACCESS_KEY_ID`,
+`AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_REGION`, `AWS_PROFILE`,
+`AWS_CONFIG_FILE`, `AWS_SHARED_CREDENTIALS_FILE`, `AWS_CA_BUNDLE`, the
+`AWS_ENDPOINT_URL` pair, the web-identity and container-credential variables),
+so S3 storage without explicit `IMVAULT_S3_*` keys keeps working. A file one of
+them names — a shared credentials file, a CA bundle, a web-identity token — must
+also be added with `--read-file`, because `HOME` inside the sandbox is the
+private `/tmp`. Other environment variables and dynamic-loader settings are
 removed. Credentials are never put in Bubblewrap's command-line arguments.
 `/usr` remains visible: do not place private application credentials there.
+
+Unless `IMVAULT_MEDIA_SANDBOX=true`, user namespaces are disabled inside the
+sandbox, since nothing in it needs to create one. The server runs as the
+namespace's first process, and collects any process orphaned inside it, such as
+a media job whose launcher was killed by a timeout.
 
 For a custom storage/database directory outside the data directory, explicitly
 add an existing writable mount with `sandbox --write-dir /srv/imvault-objects`.
