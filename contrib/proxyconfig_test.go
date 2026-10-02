@@ -1,95 +1,72 @@
-package proxyconfig
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+package contrib
 
 import (
 	"bytes"
-	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/airencracken/comfylib/proxyconfig"
 )
 
+// Imvault's own examples render for every server, with the domain, upstream
+// and certificate paths replaced and the settings Imvault needs in the header.
 func TestProxyConfigurations(t *testing.T) {
 	for _, server := range []string{"caddy", "nginx", "apache"} {
 		t.Run(server, func(t *testing.T) {
-			config, err := Render(Options{Server: server, Domain: "photos.example.net", Upstream: "[::1]:9100"})
+			config, err := proxyconfig.Render(ProxySpec, proxyconfig.Options{Server: server, Domain: "photos.example.net", Upstream: "[::1]:9100"})
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, want := range []string{"photos.example.net", "[::1]:9100", "_SECURE_COOKIES=true", proxyEnvironment} {
+			for _, want := range []string{"photos.example.net", "[::1]:9100", "IMVAULT_SECURE_COOKIES=true", "IMVAULT_BASE_URL=https://photos.example.net",
+				"IMVAULT_TRUSTED_PROXIES=127.0.0.1/32,::1/128", "/etc/conf.d/imvault", "/etc/imvault/imvault.env"} {
 				if !strings.Contains(config, want) {
 					t.Errorf("missing %q in generated %s config", want, server)
 				}
 			}
-			if strings.Contains(config, exampleDomain) || strings.Contains(config, defaultUpstream) {
+			if strings.Contains(config, ProxySpec.ExampleDomain) || strings.Contains(config, ProxySpec.DefaultUpstream) {
 				t.Fatal("generated config contains the original example's host or upstream")
 			}
-			if server != "caddy" {
-				if !strings.Contains(config, `"/etc/letsencrypt/live/photos.example.net/fullchain.pem"`) {
-					t.Fatal("default certificate path does not follow the domain")
-				}
-				custom, err := Render(Options{Server: server, Domain: "photos.example.net", Certificate: "/custom certs/fullchain.pem", Key: "/custom certs/key.pem"})
-				if err != nil || !strings.Contains(custom, `"/custom certs/fullchain.pem"`) || !strings.Contains(custom, `"/custom certs/key.pem"`) {
-					t.Fatalf("custom TLS paths were not quoted: %v\n%s", err, custom)
-				}
+			if server != "caddy" && !strings.Contains(config, `"/etc/letsencrypt/live/photos.example.net/fullchain.pem"`) {
+				t.Fatal("default certificate path does not follow the domain")
 			}
 		})
 	}
 }
 
-func TestProxyConfigRejectsInjectionAndInvalidAddresses(t *testing.T) {
-	base := Options{Server: "nginx", Domain: "photos.example.net", Upstream: defaultUpstream}
-	var cases []Options
-	for _, domain := range []string{"", "https://photos.example.net", "bad.example/path", "*.example.net", "photos.example.net:443", "bad\nserver{}", "bad;include", "bad$host", "bad..example", "-bad.example", "bad_.example", strings.Repeat("a", 64) + ".example"} {
-		value := base
-		value.Domain = domain
-		cases = append(cases, value)
-	}
-	for _, upstream := range []string{":8080", "0.0.0.0:8080", "192.0.2.1:8080", "http://127.0.0.1:8080", "127.0.0.1:0", "127.0.0.1:65536", "localhost:abc", "localhost:8080;", "localhost:8080\n", "localhost:+8080"} {
-		value := base
-		value.Upstream = upstream
-		cases = append(cases, value)
-	}
-	for _, path := range []string{"relative.pem", "/certs/", "/certs/\ninclude", "/certs/$variable", "/certs/\".pem", "/certs/a;include", "/certs/\\.pem"} {
-		value := base
-		value.Certificate, value.Key = path, "/certs/key.pem"
-		cases = append(cases, value)
-	}
-	cases = append(cases, Options{Server: "unknown", Domain: base.Domain}, Options{Server: "nginx", Domain: base.Domain, Certificate: "/cert.pem"}, Options{Server: "caddy", Domain: base.Domain, Certificate: "/cert.pem", Key: "/key.pem"})
-	for _, value := range cases {
-		if output, err := Render(value); err == nil || output != "" {
-			t.Errorf("invalid options accepted: %+v => %q, %v", value, output, err)
+// Each example must contain the placeholders Render replaces, or a generated
+// configuration would quietly point at the example's host.
+func TestExamplesCarryThePlaceholders(t *testing.T) {
+	for _, path := range []string{"caddy/Caddyfile", "nginx/imvault.conf", "apache/imvault.conf"} {
+		data, err := examples.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []string{ProxySpec.ExampleDomain, ProxySpec.DefaultUpstream} {
+			if !bytes.Contains(data, []byte(want)) {
+				t.Errorf("%s does not contain %q", path, want)
+			}
 		}
 	}
 }
 
+// The command prints the configuration, and nothing for bad arguments.
 func TestProxyConfigCLI(t *testing.T) {
-	for _, args := range [][]string{{"--help"}, {"caddy", "--help"}, {"nginx", "--help"}, {"apache", "--help"}} {
-		var output bytes.Buffer
-		if err := Run(args, &output); err != nil || !strings.Contains(output.String(), "Usage:") {
-			t.Fatalf("help %v: %v, %s", args, err, &output)
-		}
-	}
 	var output bytes.Buffer
-	if err := Run([]string{"caddy", "--domain", "photos.example.net"}, &output); err != nil || !strings.Contains(output.String(), "reverse_proxy "+defaultUpstream) {
+	if err := proxyconfig.Run(ProxySpec, []string{"caddy", "--domain", "photos.example.net"}, &output); err != nil || !strings.Contains(output.String(), "reverse_proxy "+ProxySpec.DefaultUpstream) {
 		t.Fatalf("render: %v, %s", err, &output)
 	}
-	for _, args := range [][]string{nil, {"unknown"}, {"caddy"}, {"caddy", "--domain", "photos.example.net", "extra"}} {
+	for _, args := range [][]string{nil, {"unknown"}, {"caddy"}, {"nginx", "--domain", "bad\nserver{}"}} {
 		output.Reset()
-		if err := Run(args, &output); err == nil || output.Len() != 0 {
-			t.Fatalf("bad arguments emitted config: %v => %v, %s", args, err, &output)
+		if err := proxyconfig.Run(ProxySpec, args, &output); err == nil || output.Len() != 0 {
+			t.Fatalf("bad arguments emitted config: %q => %v, %s", args, err, &output)
 		}
 	}
-	sentinel := errors.New("output closed")
-	if err := Run([]string{"caddy", "--domain", "photos.example.net"}, brokenWriter{sentinel}); !errors.Is(err, sentinel) {
-		t.Fatalf("output error = %v", err)
-	}
 }
-
-type brokenWriter struct{ err error }
-
-func (w brokenWriter) Write([]byte) (int, error) { return 0, w.err }
 
 func TestGeneratedCaddyConfigurationAdapts(t *testing.T) {
 	binary := os.Getenv("CADDY_BINARY")
@@ -100,7 +77,7 @@ func TestGeneratedCaddyConfigurationAdapts(t *testing.T) {
 			t.Skip("install Caddy to validate its generated configuration")
 		}
 	}
-	config, err := Render(Options{Server: "caddy", Domain: "photos.example.net", Upstream: "[::1]:9100"})
+	config, err := proxyconfig.Render(ProxySpec, proxyconfig.Options{Server: "caddy", Domain: "photos.example.net", Upstream: "[::1]:9100"})
 	if err != nil {
 		t.Fatal(err)
 	}

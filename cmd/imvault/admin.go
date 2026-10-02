@@ -10,6 +10,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/airencracken/comfylib/proxyconfig"
 	"github.com/airencracken/comfylib/svcconfig"
 	"golang.org/x/crypto/bcrypt"
 
@@ -33,7 +34,7 @@ func runCommand(args []string, stdin io.Reader, stdout io.Writer) error {
 	case "serve":
 		return serve(args[1:], stdout)
 	case "proxy-config":
-		return proxyconfig.Run(args[1:], stdout)
+		return proxyconfig.Run(contrib.ProxySpec, args[1:], stdout)
 	case "create-admin":
 		return createAdmin(args[1:], stdin, stdout)
 	case "refresh-metadata":
