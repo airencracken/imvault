@@ -1,5 +1,7 @@
 #!/sbin/openrc-run
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# openrc-run reads the service variables assigned below.
+# shellcheck shell=sh disable=SC2034
 #
 # OpenRC service script for Imvault, for Alpine Linux and Gentoo.
 #
@@ -25,12 +27,34 @@ description="Self-hosted image and short clip host"
 command="${IMVAULT_BIN}"
 command_user="${IMVAULT_USER}:${IMVAULT_GROUP}"
 command_background="yes"
+# A server that exits at once, refusing its configuration or a database a
+# newer Imvault has migrated, fails the start instead of being reported as
+# started.
+start_stop_daemon_args="--wait 1000"
 pidfile="/run/${RC_SVCNAME}.pid"
+# Files the server creates (the database, its journal, uploaded objects) are
+# readable by the service account alone. start-stop-daemon applies this.
+umask="0077"
+# The server gives requests in flight 15 seconds after SIGTERM, and the
+# sandbox launcher waits up to 20 for the server; leave room for both.
+retry="TERM/25/KILL/5"
 
 # Every record the server writes is a single logfmt line, so one file is enough
 # for both streams.
 output_log="${IMVAULT_LOG_FILE}"
 error_log="${IMVAULT_LOG_FILE}"
+
+# require_absolute NAME VALUE refuses a relative path. It would be resolved
+# against the init system's working directory: checkpath would create and
+# chown a directory or log file there, and the daemon would run whatever
+# binary happened to be found relative to it.
+require_absolute() {
+	case "$2" in
+	/*) return 0 ;;
+	esac
+	eerror "$1 must be an absolute path (got '$2')"
+	return 1
+}
 
 depend() {
 	need net
@@ -55,30 +79,33 @@ start_pre() {
 		*) eerror "IMVAULT_SANDBOX must be true or false"; return 1 ;;
 	esac
 
-	# Checked before anything is created: a relative path would be resolved
-	# against the init system's working directory, and checkpath below would
-	# create and chown a directory there.
-	case "${IMVAULT_DATA_DIR}" in
-	/*) ;;
-	*)
-		eerror "IMVAULT_DATA_DIR must be an absolute path (got '${IMVAULT_DATA_DIR}')"
-		return 1
-		;;
-	esac
+	# Checked before anything is created.
+	require_absolute IMVAULT_DATA_DIR "${IMVAULT_DATA_DIR}" || return 1
+	require_absolute IMVAULT_BIN "${IMVAULT_BIN}" || return 1
+	require_absolute IMVAULT_LOG_FILE "${IMVAULT_LOG_FILE}" || return 1
 
 	# Defaults are shell variables too; the unchanged config is all comments.
 	export IMVAULT_DATA_DIR
 
-	# The data directory holds the database and the uploaded bytes.
-	checkpath --directory --mode 0750 \
+	# Anything start_pre itself creates gets the daemon's umask too.
+	umask "${umask}"
+
+	# The data directory holds the database, account credentials and private
+	# uploads, so only the service account may list it. checkpath also
+	# tightens a directory an older version created more openly.
+	checkpath --directory --mode 0700 \
 		--owner "${IMVAULT_USER}:${IMVAULT_GROUP}" "${IMVAULT_DATA_DIR}" || return 1
 
 	# The log file has to exist and be writable before the daemon starts, or
 	# OpenRC's redirection fails. No `local` here: the script runs under
 	# busybox ash on Alpine and bash on Gentoo, and neither is required to be
-	# POSIX, but keeping to POSIX costs nothing.
-	log_dir=$(dirname "${IMVAULT_LOG_FILE}")
-	checkpath --directory --mode 0755 "${log_dir}" || return 1
+	# POSIX, but keeping to POSIX costs nothing. checkpath would also reset
+	# the mode of an existing directory, and the default one is /var/log
+	# itself, so only a missing one is created.
+	log_dir=$(dirname "${IMVAULT_LOG_FILE}") || return 1
+	if [ ! -d "${log_dir}" ]; then
+		checkpath --directory --mode 0755 "${log_dir}" || return 1
+	fi
 	checkpath --file --mode 0640 \
 		--owner "${IMVAULT_USER}:${IMVAULT_GROUP}" "${IMVAULT_LOG_FILE}" || return 1
 

@@ -32,6 +32,10 @@ import (
 	"imvault/internal/web"
 )
 
+// shutdownGrace is how long requests in flight get to finish after SIGTERM.
+// The service definitions in contrib wait longer than this before killing.
+const shutdownGrace = 15 * time.Second
+
 // version is set at build time with -ldflags "-X main.version=...", which the
 // Makefile and the release configuration both do.
 var version = ""
@@ -175,7 +179,7 @@ func run() (err error) {
 		logger.Info("shutdown signal received")
 	}
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownGrace)
 	defer cancel()
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
 		return fmt.Errorf("graceful shutdown: %w", err)

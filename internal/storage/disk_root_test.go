@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -67,3 +68,26 @@ func TestDiskSaveLeavesNoScratchFiles(t *testing.T) {
 type failingReader struct{}
 
 func (failingReader) Read([]byte) (int, error) { return 0, errors.New("source broke") }
+
+// Object directories are private to the service account, whatever the umask.
+func TestDiskCreatesPrivateDirectories(t *testing.T) {
+	old := syscall.Umask(0)
+	t.Cleanup(func() { syscall.Umask(old) })
+	root := filepath.Join(t.TempDir(), "objects")
+	disk, err := NewDisk(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := disk.Save(t.Context(), "orig/ab/cd.png", strings.NewReader("x")); err != nil {
+		t.Fatal(err)
+	}
+	for _, dir := range []string{root, filepath.Join(root, "orig"), filepath.Join(root, "orig", "ab")} {
+		info, err := os.Stat(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode().Perm() != 0o700 {
+			t.Errorf("%s has mode %v", dir, info.Mode().Perm())
+		}
+	}
+}

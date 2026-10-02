@@ -21,3 +21,17 @@ version's release notes.
   its own binary's schema, so a backup taken before an upgrade is a copy of the
   database as it was. Take it with the version that last ran the database.
   `imvault restore` refuses a backup taken by a newer Imvault.
+- **The data directory is private.** The systemd unit now uses
+  `StateDirectoryMode=0700` and `UMask=0077`, and the OpenRC script checks the
+  directory at 0700 and starts the server with umask 0077, so an existing
+  `/var/lib/imvault` is tightened from 0750 on the next start. The Gentoo and
+  Alpine recipes, the container image and the server itself create it at 0700.
+  If something else on the host reads the data directory through the
+  `imvault` group, such as a backup agent, run it as the service account
+  instead.
+- **Service stop and start.** systemd's `TimeoutStopSec` and OpenRC's stop
+  retry are now 25 seconds, longer than the server's 15-second drain and the
+  sandbox launcher's 20-second wait. OpenRC now refuses a relative
+  `IMVAULT_BIN` or `IMVAULT_LOG_FILE` as well as `IMVAULT_DATA_DIR`, fails a
+  start when the server exits within a second, and no longer resets the mode of
+  an existing log directory.
