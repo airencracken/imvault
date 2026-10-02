@@ -154,9 +154,9 @@ not rejected because today's upload duration limit is lower.
 
 Failures leave the affected file's current rendition keys intact and return a
 nonzero status. Earlier successful items remain rebuilt, and rerunning is safe.
-Old rendition objects are retained; repeated repairs can leave unreferenced
-derived objects in storage. Verified backups include the current objects named
-by the database, not these older copies.
+Once a rebuilt rendition is published, the one it replaced is deleted, unless
+another record still names it. Content that no file refers to any more is left
+for the server's cleanup sweep and is not rebuilt.
 
 ## Backup and restore
 
@@ -174,7 +174,11 @@ The directory must not already exist. The command takes a SQLite snapshot,
 copies every referenced original and rendition from the active disk or S3
 backend, and verifies hashes and sizes. It includes the active encryption key,
 including when supplied by `IMVAULT_SECRET_KEY`, and checks that it can decrypt
-stored two-factor secrets. Missing or damaged media prevents a successful backup.
+stored two-factor secrets. A missing or damaged original prevents a successful
+backup. A missing thumbnail, preview or metadata-free copy is reported and
+skipped, since `rebuild-thumbnails` or the next request can recreate it; so are
+the objects of content no file refers to any more. `migrate-storage` treats
+them the same way.
 
 The completed directory is published only after all checks pass. Its permissions
 are `0700`, with the database, key, and manifest `0600`. Keep the whole snapshot

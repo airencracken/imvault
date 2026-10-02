@@ -88,16 +88,11 @@ func backupObjects(ctx context.Context, st *store.Store, source storage.Backend,
 	if err != nil {
 		return manifest, err
 	}
-	for i, entry := range entries {
-		actual, _, err := CopyVerified(ctx, source, dest, entry)
-		if err != nil {
-			return manifest, fmt.Errorf("backup %s: %w", entry.Key, err)
-		}
-		manifest.Objects = append(manifest.Objects, actual)
-		if _, err := fmt.Fprintf(out, "[%d/%d] backed up %s\n", i+1, len(entries), entry.Key); err != nil {
-			return manifest, err
-		}
+	copied, err := copyInventory(ctx, source, dest, entries, out, "backed up")
+	if err != nil {
+		return manifest, fmt.Errorf("backup %w", err)
 	}
+	manifest.Objects = copied
 	return manifest, nil
 }
 

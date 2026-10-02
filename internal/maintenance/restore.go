@@ -76,15 +76,8 @@ func restoreObjects(ctx context.Context, input, stage string, entries []Object, 
 	if err != nil {
 		return err
 	}
-	for i, entry := range entries {
-		if _, _, err := CopyVerified(ctx, source, dest, entry); err != nil {
-			return err
-		}
-		if _, err := fmt.Fprintf(out, "[%d/%d] restored %s\n", i+1, len(entries), entry.Key); err != nil {
-			return err
-		}
-	}
-	return nil
+	_, err = copyInventory(ctx, source, dest, entries, out, "restored")
+	return err
 }
 
 func readManifest(input string) (Manifest, error) {
@@ -147,25 +140,36 @@ func openSnapshot(filename string) (*sql.DB, error) {
 	return sql.Open("sqlite", u.String())
 }
 
+// validateInventory checks a backup's manifest against its own database. Every
+// original the database refers to must be present with its recorded hash, and
+// the manifest may name nothing else. A derived object may be absent: the
+// backup skipped it because it was already missing.
 func validateInventory(ctx context.Context, st *store.Store, objects []Object) error {
 	want, err := Inventory(ctx, st)
 	if err != nil {
 		return err
 	}
-	if len(want) != len(objects) {
-		return errors.New("backup manifest does not match database objects")
+	expected := make(map[string]Object, len(want))
+	for _, entry := range want {
+		expected[entry.Key] = entry
 	}
-	byKey := map[string]Object{}
+	present := make(map[string]Object, len(objects))
 	for _, obj := range objects {
-		byKey[obj.Key] = obj
-	}
-	for _, expected := range want {
-		got, ok := byKey[expected.Key]
-		if !ok {
-			return fmt.Errorf("backup omits %s", expected.Key)
+		if _, ok := expected[obj.Key]; !ok {
+			return fmt.Errorf("backup manifest names %s, which the database does not", obj.Key)
 		}
-		if expected.SHA256 != "" && (got.SHA256 != expected.SHA256 || got.Size != expected.Size) {
-			return fmt.Errorf("backup original does not match database: %s", expected.Key)
+		present[obj.Key] = obj
+	}
+	for _, entry := range want {
+		got, ok := present[entry.Key]
+		if !ok {
+			if derived(entry) {
+				continue
+			}
+			return fmt.Errorf("backup omits %s", entry.Key)
+		}
+		if !derived(entry) && (got.SHA256 != entry.SHA256 || got.Size != entry.Size) {
+			return fmt.Errorf("backup original does not match database: %s", entry.Key)
 		}
 	}
 	return nil

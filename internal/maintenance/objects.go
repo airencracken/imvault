@@ -45,8 +45,14 @@ func eachBlob(ctx context.Context, st *store.Store, visit func(*models.Blob) err
 	}
 }
 
-// Inventory includes every object named by the database, not unrelated content
-// elsewhere in the bucket. Originals must still match their recorded hash.
+// Inventory includes every object named by content that something still
+// refers to, not unrelated content elsewhere in the bucket. Originals carry
+// their recorded hash and must still match it. Derived objects — thumbnails,
+// previews and metadata-free copies — carry none: they can be rebuilt, and a
+// missing one is skipped rather than allowed to stop the whole operation.
+//
+// Content nothing refers to is left out. It is waiting for the server's sweep,
+// which may already have deleted some of its objects.
 func Inventory(ctx context.Context, st *store.Store) ([]Object, error) {
 	var missing int
 	err := st.DB().QueryRowContext(ctx, `SELECT COUNT(*) FROM files f LEFT JOIN blobs b ON b.sha256 = f.sha256 WHERE b.sha256 IS NULL`).Scan(&missing)
@@ -150,15 +156,36 @@ func Migrate(ctx context.Context, st *store.Store, source, dest storage.Backend,
 	if err != nil {
 		return err
 	}
-	for i, item := range entries {
-		_, copied, err := CopyVerified(ctx, source, dest, item)
-		if err != nil {
-			return fmt.Errorf("migration stopped at %s (rerun to resume): %w", item.Key, err)
-		}
-		if _, err := fmt.Fprintf(out, "[%d/%d] verified %s (copied=%t)\n", i+1, len(entries), item.Key, copied); err != nil {
-			return err
-		}
+	if _, err := copyInventory(ctx, source, dest, entries, out, "verified"); err != nil {
+		return fmt.Errorf("migration stopped (rerun to resume): %w", err)
 	}
 	_, err = fmt.Fprintln(out, "Migration verified. Source objects were retained. Configure the destination as IMVAULT_STORAGE before restarting.")
 	return err
+}
+
+// derived reports whether an inventory entry can be rebuilt from its original.
+func derived(entry Object) bool { return entry.SHA256 == "" }
+
+// copyInventory copies and verifies every entry, reporting progress with verb.
+// A derived object missing from the source is skipped and reported; a missing
+// original is an error. It returns the entries that were copied.
+func copyInventory(ctx context.Context, source, dest storage.Backend, entries []Object, out io.Writer, verb string) ([]Object, error) {
+	copied := make([]Object, 0, len(entries))
+	for i, entry := range entries {
+		actual, _, err := CopyVerified(ctx, source, dest, entry)
+		if err != nil && derived(entry) && errors.Is(err, storage.ErrNotFound) {
+			if _, err := fmt.Fprintf(out, "[%d/%d] skipped %s: the derived copy is missing and can be rebuilt\n", i+1, len(entries), entry.Key); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", entry.Key, err)
+		}
+		copied = append(copied, actual)
+		if _, err := fmt.Fprintf(out, "[%d/%d] %s %s\n", i+1, len(entries), verb, entry.Key); err != nil {
+			return nil, err
+		}
+	}
+	return copied, nil
 }

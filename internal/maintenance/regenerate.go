@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"path"
+	"slices"
 
 	"imvault/internal/imaging"
 	"imvault/internal/media"
@@ -28,7 +29,7 @@ func Regenerate(ctx context.Context, st *store.Store, objects storage.Backend, p
 		if result == nil {
 			return nil
 		}
-		if err := verify(ctx, objects, Object{blob.ObjectKey, blob.Size, blob.SHA256}); err != nil {
+		if err := verify(ctx, objects, Object{Key: blob.ObjectKey, Size: blob.Size, SHA256: blob.SHA256}); err != nil {
 			return err
 		}
 		thumb, err := saveRendition(ctx, objects, "thumb", blob.SHA256, result.Thumb)
@@ -39,15 +40,41 @@ func Regenerate(ctx context.Context, st *store.Store, objects storage.Backend, p
 		if err != nil {
 			return err
 		}
-		// Publish both keys and measured clip details together. Old renditions
-		// are retained so this repair does not also perform destructive cleanup.
+		// Publish both keys and measured clip details together, and only then
+		// remove the renditions they replaced.
 		update := store.Renditions{Thumb: thumb, Preview: preview, Width: result.Width, Height: result.Height, DurationMS: result.DurationMS, FrameCount: result.FrameCount}
 		if err := st.SetBlobRenditions(ctx, blob.SHA256, update); err != nil {
 			return err
 		}
-		_, err = fmt.Fprintf(out, "Rebuilt %s\n", blob.ObjectKey)
-		return err
+		if _, err := fmt.Fprintf(out, "Rebuilt %s\n", blob.ObjectKey); err != nil {
+			return err
+		}
+		return removeReplaced(ctx, st, objects, out, []string{blob.ThumbKey, blob.PreviewKey}, []string{thumb, preview})
 	})
+}
+
+// removeReplaced deletes renditions a rebuild superseded, unless something
+// still names them. The new keys are already published, so a failure here
+// leaves only an unreferenced object behind; it is reported, not fatal.
+func removeReplaced(ctx context.Context, st *store.Store, objects storage.Backend, out io.Writer, old, current []string) error {
+	for _, key := range old {
+		if key == "" || slices.Contains(current, key) {
+			continue
+		}
+		used, err := st.ObjectKeyInUse(ctx, key)
+		if err != nil {
+			return err
+		}
+		if used {
+			continue
+		}
+		if err := objects.Delete(ctx, key); err != nil {
+			if _, err := fmt.Fprintf(out, "Could not remove the replaced rendition %s: %v\n", key, err); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func renderOriginal(ctx context.Context, objects storage.Backend, processor *media.Processor, blob *models.Blob, videosOnly bool) (*media.Result, error) {
@@ -97,7 +124,7 @@ func saveRendition(ctx context.Context, objects storage.Backend, kind, original 
 	if _, err := objects.Save(ctx, key, bytes.NewReader(rendition.Data)); err != nil {
 		return "", err
 	}
-	if err := verify(ctx, objects, Object{key, int64(len(rendition.Data)), checksum}); err != nil {
+	if err := verify(ctx, objects, Object{Key: key, Size: int64(len(rendition.Data)), SHA256: checksum}); err != nil {
 		return "", err
 	}
 	return key, nil

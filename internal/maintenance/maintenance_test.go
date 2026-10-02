@@ -139,7 +139,7 @@ func TestBackupRestorePreservesMediaAccountsAndSecrets(t *testing.T) {
 	}
 }
 
-func TestBackupRejectsMissingMediaAndWrongSecret(t *testing.T) {
+func TestBackupRejectsMissingOriginalsAndWrongSecret(t *testing.T) {
 	f := newFixture(t)
 	output := filepath.Join(t.TempDir(), "backup")
 	f.cfg.SecretKey = strings.Repeat("ab", 32)
@@ -147,14 +147,32 @@ func TestBackupRejectsMissingMediaAndWrongSecret(t *testing.T) {
 		t.Fatal("backup accepted the wrong encryption key")
 	}
 	f.cfg.SecretKey = ""
-	if err := f.objects.Delete(t.Context(), "thumb/old.png"); err != nil {
+	if err := f.objects.Delete(t.Context(), "orig/"+f.file.SHA256+".png"); err != nil {
 		t.Fatal(err)
 	}
 	if err := Backup(t.Context(), f.cfg, f.store, f.objects, output, io.Discard); err == nil {
-		t.Fatal("missing rendition silently omitted")
+		t.Fatal("a missing original was silently omitted")
 	}
 	if _, err := os.Stat(output); !os.IsNotExist(err) {
 		t.Fatal("failed backup was published")
+	}
+}
+
+func TestBackupSkipsMissingRenditionsAndStillRestores(t *testing.T) {
+	f := newFixture(t)
+	if err := f.objects.Delete(t.Context(), "thumb/old.png"); err != nil {
+		t.Fatal(err)
+	}
+	backup := filepath.Join(t.TempDir(), "backup")
+	var log strings.Builder
+	if err := Backup(t.Context(), f.cfg, f.store, f.objects, backup, &log); err != nil {
+		t.Fatalf("a missing thumbnail stopped the backup: %v", err)
+	}
+	if !strings.Contains(log.String(), "skipped thumb/old.png") {
+		t.Fatalf("the skipped thumbnail was not reported: %s", log.String())
+	}
+	if err := Restore(t.Context(), backup, filepath.Join(t.TempDir(), "restored"), io.Discard); err != nil {
+		t.Fatalf("a backup without a derived copy did not restore: %v", err)
 	}
 }
 
@@ -259,7 +277,7 @@ func TestRegenerationPreservesOriginalsAndChangesCachedURLs(t *testing.T) {
 	if after.OriginalName != before.OriginalName || after.Description != before.Description || after.Visibility != before.Visibility || after.Metadata != before.Metadata || after.SHA256 != before.SHA256 {
 		t.Fatal("regeneration changed file settings")
 	}
-	if err := verify(t.Context(), f.objects, Object{after.ObjectKey, after.Size, after.SHA256}); err != nil {
+	if err := verify(t.Context(), f.objects, Object{Key: after.ObjectKey, Size: after.Size, SHA256: after.SHA256}); err != nil {
 		t.Fatal(err)
 	}
 	r, err := f.objects.Open(t.Context(), after.ThumbKey)
@@ -277,5 +295,32 @@ func TestRegenerationPreservesOriginalsAndChangesCachedURLs(t *testing.T) {
 	again, err := f.store.FileByID(t.Context(), f.file.ID)
 	if err != nil || again.ThumbURL() != after.ThumbURL() {
 		t.Fatal("identical regeneration changed content URLs")
+	}
+	// The replaced thumbnail is gone; the rebuilt one stays.
+	if _, err := f.objects.Stat(t.Context(), "thumb/old.png"); !errors.Is(err, storage.ErrNotFound) {
+		t.Fatalf("the replaced rendition was left behind: %v", err)
+	}
+	if _, err := f.objects.Stat(t.Context(), again.ThumbKey); err != nil {
+		t.Fatalf("an identical rebuild removed the current rendition: %v", err)
+	}
+}
+
+func TestRegenerationKeepsAReplacedRenditionSomethingElseUses(t *testing.T) {
+	f := newFixture(t)
+	// Different content whose record names the same thumbnail object.
+	if err := f.store.EnsureBlob(t.Context(), "other-hash", 5, "orig/other.png", "thumb/old.png", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.store.CreateFile(t.Context(), &models.File{ID: "other", OriginalName: "o.png", SHA256: "other-hash", Size: 5}); err != nil {
+		t.Fatal(err)
+	}
+	processor := media.NewProcessor(8, 16, 82, 0, nil)
+	// The other original does not exist, so its own rebuild fails, but only
+	// after the fixture's has been processed and its old thumbnail considered.
+	if err := Regenerate(t.Context(), f.store, f.objects, processor, false, io.Discard); err == nil {
+		t.Fatal("the missing original was not reported")
+	}
+	if _, err := f.objects.Stat(t.Context(), "thumb/old.png"); err != nil {
+		t.Fatalf("a rendition another record still names was deleted: %v", err)
 	}
 }
