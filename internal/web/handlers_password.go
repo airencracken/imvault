@@ -10,13 +10,13 @@ import (
 	"strings"
 	"time"
 
+	tokens "github.com/airencracken/comfylib/token"
 	"golang.org/x/crypto/bcrypt"
 
 	"imvault/internal/accounts"
 	"imvault/internal/mail"
 	"imvault/internal/models"
 	"imvault/internal/store"
-	"imvault/internal/tokens"
 )
 
 // resetPath and verifyPath are the URL shapes the emailed links use.

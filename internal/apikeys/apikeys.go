@@ -8,10 +8,10 @@
 // key is stored, so a database leak does not yield usable credentials.
 //
 // The shape is shared with invitations, so the implementation lives in
-// package tokens and this is the scheme that names it.
+// comfylib's token package and this is the scheme that names it.
 package apikeys
 
-import "imvault/internal/tokens"
+import tokens "github.com/airencracken/comfylib/token"
 
 // Scheme is the literal prefix every key starts with.
 const Scheme = "imv"

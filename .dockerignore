@@ -7,3 +7,5 @@ data
 Dockerfile
 .dockerignore
 README.md
+go.work
+go.work.sum

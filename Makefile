@@ -39,11 +39,13 @@ test-invitation-mutations: ## Check invitation tests against deliberate permissi
 test-proxies: ## Test nginx and Apache TLS proxy examples (needs both servers)
 	go test $(GOFLAGS) -tags=proxyintegration -count=1 -timeout=60s ./contrib/proxy
 
+# Release builds and the mutation harness must resolve go.mod alone, never a
+# developer's go.work pointing at local checkouts.
 release-check: ## Validate the release configuration
-	$(GORELEASER) check
+	GOWORK=off $(GORELEASER) check
 
 release-snapshot: release-check ## Build local binary archives and Debian packages without publishing
-	$(GORELEASER) release --snapshot --clean --skip=publish
+	GOWORK=off $(GORELEASER) release --snapshot --clean --skip=publish
 
 help: ## Show the available targets
 	@printf '\nimvault\n\n'

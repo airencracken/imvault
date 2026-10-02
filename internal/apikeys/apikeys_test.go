@@ -94,3 +94,18 @@ func TestHashIsStable(t *testing.T) {
 		t.Error("Hash ignores the trailing character")
 	}
 }
+
+// Keys minted by earlier releases are stored only as digests, so the shape and
+// digest rules must keep accepting them. The fixture was shaped by hand like
+// an old key, and its digest computed independently with Python's hashlib.
+func TestKeysIssuedByEarlierReleasesStillVerify(t *testing.T) {
+	const key = "imv_0a1b2c3d4e5f_0123456789abcdefghijklmnopqrstuv"
+	const stored = "da1133fda869051459c2d13921405b5cfbe1c5eb384929225a53c6dd2aac80bd"
+	prefix, ok := Split(key)
+	if !ok || prefix != "0a1b2c3d4e5f" {
+		t.Fatalf("Split(%q) = %q, %v", key, prefix, ok)
+	}
+	if !Verify(key, stored) {
+		t.Fatal("a stored key no longer verifies")
+	}
+}

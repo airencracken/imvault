@@ -64,3 +64,17 @@ func TestSplitRefusesHostileInput(t *testing.T) {
 		}
 	}
 }
+
+// Codes handed out by earlier releases must keep working. The digest was
+// computed independently with Python's hashlib.
+func TestCodesIssuedByEarlierReleasesStillVerify(t *testing.T) {
+	const code = "inv_zyxwvuts9876_abcdefghijklmnopqrstuvwxyz012345"
+	const stored = "9161c5767e5ad41fbac32b248152e7bc25522d8ba6b685b75201c6cb46a6bafb"
+	prefix, ok := Split(code)
+	if !ok || prefix != "zyxwvuts9876" {
+		t.Fatalf("Split(%q) = %q, %v", code, prefix, ok)
+	}
+	if !Verify(code, stored) {
+		t.Fatal("a stored invitation no longer verifies")
+	}
+}
