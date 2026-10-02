@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
+	tokens "github.com/airencracken/comfylib/token"
+
 	"imvault/internal/store"
-	"imvault/internal/tokens"
 )
 
 func assertSecondFactorPrompt(t *testing.T, browser *session) {

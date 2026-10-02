@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
+	tokens "github.com/airencracken/comfylib/token"
 	"rsc.io/qr"
 
 	"imvault/internal/models"
 	"imvault/internal/store"
-	"imvault/internal/tokens"
 	"imvault/internal/totp"
 )
 

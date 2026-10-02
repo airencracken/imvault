@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"imvault/internal/tokens"
+	tokens "github.com/airencracken/comfylib/token"
 )
 
 func TestAuthTokenRoundTrip(t *testing.T) {

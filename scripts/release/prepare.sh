@@ -16,7 +16,7 @@ sed -e "s|/usr/local/bin/$app|/usr/bin/$app|g" \
 # Include notices from the modules actually linked on either supported platform.
 : > "$out/modules.unsorted" || exit 1
 for arch in amd64 arm64; do
-	CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go list -buildvcs=false -deps \
+	CGO_ENABLED=0 GOWORK=off GOOS=linux GOARCH="$arch" go list -buildvcs=false -deps \
 		-f '{{with .Module}}{{if not .Main}}{{.Path}}|{{.Dir}}{{end}}{{end}}' \
 		"./cmd/$app" >> "$out/modules.unsorted" || exit 1
 done

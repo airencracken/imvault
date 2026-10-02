@@ -12,7 +12,7 @@
 // makes another and revokes this, which is the same trade the API makes.
 package invites
 
-import "imvault/internal/tokens"
+import tokens "github.com/airencracken/comfylib/token"
 
 // Scheme is the literal prefix every invitation starts with.
 const Scheme = "inv"

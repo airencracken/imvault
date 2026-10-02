@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
+	tokens "github.com/airencracken/comfylib/token"
+
 	"imvault/internal/store"
-	"imvault/internal/tokens"
 )
 
 func TestPasswordResetByEmail(t *testing.T) {

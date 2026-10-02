@@ -23,3 +23,8 @@
 
 # Python bytecode from the mutation scripts
 __pycache__/
+
+# Go workspaces point builds at local checkouts, such as a comfylib worktree.
+# They belong to one developer's worktree; releases resolve go.mod alone.
+/go.work
+/go.work.sum

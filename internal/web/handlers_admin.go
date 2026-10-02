@@ -11,9 +11,10 @@ import (
 	"strings"
 	"time"
 
+	tokens "github.com/airencracken/comfylib/token"
+
 	"imvault/internal/models"
 	"imvault/internal/store"
-	"imvault/internal/tokens"
 )
 
 // adminPageSize is how many rows the admin listings show.
