@@ -105,8 +105,10 @@ func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
 
 	// Where to send them back to, resolved from the target rather than trusting
 	// a redirect carried in the form, and whether it is theirs.
-	back := "/"
-	isOwn := false
+	var (
+		back  string
+		isOwn bool
+	)
 	switch kind {
 	case models.TargetFile:
 		file, err := s.store.FileByID(r.Context(), targetID)
@@ -124,6 +126,11 @@ func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
 		}
 		back = "/a/" + album.Slug
 		isOwn = ownsAlbum(user, album)
+		// The form names the album by its slug, which is what a person sees,
+		// but the report records its id. A slug is reused as soon as another
+		// album takes the same title, and a report must never come to mean a
+		// different album than the one somebody complained about.
+		targetID = albumReportTarget(album)
 	default:
 		http.Error(w, "invalid report", http.StatusBadRequest)
 		return
@@ -164,16 +171,33 @@ func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
 		"Thank you. A moderator will look at it.")
 }
 
+// albumReportTarget is how a report refers to an album: by its id, which is
+// never reused.
+func albumReportTarget(album *models.Album) string {
+	return strconv.FormatInt(album.ID, 10)
+}
+
+// reportedAlbum resolves an album report's target. A target that is not an id
+// is a report written before reports used ids, about an album that was already
+// gone when that changed.
+func (s *Server) reportedAlbum(ctx context.Context, target string) (*models.Album, error) {
+	id, err := strconv.ParseInt(target, 10, 64)
+	if err != nil {
+		return nil, store.ErrNotFound
+	}
+	return s.store.AlbumByID(ctx, id)
+}
+
 // reportRowFor resolves a report's target for display.
 func (s *Server) reportRowFor(r *http.Request, report *models.Report) reportRow {
 	row := reportRow{Report: report, Age: models.HumanTime(report.CreatedAt)}
 
 	switch report.TargetKind {
 	case models.TargetAlbum:
-		album, err := s.store.AlbumBySlug(r.Context(), report.TargetID)
+		album, err := s.reportedAlbum(r.Context(), report.TargetID)
 		if err != nil {
 			row.TargetGone = true
-			row.TargetLabel = report.TargetID
+			row.TargetLabel = "a deleted album"
 			return row
 		}
 		row.TargetLabel = album.Title
@@ -353,7 +377,7 @@ func (s *Server) handleResolveReport(w http.ResponseWriter, r *http.Request) {
 func (s *Server) reportLabel(r *http.Request, report *models.Report) string {
 	switch report.TargetKind {
 	case models.TargetAlbum:
-		if album, err := s.store.AlbumBySlug(r.Context(), report.TargetID); err == nil {
+		if album, err := s.reportedAlbum(r.Context(), report.TargetID); err == nil {
 			return album.Title
 		}
 	case models.TargetFile:
@@ -376,7 +400,7 @@ func (s *Server) removeReportedTarget(ctx context.Context, actor *models.User,
 
 	switch report.TargetKind {
 	case models.TargetAlbum:
-		album, err := s.store.AlbumBySlug(ctx, report.TargetID)
+		album, err := s.reportedAlbum(ctx, report.TargetID)
 		if err != nil {
 			return "", err
 		}

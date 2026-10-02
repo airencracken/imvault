@@ -29,3 +29,19 @@ WHEN OLD.password_set = 0 AND NEW.password_hash IS NOT OLD.password_hash
 BEGIN
     UPDATE users SET password_set = 1 WHERE id = NEW.id;
 END;
+
+-- Album reports name the album by id rather than by slug.
+--
+-- A slug comes from the title and is free again the moment its album is
+-- deleted, so a report about one album came to point at the next album given
+-- the same title, and resolving the report removed that one instead. Ids are
+-- never reused. A report whose album is already gone cannot be resolved to an
+-- id, so it is marked as such and can only ever read as gone.
+--
+-- One statement, so each row is judged by its slug as it stood: a slug that
+-- happens to be a number must not be mistaken for an id already converted.
+UPDATE reports
+SET target_id = COALESCE(
+    (SELECT CAST(a.id AS TEXT) FROM albums a WHERE a.slug = reports.target_id),
+    'gone:' || target_id)
+WHERE target_kind = 'album';
