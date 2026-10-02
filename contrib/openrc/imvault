@@ -55,6 +55,17 @@ start_pre() {
 		*) eerror "IMVAULT_SANDBOX must be true or false"; return 1 ;;
 	esac
 
+	# Checked before anything is created: a relative path would be resolved
+	# against the init system's working directory, and checkpath below would
+	# create and chown a directory there.
+	case "${IMVAULT_DATA_DIR}" in
+	/*) ;;
+	*)
+		eerror "IMVAULT_DATA_DIR must be an absolute path (got '${IMVAULT_DATA_DIR}')"
+		return 1
+		;;
+	esac
+
 	# Defaults are shell variables too; the unchanged config is all comments.
 	export IMVAULT_DATA_DIR
 
@@ -70,17 +81,6 @@ start_pre() {
 	checkpath --directory --mode 0755 "${log_dir}" || return 1
 	checkpath --file --mode 0640 \
 		--owner "${IMVAULT_USER}:${IMVAULT_GROUP}" "${IMVAULT_LOG_FILE}" || return 1
-
-	# ffmpeg writes a temporary copy of each clip while extracting a poster, and
-	# falls back to the system temporary directory when the data directory is
-	# not writable by it.
-	case "${IMVAULT_DATA_DIR}" in
-	/*) ;;
-	*)
-		eerror "IMVAULT_DATA_DIR must be an absolute path (got '${IMVAULT_DATA_DIR}')"
-		return 1
-		;;
-	esac
 
 	return 0
 }

@@ -33,3 +33,27 @@ sh -c 'printf "%s" "$IMVAULT_DATA_DIR"'
 		})
 	}
 }
+
+// A relative data directory is refused before checkpath can create and chown
+// it relative to wherever the init system happens to be.
+func TestRelativeDataDirectoryIsRefusedBeforeAnythingIsCreated(t *testing.T) {
+	cmd := exec.Command("sh", "-c", `
+IMVAULT_DATA_DIR=relative/imvault
+. ./imvault || exit 1
+checkpath() { echo "checkpath $*"; return 0; }
+eerror() { echo "error: $*"; }
+start_pre
+echo "status $?"
+`)
+	cmd.Env = []string{"PATH=/usr/bin:/bin", "RC_SVCNAME=imvault-audit-no-config"}
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("shell: %v: %s", err, out)
+	}
+	if strings.Contains(string(out), "checkpath") {
+		t.Fatalf("checkpath ran for a relative path:\n%s", out)
+	}
+	if !strings.Contains(string(out), "status 1") || !strings.Contains(string(out), "absolute path") {
+		t.Fatalf("a relative data directory was not refused:\n%s", out)
+	}
+}
