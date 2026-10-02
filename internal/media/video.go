@@ -14,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"imvault/internal/sandbox"
 )
 
 // VideoInfo is what probing a clip tells us.
@@ -81,7 +83,7 @@ func (f *FFmpeg) Scrub(ctx context.Context, src, dst string) error {
 
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
+	if err := sandbox.RunChild(cmd); err != nil {
 		return fmt.Errorf("scrub clip: %w: %s", err, strings.TrimSpace(stderr.String()))
 	}
 	return finish(true)
@@ -137,7 +139,7 @@ func (f *FFmpeg) Probe(ctx context.Context, path string) (VideoInfo, error) {
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
+	if err := sandbox.RunChild(cmd); err != nil {
 		return VideoInfo{}, fmt.Errorf("ffprobe: %w: %s", err, strings.TrimSpace(stderr.String()))
 	}
 	return parseProbe(stdout.Bytes())
@@ -239,7 +241,7 @@ func (f *FFmpeg) Poster(ctx context.Context, path string, at time.Duration, max 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
+	if err := sandbox.RunChild(cmd); err != nil {
 		return nil, fmt.Errorf("ffmpeg: %w: %s", err, strings.TrimSpace(stderr.String()))
 	}
 	if stdout.Len() == 0 {

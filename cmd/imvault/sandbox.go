@@ -55,11 +55,11 @@ func runSandbox(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	environment, err := sandboxEnvironment()
+	environment, nested, err := sandboxEnvironment()
 	if err != nil {
 		return err
 	}
-	policy := sandbox.Service{Prefix: "IMVAULT_", DataDir: data, Executable: executable, WriteDirs: writes, ReadFiles: reads, Env: environment}
+	policy := sandbox.Service{Prefix: "IMVAULT_", DataDir: data, Executable: executable, WriteDirs: writes, ReadFiles: reads, Env: environment, NestedSandbox: nested}
 	mounts, environment, err := policy.Policy()
 	if err != nil {
 		return err
@@ -87,10 +87,13 @@ func envOr(key, fallback string) string {
 	return fallback
 }
 
-func sandboxEnvironment() ([]string, error) {
+// sandboxEnvironment returns the server's environment with its paths made
+// absolute, and whether the server will need to build media sandboxes of its
+// own inside this one.
+func sandboxEnvironment() ([]string, bool, error) {
 	cfg, err := config.Load()
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	overrides := map[string]string{"IMVAULT_DB": cfg.DBPath, "IMVAULT_SECRET_KEY_FILE": cfg.SecretKeyFile}
 	if cfg.Storage.Driver == "disk" {
@@ -112,9 +115,9 @@ func sandboxEnvironment() ([]string, error) {
 	for key, path := range overrides {
 		absolute, err := filepath.Abs(path)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		environment = append(environment, key+"="+absolute)
 	}
-	return environment, nil
+	return environment, cfg.MediaSandbox, nil
 }

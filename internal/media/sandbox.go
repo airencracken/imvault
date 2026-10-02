@@ -3,6 +3,7 @@
 package media
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -58,8 +59,10 @@ func checkSandboxTool(ctx context.Context, bwrap, path string) error {
 	defer cancel()
 	cmd := exec.CommandContext(ctx, bwrap, append(args, "--disable-userns", "--ro-bind", tool, "/app/tool", "--", "/app/tool", "-version")...)
 	cmd.Env = sandbox.RuntimeEnv()
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("sandboxed media tool %s is unavailable: %w: %s", path, err, string(out))
+	var out bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &out
+	if err := sandbox.RunChild(cmd); err != nil {
+		return fmt.Errorf("sandboxed media tool %s is unavailable: %w: %s", path, err, out.String())
 	}
 	return nil
 }
