@@ -173,6 +173,9 @@ func (s *Server) csrfMW(next http.Handler) http.Handler {
 				http.Error(w, "invalid or missing CSRF token", http.StatusForbidden)
 				return
 			}
+			if !parseCheckedMultipart(w, r) {
+				return
+			}
 		}
 
 		next.ServeHTTP(w, r.WithContext(withCSRF(r.Context(), token)))
@@ -199,6 +202,28 @@ func providedCSRF(r *http.Request) (string, error) {
 		return r.PostFormValue(csrfField), nil
 	}
 	return firstPartToken(r)
+}
+
+// parseCheckedMultipart parses a multipart body once its request has passed
+// the CSRF check, so a handler reading r.Form sees its fields whether the form
+// arrived as multipart or not. The upload endpoints are left alone: they parse
+// their own body, after taking a processing slot. It writes the refusal itself
+// and reports whether to continue.
+func parseCheckedMultipart(w http.ResponseWriter, r *http.Request) bool {
+	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || mediaType != "multipart/form-data" || isUploadPath(r) {
+		return true
+	}
+	if err := r.ParseMultipartForm(multipartMemory); err != nil {
+		status := http.StatusBadRequest
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			status = http.StatusRequestEntityTooLarge
+		}
+		http.Error(w, "could not read form", status)
+		return false
+	}
+	return true
 }
 
 // csrfPeekLimit bounds how much of a multipart body is read to find the token.
