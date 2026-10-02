@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"imvault/internal/closer"
+	"imvault/internal/ids"
 )
 
 // ErrNotFound is returned when an object key does not exist.
@@ -71,28 +72,34 @@ func OpenDisk(root string) (*Disk, error) {
 func (d *Disk) Root() string { return d.root }
 
 // Save streams r into the object at key.
+//
+// Every path is resolved through an os.Root, as Open's is, so a symlink placed
+// inside the object directory cannot carry a write somewhere else. The object
+// is written under a temporary name, synced, renamed into place, and the
+// directory synced too, so a crash leaves either the old state or the whole
+// new object, never a name pointing at nothing.
 func (d *Disk) Save(ctx context.Context, key string, r io.Reader) (int64, error) {
-	full, err := d.resolve(key)
+	root, rel, err := d.openRoot(key)
 	if err != nil {
 		return 0, err
 	}
-	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+	defer closer.Discard(root)
+	dir := filepath.Dir(rel)
+	if err := root.MkdirAll(dir, 0o755); err != nil {
 		return 0, fmt.Errorf("storage: create dir for %s: %w", key, err)
 	}
 
-	// Write to a sibling temp file first so a failed upload never leaves a
-	// truncated object behind under the real key.
-	tmp, err := os.CreateTemp(filepath.Dir(full), ".upload-*")
+	tmpName := filepath.Join(dir, ".upload-"+ids.Token(8))
+	tmp, err := root.OpenFile(tmpName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return 0, fmt.Errorf("storage: temp file for %s: %w", key, err)
 	}
-	tmpName := tmp.Name()
 	defer func() {
 		if tmp != nil {
 			// The write has already failed and that is the error returned. A
 			// leftover ".upload-*" file is the lesser problem, and visibly so.
 			_ = tmp.Close()
-			_ = os.Remove(tmpName)
+			_ = root.Remove(tmpName)
 		}
 	}()
 
@@ -107,14 +114,45 @@ func (d *Disk) Save(ctx context.Context, key string, r io.Reader) (int64, error)
 		return 0, fmt.Errorf("storage: close %s: %w", key, err)
 	}
 	if err := ctx.Err(); err != nil {
-		return 0, err
+		return 0, errors.Join(err, root.Remove(tmpName))
 	}
 	tmp = nil
 
-	if err := os.Rename(tmpName, full); err != nil {
-		return 0, errors.Join(fmt.Errorf("storage: commit %s: %w", key, err), os.Remove(tmpName))
+	if err := root.Rename(tmpName, rel); err != nil {
+		return 0, errors.Join(fmt.Errorf("storage: commit %s: %w", key, err), root.Remove(tmpName))
+	}
+	if err := syncDir(root, dir); err != nil {
+		return 0, fmt.Errorf("storage: sync directory for %s: %w", key, err)
 	}
 	return n, nil
+}
+
+// openRoot resolves key and opens the object directory as a root it cannot
+// escape, returning the key's path relative to that root.
+func (d *Disk) openRoot(key string) (*os.Root, string, error) {
+	full, err := d.resolve(key)
+	if err != nil {
+		return nil, "", err
+	}
+	rel, err := filepath.Rel(d.root, full)
+	if err != nil {
+		return nil, "", err
+	}
+	root, err := os.OpenRoot(d.root)
+	if err != nil {
+		return nil, "", err
+	}
+	return root, rel, nil
+}
+
+// syncDir flushes a directory's entries, which is what makes a rename durable.
+func syncDir(root *os.Root, dir string) error {
+	f, err := root.Open(dir)
+	if err != nil {
+		return err
+	}
+	defer closer.Discard(f) // opened only to sync it
+	return f.Sync()
 }
 
 // Open returns a handle to the object at key.
@@ -122,19 +160,11 @@ func (d *Disk) Open(ctx context.Context, key string) (io.ReadSeekCloser, error) 
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	full, err := d.resolve(key)
-	if err != nil {
-		return nil, err
-	}
-	root, err := os.OpenRoot(d.root)
+	root, rel, err := d.openRoot(key)
 	if err != nil {
 		return nil, err
 	}
 	defer closer.Discard(root) // the opened file outlives the root handle
-	rel, err := filepath.Rel(d.root, full)
-	if err != nil {
-		return nil, err
-	}
 	f, err := root.Open(rel)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -150,11 +180,12 @@ func (d *Disk) Delete(ctx context.Context, key string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	full, err := d.resolve(key)
+	root, rel, err := d.openRoot(key)
 	if err != nil {
 		return err
 	}
-	if err := os.Remove(full); err != nil && !os.IsNotExist(err) {
+	defer closer.Discard(root)
+	if err := root.Remove(rel); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("storage: delete %s: %w", key, err)
 	}
 	return nil
