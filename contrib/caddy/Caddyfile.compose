@@ -1,0 +1,37 @@
+# Imvault behind Caddy, for docker-compose.yml in this directory.
+#
+# The same site as Caddyfile, except that Caddy runs in its own container: there
+# 127.0.0.1 is Caddy itself, so the upstream is the imvault service by name on
+# the compose network. Edit the site address before starting.
+
+img.example.com {
+	# Caddy compresses by content type, so this helps the HTML, CSS, and JSON
+	# while leaving images, clips, and zip exports alone: they are already
+	# compressed and would only cost processor time.
+	encode zstd gzip
+
+	# Optional. Imvault enforces its own per-file and per-account limits, so
+	# this is a second line rather than the only one. It stops an oversized
+	# request from being received in full. It covers every file in a batch
+	# plus multipart overhead; raise it for larger batches or file limits.
+	request_body {
+		max_size 256MB
+	}
+
+	reverse_proxy imvault:8080 {
+		# Imvault streams: large uploads arrive over minutes, and a full-account
+		# export is a zip written straight to the connection. Flushing as data
+		# arrives keeps nothing waiting in a buffer for more.
+		flush_interval -1
+	}
+
+	# Imvault sets its own security-relevant headers, and its pages use inline
+	# Alpine expressions, so a strict Content-Security-Policy would need
+	# 'unsafe-eval' and is deliberately left unset here. See
+	# docs/security.md before adding one.
+}
+
+# Optional alias: enable only if its DNS also points at this server.
+# www.img.example.com {
+#	redir https://img.example.com{uri} permanent
+# }
