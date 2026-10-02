@@ -266,10 +266,11 @@ func uploadParts(form *multipart.Form) []*multipart.FileHeader {
 }
 
 // apiAttachToAlbum links an upload to an album named by id or slug, when the
-// caller owns it. Failures are logged rather than failing the upload, which has
-// already succeeded by this point.
+// caller may contribute to it, exactly as the album page decides. Failures are
+// logged rather than failing the upload, which has already succeeded by this
+// point.
 func (s *Server) apiAttachToAlbum(r *http.Request, user *models.User, ref string, file *models.File) {
-	album, err := s.ownedAlbum(r.Context(), user, ref)
+	album, err := s.contributableAlbum(r.Context(), user, ref)
 	if err != nil {
 		s.log.Warn("api upload: album not usable", "album", ref, "user", user.ID)
 		return

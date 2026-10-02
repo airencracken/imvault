@@ -73,7 +73,7 @@
     <label class="row">Add to album
       <select name="album_id">
         <option value="">— none —</option>
-        {{range .Albums}}<option value="{{.ID}}">{{.Title}}</option>{{end}}
+        {{range .Albums}}<option value="{{.ID}}">{{.Title}}{{if ne .UserID $.User.ID}} (shared by {{.Username}}){{end}}</option>{{end}}
       </select>
     </label>
     {{end}}

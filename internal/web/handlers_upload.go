@@ -53,13 +53,28 @@ func (s *Server) uploadPageView(r *http.Request, user *models.User) uploadView {
 		VideoEnabled:    s.media.VideoEnabled(),
 	}
 	if user != nil {
-		albums, err := s.store.AlbumsByUser(r.Context(), user.ID)
-		if err != nil {
-			s.log.Error("upload page: list albums", "error", err)
-		}
-		view.Albums = albums
+		view.Albums = s.contributableAlbums(r, user)
 	}
 	return view
+}
+
+// contributableAlbums lists the albums an account may upload into: its own,
+// then the shared albums other people made that it can see.
+func (s *Server) contributableAlbums(r *http.Request, user *models.User) []*models.Album {
+	albums, err := s.store.AlbumsByUser(r.Context(), user.ID)
+	if err != nil {
+		s.log.Error("upload page: list albums", "error", err)
+	}
+	shared, err := s.store.AlbumsVisibleTo(r.Context(), user.ID)
+	if err != nil {
+		s.log.Error("upload page: list shared albums", "error", err)
+	}
+	for _, album := range shared {
+		if !ownsAlbum(user, album) && canContributeToAlbum(user, album) {
+			albums = append(albums, album)
+		}
+	}
+	return albums
 }
 
 // fileLimit is the largest single file this account may upload, for a format
@@ -194,10 +209,12 @@ func (s *Server) applyUploadTags(ctx context.Context, file *models.File, raw str
 	}
 }
 
-// attachUploadsToAlbum verifies ownership then links the new files.
+// attachUploadsToAlbum links the new files into an album the uploader may
+// contribute to: their own, or a shared album they can see, by the same rule
+// the album page applies. The files are always the uploader's own.
 func (s *Server) attachUploadsToAlbum(r *http.Request, user *models.User, albumID int64, files []*models.File) {
 	album, err := s.store.AlbumByID(r.Context(), albumID)
-	if err != nil || album.UserID != user.ID {
+	if err != nil || !canContributeToAlbum(user, album) {
 		return
 	}
 	for _, f := range files {
