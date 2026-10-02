@@ -12,8 +12,9 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/airencracken/comfylib/sandbox"
+
 	"imvault/internal/closer"
-	"imvault/internal/sandbox"
 )
 
 // NewSandboxedFFmpeg requires working tools and namespaces. Requested
@@ -28,12 +29,22 @@ func NewSandboxedFFmpeg(ctx context.Context, ffmpeg, ffprobe, bwrap string) (*FF
 		return nil, fmt.Errorf("media sandbox requires Bubblewrap: %w", err)
 	}
 	f.bwrapPath = binary
-	args, err := sandbox.Base(false)
+	args, err := sandbox.Base(sandbox.Options{Network: false})
 	if err != nil {
 		return nil, err
 	}
 	args = append(args, "--disable-userns")
-	if err := sandbox.Check(ctx, binary, args, sandbox.RuntimeEnv()); err != nil {
+	// The namespaces are proved with the host's own true(1), wherever it
+	// lives: /usr/bin on most systems, /bin where busybox provides it. Base
+	// binds both read-only.
+	probe, err := exec.LookPath("true")
+	if err != nil {
+		return nil, fmt.Errorf("the media sandbox check needs true(1): %w", err)
+	}
+	if probe, err = filepath.Abs(probe); err != nil {
+		return nil, err
+	}
+	if err := sandbox.Check(ctx, binary, args, sandbox.RuntimeEnv(), probe); err != nil {
 		return nil, err
 	}
 	for _, tool := range []string{ffmpeg, ffprobe} {
@@ -53,7 +64,7 @@ func checkSandboxTool(ctx context.Context, bwrap, path string) error {
 	if err != nil {
 		return err
 	}
-	args, err := sandbox.Base(false)
+	args, err := sandbox.Base(sandbox.Options{Network: false})
 	if err != nil {
 		return err
 	}
@@ -95,7 +106,7 @@ func (f *FFmpeg) command(ctx context.Context, binary, input, output string, args
 	if err != nil {
 		return nil, nil, err
 	}
-	mounts, err := sandbox.Base(false)
+	mounts, err := sandbox.Base(sandbox.Options{Network: false})
 	if err != nil {
 		return nil, nil, errors.Join(err, os.RemoveAll(job))
 	}

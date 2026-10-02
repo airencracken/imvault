@@ -192,7 +192,7 @@ clean-demo: ## Remove the demo data directory
 
 .PHONY: test-sandbox test-sandbox-mutations
 test-sandbox: ## Require real Bubblewrap boundary and lifecycle tests (Linux)
-	COMFYWARE_SANDBOX_TEST=1 go test -race -count=1 ./internal/sandbox ./internal/media ./internal/web ./cmd/imvault -run 'Sandbox|Real|MediaArgument'
+	COMFYWARE_SANDBOX_TEST=1 go test $(GOFLAGS) -race -count=1 ./internal/media ./internal/web ./cmd/imvault -run 'Sandbox|Real|MediaArgument'
 
 test-sandbox-mutations: ## Verify sandbox regressions reject deliberate defects (Python 3)
 	python3 scripts/test-sandbox-mutations.py
