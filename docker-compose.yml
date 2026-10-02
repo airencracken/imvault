@@ -18,8 +18,12 @@ services:
     # accept large multi-file uploads.
     tmpfs:
       - /tmp:size=512m,mode=1777
+    # A named volume, so Docker creates it owned by the image's imvault user
+    # (uid 10001). A bind mount such as ./data:/data is created by the daemon
+    # as root, and the server then cannot write its database; if you want one,
+    # create the directory first and run: sudo chown 10001:10001 ./data
     volumes:
-      - ./data:/data
+      - imvault-data:/data
     environment:
       # Set this to the URL you actually browse, so share links are absolute.
       IMVAULT_BASE_URL: "${IMVAULT_BASE_URL:-http://localhost:8080}"
@@ -57,3 +61,6 @@ services:
       timeout: 5s
       retries: 3
       start_period: 5s
+
+volumes:
+  imvault-data:

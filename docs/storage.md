@@ -97,12 +97,13 @@ are released automatically if the process exits. Older imvault binaries do not
 honor this lock, so stop any older service too. Avoid manual database writes or
 other writers to the bucket during maintenance.
 
-For a default disk installation on Gentoo:
+For a default disk installation on Gentoo, where the package puts the binary in
+`/usr/bin` (a `make install` from source uses `/usr/local/bin`):
 
 ```bash
 sudo rc-service imvault stop
 sudo -u imvault env IMVAULT_DATA_DIR=/var/lib/imvault \
-  /usr/local/bin/imvault rebuild-thumbnails --videos-only
+  /usr/bin/imvault rebuild-thumbnails --videos-only
 sudo rc-service imvault start
 ```
 
