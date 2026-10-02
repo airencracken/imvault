@@ -153,11 +153,15 @@ snapshot of the issuer's username, so the administrator can follow who invited
 whom even if an account is later renamed or removed. New accounts are still
 ordinary members and do not inherit invitation permission.
 
+A member's codes are bounded: each admits between 1 and 25 people and lapses
+within 30 days (30 when the field is left blank). Only an administrator can
+issue a code with no use limit or no expiry.
+
 **Remove invite access** immediately stops the member from creating or managing
-codes. Invitations already issued remain active; an administrator can revoke
-them individually. Disabling an issuer also prevents their codes from admitting
-new accounts until the issuer is enabled again. Password and provider signups
-both retain the invitation's issuer.
+codes, and revokes the codes they have open. Deleting an issuer revokes their
+open codes too. Disabling an issuer prevents their codes from admitting new
+accounts until the issuer is enabled again. Password and provider signups both
+retain the invitation's issuer.
 
 Issuing a code with several uses is for a group you trust together, and `0`
 means no limit at all. A code's uses are consumed in the same transaction that
@@ -171,18 +175,29 @@ Google, Discord, or anything else that speaks it — configured with
 `IMVAULT_OIDC_ISSUER` and friends. See
 [Configuration](configuration.md#signing-in-with-a-provider) for the settings.
 
-Sign-in is **supplementary**. Passwords keep working, every account keeps one,
-and connecting a provider never removes the ability to sign in without it. A
-provider being down is an inconvenience rather than a lockout.
+Sign-in is **supplementary** for an account that has a password: passwords
+keep working, and connecting a provider never removes the ability to sign in
+without it. A provider being down is an inconvenience rather than a lockout.
+
+An account **made** through a provider has no password anybody knows. Settings
+that would ask for "your current password" (changing the address, turning off
+two-factor, deleting the account) ask the provider instead: **Confirm with the
+provider** on the settings page sends you there and back, and for ten minutes,
+in that browser session only, those settings work without a password. Use that
+confirmation to **set a password** from `/settings/password`. Until one is set,
+the last connected provider cannot be disconnected, because it is the only way
+in.
 
 Three decisions are worth knowing about, because each is a place where trusting
 a provider too readily would hand over an account:
 
-- **An address only links when the provider says it has verified it.** Most
-  providers let an account set any address it likes; `email_verified` is the
-  claim that separates "this is their address" from "this is a string they
-  typed". Without it, a provider that does not check addresses would become a
-  way to sign in as whoever you name.
+- **An address only links when both sides have verified it.** Most providers
+  let an account set any address it likes; `email_verified` is the claim that
+  separates "this is their address" from "this is a string they typed". The
+  local account must have confirmed the address as well: anybody can register
+  here with somebody else's address, and linking on it would sign the real
+  owner into that account the first time they used the provider. An address
+  confirmed on neither side, or only on one, leads to registration instead.
 - **An ambiguous address links nothing.** Addresses are not unique here, so if
   two accounts share one, signing in with the provider is refused with an
   explanation rather than guessing which was meant.
