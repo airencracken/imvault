@@ -192,6 +192,11 @@ func (p *Provider) Exchange(ctx context.Context, code, verifier, redirectURL, no
 }
 
 // allows enforces the domain allowlist, when one is set.
+//
+// The address only counts when the provider vouches for it. Plenty of
+// providers let a person type any address into their profile, and an
+// allowlist that accepted "anyone@family.example" on the person's own say-so
+// would be no gate at all.
 func (p *Provider) allows(identity *Identity) error {
 	if len(p.cfg.AllowedDomains) == 0 {
 		return nil
@@ -200,6 +205,9 @@ func (p *Provider) allows(identity *Identity) error {
 	domain := emailDomain(identity.Email)
 	if domain == "" {
 		return errors.New("oidc: the provider did not supply an email address")
+	}
+	if !identity.EmailVerified {
+		return errors.New("oidc: the provider has not verified this email address")
 	}
 	for _, allowed := range p.cfg.AllowedDomains {
 		if strings.EqualFold(strings.TrimPrefix(strings.TrimSpace(allowed), "@"), domain) {

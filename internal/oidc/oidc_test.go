@@ -97,12 +97,17 @@ func TestAllowedDomains(t *testing.T) {
 	// An allowlist is only consulted when one is set, and comparison is
 	// case-insensitive because a provider may return either.
 	for _, email := range []string{"a@one.example", "b@TWO.example", "c@two.example"} {
-		if err := provider.allows(&Identity{Email: email}); err != nil {
+		if err := provider.allows(&Identity{Email: email, EmailVerified: true}); err != nil {
 			t.Errorf("%s was refused: %v", email, err)
 		}
-	}
-	for _, email := range []string{"a@three.example", "", "no-at-sign"} {
+		// An address the provider has not verified is only the person's
+		// claim, so it cannot satisfy the allowlist.
 		if err := provider.allows(&Identity{Email: email}); err == nil {
+			t.Errorf("unverified %s was allowed", email)
+		}
+	}
+	for _, email := range []string{"a@three.example", "", "no-at-sign", "a@one.example@three.example"} {
+		if err := provider.allows(&Identity{Email: email, EmailVerified: true}); err == nil {
 			t.Errorf("%q was allowed", email)
 		}
 	}
@@ -110,6 +115,9 @@ func TestAllowedDomains(t *testing.T) {
 	// With no allowlist, any address is acceptable.
 	open := &Provider{}
 	if err := open.allows(&Identity{Email: "anyone@anywhere"}); err != nil {
+		t.Errorf("an unset allowlist refused somebody: %v", err)
+	}
+	if err := open.allows(&Identity{}); err != nil {
 		t.Errorf("an unset allowlist refused somebody: %v", err)
 	}
 }
