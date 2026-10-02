@@ -30,6 +30,9 @@ func refreshMetadata(args []string, stdout io.Writer) error {
 	if flags.NArg() != 0 {
 		return errors.New("usage: imvault refresh-metadata")
 	}
+	if err := refuseRootMaintenance("refresh-metadata"); err != nil {
+		return err
+	}
 	cfg, err := config.Load()
 	if err != nil {
 		return err

@@ -86,7 +86,11 @@ Use a test bucket; without these settings the provider test is explicitly skippe
 ## Running maintenance
 
 Run commands as the service's OS user, with the same `IMVAULT_*` settings as the
-service. The CLI does not automatically source `/etc/conf.d/imvault`.
+service. The CLI does not automatically source `/etc/conf.d/imvault`. Run as
+root, `backup`, `migrate-storage`, `rebuild-thumbnails` and `refresh-metadata`
+switch to the account an installed systemd or OpenRC service names, exactly as
+`create-admin` does; with no such service they refuse to run, rather than leave
+files behind that the service cannot read.
 `migrate-storage`, `rebuild-thumbnails`, and `backup` require the server to be
 stopped. An instance lock rejects concurrent servers and maintenance; locks
 are released automatically if the process exits. Older imvault binaries do not
