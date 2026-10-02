@@ -381,7 +381,7 @@ func (s *Server) handleAdminSetInvitePermission(w http.ResponseWriter, r *http.R
 	updated := s.reloadAdminUser(r, userID)
 	message := user.Username + " can now issue invitations."
 	if !allowed {
-		message = user.Username + " can no longer issue invitations. Existing invitations remain active."
+		message = user.Username + " can no longer issue invitations, and their open invitations were revoked."
 	}
 	s.adminRespond(w, r, updated, adminNotice{Text: message}, "", "/admin/users")
 }

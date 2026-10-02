@@ -20,7 +20,7 @@
 </p>
 {{end}}
 
-{{if .IsAdmin}}<p class="muted">To let a member invite others, choose <strong>Allow invites</strong> on the <a href="/admin/users">Users</a> page.</p>{{end}}
+{{if .IsAdmin}}<p class="muted">To let a member invite others, choose <strong>Allow invites</strong> on the <a href="/admin/users">Users</a> page. Removing that access revokes the member's open invitations.</p>{{end}}
 
 {{template "invites_panel" .}}
 {{end}}
