@@ -78,8 +78,8 @@ authenticated by a cookie. A bearer token is not ambient authority, so a
 cross-site request cannot make a browser attach one.
 
 Cookies are `HttpOnly` and `SameSite=Lax`, and `Secure` when
-`IMVAULT_SECURE_COOKIES` is set, or when a trusted proxy
-(`IMVAULT_TRUST_PROXY_HEADERS=true`) reports `X-Forwarded-Proto: https`. **That
+`IMVAULT_SECURE_COOKIES` is set, or when a proxy listed in
+`IMVAULT_TRUSTED_PROXIES` reports `X-Forwarded-Proto: https`. **That
 matters behind TLS**: without it a cookie can be read off a plaintext
 connection.
 
@@ -239,11 +239,14 @@ another's:
   uploads.
 
 Behind a reverse proxy, every request arrives from the proxy's address, so
-anonymous uploads would share one bucket. `IMVAULT_TRUST_PROXY_HEADERS` reads
-the client from the right-most `X-Forwarded-For` entry, the one the proxy itself
-added, instead — **only enable it behind a proxy you
-control**, because those headers are otherwise client-supplied, and trusting
-them would let a caller sidestep the limit entirely.
+anonymous uploads would share one bucket. `IMVAULT_TRUSTED_PROXIES` names the
+proxies whose `X-Forwarded-For` is believed. Only a connection from one of them
+is looked at, and Imvault walks the header from the right, past further trusted
+proxies, to the first address that is not one: everything to its left came
+from the client. A hop that is not a plain IP address ends the walk at the
+peer. **List only proxies you control**, because those headers are otherwise
+client-supplied, and trusting them would let a caller sidestep the limit
+entirely. `X-Real-IP` is not read, and IPv6 clients are limited per /64.
 
 Both limiters are per process. Several instances behind a load balancer each get
 their own budget.

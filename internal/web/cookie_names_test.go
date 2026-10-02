@@ -28,7 +28,7 @@ var cookieModes = []cookieMode{
 	{name: "configured secure", secure: true, config: func(c *config.Config) { c.SecureCookies = true }},
 	{
 		name: "trusted proxy", secure: true,
-		config:  func(c *config.Config) { c.TrustProxyHeaders = true },
+		config:  func(c *config.Config) { trustLoopback(c, true) },
 		headers: http.Header{"X-Forwarded-Proto": {"https"}},
 	},
 	// A client claiming HTTPS through an untrusted header is still plain HTTP.

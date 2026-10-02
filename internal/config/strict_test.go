@@ -18,7 +18,6 @@ func TestMalformedSettingsAreErrorsNotDefaults(t *testing.T) {
 		"IMVAULT_ALLOW_ANONYMOUS_UPLOADS": "off",
 		"IMVAULT_SECURE_COOKIES":          "yes",
 		"IMVAULT_INVITE_ONLY":             "enabled",
-		"IMVAULT_TRUST_PROXY_HEADERS":     "maybe",
 		"IMVAULT_MAX_UPLOAD_BYTES":        "32MB",
 		"IMVAULT_DEFAULT_QUOTA_BYTES":     "5 GiB",
 		"IMVAULT_MAX_CONCURRENT_UPLOADS":  "four",

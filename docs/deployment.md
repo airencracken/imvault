@@ -152,15 +152,18 @@ terminator is a way around it.
    way in is through the proxy. Publishing 8080 as well would let anyone reach
    the plaintext origin and its non-Secure cookies.
 
-2. **Set `IMVAULT_TRUST_PROXY_HEADERS=true`.** Without it every request appears
-   to come from the proxy, so anonymous uploads and sign-in attempts all share
-   one rate-limit bucket.
+2. **Set `IMVAULT_TRUSTED_PROXIES=127.0.0.1/32,::1/128`.** Without it every
+   request appears to come from the proxy, so anonymous uploads and sign-in
+   attempts all share one rate-limit bucket. It names the proxies whose
+   forwarding headers are believed; a request from any other address has its
+   `X-Forwarded-For` and `X-Forwarded-Proto` ignored. For a proxy on another
+   host or container, list its address instead.
 
 3. **You probably do not need `IMVAULT_SECURE_COOKIES`.** Caddy sets
-   `X-Forwarded-Proto`, and with `IMVAULT_TRUST_PROXY_HEADERS=true` Imvault
-   marks cookies `Secure` when it sees `https`. The header is ignored without
-   that setting, since any client could send it. Set `IMVAULT_SECURE_COOKIES`
-   anyway if you would rather not depend on the header.
+   `X-Forwarded-Proto`, and from a trusted proxy Imvault marks cookies
+   `Secure` when it sees `https`. The header is ignored from anywhere else,
+   since any client could send it. Set `IMVAULT_SECURE_COOKIES` anyway if you
+   would rather not depend on the header.
 
 ### What was checked
 
@@ -169,8 +172,8 @@ observed rather than assumed:
 
 - **Caddy discards a client-supplied `X-Forwarded-For`** and replaces it with
   the peer it accepted the connection from, so the header Imvault trusts is the
-  real one. The rate limiter was confirmed to key on the forwarded address
-  (`key=login:198.51.100.9:marcus`) when the proxy reported it.
+  real one. The rate limiter keys on the forwarded address (`key=login:198.51.100.9`)
+  when a trusted proxy reports it, and on the IPv6 /64 for an IPv6 client.
 - **Range requests survive the proxy**, which matters for scrubbing a clip.
 - **Compression is applied by content type**: a JPEG came back with no
   `Content-Encoding` while the stylesheet was gzipped, so images and zip exports
@@ -188,7 +191,9 @@ as a console error rather than a visible failure.
 
 If Caddy is itself behind another proxy or a CDN, add that proxy to Caddy's
 `trusted_proxies` so `X-Forwarded-For` reflects the original client rather than
-the last hop.
+the last hop. Alternatively, keep Caddy replacing the header and list both
+proxies in `IMVAULT_TRUSTED_PROXIES`: Imvault walks `X-Forwarded-For` from the
+right past every trusted proxy and takes the first address that is not one.
 
 ## Packages
 

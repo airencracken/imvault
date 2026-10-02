@@ -53,3 +53,26 @@ version's release notes.
   `IMVAULT_SMTP_HOST` used to log each message it could not send, reset and
   confirmation links included. It now logs nothing about them; administrators
   issue reset links from the admin pages as before.
+- **`IMVAULT_TRUST_PROXY_HEADERS` is refused; rename it to
+  `IMVAULT_TRUSTED_PROXIES` before upgrading.** The old setting believed
+  `X-Forwarded-For` and `X-Forwarded-Proto` from every peer. The new one names
+  the reverse proxies whose forwarding headers are believed, as
+  comma-separated addresses or CIDR prefixes; headers from any other peer are
+  ignored. For a proxy on the same host, as in the shipped examples, replace
+  `IMVAULT_TRUST_PROXY_HEADERS=true` with
+  `IMVAULT_TRUSTED_PROXIES=127.0.0.1/32,::1/128`; for a proxy in another
+  container or host, list its address, as `contrib/caddy/docker-compose.yml`
+  now does. With `IMVAULT_TRUST_PROXY_HEADERS` set to any value, even `false`
+  or empty, the server stops at startup with a message naming the
+  replacement, so remove it where it was `false` too. An entry in
+  `IMVAULT_TRUSTED_PROXIES` that is not an address or prefix also stops the
+  server. `proxy-config` now prints the new setting. The Debian package does
+  not edit `/etc/imvault/imvault.env`, so rename the setting there by hand.
+- **Client addresses are read more strictly.** Behind trusted proxies, Imvault
+  walks `X-Forwarded-For` from the right past each trusted proxy and takes the
+  first address that is not one; an entry that is not a plain IP address
+  makes it fall back to the proxy's own address. `X-Real-IP` is no longer read.
+- **Rate limits group IPv6 clients by /64**, so one host cannot claim a fresh
+  sign-in or upload budget for each of its addresses. Each limiter also tracks
+  at most 10,000 callers, forgetting the least recently seen, so a flood of
+  addresses cannot grow its memory without bound.

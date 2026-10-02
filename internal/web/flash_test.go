@@ -84,7 +84,7 @@ func cookieSecure(resp *http.Response, name string) (bool, bool) {
 // operator has said a proxy sets it.
 func TestForwardedProtoNeedsATrustedProxy(t *testing.T) {
 	for _, trusted := range []bool{false, true} {
-		h := newHarnessWith(t, func(c *config.Config) { c.TrustProxyHeaders = trusted })
+		h := newHarnessWith(t, func(c *config.Config) { trustLoopback(c, trusted) })
 		req, err := http.NewRequest(http.MethodGet, h.server.URL+"/", nil)
 		if err != nil {
 			t.Fatal(err)
@@ -106,6 +106,9 @@ func TestForwardedProtoNeedsATrustedProxy(t *testing.T) {
 		if secure != trusted {
 			t.Errorf("trusted=%v: Secure = %v", trusted, secure)
 		}
+		// The client-side request has no peer; give it the loopback one the
+		// server saw.
+		req.RemoteAddr = "127.0.0.1:41000"
 		if got := h.srv.absoluteURL(req, "/x"); strings.HasPrefix(got, "https://") != trusted {
 			t.Errorf("trusted=%v: absolute URL %q", trusted, got)
 		}

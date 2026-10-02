@@ -115,14 +115,12 @@ func isHTMX(r *http.Request) bool {
 // secureRequest reports whether the request reached us over TLS, directly or
 // via a reverse proxy this instance has been told to trust.
 //
-// X-Forwarded-Proto is only evidence when a trusted proxy set it. Otherwise any
-// client can send it, and the scheme of a link this server builds would be
-// whatever the request claimed.
+// X-Forwarded-Proto is only evidence when a trusted proxy set it, and only its
+// right-most value, the one the nearest proxy wrote. Otherwise any client can
+// send it, and the scheme of a link this server builds would be whatever the
+// request claimed.
 func (s *Server) secureRequest(r *http.Request) bool {
-	if r.TLS != nil {
-		return true
-	}
-	return s.cfg.TrustProxyHeaders && strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
+	return s.clients().ForwardedHTTPS(r)
 }
 
 // secureCookies reports whether cookies set on this response should carry the

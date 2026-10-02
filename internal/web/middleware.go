@@ -13,12 +13,14 @@ import (
 	"log/slog"
 	"mime"
 	"mime/multipart"
-	"net"
 	"net/http"
+	"net/netip"
 	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/airencracken/comfylib/clientip"
 
 	"imvault/internal/apikeys"
 	"imvault/internal/ids"
@@ -489,35 +491,22 @@ func (s *Server) rateLimitKey(r *http.Request) string {
 	if user := currentUser(r.Context()); user != nil {
 		return "user:" + strconv.FormatInt(user.ID, 10)
 	}
-	return "ip:" + s.clientIP(r)
+	return "ip:" + clientip.NetworkKey(s.clientIP(r))
 }
 
-// clientIP returns the address to bucket anonymous uploads under.
+// clientIP returns the address to bucket anonymous callers under.
 //
-// Proxy headers are only consulted when explicitly trusted: they are otherwise
-// trivially spoofable, which would let a caller sidestep the limit entirely.
-// Even then only the right-most X-Forwarded-For entry counts. That is the one
-// the trusted proxy itself appended; anything to its left arrived from the
-// client, so a proxy configured to append rather than replace would otherwise
-// let every request choose its own bucket.
-func (s *Server) clientIP(r *http.Request) string {
-	if s.cfg.TrustProxyHeaders {
-		if forwarded := r.Header.Values("X-Forwarded-For"); len(forwarded) > 0 {
-			entries := strings.Split(forwarded[len(forwarded)-1], ",")
-			if ip := strings.TrimSpace(entries[len(entries)-1]); ip != "" {
-				return ip
-			}
-		}
-		if real := strings.TrimSpace(r.Header.Get("X-Real-IP")); real != "" {
-			return real
-		}
-	}
+// Forwarding headers count only on a connection from a proxy named in
+// IMVAULT_TRUSTED_PROXIES, and even then only the entries those proxies
+// appended: anything further left arrived from the client, so believing it
+// would let every request choose its own bucket. X-Real-IP is never read.
+func (s *Server) clientIP(r *http.Request) netip.Addr {
+	return s.clients().Client(r)
+}
 
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return host
+// clients applies the configured proxy trust list to requests.
+func (s *Server) clients() clientip.Resolver {
+	return clientip.Resolver{Trusted: s.cfg.TrustedProxies}
 }
 
 // clearSessionCookie expires the session cookie.
@@ -551,7 +540,7 @@ func (s *Server) rateLimitLogins(next http.HandlerFunc) http.HandlerFunc {
 		// Every authentication step shares the address budget. A supplied
 		// username is not an identity, particularly on the second-factor form,
 		// and changing it must not create a fresh budget.
-		key := "login:" + s.clientIP(r)
+		key := "login:" + clientip.NetworkKey(s.clientIP(r))
 
 		if ok, retryAfter := s.logins.Allow(key); !ok {
 			seconds := int(retryAfter.Seconds()) + 1

@@ -11,6 +11,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/cookiejar"
+	"net/netip"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -24,6 +25,7 @@ import (
 	"github.com/airencracken/comfylib/smtp"
 	"golang.org/x/crypto/bcrypt"
 
+	"imvault/internal/config"
 	"imvault/internal/ids"
 )
 
@@ -508,5 +510,17 @@ func mustClose(tb testing.TB, c io.Closer) {
 	tb.Helper()
 	if err := c.Close(); err != nil {
 		tb.Errorf("close: %v", err)
+	}
+}
+
+// loopbackProxies trusts a reverse proxy on this host, as the shipped
+// examples deploy one; the test servers listen on loopback.
+var loopbackProxies = []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32"), netip.MustParsePrefix("::1/128")}
+
+// trustLoopback sets whether the loopback proxy is trusted.
+func trustLoopback(c *config.Config, trusted bool) {
+	c.TrustedProxies = nil
+	if trusted {
+		c.TrustedProxies = loopbackProxies
 	}
 }
