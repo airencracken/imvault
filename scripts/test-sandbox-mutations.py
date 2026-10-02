@@ -23,7 +23,7 @@ def check():
  env["GOFLAGS"] = (env.get("GOFLAGS", "") + " -buildvcs=false").strip()
  with tempfile.TemporaryDirectory(prefix="comfyware-sandbox-mutations-") as temporary:
   checkout = Path(temporary) / "source"
-  shutil.copytree(ROOT, checkout, ignore=shutil.ignore_patterns(".git", "node_modules", "bin", "dist", ".release", "*.db", "*.db-wal", "*.db-shm", "__pycache__"))
+  shutil.copytree(ROOT, checkout, ignore=shutil.ignore_patterns(".git", "node_modules", "bin", "dist", ".release", "data", "demo-data", "*.db", "*.db-wal", "*.db-shm", "__pycache__"))
   for name, file, before, after, package, regression in MUTATIONS:
    command = ["go", "test", package, "-count=1", "-run", "^"+regression+"$", "-timeout=30s"]
    baseline = subprocess.run(command, cwd=checkout, env=env, text=True, capture_output=True, timeout=90)
