@@ -182,16 +182,19 @@ func (s *Server) apiUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// requestLimitsMW holds the shared upload slot and bounds the body.
-	if err := r.ParseMultipartForm(multipartMemory); err != nil {
-		writeAPIError(w, http.StatusBadRequest, "could not read the upload: "+uploadErrMessage(err))
+	// The key and the rate limit are already checked, so the slot goes to a
+	// caller entitled to it. requestLimitsMW bounds the body and removes the
+	// temporary files.
+	release, ok := s.acquireUpload(w, r)
+	if !ok {
 		return
 	}
-	defer func() {
-		if r.MultipartForm != nil {
-			r.MultipartForm.RemoveAll()
-		}
-	}()
+	defer release()
+
+	if err := r.ParseMultipartForm(multipartMemory); err != nil {
+		writeAPIError(w, uploadErrStatus(err), "could not read the upload: "+uploadErrMessage(err))
+		return
+	}
 
 	parts := uploadParts(r.MultipartForm)
 	if len(parts) == 0 {

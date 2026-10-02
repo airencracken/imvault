@@ -463,3 +463,27 @@ func (s *session) getBytes(path string) (*http.Response, []byte) {
 	}
 	return resp, body
 }
+
+// token is the CSRF token the session's browser currently holds, read fresh
+// from the jar because signing in replaces it.
+func (s *session) token() string {
+	s.t.Helper()
+	parsed, err := url.Parse(s.h.server.URL)
+	if err != nil {
+		s.t.Fatalf("parse base url: %v", err)
+	}
+	for _, cookie := range s.jar.Cookies(parsed) {
+		if cookie.Name == csrfCookie {
+			return cookie.Value
+		}
+	}
+	return s.csrf
+}
+
+// closeBody closes a response body, failing the test if that fails.
+func closeBody(t *testing.T, resp *http.Response) {
+	t.Helper()
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("close response body: %v", err)
+	}
+}

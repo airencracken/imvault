@@ -55,7 +55,11 @@ type Server struct {
 	// processing bounds how many uploads are worked on at once, across
 	// everybody. Rate limiting is per identity and does not bound the total.
 	processing *gate
-	content    contentLocks
+	// formReadTimeout and uploadReadTimeout bound how long a request body may
+	// take to arrive. They are fields so a test can shorten them.
+	formReadTimeout   time.Duration
+	uploadReadTimeout time.Duration
+	content           contentLocks
 	// mapCache holds fetched static maps so repeated views do not spend a
 	// provider's quota. The key is the fully substituted provider URL.
 	mapMu    sync.Mutex
@@ -82,6 +86,8 @@ func New(cfg *config.Config, st *store.Store, objects storage.Backend, proc *med
 		logins:            ratelimit.New(cfg.LoginRatePerHour, cfg.LoginBurst),
 		mailRetryInterval: cfg.MailRetryInterval,
 		processing:        newGate(cfg.MaxConcurrentUploads),
+		formReadTimeout:   formReadTimeout,
+		uploadReadTimeout: uploadReadTimeout,
 		// The provider is not contacted here: discovery happens on first use,
 		// so an issuer that is briefly unreachable does not stop the instance
 		// from serving, and does not need a restart once it is back.

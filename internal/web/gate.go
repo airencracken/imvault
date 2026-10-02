@@ -4,6 +4,8 @@ package web
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -35,32 +37,99 @@ type gate struct {
 // the connection open is itself a resource.
 const uploadWait = 10 * time.Second
 
-// requestLimitsMW runs before any middleware can read a request body. CSRF
-// tokens may arrive in multipart fields, so protecting only the upload handler
-// leaves the earlier CSRF parser unbounded.
+// Read deadlines. Without them a client can hold a request open by sending
+// its body one byte at a time, and the server has no read timeout of its own
+// because a whole-request timeout would also cut off long downloads.
+const (
+	// formReadTimeout bounds how long an ordinary form body may take to arrive.
+	formReadTimeout = time.Minute
+	// uploadReadTimeout bounds an upload body, which can be large and can
+	// legitimately arrive slowly.
+	uploadReadTimeout = 15 * time.Minute
+)
+
+// isUploadPath reports whether a request is one of the two upload endpoints.
+func isUploadPath(r *http.Request) bool {
+	return r.Method == http.MethodPost && (r.URL.Path == "/upload" || r.URL.Path == "/api/v1/upload")
+}
+
+// requestLimitsMW bounds every request body before any middleware can read it,
+// in size and in time. CSRF tokens may arrive in a form body, so protecting
+// only the handlers would leave the earlier CSRF check unbounded.
+//
+// It deliberately does not take an upload slot. A slot is the scarce thing, and
+// handing one out before anything has checked who is asking let an anonymous
+// request with no token hold every slot open by trickling its body.
 func (s *Server) requestLimitsMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		limit := int64(formRewriteLimit)
-		if r.Method == http.MethodPost && r.URL.Path == "/admin/settings/branding-assets" {
+		timeout := s.formReadTimeout
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/admin/settings/branding-assets":
 			limit = 5 << 20
-		}
-		if r.Method == http.MethodPost && (r.URL.Path == "/upload" || r.URL.Path == "/api/v1/upload") {
-			release, ok := s.processing.acquire(r.Context())
-			if !ok {
-				s.uploadBusy(w, r)
-				return
-			}
-			defer release()
+		case isUploadPath(r):
 			limit = s.requestSizeLimit(currentUser(r.Context()))
+			timeout = s.uploadReadTimeout
 		}
-		r.Body = http.MaxBytesReader(w, r.Body, limit)
+		if hasBody(r) {
+			s.setReadDeadline(w, r, time.Now().Add(timeout))
+			r.Body = &deadlineBody{ReadCloser: http.MaxBytesReader(w, r.Body, limit), clear: func() {
+				// Once the body is in, the deadline has done its job. Leaving
+				// it would cancel the request when the server starts watching
+				// for the client to go away.
+				s.setReadDeadline(w, r, time.Time{})
+			}}
+		}
 		defer func() {
 			if r.MultipartForm != nil {
-				r.MultipartForm.RemoveAll()
+				if err := r.MultipartForm.RemoveAll(); err != nil {
+					s.log.Warn("remove multipart temporary files", "error", err)
+				}
 			}
 		}()
 		next.ServeHTTP(w, r)
 	})
+}
+
+// hasBody reports whether a request carries a body worth bounding in time.
+func hasBody(r *http.Request) bool {
+	return r.Body != nil && r.Body != http.NoBody && isMutating(r.Method)
+}
+
+// setReadDeadline applies a read deadline where the connection supports one.
+func (s *Server) setReadDeadline(w http.ResponseWriter, r *http.Request, deadline time.Time) {
+	err := http.NewResponseController(w).SetReadDeadline(deadline)
+	if err != nil && !errors.Is(err, http.ErrNotSupported) {
+		s.log.Warn("set read deadline", "path", r.URL.Path, "error", err)
+	}
+}
+
+// deadlineBody clears the read deadline once the body has been read to the
+// end.
+type deadlineBody struct {
+	io.ReadCloser
+	clear func()
+	done  bool
+}
+
+func (b *deadlineBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	if errors.Is(err, io.EOF) && !b.done {
+		b.done = true
+		b.clear()
+	}
+	return n, err
+}
+
+// acquireUpload takes a processing slot for an upload that has already passed
+// every check that does not cost anything, writing the refusal itself.
+func (s *Server) acquireUpload(w http.ResponseWriter, r *http.Request) (func(), bool) {
+	release, ok := s.processing.acquire(r.Context())
+	if !ok {
+		s.uploadBusy(w, r)
+		return nil, false
+	}
+	return release, true
 }
 
 func newGate(limit int) *gate {
@@ -69,9 +138,6 @@ func newGate(limit int) *gate {
 	}
 	return &gate{slots: make(chan struct{}, limit), wait: uploadWait}
 }
-
-// limit is how many uploads may run at once, which the busy message reports.
-func (g *gate) limit() int { return cap(g.slots) }
 
 // acquire takes a slot, reporting false if none came free in time. The returned
 // function releases it and must be called exactly once.
@@ -113,17 +179,8 @@ func (s *Server) uploadBusy(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusServiceUnavailable, message)
 		return
 	}
-	if isHTMX(r) {
-		// A real 503 that still carries the message: the client-side handler
-		// lets htmx swap this one, because a fragment saying "busy" is more use
-		// than a page that silently does nothing.
-		s.renderPartialStatus(w, http.StatusServiceUnavailable, "upload_result", uploadResultView{
-			base:   s.base(r, "Upload"),
-			Grid:   s.grid(r, nil, false, false, "", ""),
-			Errors: []string{message},
-		})
-		return
-	}
-
-	http.Error(w, message, http.StatusServiceUnavailable)
+	// A real 503 that still carries the message: the client-side handler lets
+	// htmx swap this one, because a fragment saying "busy" is more use than a
+	// page that silently does nothing.
+	s.uploadFailure(w, r, http.StatusServiceUnavailable, message)
 }

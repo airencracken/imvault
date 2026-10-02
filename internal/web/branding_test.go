@@ -120,7 +120,10 @@ func postBrandingAssets(t *testing.T, session *session, fields map[string]string
 	t.Helper()
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
-	fields["csrf_token"] = session.csrf
+	// A browser sends fields in document order, and the token comes first.
+	if err := writer.WriteField(csrfField, session.token()); err != nil {
+		t.Fatal(err)
+	}
 	for name, value := range fields {
 		if err := writer.WriteField(name, value); err != nil {
 			t.Fatal(err)
