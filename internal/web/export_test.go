@@ -31,7 +31,7 @@ func readExport(t *testing.T, s *session) (*http.Response, map[string][]byte, []
 			t.Fatalf("open %s: %v", file.Name, err)
 		}
 		content, err := io.ReadAll(reader)
-		reader.Close()
+		mustClose(t, reader)
 		if err != nil {
 			t.Fatalf("read %s: %v", file.Name, err)
 		}

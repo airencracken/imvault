@@ -7,9 +7,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"io"
 	"io/fs"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 
@@ -181,13 +183,6 @@ func (s *Server) base(r *http.Request, title string) base {
 	return b
 }
 
-// baseErr is base with an error message attached.
-func (s *Server) baseErr(r *http.Request, title, message string) base {
-	b := s.base(r, title)
-	b.Error = message
-	return b
-}
-
 // pagination derives page state from the request and a total row count.
 func pagination(r *http.Request, total int) (int, paginationView) {
 	page := queryInt(r, "page", 1)
@@ -261,6 +256,30 @@ func (s *Server) emailLink(path string) (string, error) {
 		return "", errNoBaseURL
 	}
 	return s.cfg.BaseURL + path, nil
+}
+
+// closeLogged closes something whose failure to close cannot change the
+// outcome any more, recording it rather than losing it.
+func (s *Server) closeLogged(c io.Closer, what string) {
+	if err := c.Close(); err != nil {
+		s.log.Warn("close "+what, "error", err)
+	}
+}
+
+// removeLogged removes a temporary file, recording a failure other than the
+// file already being gone.
+func (s *Server) removeLogged(path string) {
+	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		s.log.Warn("remove temporary file", "path", path, "error", err)
+	}
+}
+
+// writeBody writes a response body. Once the status is out, a failed write
+// means the client went away; there is nobody left to tell.
+func (s *Server) writeBody(w io.Writer, data []byte) {
+	if _, err := w.Write(data); err != nil {
+		s.log.Debug("write response", "error", err)
+	}
 }
 
 // noStore marks a response as uncacheable.

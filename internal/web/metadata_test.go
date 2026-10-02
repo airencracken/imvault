@@ -95,7 +95,7 @@ func storedOriginal(t *testing.T, h *harness, id string) []byte {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer obj.Close()
+	defer mustClose(t, obj)
 
 	data, err := io.ReadAll(obj)
 	if err != nil {

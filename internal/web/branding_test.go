@@ -83,7 +83,7 @@ func TestAdminCanReplaceAndRemoveBrandImages(t *testing.T) {
 			t.Fatal(err)
 		}
 		cfg, decodeErr := png.DecodeConfig(resp.Body)
-		resp.Body.Close()
+		mustClose(t, resp.Body)
 		if resp.StatusCode != http.StatusOK || decodeErr != nil || cfg.Width != 24 || cfg.Height != 24 {
 			t.Errorf("served %s: status=%d dimensions=%dx%d decode=%v", name, resp.StatusCode, cfg.Width, cfg.Height, decodeErr)
 		}
@@ -150,7 +150,7 @@ func postBrandingAssets(t *testing.T, session *session, fields map[string]string
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer mustClose(t, resp.Body)
 	return resp, readAll(t, resp.Body)
 }
 

@@ -402,7 +402,7 @@ func TestAPIPatchFileVisibility(t *testing.T) {
 	// Private by default, so an anonymous viewer cannot reach it.
 	anon := &http.Client{}
 	if resp, err := anon.Get(h.server.URL + "/f/" + id); err == nil {
-		resp.Body.Close()
+		mustClose(t, resp.Body)
 		if resp.StatusCode != http.StatusNotFound {
 			t.Errorf("private file visible to anonymous: %d", resp.StatusCode)
 		}
@@ -421,7 +421,7 @@ func TestAPIPatchFileVisibility(t *testing.T) {
 	}
 
 	if resp, err := anon.Get(h.server.URL + "/f/" + id); err == nil {
-		resp.Body.Close()
+		mustClose(t, resp.Body)
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("public file not reachable: %d", resp.StatusCode)
 		}

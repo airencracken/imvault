@@ -5,6 +5,7 @@ package web
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -398,6 +399,12 @@ func (s *Server) handleAdminClearSettings(w http.ResponseWriter, r *http.Request
 		"Cleared. The configuration file is in charge again.")
 }
 
+// maxRetentionHours is the longest window that still fits in a duration.
+const maxRetentionHours = int64(math.MaxInt64 / int64(time.Hour))
+
+// errRetentionTooLong refuses a window too long to represent.
+const errRetentionTooLong = userError("The retention window is too long.")
+
 // parseRetention reads the retention window from the form.
 //
 // A bare number means hours, because that is what somebody typing into a
@@ -406,12 +413,15 @@ func (s *Server) handleAdminClearSettings(w http.ResponseWriter, r *http.Request
 func parseRetention(raw string) (time.Duration, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return 0, fmt.Errorf("The retention window is required.")
+		return 0, userError("The retention window is required.")
 	}
 
 	if hours, err := strconv.ParseInt(raw, 10, 64); err == nil {
 		if hours <= 0 {
-			return 0, fmt.Errorf("The retention window must be positive.")
+			return 0, userError("The retention window must be positive.")
+		}
+		if hours > maxRetentionHours {
+			return 0, errRetentionTooLong
 		}
 		return time.Duration(hours) * time.Hour, nil
 	}
@@ -419,17 +429,20 @@ func parseRetention(raw string) (time.Duration, error) {
 	if days, err := strconv.ParseInt(strings.TrimSuffix(raw, "d"), 10, 64); err == nil &&
 		strings.HasSuffix(raw, "d") {
 		if days <= 0 {
-			return 0, fmt.Errorf("The retention window must be positive.")
+			return 0, userError("The retention window must be positive.")
+		}
+		if days > maxRetentionHours/24 {
+			return 0, errRetentionTooLong
 		}
 		return time.Duration(days) * 24 * time.Hour, nil
 	}
 
 	window, err := time.ParseDuration(raw)
 	if err != nil {
-		return 0, fmt.Errorf("Could not read %q as a duration. Try 24, 24h, or 7d.", raw)
+		return 0, userError(fmt.Sprintf("Could not read %q as a duration. Try 24, 24h, or 7d.", raw))
 	}
 	if window <= 0 {
-		return 0, fmt.Errorf("The retention window must be positive.")
+		return 0, userError("The retention window must be positive.")
 	}
 	return window, nil
 }
@@ -445,8 +458,8 @@ func parseMegabytes(raw string) (int64, error) {
 	}
 
 	megabytes, err := strconv.ParseInt(raw, 10, 64)
-	if err != nil || megabytes < 0 {
-		return 0, fmt.Errorf("The storage ceiling must be a whole number of MiB, or blank for no ceiling.")
+	if err != nil || megabytes < 0 || megabytes > maxAdminMegabytes {
+		return 0, userError("The storage ceiling must be a whole number of MiB, or blank for no ceiling.")
 	}
 	return megabytes << 20, nil
 }

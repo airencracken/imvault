@@ -50,7 +50,7 @@ func (s *Server) filteredObject(ctx context.Context, file *models.File, camera b
 	if err != nil {
 		return "", err
 	}
-	defer src.Close()
+	defer s.closeLogged(src, "original")
 	data, err := io.ReadAll(storage.ContextReader(ctx, src))
 	if err != nil {
 		return "", err

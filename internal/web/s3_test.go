@@ -51,10 +51,12 @@ func useS3(t *testing.T, h *harness) {
 			reader, err := disk.Open(r.Context(), key)
 			if err != nil {
 				w.WriteHeader(404)
-				io.WriteString(w, "<Error><Code>NoSuchKey</Code></Error>")
+				if _, err := io.WriteString(w, "<Error><Code>NoSuchKey</Code></Error>"); err != nil {
+					t.Errorf("fake S3 write: %v", err)
+				}
 				return
 			}
-			defer reader.Close()
+			defer mustClose(t, reader)
 			w.Header().Set("ETag", `"object"`)
 			http.ServeContent(w, r, key, time.Time{}, reader)
 		default:
@@ -108,7 +110,7 @@ func TestS3MaintenanceMigratesBothWaysAndRestoresWithoutRemoteStorage(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer database.Close()
+	defer mustClose(t, database)
 	file, err := store.New(database).FileByID(t.Context(), id)
 	if err != nil {
 		t.Fatal(err)
@@ -150,7 +152,7 @@ func TestS3RoutesPreserveVisibilityExportsAndRanges(t *testing.T) {
 		t.Fatal(err)
 	}
 	data, err := io.ReadAll(response.Body)
-	response.Body.Close()
+	mustClose(t, response.Body)
 	if err != nil || response.StatusCode != 206 || !bytes.Equal(data, []byte(full)[4:16]) {
 		t.Fatalf("S3 range failed: %d %v", response.StatusCode, err)
 	}

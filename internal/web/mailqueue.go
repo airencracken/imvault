@@ -216,9 +216,3 @@ func (s *Server) drainMail(ctx context.Context) {
 		queue.attempt(ctx, message)
 	}
 }
-
-// mailQueueFor exposes the queue for tests, which need to drive the schedule.
-func (s *Server) mailQueueFor() *mailQueue {
-	queue, _ := s.mail.(*mailQueue)
-	return queue
-}

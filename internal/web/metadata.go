@@ -106,7 +106,7 @@ func (s *Server) buildCleanObject(ctx context.Context, file *models.File, object
 	if err != nil {
 		return fmt.Errorf("open the original: %w", err)
 	}
-	defer src.Close()
+	defer s.closeLogged(src, "original")
 
 	// Bounded by the per-file upload limit, which is at most a few tens of
 	// megabytes for a still image or an animation.
@@ -153,15 +153,17 @@ func (s *Server) buildCleanClip(ctx context.Context, objectKey, cleanKey string)
 			return fmt.Errorf("temporary file: %w", err)
 		}
 		defer func() {
-			tmp.Close()
-			os.Remove(tmp.Name())
+			// Closed already on the success path; a second close only
+			// reports that, so its error says nothing.
+			_ = tmp.Close()
+			s.removeLogged(tmp.Name())
 		}()
 
 		src, err := s.objects.Open(ctx, objectKey)
 		if err != nil {
 			return fmt.Errorf("open the original: %w", err)
 		}
-		defer src.Close()
+		defer s.closeLogged(src, "original")
 
 		if _, err := io.Copy(tmp, src); err != nil {
 			return fmt.Errorf("copy the original: %w", err)
@@ -177,8 +179,10 @@ func (s *Server) buildCleanClip(ctx context.Context, objectKey, cleanKey string)
 		return fmt.Errorf("temporary file: %w", err)
 	}
 	outPath := out.Name()
-	out.Close()
-	defer os.Remove(outPath)
+	defer s.removeLogged(outPath)
+	if err := out.Close(); err != nil {
+		return fmt.Errorf("close the temporary file: %w", err)
+	}
 
 	if err := s.media.Video.Scrub(ctx, srcPath, outPath); err != nil {
 		return err
@@ -188,7 +192,7 @@ func (s *Server) buildCleanClip(ctx context.Context, objectKey, cleanKey string)
 	if err != nil {
 		return fmt.Errorf("read the scrubbed clip: %w", err)
 	}
-	defer cleaned.Close()
+	defer s.closeLogged(cleaned, "scrubbed clip")
 
 	if _, err := s.objects.Save(ctx, cleanKey, cleaned); err != nil {
 		return fmt.Errorf("store the clean copy: %w", err)

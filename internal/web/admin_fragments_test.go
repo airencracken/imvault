@@ -24,7 +24,7 @@ func (h *harness) postHTMX(path string, form url.Values) (*http.Response, string
 	if err != nil {
 		h.t.Fatalf("POST %s: %v", path, err)
 	}
-	defer resp.Body.Close()
+	defer mustClose(h.t, resp.Body)
 
 	body := readAll(h.t, resp.Body)
 	return resp, body

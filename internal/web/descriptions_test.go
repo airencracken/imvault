@@ -85,7 +85,7 @@ func TestDescriptionsRequireOwnerOrAdminCSRFAndValidText(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
+	mustClose(t, resp.Body)
 	if resp.StatusCode != http.StatusForbidden {
 		t.Fatal("description edit accepted missing CSRF")
 	}
@@ -157,6 +157,9 @@ func TestAPIDescriptionsSupportPartialUpdatesAndRejectInvalidTypes(t *testing.T)
 		t.Fatalf("valid combined patch: %s (%v)", raw, err)
 	}
 	resp, raw = h.apiJSON(http.MethodPatch, path, key, map[string]any{"visibility": "public"})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("visibility-only patch = %d: %s", resp.StatusCode, raw)
+	}
 	if err := json.Unmarshal(raw, &result); err != nil || result.Description == "" {
 		t.Fatal("omitted description was cleared")
 	}

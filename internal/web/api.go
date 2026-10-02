@@ -247,7 +247,7 @@ func (s *Server) apiUpload(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		for _, f := range created {
-			io.WriteString(w, f.URL+"\n")
+			s.writeBody(w, []byte(f.URL+"\n"))
 		}
 		return
 	}

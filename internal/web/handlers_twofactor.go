@@ -126,7 +126,7 @@ func (s *Server) handleTwoFactorQR(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "image/png")
 	// It is specific to the signed-in account and to a pending enrolment.
 	w.Header().Set("Cache-Control", "no-store")
-	w.Write(code.PNG())
+	s.writeBody(w, code.PNG())
 }
 
 // handleTwoFactorBegin starts enrolment by storing a fresh secret.

@@ -76,7 +76,6 @@ func (s *Server) handleFilePreview(w http.ResponseWriter, r *http.Request) {
 	s.serveObject(w, r, file, key, contentType, "inline")
 }
 
-// serveObject writes a stored object with HTTP caching metadata.
 // objectFor resolves which stored object should be sent, writing the refusal
 // itself when the metadata cannot be removed.
 func (s *Server) objectFor(w http.ResponseWriter, r *http.Request, file *models.File, original string) (string, bool) {
@@ -115,6 +114,7 @@ func (s *Server) metadataUnavailable(w http.ResponseWriter, r *http.Request, fil
 	})
 }
 
+// serveObject writes a stored object with HTTP caching metadata.
 func (s *Server) serveObject(w http.ResponseWriter, r *http.Request, file *models.File, key, contentType, disposition string) {
 	if key == "" {
 		http.NotFound(w, r)
@@ -139,7 +139,7 @@ func (s *Server) serveObject(w http.ResponseWriter, r *http.Request, file *model
 		http.Error(w, "storage error", http.StatusInternalServerError)
 		return
 	}
-	defer f.Close()
+	defer s.closeLogged(f, "stored object")
 
 	if contentType == "" {
 		contentType = "application/octet-stream"

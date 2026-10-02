@@ -129,7 +129,7 @@ func TestFavoritesRequireSessionCSRFAndValidInput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
+	mustClose(t, resp.Body)
 	if resp.StatusCode != http.StatusForbidden {
 		t.Fatalf("favorite without CSRF = %d", resp.StatusCode)
 	}
