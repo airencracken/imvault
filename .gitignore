@@ -20,3 +20,6 @@
 .idea/
 .vscode/
 *.swp
+
+# Python bytecode from the mutation scripts
+__pycache__/

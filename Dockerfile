@@ -1,5 +1,5 @@
 # Build stage. The SQLite driver is pure Go, so no cgo toolchain is needed.
-FROM golang:1.27-alpine AS build
+FROM golang:1.26-alpine AS build
 
 WORKDIR /src
 
