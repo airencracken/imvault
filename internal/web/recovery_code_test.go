@@ -18,14 +18,16 @@ func TestRecoveryCodesRejectBiasedBytes(t *testing.T) {
 	for b := limit; b < 256; b++ {
 		source.WriteByte(byte(b))
 	}
-	for i := 0; i < recoveryCodeLength; i++ {
+	// Good bytes that do not map to the same letters the biased ones would,
+	// so using the biased ones shows.
+	for i := 10; i < 10+recoveryCodeLength; i++ {
 		source.WriteByte(byte(i))
 	}
 	code, err := recoveryCodeFrom(&source)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if code != "ABCDE-FGHJK" {
+	if code != "MNPQR-STVWX" {
 		t.Errorf("code = %q, want the unbiased bytes only", code)
 	}
 

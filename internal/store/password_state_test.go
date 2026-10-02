@@ -68,3 +68,27 @@ func TestCreateProviderAccountIsAtomic(t *testing.T) {
 		t.Error("a refused link left its account behind")
 	}
 }
+
+// An invitation used through a provider registration is spent and attributed
+// exactly as one used through the password form.
+func TestProviderAccountsRecordTheirInvitation(t *testing.T) {
+	s, ctx := newTestStore(t)
+	issuer := mustUser(t, s, ctx, "existing")
+	inviteID := newInviteFor(t, s, ctx)
+
+	user, err := s.CreateProviderAccount(ctx, NewUser{Username: "invited", PasswordHash: "x"},
+		"https://id.example", "subject-9", "", &inviteID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stored, err := s.UserByID(ctx, user.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.InvitedBy == nil || *stored.InvitedBy != issuer.ID || stored.InvitedByUsername != "existing" {
+		t.Errorf("attribution = %v %q, want account %d", stored.InvitedBy, stored.InvitedByUsername, issuer.ID)
+	}
+	if inv, err := s.InviteByID(ctx, inviteID); err != nil || inv.Uses != 1 {
+		t.Errorf("invitation after use: %+v %v", inv, err)
+	}
+}
