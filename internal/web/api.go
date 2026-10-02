@@ -474,6 +474,9 @@ func (s *Server) apiDeleteFile(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusInternalServerError, "could not delete the file")
 		return
 	}
+	// An administrator's key removing somebody else's file is moderation, and
+	// the trail must not depend on which interface it came through.
+	s.recordFileRemoval(r.Context(), currentUser(r.Context()), file, "")
 
 	noStore(w)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted", "id": file.ID})
