@@ -12,6 +12,7 @@ import (
 	"imvault/internal/db"
 	"imvault/internal/instance"
 	"imvault/internal/secrets"
+	"imvault/internal/testutil"
 )
 
 func TestMaintenanceCommandsHelpAndArguments(t *testing.T) {
@@ -35,7 +36,7 @@ func TestBackupCommandRequiresStoppedInstanceAndRestoresWithoutSourceConfig(t *t
 	if err != nil {
 		t.Fatal(err)
 	}
-	database.Close()
+	testutil.Close(t, database)
 	if _, err := secrets.Load(filepath.Join(filepath.Dir(path), "secret.key"), ""); err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +52,7 @@ func TestBackupCommandRequiresStoppedInstanceAndRestoresWithoutSourceConfig(t *t
 	if _, err := os.Stat(backup); !os.IsNotExist(err) {
 		t.Fatal("blocked backup changed output")
 	}
-	server.Close()
+	testutil.Close(t, server)
 	if err := runCommand(args, nil, io.Discard); err != nil {
 		t.Fatal(err)
 	}

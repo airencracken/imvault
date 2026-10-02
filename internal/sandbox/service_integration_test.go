@@ -14,6 +14,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"imvault/internal/testutil"
 )
 
 func TestServiceHelper(t *testing.T) {
@@ -21,8 +23,9 @@ func TestServiceHelper(t *testing.T) {
 		return
 	}
 	data := os.Getenv("TEST_DATA_DIR")
-	pool, err := x509.SystemCertPool()
-	if err != nil || len(pool.Subjects()) == 0 {
+	// The bundle the policy binds must hold certificates the server can use.
+	bundle, err := os.ReadFile(os.Getenv("SSL_CERT_FILE"))
+	if err != nil || !x509.NewCertPool().AppendCertsFromPEM(bundle) {
 		os.Exit(16)
 	}
 	for _, forbidden := range []string{os.Getenv("TEST_FORBIDDEN"), "/etc/shadow"} {
@@ -39,7 +42,7 @@ func TestServiceHelper(t *testing.T) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(12)
 	}
-	response.Body.Close()
+	testutil.Close(t, response.Body)
 	if response.StatusCode != 200 {
 		os.Exit(13)
 	}
@@ -88,10 +91,8 @@ func TestRealServiceBoundaryAndGracefulStop(t *testing.T) {
 		done <- Run(ctx, "bwrap", append(args, "--", "/app/server", "-test.run=^TestServiceHelper$"), env)
 	}()
 	deadline := time.After(10 * time.Second)
-	ready := false
-	for !ready {
+	for {
 		if _, err := os.Stat(filepath.Join(data, "ready")); err == nil {
-			ready = true
 			break
 		}
 		select {

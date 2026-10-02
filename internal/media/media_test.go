@@ -15,6 +15,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"imvault/internal/testutil"
 )
 
 func testProcessor() *Processor {
@@ -221,7 +223,7 @@ func TestProcessVideoWithFFmpeg(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer file.Close()
+	defer testutil.Close(t, file)
 
 	res, err := proc.ProcessVideo(context.Background(), file, path, FormatWebM)
 	if err != nil {
@@ -259,7 +261,7 @@ func TestProcessVideoRejectsOverlongClip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer file.Close()
+	defer testutil.Close(t, file)
 
 	if _, err := proc.ProcessVideo(context.Background(), file, path, FormatWebM); err == nil {
 		t.Fatal("expected the duration limit to reject the clip")

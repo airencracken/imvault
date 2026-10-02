@@ -16,6 +16,7 @@ import (
 	"imvault/internal/models"
 	"imvault/internal/storage"
 	"imvault/internal/store"
+	"imvault/internal/testutil"
 )
 
 func TestRefreshMetadataRepairsExistingUploads(t *testing.T) {
@@ -24,7 +25,7 @@ func TestRefreshMetadataRepairsExistingUploads(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer database.Close()
+	defer testutil.Close(t, database)
 	st := store.New(database)
 	objects, err := storage.NewDisk(filepath.Join(filepath.Dir(path), "objects"))
 	if err != nil {

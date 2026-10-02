@@ -26,6 +26,7 @@ import (
 	"imvault/internal/secrets"
 	"imvault/internal/storage"
 	"imvault/internal/store"
+	"imvault/internal/testutil"
 )
 
 type fixture struct {
@@ -43,7 +44,7 @@ func newFixture(t *testing.T) fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { database.Close() })
+	t.Cleanup(func() { testutil.Close(t, database) })
 	st := store.New(database)
 	objects, err := storage.NewDisk(filepath.Join(dir, "objects"))
 	if err != nil {
@@ -103,7 +104,7 @@ func TestBackupRestorePreservesMediaAccountsAndSecrets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer database.Close()
+	defer testutil.Close(t, database)
 	restored, err := store.New(database).FileByID(t.Context(), f.file.ID)
 	if err != nil || restored.Description != f.file.Description || restored.Visibility != models.VisibilityPrivate || restored.Metadata != models.MetadataHidden {
 		t.Fatalf("file changed after restore: %#v %v", restored, err)
@@ -284,7 +285,7 @@ func TestRegenerationPreservesOriginalsAndChangesCachedURLs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
+	defer testutil.Close(t, r)
 	img, _, err := image.Decode(r)
 	if err != nil || img.Bounds().Dx() != 8 || img.Bounds().Dy() != 4 {
 		t.Fatal("wrong regenerated dimensions", err)

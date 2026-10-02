@@ -13,6 +13,7 @@ import (
 
 	"imvault/internal/db"
 	"imvault/internal/models"
+	"imvault/internal/testutil"
 )
 
 func newTestStore(t *testing.T) (*Store, context.Context) {
@@ -23,7 +24,7 @@ func newTestStore(t *testing.T) (*Store, context.Context) {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	t.Cleanup(func() { database.Close() })
+	t.Cleanup(func() { testutil.Close(t, database) })
 
 	return New(database), ctx
 }
@@ -562,15 +563,13 @@ func TestFileQueryFiltersByKindAndPrivacy(t *testing.T) {
 }
 
 // mustFileKind inserts a file of a specific media kind.
-func mustFileKind(t *testing.T, s *Store, ctx context.Context, id string, owner *int64, visibility models.Visibility, kind models.Kind) *models.File {
+func mustFileKind(t *testing.T, s *Store, ctx context.Context, id string, owner *int64, visibility models.Visibility, kind models.Kind) {
 	t.Helper()
 
-	f := mustFile(t, s, ctx, id, owner, visibility, nil)
+	mustFile(t, s, ctx, id, owner, visibility, nil)
 	if _, err := s.DB().ExecContext(ctx, `UPDATE files SET kind = ? WHERE id = ?`, string(kind), id); err != nil {
 		t.Fatalf("set kind: %v", err)
 	}
-	f.Kind = kind
-	return f
 }
 
 func TestListTagsFollowsFileVisibility(t *testing.T) {

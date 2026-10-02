@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"imvault/internal/config"
+	"imvault/internal/testutil"
 )
 
 // Opt-in provider verification. An isolated random prefix confines writes and
@@ -51,7 +52,7 @@ func TestS3ExternalEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
+	defer testutil.Close(t, r)
 	if _, err := r.Seek(-37, io.SeekEnd); err != nil {
 		t.Fatal(err)
 	}

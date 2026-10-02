@@ -6,6 +6,8 @@ import (
 	"database/sql"
 	"path/filepath"
 	"testing"
+
+	"imvault/internal/testutil"
 )
 
 func TestLocationMigrationPreservesExistingSharing(t *testing.T) {
@@ -13,7 +15,7 @@ func TestLocationMigrationPreservesExistingSharing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer database.Close()
+	defer testutil.Close(t, database)
 	if _, err := database.Exec(schemaMigrationsDDL); err != nil {
 		t.Fatal(err)
 	}
