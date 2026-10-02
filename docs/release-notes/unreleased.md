@@ -84,4 +84,12 @@ version's release notes.
   file; it was ignored before. On merged-`/usr` systems `/bin`, `/lib` and
   similar links are recreated as links instead of separate mounts. A
   `--read-file` path must now be clean, as `--write-dir` paths already were.
+- **Commands run by hand read systemd's `EnvironmentFile=` as systemd does.**
+  `create-admin` and the maintenance commands find the service's data
+  directory and database from its configuration. They used to split an
+  `EnvironmentFile=` value into words, so a path containing a space was
+  misread; it is now one literal path with an optional leading `-`, and a
+  value with a `%` specifier is refused with a hint to set `IMVAULT_DATA_DIR`
+  explicitly rather than guessed at. `-h`, `-help` and `--help` all skip the
+  switch to the service account.
 

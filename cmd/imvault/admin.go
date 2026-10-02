@@ -10,6 +10,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/airencracken/comfylib/svcconfig"
 	"golang.org/x/crypto/bcrypt"
 
 	"imvault/contrib"
@@ -55,10 +56,10 @@ func runCommand(args []string, stdin io.Reader, stdout io.Writer) error {
 }
 
 func createAdmin(args []string, stdin io.Reader, stdout io.Writer) error {
-	return createAdminWithConfigPaths(args, stdin, stdout, defaultProvisioningConfigPaths())
+	return createAdminWithConfigPaths(args, stdin, stdout, servicePaths())
 }
 
-func createAdminWithConfigPaths(args []string, stdin io.Reader, stdout io.Writer, paths provisioningConfigPaths) error {
+func createAdminWithConfigPaths(args []string, stdin io.Reader, stdout io.Writer, paths svcconfig.Paths) error {
 	flags := commandFlags("create-admin", stdout)
 	username := flags.String("username", "", "administrator username (required)")
 	email := flags.String("email", "", "optional email address")
@@ -87,15 +88,15 @@ func createAdminWithConfigPaths(args []string, stdin io.Reader, stdout io.Writer
 	if err := accounts.ValidateRegistration(name, address, password); err != nil {
 		return err
 	}
-	dataDir, err := resolveProvisioningDataDir(paths)
+	dataDir, err := paths.DataDir("IMVAULT_DATA_DIR")
 	if err != nil {
 		return err
 	}
-	dbPath, _, err := resolveProvisioningDBPath(paths)
+	settings, err := paths.Settings("IMVAULT_DB")
 	if err != nil {
 		return err
 	}
-	user, err := provisionAdmin(context.Background(), name, address, password, dataDir, dbPath)
+	user, err := provisionAdmin(context.Background(), name, address, password, dataDir, settings["IMVAULT_DB"])
 	if err != nil {
 		return err
 	}
