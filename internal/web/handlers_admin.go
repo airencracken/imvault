@@ -350,16 +350,29 @@ func (s *Server) handleAdminSetRole(w http.ResponseWriter, r *http.Request) {
 // handleAdminSetInvitePermission grants or removes a member's ability to issue
 // invitations without changing their role.
 func (s *Server) handleAdminSetInvitePermission(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "malformed form", http.StatusBadRequest)
+		return
+	}
+	values := r.PostForm["can_invite"]
+	if len(values) != 1 || (values[0] != "0" && values[0] != "1") {
+		http.Error(w, "choose whether invitation access is allowed", http.StatusBadRequest)
+		return
+	}
 	userID, ok := s.adminTargetUser(w, r)
 	if !ok {
 		return
 	}
 	user, err := s.store.UserByID(r.Context(), userID)
 	if err != nil {
-		s.renderAdminRow(w, "admin_user_row", nil, adminNotice{Text: "No such account.", Error: true})
+		http.NotFound(w, r)
 		return
 	}
-	allowed := r.FormValue("can_invite") == "1"
+	if user.IsAdmin() {
+		s.adminRespond(w, r, user, adminNotice{}, "Administrators already have invitation access.", "/admin/users")
+		return
+	}
+	allowed := values[0] == "1"
 	if err := s.store.SetUserInvitePermission(r.Context(), userID, allowed); err != nil {
 		s.log.Error("admin: set invite permission", "user", userID, "error", err)
 		s.adminRespond(w, r, user, adminNotice{}, "Could not update invitation access.", "/admin/users")

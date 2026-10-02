@@ -143,12 +143,21 @@ trade API keys make. If one is lost, revoke it and issue another; the list shows
 each code's prefix so it is clear which row is which. Revoking takes effect
 immediately.
 
-An administrator can grant selected members permission to issue invitations.
+Under **Admin → Users**, choose **Allow invites** for a member. The account
+shows a **can invite** badge, and **Invitations** appears in that member's
+navigation on their next request; signing out and back in is unnecessary.
+This permission is separate from the member, moderator and administrator roles.
 Those members can create, list, and revoke only their own codes at
 `/invites`. Accounts created with a code retain the issuer, invitation, and a
 snapshot of the issuer's username, so the administrator can follow who invited
 whom even if an account is later renamed or removed. New accounts are still
 ordinary members and do not inherit invitation permission.
+
+**Remove invite access** immediately stops the member from creating or managing
+codes. Invitations already issued remain active; an administrator can revoke
+them individually. Disabling an issuer also prevents their codes from admitting
+new accounts until the issuer is enabled again. Password and provider signups
+both retain the invitation's issuer.
 
 Issuing a code with several uses is for a group you trust together, and `0`
 means no limit at all. A code's uses are consumed in the same transaction that

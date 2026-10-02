@@ -31,10 +31,11 @@ type inviteRow struct {
 // adminInvitesView backs the invitation page.
 type adminInvitesView struct {
 	base
-	Rows     []inviteRow
-	NewCode  string
-	Error    string
-	InviteOn bool
+	Rows                        []inviteRow
+	NewCode                     string
+	Error                       string
+	InviteOn                    bool
+	Label, MaxUses, ExpiresDays string
 	// InviteURL is the ready-to-send link for a freshly created code.
 	InviteURL  string
 	InvitePath string
@@ -79,6 +80,7 @@ func inviteRows(list []*models.Invite) []inviteRow {
 // renderInvitesPanel writes the invitation panel, optionally revealing a code
 // that was just minted.
 func (s *Server) renderInvitesPanel(w http.ResponseWriter, r *http.Request, newCode, message string) {
+	w.Header().Set("Cache-Control", "no-store")
 	user := currentUser(r.Context())
 	var list []*models.Invite
 	var err error
@@ -96,55 +98,38 @@ func (s *Server) renderInvitesPanel(w http.ResponseWriter, r *http.Request, newC
 	}
 
 	view := adminInvitesView{
-		base:       s.base(r, "Invitations"),
-		Rows:       inviteRows(list),
-		NewCode:    newCode,
-		Error:      message,
-		InviteOn:   s.policy().InviteOnly,
-		InvitePath: path,
+		base:        s.base(r, "Invitations"),
+		Rows:        inviteRows(list),
+		NewCode:     newCode,
+		Error:       message,
+		InviteOn:    s.policy().InviteOnly,
+		InvitePath:  path,
+		Label:       strings.TrimSpace(r.FormValue("label")),
+		MaxUses:     strings.TrimSpace(r.FormValue("max_uses")),
+		ExpiresDays: strings.TrimSpace(r.FormValue("expires_days")),
+	}
+	view.UseAlpine = true
+	if view.MaxUses == "" {
+		view.MaxUses = "1"
 	}
 	if newCode != "" {
 		view.InviteURL = s.absoluteURL(r, "/register") + "?invite=" + newCode
+		view.Label, view.MaxUses, view.ExpiresDays = "", "1", ""
 	}
-
-	s.renderPartial(w, "invites_panel", view)
+	if isHTMX(r) {
+		s.renderPartial(w, "invites_panel", view)
+	} else {
+		s.renderPage(w, http.StatusOK, "admin_invites", view)
+	}
 }
 
 // handleAdminInvites shows the invitation list and its controls.
 func (s *Server) handleAdminInvites(w http.ResponseWriter, r *http.Request) {
-	list, _, err := s.store.ListInvites(r.Context(), 100, 0)
-	if err != nil {
-		s.log.Error("admin: list invites", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
-		return
-	}
-
-	view := adminInvitesView{
-		base:       s.base(r, "Invitations"),
-		Rows:       inviteRows(list),
-		Error:      strings.TrimSpace(r.URL.Query().Get("error")),
-		InviteOn:   s.policy().InviteOnly,
-		InvitePath: "/admin/invites",
-	}
-
-	s.renderPage(w, http.StatusOK, "admin_invites", view)
+	s.renderInvitesPanel(w, r, "", strings.TrimSpace(r.URL.Query().Get("error")))
 }
 
 func (s *Server) handleUserInvites(w http.ResponseWriter, r *http.Request) {
-	user := currentUser(r.Context())
-	list, _, err := s.store.ListInvitesByCreator(r.Context(), user.ID, 100, 0)
-	if err != nil {
-		s.log.Error("invites: list own", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
-		return
-	}
-	view := adminInvitesView{
-		base:       s.base(r, "Invitations"),
-		Rows:       inviteRows(list),
-		Error:      strings.TrimSpace(r.URL.Query().Get("error")),
-		InvitePath: "/invites",
-	}
-	s.renderPage(w, http.StatusOK, "admin_invites", view)
+	s.renderInvitesPanel(w, r, "", strings.TrimSpace(r.URL.Query().Get("error")))
 }
 
 // handleAdminCreateInvite mints a code and reveals it once.

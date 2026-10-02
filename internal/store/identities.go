@@ -135,7 +135,9 @@ func (s *Store) CreateUserWithIdentity(ctx context.Context, in NewUser, issuer, 
 
 	err := s.withTx(ctx, func(tx *sql.Tx) error {
 		if inviteID != nil {
-			if err := redeemInvite(ctx, tx, *inviteID); err != nil {
+			var err error
+			in, err = invitedUser(ctx, tx, in, *inviteID)
+			if err != nil {
 				return err
 			}
 		}

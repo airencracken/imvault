@@ -740,6 +740,7 @@ async function main() {
     `);
     record("the list shows the prefix and not the code",
       listed.hasPrefix && !listed.hasCode, JSON.stringify(listed));
+    await checkMemberInvitations(page, base);
     // --- reporting and moderation ---
     //
     // The whole loop, through a member's eyes first: only they see the report
@@ -953,7 +954,7 @@ async function seed(base, username, email) {
 
 // signIn logs the browser in by posting the form from the page, so the session
 // cookie lands in the browser's own jar rather than being injected.
-async function signIn(page, base, username) {
+async function signIn(page, base, username, destination = "/admin/users") {
   await page.goto(`${base}/login`);
   const problem = await page.evaluate(`
     const match = document.cookie.match(/imvault_csrf=([^;]+)/);
@@ -976,12 +977,76 @@ async function signIn(page, base, username) {
   `);
   if (problem) throw new Error(problem);
 
-  await page.goto(`${base}/admin/users`);
+  await page.goto(`${base}${destination}`);
   const signedIn = await page.evaluate(`
     return !document.querySelector('form[action="/login"]')
-      && !!document.querySelector(".filter-row input");
+      && document.querySelector(".who")?.textContent.includes(${JSON.stringify(username)});
   `);
   if (!signedIn) throw new Error("sign in did not take: still on the login page");
+}
+
+async function switchBrowserUser(page, base, username, destination) {
+  await page.evaluate(`
+    await fetch("/logout", {
+      method: "POST",
+      body: new URLSearchParams({csrf_token: document.querySelector('meta[name="csrf-token"]').content}),
+      redirect: "manual",
+    });
+  `);
+  await signIn(page, base, username, destination);
+}
+
+async function checkMemberInvitations(page, base) {
+  await page.goto(`${base}/admin/users`);
+  await page.evaluate(`
+    const row = [...document.querySelectorAll("tr[data-search]")].find(r => r.dataset.search.includes("bob"));
+    row.querySelector('form[action$="/invites"] button').click();
+  `);
+  await page.waitFor(`
+    [...document.querySelectorAll("tr[data-search]")].some(r => r.dataset.search.includes("bob") &&
+      [...r.querySelectorAll(".badge")].some(b => b.textContent.trim() === "can invite"))
+  `, 10000, "the member's invitation permission badge");
+  record("Allow invites updates the member's permission over htmx", true);
+
+  await switchBrowserUser(page, base, "bob", "/invites");
+  record("a permitted member has an Invitations link and their own form", await page.evaluate(`
+    return !!document.querySelector('.nav a[href="/invites"]') &&
+      !!document.querySelector('#invites form[action="/invites"]') &&
+      !document.querySelector('.nav a[href="/admin"]');
+  `));
+  await page.evaluate(`
+    const form = document.querySelector('#invites form[action="/invites"]');
+    form.elements.label.value = "Member guest";
+    form.elements.expires_days.value = "7";
+    form.querySelector('button[type="submit"]').click();
+  `);
+  await page.waitFor(`document.querySelector('#invites input[aria-label="Invitation link"]')?.value.includes('/register?invite=inv_')`, 10000, "the member's ready-to-send invitation link");
+  record("a member creates an invitation and sees a shareable link", true);
+  record("the member cannot see the administrator's invitation", await page.evaluate(`return !document.querySelector("#invites").textContent.includes("Browser guest");`));
+
+  await page.evaluate(`document.querySelector('#invites form[action$="/revoke"] button').click();`);
+  await page.waitFor(`document.querySelector("dialog.modal")?.open`, 5000, "the revoke confirmation");
+  record("member revocation uses the shared confirmation dialog", page.dialogs.length === 0 && await page.evaluate(`return document.querySelector("dialog.modal").textContent.includes("Revoke this invitation?");`));
+  await page.evaluate(`document.querySelector("dialog.modal .btn:not(.danger)").click();`);
+  await page.waitFor(`!document.querySelector("dialog.modal").open`, 5000, "cancelled confirmation");
+  record("cancelling leaves the member's invitation open", await page.evaluate(`return !!document.querySelector('#invites form[action$="/revoke"]');`));
+  await page.evaluate(`document.querySelector('#invites form[action$="/revoke"] button').click();`);
+  await page.waitFor(`document.querySelector("dialog.modal").open`, 5000, "the second confirmation");
+  await page.evaluate(`document.querySelector("dialog.modal .danger").click();`);
+  await page.waitFor(`document.querySelector("#invites")?.textContent.includes("revoked") && !document.querySelector('#invites form[action$="/revoke"]')`, 10000, "the member's revoked invitation");
+  record("confirming revokes only the member's invitation over htmx", true);
+
+  await switchBrowserUser(page, base, "boss", "/admin/users");
+  await page.evaluate(`
+    const row = [...document.querySelectorAll("tr[data-search]")].find(r => r.dataset.search.includes("bob"));
+    row.querySelector('form[action$="/invites"] button').click();
+  `);
+  await page.waitFor(`
+    [...document.querySelectorAll("tr[data-search]")].some(r => r.dataset.search.includes("bob") &&
+      r.querySelector('form[action$="/invites"] input[name="can_invite"]').value === "1" &&
+      ![...r.querySelectorAll(".badge")].some(b => b.textContent.trim() === "can invite"))
+  `, 10000, "removed invitation permission");
+  record("Remove invite access updates the account status over htmx", true);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

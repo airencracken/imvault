@@ -19,6 +19,7 @@
     {{if .User.Disabled}}<span class="badge private">disabled</span>{{end}}
     {{if .Self}}<span class="badge">you</span>{{end}}
     {{if .User.TOTPEnabled}}<span class="badge" title="Two-factor authentication is on">2FA</span>{{end}}
+    {{if and .User.CanInvite (not .User.Role.IsAdmin)}}<span class="badge" title="Can create and manage their own invitations">can invite</span>{{end}}
     {{if .User.Email}}<br><span class="muted">{{.User.Email}}</span>{{end}}
     <br><span class="muted">joined {{humanTime .User.CreatedAt}}</span>
     {{if .User.InvitedByUsername}}<br><span class="muted">invited by {{.User.InvitedByUsername}}</span>{{end}}
@@ -79,7 +80,7 @@
           hx-target="closest tr" hx-swap="outerHTML">
       <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
       <input type="hidden" name="can_invite" value="{{if .User.CanInvite}}0{{else}}1{{end}}">
-      <button class="btn small" type="submit">{{if .User.CanInvite}}Remove invite access{{else}}Allow invites{{end}}</button>
+      <button class="btn small" type="submit" aria-label="{{if .User.CanInvite}}Remove invitation access for{{else}}Allow invitations for{{end}} {{.User.Username}}">{{if .User.CanInvite}}Remove invite access{{else}}Allow invites{{end}}</button>
     </form>
     {{end}}
 

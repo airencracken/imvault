@@ -9,7 +9,7 @@ Each version has Linux **amd64** (x86-64) and **arm64** (AArch64) builds:
 - `imvault_VERSION_source.tar.gz`: the corresponding source.
 - `imvault_VERSION_checksums.txt`: SHA-256 checksums for all five artifacts.
 
-See [the 0.11.0 release notes](release-notes/0.11.0.md) for changes and upgrade behavior.
+See [the 0.11.1 release notes](release-notes/0.11.1.md) for changes and upgrade behavior.
 
 The Go compiler is only needed when building from source.
 Install ffmpeg for video thumbnails and duration checks; the Debian package
@@ -20,7 +20,7 @@ recommends it. HTTPS connections also need your system's CA certificates.
 Select the version and architecture you want. For example:
 
 ```sh
-release_version=0.11.0
+release_version=0.11.1
 release_arch=amd64
 release_url="https://github.com/airencracken/imvault/releases/download/v$release_version"
 curl -fLO "$release_url/imvault_${release_version}_${release_arch}.deb"
@@ -72,8 +72,8 @@ Download the archive and checksum file for your architecture, verify them as
 above, and extract the archive:
 
 ```sh
-tar -xzf imvault_0.11.0_linux_amd64.tar.gz
-cd imvault_0.11.0_linux_amd64
+tar -xzf imvault_0.11.1_linux_amd64.tar.gz
+cd imvault_0.11.1_linux_amd64
 sudo install -m 0755 imvault /usr/local/bin/imvault
 sudo install -d /usr/local/share/doc/imvault
 sudo install -m 0644 LICENSE README.md THIRD_PARTY_NOTICES.txt /usr/local/share/doc/imvault/
