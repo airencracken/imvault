@@ -22,6 +22,7 @@ services:
     # (uid 10001). A bind mount such as ./data:/data is created by the daemon
     # as root, and the server then cannot write its database; if you want one,
     # create the directory first and run: sudo chown 10001:10001 ./data
+    # and sudo chmod 0700 ./data
     volumes:
       - imvault-data:/data
     environment:
@@ -55,12 +56,7 @@ services:
       # IMVAULT_MAIL_MAX_ATTEMPTS: "5"
       # IMVAULT_MAIL_RETRY_INTERVAL: "1m"
       IMVAULT_LOG_LEVEL: "${IMVAULT_LOG_LEVEL:-info}"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 5s
+    # The image's HEALTHCHECK probes /healthz on IMVAULT_ADDR's port.
 
 volumes:
   imvault-data:

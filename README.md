@@ -159,8 +159,10 @@ docker run -d --name imvault \
 ```
 
 The image includes ffmpeg and runs as uid 10001. A named volume, as above and in
-the Compose file, takes that ownership automatically; to bind-mount a host
-directory instead, `chown 10001:10001` it first. The local Compose stack is one
+the Compose file, takes that ownership and mode 0700 automatically; to
+bind-mount a host directory instead, `chown 10001:10001` and `chmod 0700` it
+first. The image's `HEALTHCHECK` probes `/healthz`, so `docker ps` shows when
+the server is up and its database answers. The local Compose stack is one
 command away:
 
 ```bash
