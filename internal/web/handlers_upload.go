@@ -11,6 +11,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -38,6 +39,12 @@ func (s *Server) handleUploadPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.renderPage(w, http.StatusOK, "upload", s.uploadPageView(r, user))
+}
+
+// uploadPageView assembles the uploader page for an account, or for an
+// anonymous visitor when user is nil.
+func (s *Server) uploadPageView(r *http.Request, user *models.User) uploadView {
 	view := uploadView{
 		base:            s.base(r, "Upload"),
 		MaxUploadMB:     s.fileLimit(user, media.FormatImage) >> 20,
@@ -52,8 +59,7 @@ func (s *Server) handleUploadPage(w http.ResponseWriter, r *http.Request) {
 		}
 		view.Albums = albums
 	}
-
-	s.renderPage(w, http.StatusOK, "upload", view)
+	return view
 }
 
 // fileLimit is the largest single file this account may upload, for a format
@@ -94,24 +100,28 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// requestLimitsMW holds the upload slot and bounds the body before CSRF.
-	if err := r.ParseMultipartForm(multipartMemory); err != nil {
-		s.uploadFailure(w, r, "Could not read the upload: "+uploadErrMessage(err))
+	// Only now, with CSRF, the account, the policy and the rate limit all
+	// checked, is a processing slot worth handing out. requestLimitsMW has
+	// already bounded the body in size and time, and removes its temporary
+	// files afterwards.
+	release, ok := s.acquireUpload(w, r)
+	if !ok {
 		return
 	}
-	defer func() {
-		if r.MultipartForm != nil {
-			r.MultipartForm.RemoveAll()
-		}
-	}()
+	defer release()
+
+	if err := r.ParseMultipartForm(multipartMemory); err != nil {
+		s.uploadFailure(w, r, uploadErrStatus(err), "Could not read the upload: "+uploadErrMessage(err))
+		return
+	}
 
 	parts := r.MultipartForm.File["files"]
 	if len(parts) == 0 {
-		s.uploadFailure(w, r, "No files were included in the request.")
+		s.uploadFailure(w, r, http.StatusBadRequest, "No files were included in the request.")
 		return
 	}
 	if len(parts) > maxFilesPerUpload {
-		s.uploadFailure(w, r, fmt.Sprintf("Too many files at once (limit is %d).", maxFilesPerUpload))
+		s.uploadFailure(w, r, http.StatusBadRequest, fmt.Sprintf("Too many files at once (limit is %d).", maxFilesPerUpload))
 		return
 	}
 
@@ -119,7 +129,9 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	options := s.uploadOptions(r, user)
-	albumID := int64(queryInt(r, "album_id", 0))
+	// The album arrives in the form body with everything else; reading it from
+	// the query string meant the uploader's album menu never did anything.
+	albumID, _ := strconv.ParseInt(strings.TrimSpace(r.FormValue("album_id")), 10, 64)
 	tags := r.FormValue("tags")
 
 	var (
@@ -142,12 +154,25 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		s.attachUploadsToAlbum(r, user, albumID, created)
 	}
 
-	s.renderPartial(w, "upload_result", uploadResultView{
+	s.renderUploadResult(w, r, http.StatusOK, uploadResultView{
 		base:      s.base(r, "Upload"),
 		Grid:      s.grid(r, created, true, false, "", ""),
 		Errors:    failures,
 		Anonymous: anonymous,
 	})
+}
+
+// renderUploadResult answers an upload. htmx swaps the fragment into the page
+// it came from; a browser without JavaScript posted the whole form and needs a
+// whole page back, with the results where the fragment would have gone.
+func (s *Server) renderUploadResult(w http.ResponseWriter, r *http.Request, status int, result uploadResultView) {
+	if isHTMX(r) {
+		s.renderPartialStatus(w, status, "upload_result", result)
+		return
+	}
+	view := s.uploadPageView(r, currentUser(r.Context()))
+	view.Result = &result
+	s.renderPage(w, status, "upload", view)
 }
 
 // applyUploadTags attaches the tags supplied with an upload.
@@ -658,16 +683,22 @@ func (s *Server) uploadOptions(r *http.Request, owner *models.User) uploadOption
 }
 
 // uploadFailure reports a whole-request upload error.
-func (s *Server) uploadFailure(w http.ResponseWriter, r *http.Request, message string) {
-	if !isHTMX(r) {
-		http.Error(w, message, http.StatusBadRequest)
-		return
-	}
-	s.renderPartial(w, "upload_result", uploadResultView{
+func (s *Server) uploadFailure(w http.ResponseWriter, r *http.Request, status int, message string) {
+	s.renderUploadResult(w, r, status, uploadResultView{
 		base:   s.base(r, "Upload"),
 		Grid:   s.grid(r, nil, false, false, "", ""),
 		Errors: []string{message},
 	})
+}
+
+// uploadErrStatus is the status for a body that could not be parsed: too
+// large is its own answer, anything else is a bad request.
+func uploadErrStatus(err error) int {
+	var maxErr *http.MaxBytesError
+	if errors.As(err, &maxErr) {
+		return http.StatusRequestEntityTooLarge
+	}
+	return http.StatusBadRequest
 }
 
 func uploadErrMessage(err error) string {

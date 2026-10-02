@@ -4,9 +4,9 @@ package web
 
 import (
 	"context"
-	"errors"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"io/fs"
 	"net/http"
 	"net/url"

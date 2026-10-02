@@ -3,9 +3,13 @@
 package web
 
 import (
+	"bytes"
 	"crypto/subtle"
 	"errors"
+	"io"
 	"log/slog"
+	"mime"
+	"mime/multipart"
 	"net"
 	"net/http"
 	"runtime/debug"
@@ -140,26 +144,15 @@ func (s *Server) csrfMW(next http.Handler) http.Handler {
 		}
 
 		if isMutating(r.Method) && !isAPIKeyAuth(r.Context()) && !isAPIPath(r) {
-			provided := r.Header.Get(csrfHeader)
-			if provided == "" {
-				// Limits and upload slots are installed before any form parser.
-				// Do not use FormValue alone: it hides body-limit errors.
-				var err error
-				if isFormEncoded(r) {
-					err = r.ParseForm()
-				} else {
-					err = r.ParseMultipartForm(multipartMemory)
+			provided, err := providedCSRF(r)
+			if err != nil {
+				status := http.StatusBadRequest
+				var tooLarge *http.MaxBytesError
+				if errors.As(err, &tooLarge) {
+					status = http.StatusRequestEntityTooLarge
 				}
-				if err != nil && !errors.Is(err, http.ErrNotMultipart) {
-					status := http.StatusBadRequest
-					var tooLarge *http.MaxBytesError
-					if errors.As(err, &tooLarge) {
-						status = http.StatusRequestEntityTooLarge
-					}
-					http.Error(w, "could not read form", status)
-					return
-				}
-				provided = r.FormValue(csrfField)
+				http.Error(w, "could not read form", status)
+				return
 			}
 			if subtle.ConstantTimeCompare([]byte(provided), []byte(token)) != 1 {
 				s.log.Warn("csrf rejection", "method", r.Method, "path", r.URL.Path)
@@ -170,6 +163,67 @@ func (s *Server) csrfMW(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r.WithContext(withCSRF(r.Context(), token)))
 	})
+}
+
+// providedCSRF finds the token a mutating request carries.
+//
+// The header is what htmx sends, and costs nothing to read. A form posted
+// without JavaScript carries the token as a field instead. An ordinary form is
+// small and bounded, so it is parsed. A multipart body may be an upload of
+// hundreds of megabytes, so only its first part is read, which is where the
+// templates put the token: the rest of the body is left for the handler, and
+// is never read for a request that turns out to have no token.
+func providedCSRF(r *http.Request) (string, error) {
+	if provided := r.Header.Get(csrfHeader); provided != "" {
+		return provided, nil
+	}
+	if isFormEncoded(r) {
+		// Do not use FormValue alone: it hides body-limit errors.
+		if err := r.ParseForm(); err != nil {
+			return "", err
+		}
+		return r.PostFormValue(csrfField), nil
+	}
+	return firstPartToken(r)
+}
+
+// csrfPeekLimit bounds how much of a multipart body is read to find the token.
+const csrfPeekLimit = 16 << 10
+
+// firstPartToken reads the CSRF field from the first part of a multipart body
+// and puts back everything it consumed.
+func firstPartToken(r *http.Request) (string, error) {
+	mediaType, params, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || mediaType != "multipart/form-data" || params["boundary"] == "" {
+		return "", nil
+	}
+
+	original := r.Body
+	var consumed bytes.Buffer
+	reader := multipart.NewReader(io.TeeReader(io.LimitReader(original, csrfPeekLimit), &consumed), params["boundary"])
+	defer func() {
+		r.Body = struct {
+			io.Reader
+			io.Closer
+		}{io.MultiReader(bytes.NewReader(consumed.Bytes()), original), original}
+	}()
+
+	part, err := reader.NextPart()
+	if err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			return "", err
+		}
+		return "", nil
+	}
+	if part.FormName() != csrfField {
+		return "", nil
+	}
+	value, err := io.ReadAll(io.LimitReader(part, 256))
+	if err != nil {
+		return "", nil
+	}
+	return string(value), nil
 }
 
 func isMutating(method string) bool {
