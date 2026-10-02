@@ -162,10 +162,14 @@ func (s *Server) apiGetAlbum(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The album gates the listing; each file is still listed at its own level,
+	// exactly as the album page does. Owning the album is not a key to the
+	// private uploads somebody else contributed to it.
 	albumID := album.ID
 	files, err := s.store.ListFiles(r.Context(), store.FileQuery{
-		AlbumID: &albumID,
-		Limit:   500,
+		AlbumID:   &albumID,
+		VisibleTo: &user.ID,
+		Limit:     500,
 	})
 	if err != nil {
 		s.log.Error("api: album files", "album", album.ID, "error", err)
@@ -175,7 +179,14 @@ func (s *Server) apiGetAlbum(w http.ResponseWriter, r *http.Request) {
 
 	out := make([]apiFileJSON, 0, len(files))
 	for _, f := range files {
-		out = append(out, newAPIFile(r, s, f))
+		entry := newAPIFile(r, s, f)
+		if !canChangeFile(user, f) {
+			// What a file says about itself follows the same policy as the
+			// page and the bytes when it is somebody else's.
+			exifShown, locationShown := s.detailsVisibility(r.Context(), f, user)
+			entry.Details = withholdDetails(entry.Details, exifShown, locationShown)
+		}
+		out = append(out, entry)
 	}
 
 	noStore(w)
