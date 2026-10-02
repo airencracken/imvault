@@ -43,6 +43,8 @@ func TestMailQueueRetriesUntilDelivered(t *testing.T) {
 
 	h.get("/")
 	h.postForm("/forgot", url.Values{"csrf_token": {h.csrf()}, "identifier": {"alice"}})
+	// The reset mail is sent after the response; wait for that attempt.
+	h.srv.waitBackground()
 
 	// The message is queued rather than lost, and one attempt has been made.
 	messages, err := h.store.ListMail(t.Context(), 10)
