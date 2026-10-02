@@ -14,6 +14,9 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 WEB = "./internal/web"
 STORE = "./internal/store"
+DB = "./internal/db"
+MAINTENANCE = "./internal/maintenance"
+CMD = "./cmd/imvault"
 
 # (name, file, before, after, package, regression)
 MUTATIONS = [
@@ -90,6 +93,24 @@ MUTATIONS = [
     ("administrator API removals are logged", "internal/web/api.go",
      "\ts.recordFileRemoval(r.Context(), currentUser(r.Context()), file, \"\")\n", "",
      WEB, "TestAPIRemovalsReachTheModerationLog"),
+    ("a newer database is refused", "internal/db/db.go",
+     "\tif len(unknown) != 0 {", "\tif false {", DB, "TestOpenRefusesADatabaseFromANewerImvault"),
+    ("a newer database is refused before migrating", "internal/db/db.go",
+     # Applies this binary's own pending migrations, then refuses.
+     "\tpending, err := pendingAgainst(applied)\n\tif err != nil {\n\t\treturn err\n\t}\n\tfor _, name := range pending {\n"
+     "\t\tif err := applyMigration(ctx, sqlDB, name); err != nil {\n\t\t\treturn err\n\t\t}\n\t}\n\treturn nil\n}",
+     "\tpending, _ := embeddedMigrations()\n\tfor _, name := range pending {\n\t\tif applied[name] {\n\t\t\tcontinue\n\t\t}\n"
+     "\t\tif err := applyMigration(ctx, sqlDB, name); err != nil {\n\t\t\treturn err\n\t\t}\n\t}\n"
+     "\t_, err = pendingAgainst(applied)\n\treturn err\n}",
+     DB, "TestANewerDatabaseIsNotMigratedFurther"),
+    ("every command refuses a newer database", "internal/db/db.go",
+     "\t\treturn nil, &NewerSchemaError{Unknown: unknown}", "\t\treturn nil, nil",
+     CMD, "TestEveryDatabaseCommandRefusesANewerDatabase"),
+    ("backup does not migrate", "cmd/imvault/maintenance.go",
+     "\t\treturn db.OpenCurrent", "\t\treturn db.Open", CMD, "TestBackupDoesNotMigrateAnOlderDatabase"),
+    ("restore refuses a newer backup", "internal/maintenance/backup.go",
+     "\tif _, err := db.Pending(ctx, database); err != nil {", "\tif _, err := db.Pending(ctx, database); err != nil && false {",
+     MAINTENANCE, "TestRestoreRefusesABackupFromANewerImvault"),
 ]
 
 

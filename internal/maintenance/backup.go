@@ -16,6 +16,7 @@ import (
 
 	"imvault/internal/closer"
 	"imvault/internal/config"
+	"imvault/internal/db"
 	"imvault/internal/secrets"
 	"imvault/internal/storage"
 	"imvault/internal/store"
@@ -168,6 +169,12 @@ func validateDatabase(ctx context.Context, filename string, key []byte, objects 
 		return err
 	}
 	defer closer.Discard(database) // a read-only, immutable snapshot
+	// A snapshot from a newer Imvault is refused here rather than by the
+	// server it would be restored for, before any object is copied.
+	// One that predates this binary is fine: the server migrates it on start.
+	if _, err := db.Pending(ctx, database); err != nil {
+		return err
+	}
 	var integrity string
 	if err := database.QueryRowContext(ctx, `PRAGMA integrity_check`).Scan(&integrity); err != nil {
 		return err

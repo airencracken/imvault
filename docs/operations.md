@@ -156,9 +156,38 @@ systemctl start imvault
 journalctl -u imvault -n 5            # confirm it came up
 ```
 
-**Back up first.** A migration that turns out to be unwelcome is much easier to
-undo with a copy of the database than without one. Migrations do not run
-backwards.
+**Back up first,** with the binary you are about to replace. A migration that
+turns out to be unwelcome is much easier to undo with a copy of the database
+than without one. Migrations do not run backwards.
+
+### Going back to an older binary
+
+Each migration is recorded by name in the database. A binary that finds a
+migration it does not have refuses to start, and so does every command that
+opens the database:
+
+```text
+database /var/lib/imvault/imvault.db was upgraded by a newer Imvault: it has 1
+migration(s) this binary does not know (029_example.sql). This is an older
+Imvault binary running against a newer database, and it will not open it.
+```
+
+It means an older binary is running against a database a newer Imvault has
+already upgraded. Earlier versions carried on regardless, and an older binary
+reading and writing tables whose meaning has changed can damage them without
+any error at the time. Install the newer Imvault again, or, to go back, restore
+the backup taken before the upgrade and run the matching older binary against
+the restored directory.
+
+`backup` goes further: it does not migrate the database at all, and it only
+runs against a database at its own binary's schema. Migrating first would turn
+the backup you take before an upgrade into a copy of the upgraded database,
+which is no use for going back. If the backup reports that the database
+predates the binary, either take it with the version that last ran the
+database, or start the new server once and back up afterwards. `restore`
+refuses a backup taken by a newer Imvault, and accepts an older one, which the
+server migrates on its next start. The other maintenance commands change the
+collection, and they migrate first just as the server does.
 
 ## Troubleshooting
 
