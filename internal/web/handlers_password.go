@@ -104,7 +104,10 @@ func (s *Server) issueReset(ctx context.Context, r *http.Request, user *models.U
 		return err
 	}
 
-	link := s.absoluteURL(r, resetPath+token)
+	link, err := s.emailLink(resetPath + token)
+	if err != nil {
+		return err
+	}
 	return s.mail.Send(ctx, mail.Message{
 		To:      user.Email,
 		Subject: "Reset your imvault password",
@@ -421,7 +424,10 @@ func (s *Server) sendVerificationEmail(ctx context.Context, r *http.Request, use
 		return err
 	}
 
-	link := s.absoluteURL(r, verifyPath+token)
+	link, err := s.emailLink(verifyPath + token)
+	if err != nil {
+		return err
+	}
 	return s.mail.Send(ctx, mail.Message{
 		To:      user.Email,
 		Subject: "Confirm your email address",
