@@ -60,6 +60,8 @@ type Server struct {
 	formReadTimeout   time.Duration
 	uploadReadTimeout time.Duration
 	content           contentLocks
+	// flashKey signs the messages carried across redirects.
+	flashKey []byte
 	// mapCache holds fetched static maps so repeated views do not spend a
 	// provider's quota. The key is the fully substituted provider URL.
 	mapMu    sync.Mutex
@@ -86,6 +88,7 @@ func New(cfg *config.Config, st *store.Store, objects storage.Backend, proc *med
 		logins:            ratelimit.New(cfg.LoginRatePerHour, cfg.LoginBurst),
 		mailRetryInterval: cfg.MailRetryInterval,
 		processing:        newGate(cfg.MaxConcurrentUploads),
+		flashKey:          newFlashKey(),
 		formReadTimeout:   formReadTimeout,
 		uploadReadTimeout: uploadReadTimeout,
 		// The provider is not contacted here: discovery happens on first use,

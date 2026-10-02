@@ -63,7 +63,7 @@ func (s *Server) setOIDCAttempt(w http.ResponseWriter, r *http.Request, attempt 
 		Path:     oidcAttemptCookiePath,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   s.cfg.SecureCookies || isSecureRequest(r),
+		Secure:   s.secureCookies(r),
 		MaxAge:   int(oidcAttemptWindow / time.Second),
 	})
 	return nil
@@ -92,7 +92,7 @@ func (s *Server) clearOIDCAttempt(w http.ResponseWriter, r *http.Request) {
 		Value:    "",
 		Path:     oidcAttemptCookiePath,
 		HttpOnly: true,
-		Secure:   s.cfg.SecureCookies || isSecureRequest(r),
+		Secure:   s.secureCookies(r),
 		MaxAge:   -1,
 	})
 }
@@ -359,18 +359,18 @@ func (s *Server) linkAndSignIn(w http.ResponseWriter, r *http.Request, user *mod
 func (s *Server) connectIdentity(w http.ResponseWriter, r *http.Request, user *models.User, identity *oidc.Identity) {
 	if _, err := s.store.LinkIdentity(r.Context(), user.ID, s.cfg.OIDCIssuer, identity.Subject, identity.Email); err != nil {
 		if errors.Is(err, store.ErrConflict) {
-			redirectNotice(w, r, "/settings/account", "error",
+			s.redirectFlash(w, r, "/settings/account", flashError,
 				"That sign-in is already connected to a different account.")
 			return
 		}
 		s.log.Error("oidc: connect identity", "error", err)
-		redirectNotice(w, r, "/settings/account", "error", "The sign-in could not be connected.")
+		s.redirectFlash(w, r, "/settings/account", flashError, "The sign-in could not be connected.")
 		return
 	}
 
 	s.log.Info("identity connected from the account page",
 		"user", user.ID, "issuer", s.cfg.OIDCIssuer)
-	redirectNotice(w, r, "/settings/account", "notice",
+	s.redirectFlash(w, r, "/settings/account", flashNotice,
 		s.oidc.Name()+" is now connected.")
 }
 
@@ -397,7 +397,7 @@ func (s *Server) handleOIDCComplete(w http.ResponseWriter, r *http.Request) {
 
 	attempt, ok := s.readOIDCAttempt(r)
 	if !ok || attempt.Identity == nil {
-		redirectNotice(w, r, "/login", "error", "That sign-in did not finish. Try again.")
+		s.redirectFlash(w, r, "/login", flashError, "That sign-in did not finish. Try again.")
 		return
 	}
 
@@ -421,7 +421,7 @@ func (s *Server) handleOIDCCompleteSubmit(w http.ResponseWriter, r *http.Request
 
 	attempt, ok := s.readOIDCAttempt(r)
 	if !ok || attempt.Identity == nil {
-		redirectNotice(w, r, "/login", "error", "That sign-in did not finish. Try again.")
+		s.redirectFlash(w, r, "/login", flashError, "That sign-in did not finish. Try again.")
 		return
 	}
 

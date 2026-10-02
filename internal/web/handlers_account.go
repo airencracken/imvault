@@ -54,9 +54,8 @@ func (s *Server) handleAccountPage(w http.ResponseWriter, r *http.Request) {
 		FileCount:       count,
 		ExportableBytes: status.User.StorageUsed,
 		Identities:      identities,
-		Error:           r.URL.Query().Get("error"),
-		Notice:          r.URL.Query().Get("notice"),
 	}
+	view.Notice, view.Error = s.flash(r)
 	view.base = s.base(r, "Account")
 	// The confirmation field uses Alpine, so the page has to load it.
 	view.UseAlpine = true
@@ -73,12 +72,12 @@ func (s *Server) handleAccountDelete(w http.ResponseWriter, r *http.Request) {
 	user := currentUser(r.Context())
 
 	if err := s.verifySensitiveAction(w, r, user); err != nil {
-		redirectNotice(w, r, "/settings/account", "error", err.Error())
+		s.redirectFlash(w, r, "/settings/account", flashError, err.Error())
 		return
 	}
 
 	if typed := trimSpace(r.FormValue("confirm")); typed != user.Username {
-		redirectNotice(w, r, "/settings/account", "error",
+		s.redirectFlash(w, r, "/settings/account", flashError,
 			"Type your username exactly to confirm. Nothing has been deleted.")
 		return
 	}
@@ -86,13 +85,13 @@ func (s *Server) handleAccountDelete(w http.ResponseWriter, r *http.Request) {
 	removed, err := s.deleteAccount(r.Context(), user.ID)
 	if err != nil {
 		if errors.Is(err, store.ErrLastAdmin) {
-			redirectNotice(w, r, "/settings/account", "error",
+			s.redirectFlash(w, r, "/settings/account", flashError,
 				"You are the last administrator, so this account cannot be deleted. "+
 					"Grant somebody else the role first.")
 			return
 		}
 		s.log.Error("account: delete", "user", user.ID, "error", err)
-		redirectNotice(w, r, "/settings/account", "error", "Could not delete the account.")
+		s.redirectFlash(w, r, "/settings/account", flashError, "Could not delete the account.")
 		return
 	}
 
@@ -102,7 +101,7 @@ func (s *Server) handleAccountDelete(w http.ResponseWriter, r *http.Request) {
 	s.clearSessionCookie(w, r)
 	s.clearPendingCookie(w, r)
 
-	redirectNotice(w, r, "/", "notice",
+	s.redirectFlash(w, r, "/", flashNotice,
 		"Your account has been deleted, along with everything you uploaded.")
 }
 
@@ -141,15 +140,15 @@ func (s *Server) handleUnlinkIdentity(w http.ResponseWriter, r *http.Request) {
 
 	if err := s.store.UnlinkIdentity(r.Context(), id, user.ID); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			redirectNotice(w, r, "/settings/account", "error", "That connection does not exist.")
+			s.redirectFlash(w, r, "/settings/account", flashError, "That connection does not exist.")
 			return
 		}
 		s.log.Error("unlink identity", "user", user.ID, "identity", id, "error", err)
-		redirectNotice(w, r, "/settings/account", "error", "Could not disconnect it.")
+		s.redirectFlash(w, r, "/settings/account", flashError, "Could not disconnect it.")
 		return
 	}
 
 	s.log.Info("identity disconnected", "user", user.ID, "identity", id)
-	redirectNotice(w, r, "/settings/account", "notice",
+	s.redirectFlash(w, r, "/settings/account", flashNotice,
 		"Disconnected. You can still sign in with your password.")
 }

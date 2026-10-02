@@ -207,6 +207,7 @@ func profileFor(key string) (instanceProfile, bool) {
 // handleAdminSettings shows the instance-wide policy.
 func (s *Server) handleAdminSettings(w http.ResponseWriter, r *http.Request) {
 	policy := s.policy()
+	notice, problem := s.flash(r)
 
 	pending, err := s.store.CountFiles(r.Context(), fileQueryAnonymous())
 	if err != nil {
@@ -232,8 +233,8 @@ func (s *Server) handleAdminSettings(w http.ResponseWriter, r *http.Request) {
 		ConfigVisibility:      s.cfg.DefaultVisibility,
 		ConfigMaxTotalMB:      s.cfg.MaxTotalBytes >> 20,
 		AnonymousPending:      pending,
-		Error:                 r.URL.Query().Get("error"),
-		Notice:                r.URL.Query().Get("notice"),
+		Notice:                notice,
+		Error:                 problem,
 	}
 	view.CustomMascot, view.CustomFavicon, err = s.store.BrandingAssetState(r.Context())
 	if err != nil {
@@ -255,7 +256,7 @@ func (s *Server) handleAdminSaveSettings(w http.ResponseWriter, r *http.Request)
 
 	maxTotal, err := parseMegabytes(r.FormValue("max_total_mb"))
 	if err != nil {
-		redirectNotice(w, r, "/admin/settings", "error", err.Error())
+		s.redirectFlash(w, r, "/admin/settings", flashError, err.Error())
 		return
 	}
 
@@ -273,7 +274,7 @@ func (s *Server) handleAdminSaveSettings(w http.ResponseWriter, r *http.Request)
 	if key := strings.TrimSpace(r.FormValue("profile")); key != "" {
 		profile, ok := profileFor(key)
 		if !ok {
-			redirectNotice(w, r, "/admin/settings", "error", "No such profile.")
+			s.redirectFlash(w, r, "/admin/settings", flashError, "No such profile.")
 			return
 		}
 		// A profile sets the policy axes and leaves the retention window as it
@@ -288,7 +289,7 @@ func (s *Server) handleAdminSaveSettings(w http.ResponseWriter, r *http.Request)
 	} else {
 		window, err := parseRetention(r.FormValue("anonymous_ttl"))
 		if err != nil {
-			redirectNotice(w, r, "/admin/settings", "error", err.Error())
+			s.redirectFlash(w, r, "/admin/settings", flashError, err.Error())
 			return
 		}
 		next.AnonymousTTL = window
@@ -303,7 +304,7 @@ func (s *Server) handleAdminSaveSettings(w http.ResponseWriter, r *http.Request)
 			WelcomeText:  strings.TrimSpace(r.FormValue("welcome_text")),
 		}
 		if err := store.ValidateBranding(branding); err != nil {
-			redirectNotice(w, r, "/admin/settings", "error", err.Error())
+			s.redirectFlash(w, r, "/admin/settings", flashError, err.Error())
 			return
 		}
 		saveErr = s.store.SaveSettingsWithBranding(r.Context(), next, branding)
@@ -312,12 +313,12 @@ func (s *Server) handleAdminSaveSettings(w http.ResponseWriter, r *http.Request)
 	}
 	if saveErr != nil {
 		s.log.Error("admin: save settings", "error", saveErr)
-		redirectNotice(w, r, "/admin/settings", "error", "Could not save the settings.")
+		s.redirectFlash(w, r, "/admin/settings", flashError, "Could not save the settings.")
 		return
 	}
 	if err := s.reloadSettings(r.Context()); err != nil {
 		s.log.Error("admin: reload settings", "error", err)
-		redirectNotice(w, r, "/admin/settings", "error", "The settings were saved but could not be read back.")
+		s.redirectFlash(w, r, "/admin/settings", flashError, "The settings were saved but could not be read back.")
 		return
 	}
 
@@ -339,7 +340,7 @@ func (s *Server) handleAdminSaveSettings(w http.ResponseWriter, r *http.Request)
 		changed, err := s.store.ApplyAnonymousRetention(r.Context(), next.AnonymousTTL)
 		if err != nil {
 			s.log.Error("admin: apply retention", "error", err)
-			redirectNotice(w, r, "/admin/settings", "error",
+			s.redirectFlash(w, r, "/admin/settings", flashError,
 				"The settings were saved, but existing uploads could not be updated.")
 			return
 		}
@@ -359,7 +360,7 @@ func (s *Server) handleAdminSaveSettings(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	redirectNotice(w, r, "/admin/settings", "notice", notice)
+	s.redirectFlash(w, r, "/admin/settings", flashNotice, notice)
 }
 
 // handleAdminClearSettings removes the stored overrides, so the configuration
@@ -368,17 +369,17 @@ func (s *Server) handleAdminClearSettings(w http.ResponseWriter, r *http.Request
 	cleared, err := s.store.ClearSettings(r.Context())
 	if err != nil {
 		s.log.Error("admin: clear settings", "error", err)
-		redirectNotice(w, r, "/admin/settings", "error", "Could not clear the settings.")
+		s.redirectFlash(w, r, "/admin/settings", flashError, "Could not clear the settings.")
 		return
 	}
 	if err := s.reloadSettings(r.Context()); err != nil {
 		s.log.Error("admin: reload after clear", "error", err)
-		redirectNotice(w, r, "/admin/settings", "error", "The settings were cleared but could not be read back.")
+		s.redirectFlash(w, r, "/admin/settings", flashError, "The settings were cleared but could not be read back.")
 		return
 	}
 
 	s.log.Info("instance settings cleared", "actor", currentUser(r.Context()).ID, "keys", cleared)
-	redirectNotice(w, r, "/admin/settings", "notice",
+	s.redirectFlash(w, r, "/admin/settings", flashNotice,
 		"Cleared. The configuration file is in charge again.")
 }
 

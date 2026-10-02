@@ -108,13 +108,23 @@ func isHTMX(r *http.Request) bool {
 	return r.Header.Get("HX-Request") == "true"
 }
 
-// isSecureRequest reports whether the request reached us over TLS, directly or
-// via a trusted reverse proxy.
-func isSecureRequest(r *http.Request) bool {
+// secureRequest reports whether the request reached us over TLS, directly or
+// via a reverse proxy this instance has been told to trust.
+//
+// X-Forwarded-Proto is only evidence when a trusted proxy set it. Otherwise any
+// client can send it, and the scheme of a link this server builds would be
+// whatever the request claimed.
+func (s *Server) secureRequest(r *http.Request) bool {
 	if r.TLS != nil {
 		return true
 	}
-	return strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
+	return s.cfg.TrustProxyHeaders && strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
+}
+
+// secureCookies reports whether cookies set on this response should carry the
+// Secure flag.
+func (s *Server) secureCookies(r *http.Request) bool {
+	return s.cfg.SecureCookies || s.secureRequest(r)
 }
 
 // base builds the common template data for a request.
@@ -122,6 +132,7 @@ func (s *Server) base(r *http.Request, title string) base {
 	// The navigation shows whether signup and anonymous uploads are open, so
 	// the instance policy is read on nearly every render.
 	policy := s.policy()
+	notice, problem := s.flash(r)
 
 	user := currentUser(r.Context())
 	branding := s.branding()
@@ -152,8 +163,8 @@ func (s *Server) base(r *http.Request, title string) base {
 		SourceURL:         branding.SourceURL,
 		VisibilityLevels:  models.VisibilityLevels(),
 		DefaultVisibility: policy.DefaultVisibility,
-		Notice:            strings.TrimSpace(r.URL.Query().Get("notice")),
-		Error:             strings.TrimSpace(r.URL.Query().Get("error")),
+		Notice:            notice,
+		Error:             problem,
 		CurrentPath:       r.URL.Path,
 		MetadataLevels:    models.MetadataLevels(),
 		OIDCName:          s.oidc.Name(),
@@ -227,7 +238,7 @@ func (s *Server) absoluteURL(r *http.Request, path string) string {
 		return s.cfg.BaseURL + path
 	}
 	scheme := "http"
-	if isSecureRequest(r) {
+	if s.secureRequest(r) {
 		scheme = "https"
 	}
 	host := r.Host
@@ -270,19 +281,6 @@ func immutableCache(next http.Handler) http.Handler {
 // fsSub returns a subtree of an embedded filesystem.
 func fsSub(fsys fs.FS, dir string) (fs.FS, error) {
 	return fs.Sub(fsys, dir)
-}
-
-// redirectNotice sends the browser to path with a human-readable message.
-func redirectNotice(w http.ResponseWriter, r *http.Request, path, key, message string) {
-	q := url.Values{}
-	if message != "" {
-		q.Set(key, message)
-	}
-	target := path
-	if encoded := q.Encode(); encoded != "" {
-		target += "?" + encoded
-	}
-	http.Redirect(w, r, target, http.StatusSeeOther)
 }
 
 // hxRedirect tells HTMX to perform a client-side navigation.

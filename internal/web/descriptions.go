@@ -30,7 +30,7 @@ func (s *Server) handleFileDescription(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not save the description", http.StatusInternalServerError)
 		return
 	}
-	redirectNotice(w, r, "/f/"+file.ID, "notice", "Description saved.")
+	s.redirectFlash(w, r, "/f/"+file.ID, flashNotice, "Description saved.")
 }
 
 func (p *params) description() (*string, error) {

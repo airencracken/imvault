@@ -24,7 +24,7 @@ func (s *Server) handleFileRename(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not rename the file", http.StatusInternalServerError)
 		return
 	}
-	redirectNotice(w, r, "/f/"+file.ID, "notice", "File renamed.")
+	s.redirectFlash(w, r, "/f/"+file.ID, flashNotice, "File renamed.")
 }
 
 func validFileName(name string) bool {

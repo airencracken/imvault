@@ -61,11 +61,12 @@ func (s *Server) adminMailRows(r *http.Request, messages []*models.OutboundMail)
 
 // noticeFromQuery rebuilds the notice a redirect carried, so the non-JavaScript
 // path shows the same message the htmx path would have swapped in.
-func noticeFromQuery(r *http.Request) adminNotice {
-	if err := strings.TrimSpace(r.URL.Query().Get("error")); err != "" {
-		return adminNotice{Text: err, Error: true}
+func (s *Server) noticeFromQuery(r *http.Request) adminNotice {
+	notice, problem := s.flash(r)
+	if problem != "" {
+		return adminNotice{Text: problem, Error: true}
 	}
-	return adminNotice{Text: strings.TrimSpace(r.URL.Query().Get("notice"))}
+	return adminNotice{Text: notice}
 }
 
 // renderAdminUsersPage renders the account table in full.
@@ -127,15 +128,11 @@ func (s *Server) renderAdminRow(w http.ResponseWriter, rowTemplate string, row a
 // A nil user means the row no longer exists.
 func (s *Server) adminRespond(w http.ResponseWriter, r *http.Request, user *models.User, notice adminNotice, errMsg, redirectPath string) {
 	if !isHTMX(r) {
-		key := "notice"
+		kind, message := flashNotice, notice.Text
 		if errMsg != "" {
-			key = "error"
+			kind, message = flashError, errMsg
 		}
-		message := notice.Text
-		if errMsg != "" {
-			message = errMsg
-		}
-		redirectNotice(w, r, redirectPath, key, message)
+		s.redirectFlash(w, r, redirectPath, kind, message)
 		return
 	}
 
