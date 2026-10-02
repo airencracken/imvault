@@ -19,20 +19,27 @@ func TestMemberInvitationsAreCapped(t *testing.T) {
 	for _, tc := range []struct {
 		uses, days string
 		refused    bool
+		// The form names the bound that was crossed. The store refuses the
+		// same requests, but only with a general explanation, so the
+		// specific wording shows the form checked first.
+		message string
 	}{
-		{"0", "7", true},  // unlimited is an administrator's call
-		{"26", "7", true}, // over the use cap
-		{"-1", "7", true}, // nonsense
-		{"5", "31", true}, // over the lifetime cap
-		{"5", "0", true},  // never expiring
-		{"25", "30", false},
-		{"1", "", false}, // blank expiry defaults to the cap
-		{"", "1", false}, // blank uses defaults to one
+		{"0", "7", true, "Uses must be between 1 and 25."},         // unlimited is an administrator's call
+		{"26", "7", true, "Uses must be between 1 and 25."},        // over the use cap
+		{"-1", "7", true, ""},                                      // nonsense
+		{"5", "31", true, "Expiry must be between 1 and 30 days."}, // over the lifetime cap
+		{"5", "0", true, "Expiry must be between 1 and 30 days."},  // never expiring
+		{"25", "30", false, ""},
+		{"1", "", false, ""}, // blank expiry defaults to the cap
+		{"", "1", false, ""}, // blank uses defaults to one
 	} {
 		resp, page := member.post("/invites", url.Values{"max_uses": {tc.uses}, "expires_days": {tc.days}})
 		minted := strings.Contains(page, `aria-label="Invitation code"`)
 		if resp.StatusCode != http.StatusOK || minted == tc.refused {
 			t.Errorf("uses=%q days=%q: status %d, minted %v, want refused %v", tc.uses, tc.days, resp.StatusCode, minted, tc.refused)
+		}
+		if tc.message != "" && !strings.Contains(page, tc.message) {
+			t.Errorf("uses=%q days=%q: the form did not say %q", tc.uses, tc.days, tc.message)
 		}
 	}
 
