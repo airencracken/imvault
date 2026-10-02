@@ -5,13 +5,11 @@ package web
 import (
 	"context"
 	"crypto/rand"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
-	"golang.org/x/crypto/bcrypt"
 	"rsc.io/qr"
 
 	"imvault/internal/models"
@@ -45,6 +43,7 @@ type twoFactorView struct {
 	RecoveryCodes []string
 	Error         string
 	Notice        string
+	Credentials   credentialState
 }
 
 type pendingEnrolment struct {
@@ -63,7 +62,7 @@ func (s *Server) handleTwoFactorPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	view := twoFactorView{Status: status}
+	view := twoFactorView{Status: status, Credentials: s.credentialsFor(r, user, "/settings/2fa")}
 	view.Notice, view.Error = s.flash(r)
 	view.base = s.base(r, "Two-factor authentication")
 
@@ -276,6 +275,7 @@ func (s *Server) renderTwoFactorPage(w http.ResponseWriter, r *http.Request, cod
 		RecoveryCodes: codes,
 		Error:         errMsg,
 		Notice:        notice,
+		Credentials:   s.credentialsFor(r, currentUser(r.Context()), "/settings/2fa"),
 	}
 	view.base = s.base(r, "Two-factor authentication")
 
@@ -341,12 +341,11 @@ func looksLikeAuthenticatorCode(code string) bool {
 // account.
 func (s *Server) verifySensitiveAction(w http.ResponseWriter, r *http.Request, user *models.User) error {
 	if err := r.ParseForm(); err != nil {
-		return errors.New("That request could not be read.")
+		return userError("That request could not be read.")
 	}
 
-	password := r.FormValue("password")
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
-		return errors.New("That is not your current password.")
+	if err := s.checkCurrentPassword(r, user, r.FormValue("password")); err != nil {
+		return err
 	}
 
 	if !user.TOTPEnabled {
@@ -355,7 +354,7 @@ func (s *Server) verifySensitiveAction(w http.ResponseWriter, r *http.Request, u
 
 	code := strings.TrimSpace(r.FormValue("code"))
 	if code == "" {
-		return errors.New("Enter a code from your authenticator app, or a recovery code.")
+		return userError("Enter a code from your authenticator app, or a recovery code.")
 	}
 
 	if err := s.checkSecondFactor(r.Context(), user, code); err != nil {
@@ -370,32 +369,32 @@ func (s *Server) checkSecondFactor(ctx context.Context, user *models.User, code 
 	if !looksLikeAuthenticatorCode(code) {
 		used, err := s.store.ConsumeRecoveryCode(ctx, user.ID, store.HashRecoveryCode(code))
 		if err != nil {
-			return errors.New("That code could not be checked.")
+			return userError("That code could not be checked.")
 		}
 		if !used {
-			return errors.New("That recovery code is not valid, or has already been used.")
+			return userError("That recovery code is not valid, or has already been used.")
 		}
 		return nil
 	}
 
 	secret, err := s.secrets.Decrypt(user.TOTPSecret)
 	if err != nil {
-		return errors.New("Your authenticator secret could not be read.")
+		return userError("Your authenticator secret could not be read.")
 	}
 
 	step, ok := totp.Match(secret, code, time.Now())
 	if !ok {
-		return errors.New("That code did not match. Try the current one.")
+		return userError("That code did not match. Try the current one.")
 	}
 
 	// Refuse a code that has already been accepted: otherwise one seen over a
 	// shoulder stays usable for the rest of its window.
 	accepted, err := s.store.AcceptTOTPStep(ctx, user.ID, step)
 	if err != nil {
-		return errors.New("That code could not be checked.")
+		return userError("That code could not be checked.")
 	}
 	if !accepted {
-		return errors.New("That code has already been used. Wait for the next one.")
+		return userError("That code has already been used. Wait for the next one.")
 	}
 	return nil
 }

@@ -45,6 +45,11 @@ type oidcAttempt struct {
 	Identity *oidc.Identity `json:"identity,omitempty"`
 	// Invite carries a code supplied before leaving for the provider.
 	Invite string `json:"invite,omitempty"`
+	// Reauth is the account confirming itself, set when an account with no
+	// password of its own is asked to prove it is still its owner.
+	Reauth int64 `json:"reauth,omitempty"`
+	// Next is where a confirmation returns to.
+	Next string `json:"next,omitempty"`
 }
 
 func (s *Server) setOIDCAttempt(w http.ResponseWriter, r *http.Request, attempt oidcAttempt) error {
@@ -123,6 +128,19 @@ func (s *Server) handleOIDCStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	attempt := oidcAttempt{Invite: strings.TrimSpace(r.URL.Query().Get("invite"))}
+
+	// Connecting a provider to the account already signed in, rather than
+	// signing in as whoever the provider names.
+	if user := currentUser(r.Context()); user != nil && r.URL.Query().Get("connect") != "" {
+		attempt.LinkTo = user.ID
+	}
+
+	s.sendToProvider(w, r, attempt)
+}
+
+// sendToProvider seals an attempt and redirects the browser to the provider.
+func (s *Server) sendToProvider(w http.ResponseWriter, r *http.Request, attempt oidcAttempt) {
 	provider, err := s.oidc.Get(r.Context())
 	if err != nil {
 		s.log.Error("oidc: discovery failed", "error", err)
@@ -136,19 +154,10 @@ func (s *Server) handleOIDCStart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	started := provider.Start(s.oidcRedirectURL(r))
-	attempt := oidcAttempt{
-		State:     started.State,
-		Nonce:     started.Nonce,
-		Verifier:  started.Verifier,
-		CreatedAt: started.CreatedAt,
-		Invite:    strings.TrimSpace(r.URL.Query().Get("invite")),
-	}
-
-	// Connecting a provider to the account already signed in, rather than
-	// signing in as whoever the provider names.
-	if user := currentUser(r.Context()); user != nil && r.URL.Query().Get("connect") != "" {
-		attempt.LinkTo = user.ID
-	}
+	attempt.State = started.State
+	attempt.Nonce = started.Nonce
+	attempt.Verifier = started.Verifier
+	attempt.CreatedAt = started.CreatedAt
 
 	if err := s.setOIDCAttempt(w, r, attempt); err != nil {
 		s.log.Error("oidc: seal attempt", "error", err)
@@ -218,6 +227,12 @@ func (s *Server) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 // resolveOIDCIdentity links, signs in, or starts registration only after the
 // callback's state and provider assertion have been verified.
 func (s *Server) resolveOIDCIdentity(w http.ResponseWriter, r *http.Request, attempt oidcAttempt, identity *oidc.Identity) {
+	// Confirming the account that asked, rather than signing anybody in.
+	if attempt.Reauth != 0 {
+		s.finishReauth(w, r, attempt, identity)
+		return
+	}
+
 	// Connecting to the account that asked for it.
 	if attempt.LinkTo != 0 {
 		user := currentUser(r.Context())
@@ -475,7 +490,9 @@ func (s *Server) handleOIDCCompleteSubmit(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	user, err := s.store.CreateUserWithIdentity(r.Context(), store.NewUser{
+	// The account has no password anybody knows, and the store records that,
+	// so settings that ask for one can ask the provider instead.
+	user, err := s.store.CreateProviderAccount(r.Context(), store.NewUser{
 		Username:     username,
 		Email:        attempt.Identity.Email,
 		PasswordHash: string(placeholder),

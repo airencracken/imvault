@@ -231,6 +231,19 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 	s.redirectFlash(w, r, "/gallery", flashNotice, "Your password has been changed and you are signed in.")
 }
 
+// passwordPage builds the password settings page for the signed-in account.
+func (s *Server) passwordPage(r *http.Request, user *models.User, message string) passwordView {
+	return passwordView{
+		base:          s.base(r, "Password"),
+		User:          user,
+		MailEnabled:   s.mail.Enabled(),
+		HasEmail:      user.Email != "",
+		VerifyPending: user.Email != "" && !user.EmailVerified,
+		Error:         message,
+		Credentials:   s.credentialsFor(r, user, "/settings/password"),
+	}
+}
+
 // handleChangeEmail sets or replaces the signed-in account's email address,
 // re-verifying it when mail is available.
 func (s *Server) handleChangeEmail(w http.ResponseWriter, r *http.Request) {
@@ -242,21 +255,14 @@ func (s *Server) handleChangeEmail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	renderErr := func(status int, message string) {
-		s.renderPage(w, status, "password", passwordView{
-			base:          s.base(r, "Password"),
-			User:          user,
-			MailEnabled:   s.mail.Enabled(),
-			HasEmail:      user.Email != "",
-			VerifyPending: user.Email != "" && !user.EmailVerified,
-			Error:         message,
-		})
+		s.renderPage(w, status, "password", s.passwordPage(r, user, message))
 	}
 
 	// Changing where password resets are sent is sensitive enough to warrant
-	// proving you know the current password.
-	current := r.FormValue("current_password")
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(current)); err != nil {
-		renderErr(http.StatusForbidden, "That is not your current password.")
+	// proving you are the owner: the current password, or a fresh provider
+	// sign-in for an account that has none.
+	if err := s.checkCurrentPassword(r, user, r.FormValue("current_password")); err != nil {
+		renderErr(http.StatusForbidden, err.Error())
 		return
 	}
 
@@ -316,17 +322,11 @@ func (s *Server) handleVerifyEmail(w http.ResponseWriter, r *http.Request) {
 // handleChangePasswordPage shows the change-password form for a signed-in user.
 func (s *Server) handleChangePasswordPage(w http.ResponseWriter, r *http.Request) {
 	user := currentUser(r.Context())
-
-	s.renderPage(w, http.StatusOK, "password", passwordView{
-		base:          s.base(r, "Password"),
-		User:          user,
-		MailEnabled:   s.mail.Enabled(),
-		HasEmail:      user.Email != "",
-		VerifyPending: user.Email != "" && !user.EmailVerified,
-	})
+	s.renderPage(w, http.StatusOK, "password", s.passwordPage(r, user, ""))
 }
 
-// handleChangePassword changes the password of the signed-in account.
+// handleChangePassword changes the password of the signed-in account, or sets
+// the first one for an account made through a provider.
 func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	user := currentUser(r.Context())
 
@@ -335,23 +335,15 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	current := r.FormValue("current_password")
 	password := r.FormValue("password")
 	confirm := r.FormValue("password_confirm")
 
 	renderErr := func(status int, message string) {
-		s.renderPage(w, status, "password", passwordView{
-			base:          s.base(r, "Password"),
-			User:          user,
-			MailEnabled:   s.mail.Enabled(),
-			HasEmail:      user.Email != "",
-			VerifyPending: user.Email != "" && !user.EmailVerified,
-			Error:         message,
-		})
+		s.renderPage(w, status, "password", s.passwordPage(r, user, message))
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(current)); err != nil {
-		renderErr(http.StatusForbidden, "That is not your current password.")
+	if err := s.checkCurrentPassword(r, user, r.FormValue("current_password")); err != nil {
+		renderErr(http.StatusForbidden, err.Error())
 		return
 	}
 	if err := accounts.ValidatePassword(password); err != nil {

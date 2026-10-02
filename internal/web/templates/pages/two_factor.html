@@ -49,6 +49,7 @@
   </div>
 </section>
 {{else if .Status.User.TOTPEnabled}}
+{{template "reauth_panel" .}}
 <section class="panel stack">
   <h2>Status</h2>
   <p>
@@ -69,9 +70,11 @@
   <form class="stack" method="post" action="/settings/2fa/recovery">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
     <p class="muted">Generating a new set replaces the old one immediately.</p>
+    {{if .Credentials.PasswordSet}}
     <label>Current password
       <input name="password" type="password" autocomplete="current-password" required>
     </label>
+    {{end}}
     <label>Code
       <input name="code" autocomplete="one-time-code" placeholder="123456 or a recovery code" required>
     </label>
@@ -84,9 +87,11 @@
   <form class="stack" method="post" action="/settings/2fa/disable">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
     <p class="muted">Your recovery codes are discarded at the same time.</p>
+    {{if .Credentials.PasswordSet}}
     <label>Current password
       <input name="password" type="password" autocomplete="current-password" required>
     </label>
+    {{end}}
     <label>Code
       <input name="code" autocomplete="one-time-code" placeholder="123456 or a recovery code" required>
     </label>
