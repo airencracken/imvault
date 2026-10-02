@@ -1,0 +1,79 @@
+[
+    {
+        "name": "credential chain forwarding",
+        "file": "cmd/imvault/sandbox.go",
+        "before": "\t\"AWS_SECRET_ACCESS_KEY\",\n",
+        "after": "",
+        "package": "./cmd/imvault",
+        "run": "^TestServicePolicyForwardsTheCredentialChainAndKeepsSecretsOutOfArguments$",
+        "env": {
+            "COMFYWARE_SANDBOX_TEST": "1"
+        }
+    },
+    {
+        "name": "requested confinement",
+        "file": "internal/media/sandbox.go",
+        "before": "if enabled {",
+        "after": "if false && enabled {",
+        "package": "./internal/media",
+        "run": "^TestRequestedSandboxCannotFallBack$",
+        "env": {
+            "COMFYWARE_SANDBOX_TEST": "1"
+        }
+    },
+    {
+        "name": "symlink output race",
+        "file": "internal/media/output_linux.go",
+        "before": "os.O_RDONLY|syscall.O_NOFOLLOW",
+        "after": "os.O_RDONLY|0*syscall.O_NOFOLLOW",
+        "package": "./internal/media",
+        "run": "^TestSandboxOutputRejectsSymlinksAndDirectories$",
+        "env": {
+            "COMFYWARE_SANDBOX_TEST": "1"
+        }
+    },
+    {
+        "name": "the server policy forwards the listed variables",
+        "file": "cmd/imvault/sandbox.go",
+        "before": "\t\tForwardEnv:    forwardedEnv,\n",
+        "after": "",
+        "package": "./cmd/imvault",
+        "run": "^TestServicePolicyForwardsTheCredentialChainAndKeepsSecretsOutOfArguments$",
+        "env": {
+            "COMFYWARE_SANDBOX_TEST": "1"
+        }
+    },
+    {
+        "name": "user namespaces only for the media sandbox",
+        "file": "cmd/imvault/sandbox.go",
+        "before": "\t\tNestedSandbox: nested,\n",
+        "after": "\t\tNestedSandbox: true,\n",
+        "package": "./cmd/imvault",
+        "run": "^TestServicePolicyForwardsTheCredentialChainAndKeepsSecretsOutOfArguments$",
+        "env": {
+            "COMFYWARE_SANDBOX_TEST": "1"
+        }
+    },
+    {
+        "name": "the sandbox probe is the server's help",
+        "file": "cmd/imvault/sandbox.go",
+        "before": "var sandboxProbe = []string{\"/app/server\", \"--help\"}",
+        "after": "var sandboxProbe = []string{\"/app/server\", \"--probe\"}",
+        "package": "./cmd/imvault",
+        "run": "^TestTheSandboxProbeIsACommandThatSucceeds$",
+        "env": {
+            "COMFYWARE_SANDBOX_TEST": "1"
+        }
+    },
+    {
+        "name": "the sandbox check runs the probe",
+        "file": "cmd/imvault/sandbox.go",
+        "before": "sandbox.Check(context.Background(), binary, mounts, environment, sandboxProbe...)",
+        "after": "sandbox.Check(context.Background(), binary, mounts, environment, \"/app/missing\")",
+        "package": "./cmd/imvault",
+        "run": "^TestRealSandboxedServerLifecycle$",
+        "env": {
+            "COMFYWARE_SANDBOX_TEST": "1"
+        }
+    }
+]

@@ -1,0 +1,122 @@
+[
+    {
+        "name": "issuer authorization",
+        "file": "internal/store/invites.go",
+        "before": "WHERE id = ? AND disabled = 0 AND (role = 'admin' OR can_invite = 1)",
+        "after": "WHERE id = ?",
+        "package": "./internal/store",
+        "run": "^TestInviteWritesRecheckIssuerPermission$"
+    },
+    {
+        "name": "creator scope",
+        "file": "internal/store/invites.go",
+        "before": "WHERE id = ? AND created_by = ? AND revoked_at IS NULL",
+        "after": "WHERE id = ? AND ? > 0 AND revoked_at IS NULL",
+        "package": "./internal/store",
+        "run": "^TestDelegatedInvitePermissionAndAttribution$"
+    },
+    {
+        "name": "live revocation",
+        "file": "internal/store/invites.go",
+        "before": "AND u.disabled = 0 AND (u.role = 'admin' OR u.can_invite = 1))",
+        "after": "AND 1 = 1)",
+        "package": "./internal/store",
+        "run": "^TestInviteWritesRecheckIssuerPermission$"
+    },
+    {
+        "name": "disabled issuer admission",
+        "file": "internal/store/invites.go",
+        "before": "AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id = invites.created_by AND u.disabled = 1)",
+        "after": "AND 1 = 1",
+        "package": "./internal/store",
+        "run": "^TestDisabledIssuerCannotAdmitPasswordOrProvider$"
+    },
+    {
+        "name": "provider attribution",
+        "file": "internal/store/identities.go",
+        "before": "in, err = invitedUser(ctx, tx, in, *inviteID)",
+        "after": "err = redeemInvite(ctx, tx, *inviteID)",
+        "package": "./internal/store",
+        "run": "^TestDisabledIssuerCannotAdmitPasswordOrProvider$"
+    },
+    {
+        "name": "ordinary form response",
+        "file": "internal/web/handlers_admin_invites.go",
+        "before": "if isHTMX(r) {",
+        "after": "if true {",
+        "package": "./internal/web",
+        "run": "^TestMemberInvitationResponsesWorkWithAndWithoutHTMX$"
+    },
+    {
+        "name": "issuerless code admission",
+        "file": "internal/store/invites.go",
+        "before": "AND created_by IS NOT NULL\n",
+        "after": "\n",
+        "package": "./internal/store",
+        "run": "^TestACodeWithNoIssuerIsRefused$"
+    },
+    {
+        "name": "revocation on deletion",
+        "file": "internal/store/users.go",
+        "before": "if err := revokeOpenInvitesByCreator(ctx, tx, userID); err != nil {\n\t\t\treturn err\n\t\t}\n\t\t_, err := tx.ExecContext(ctx, `DELETE FROM users",
+        "after": "_, err := tx.ExecContext(ctx, `DELETE FROM users",
+        "package": "./internal/store",
+        "run": "^TestDeletingAnIssuerRevokesTheirCodes$"
+    },
+    {
+        "name": "revocation on permission removal",
+        "file": "internal/store/users.go",
+        "before": "return revokeOpenInvitesByCreator(ctx, tx, userID)\n\t})",
+        "after": "return nil\n\t})",
+        "package": "./internal/store",
+        "run": "^TestInvitePermissionRemovalRevokesIssuedCodes$"
+    },
+    {
+        "name": "revocation scope",
+        "file": "internal/store/invites.go",
+        "before": "WHERE created_by = ? AND revoked_at IS NULL`",
+        "after": "WHERE (created_by = ? OR 1 = 1) AND revoked_at IS NULL`",
+        "package": "./internal/store",
+        "run": "^TestRevocationLeavesOtherIssuersAndEarlierRevocationsAlone$"
+    },
+    {
+        "name": "revocation preserves earlier revocations",
+        "file": "internal/store/invites.go",
+        "before": "WHERE created_by = ? AND revoked_at IS NULL`",
+        "after": "WHERE created_by = ?`",
+        "package": "./internal/store",
+        "run": "^TestRevocationLeavesOtherIssuersAndEarlierRevocationsAlone$"
+    },
+    {
+        "name": "permission and revocation atomicity",
+        "file": "internal/store/users.go",
+        "before": "return revokeOpenInvitesByCreator(ctx, tx, userID)\n\t})",
+        "after": "_ = revokeOpenInvitesByCreator(ctx, tx, userID)\n\t\treturn nil\n\t})",
+        "package": "./internal/store",
+        "run": "^TestPermissionRemovalIsAtomicWithRevocation$"
+    },
+    {
+        "name": "delegated use limit",
+        "file": "internal/store/invites.go",
+        "before": "if maxUses < 1 || maxUses > MaxDelegatedInviteUses ||",
+        "after": "if false ||",
+        "package": "./internal/store",
+        "run": "^TestDelegatedIssuersAreHeldToTheLimits$"
+    },
+    {
+        "name": "delegated lifetime ceiling",
+        "file": "internal/store/invites.go",
+        "before": "(expiresAt != nil && ts(*expiresAt) > ceiling)",
+        "after": "false",
+        "package": "./internal/store",
+        "run": "^TestDelegatedIssuersAreHeldToTheLimits$"
+    },
+    {
+        "name": "delegated default lifetime",
+        "file": "internal/store/invites.go",
+        "before": "limit := toTime(ceiling)\n\t\t\t\texpiresAt = &limit",
+        "after": "_ = ceiling",
+        "package": "./internal/store",
+        "run": "^TestDelegatedIssuersAreHeldToTheLimits$"
+    }
+]
