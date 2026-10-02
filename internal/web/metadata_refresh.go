@@ -35,7 +35,7 @@ func (s *Server) refreshFileDetails(ctx context.Context, file *models.File) {
 		s.log.Warn("refresh photo details: open original", "id", file.ID, "error", err)
 		return
 	}
-	defer src.Close()
+	defer s.closeLogged(src, "original")
 	details, err := metadata.ExtractStored(src)
 	if errors.Is(err, metadata.ErrRead) {
 		s.log.Warn("refresh photo details: read original", "id", file.ID, "error", err)

@@ -21,7 +21,7 @@ func getWith(t *testing.T, client *http.Client, target string) (int, string, htt
 	if err != nil {
 		t.Fatalf("GET %s: %v", target, err)
 	}
-	defer resp.Body.Close()
+	defer mustClose(t, resp.Body)
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatalf("read %s: %v", target, err)
@@ -54,7 +54,9 @@ func mapHarness(t *testing.T, requested *[]string, providerStatus int) (*harness
 			return
 		}
 		w.Header().Set("Content-Type", "image/png")
-		w.Write(pngFixture(t, 20, 20))
+		if _, err := w.Write(pngFixture(t, 20, 20)); err != nil {
+			t.Errorf("fake provider write: %v", err)
+		}
 	}))
 	t.Cleanup(provider.Close)
 

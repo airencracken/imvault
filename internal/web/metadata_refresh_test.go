@@ -131,7 +131,7 @@ func TestLegacyDetailsRefreshOncePerOriginal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer original.Close()
+	defer mustClose(t, original)
 	stored, err := io.ReadAll(original)
 	if err != nil || !bytes.Equal(data, stored) {
 		t.Fatal("refresh changed original bytes")

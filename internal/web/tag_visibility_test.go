@@ -56,7 +56,7 @@ func getAnonymous(t *testing.T, url string) (int, string) {
 	if err != nil {
 		t.Fatalf("anonymous GET %s: %v", url, err)
 	}
-	defer resp.Body.Close()
+	defer mustClose(t, resp.Body)
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

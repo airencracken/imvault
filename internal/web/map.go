@@ -123,7 +123,7 @@ func (s *Server) fetchMap(ctx context.Context, lat, lon float64) (mapImage, erro
 	if err != nil {
 		return mapImage{}, err
 	}
-	defer resp.Body.Close()
+	defer s.closeLogged(resp.Body, "map response")
 	if resp.StatusCode != http.StatusOK {
 		return mapImage{}, fmt.Errorf("map provider returned %d", resp.StatusCode)
 	}

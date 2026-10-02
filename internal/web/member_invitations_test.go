@@ -68,7 +68,7 @@ func TestMemberInvitationResponsesWorkWithAndWithoutHTMX(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				defer response.Body.Close()
+				defer mustClose(t, response.Body)
 				return response, readAll(t, response.Body)
 			}
 			label := `Family <script>alert("x")</script>`
@@ -191,7 +191,7 @@ func TestMemberInvitationRoutesRequireCSRFAndAdministratorGrant(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		resp.Body.Close()
+		mustClose(t, resp.Body)
 		if resp.StatusCode != 403 {
 			t.Fatalf("missing CSRF reached %s: %d", path, resp.StatusCode)
 		}

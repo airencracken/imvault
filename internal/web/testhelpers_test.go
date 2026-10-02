@@ -72,7 +72,7 @@ func (h *harness) csrfFor(t *testing.T, client *http.Client) string {
 	if err != nil {
 		t.Fatalf("prime client: %v", err)
 	}
-	resp.Body.Close()
+	mustClose(t, resp.Body)
 
 	parsed, err := url.Parse(h.server.URL)
 	if err != nil {
@@ -101,7 +101,7 @@ func doForm(t *testing.T, client *http.Client, base, path string, form url.Value
 	if err != nil {
 		t.Fatalf("POST %s: %v", path, err)
 	}
-	resp.Body.Close()
+	mustClose(t, resp.Body)
 	return resp
 }
 
@@ -289,7 +289,7 @@ func (h *harness) newSession(t *testing.T) *session {
 	if err != nil {
 		t.Fatalf("prime session: %v", err)
 	}
-	resp.Body.Close()
+	mustClose(t, resp.Body)
 
 	parsed, err := url.Parse(h.server.URL)
 	if err != nil {
@@ -313,7 +313,7 @@ func (s *session) get(path string) (*http.Response, string) {
 	if err != nil {
 		s.t.Fatalf("GET %s: %v", path, err)
 	}
-	defer resp.Body.Close()
+	defer mustClose(s.t, resp.Body)
 	return resp, readAll(s.t, resp.Body)
 }
 
@@ -448,7 +448,7 @@ func (s *session) upload(fields map[string]string, files []uploadFile) (*http.Re
 	if err != nil {
 		s.t.Fatalf("upload: %v", err)
 	}
-	defer resp.Body.Close()
+	defer mustClose(s.t, resp.Body)
 	return resp, readAll(s.t, resp.Body)
 }
 
@@ -470,7 +470,7 @@ func (s *session) getBytes(path string) (*http.Response, []byte) {
 	if err != nil {
 		s.t.Fatalf("GET %s: %v", path, err)
 	}
-	defer resp.Body.Close()
+	defer mustClose(s.t, resp.Body)
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -500,5 +500,13 @@ func closeBody(t *testing.T, resp *http.Response) {
 	t.Helper()
 	if err := resp.Body.Close(); err != nil {
 		t.Errorf("close response body: %v", err)
+	}
+}
+
+// mustClose closes something a test opened, failing the test if that fails.
+func mustClose(tb testing.TB, c io.Closer) {
+	tb.Helper()
+	if err := c.Close(); err != nil {
+		tb.Errorf("close: %v", err)
 	}
 }

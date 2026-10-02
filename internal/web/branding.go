@@ -35,7 +35,7 @@ func (s *Server) handleBrandingAsset(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "image/png")
 	w.Header().Set("Cache-Control", "public, max-age=0, must-revalidate")
-	w.Write(content)
+	s.writeBody(w, content)
 }
 
 func (s *Server) handleAdminSaveBrandingAssets(w http.ResponseWriter, r *http.Request) {
@@ -76,7 +76,11 @@ func uploadedBrandImage(r *http.Request, field string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() {
+		// The upload is a temporary multipart file; nothing depends on
+		// closing it beyond releasing the handle.
+		_ = file.Close()
+	}()
 	if header.Size > maxBrandImageBytes {
 		return nil, errors.New("choose an image no larger than 2 MiB")
 	}

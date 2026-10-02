@@ -228,7 +228,7 @@ func (h *harness) authorize(t *testing.T, client *http.Client, query string) *ur
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
+	mustClose(t, resp.Body)
 
 	if resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("start = %d, want 303", resp.StatusCode)
@@ -259,7 +259,7 @@ func (h *harness) callback(t *testing.T, idp *fakeIDP, client *http.Client, auth
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
+	mustClose(t, resp.Body)
 	return resp
 }
 
@@ -586,7 +586,7 @@ func TestOIDCRejectsAWrongStateOrNonce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp2.Body.Close()
+	mustClose(t, resp2.Body)
 	if resp2.StatusCode != http.StatusBadRequest {
 		t.Errorf("a token for another attempt = %d, want a refusal", resp2.StatusCode)
 	}

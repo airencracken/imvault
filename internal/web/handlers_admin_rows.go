@@ -119,7 +119,7 @@ func (s *Server) renderAdminRow(w http.ResponseWriter, rowTemplate string, row a
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write(buf.Bytes())
+	s.writeBody(w, buf.Bytes())
 }
 
 // adminRespond finishes an admin action: htmx gets the row and a notice, and

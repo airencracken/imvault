@@ -207,8 +207,11 @@ func TestResetSignsOutOtherDevices(t *testing.T) {
 	device := h.signIn(t, user.ID)
 	if resp, err := device.Get(h.server.URL + "/gallery"); err != nil {
 		t.Fatal(err)
-	} else if resp.Body.Close(); resp.StatusCode != http.StatusOK {
-		t.Fatalf("device was not signed in to begin with: %d", resp.StatusCode)
+	} else {
+		mustClose(t, resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("device was not signed in to begin with: %d", resp.StatusCode)
+		}
 	}
 
 	h.get("/")
@@ -228,7 +231,7 @@ func TestResetSignsOutOtherDevices(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sessionResp.Body.Close()
+	defer mustClose(t, sessionResp.Body)
 	if sessionResp.StatusCode != http.StatusSeeOther {
 		t.Errorf("the old session survived a reset: %d", sessionResp.StatusCode)
 	}

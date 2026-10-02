@@ -231,7 +231,7 @@ func (s *Server) ingest(ctx context.Context, header *multipart.FileHeader, user 
 	if err != nil {
 		return nil, fmt.Errorf("could not open the upload")
 	}
-	defer src.Close()
+	defer s.closeLogged(src, "upload part")
 
 	format, err := classifyUpload(src)
 	if err != nil {

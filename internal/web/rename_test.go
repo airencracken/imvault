@@ -75,7 +75,7 @@ func TestOwnersCanRenameWithoutChangingLinksOrSharedContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	conditional.Body.Close()
+	mustClose(t, conditional.Body)
 	if conditional.StatusCode != http.StatusOK {
 		t.Fatal("an old download validator preserved the old filename")
 	}
@@ -113,7 +113,7 @@ func TestRenameRequiresOwnerOrAdminAndCSRF(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
+	mustClose(t, resp.Body)
 	if resp.StatusCode != http.StatusForbidden {
 		t.Fatal("rename accepted missing CSRF")
 	}
