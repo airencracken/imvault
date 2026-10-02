@@ -8,6 +8,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"imvault/internal/closer"
+	"imvault/internal/testutil"
 )
 
 func TestSMTPPreservesLeadingDots(t *testing.T) {
@@ -51,7 +54,7 @@ func TestSMTPTimeoutIncludesGreeting(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer listener.Close()
+	defer testutil.Close(t, listener)
 	release := make(chan struct{})
 	defer close(release)
 	go func() {
@@ -59,7 +62,7 @@ func TestSMTPTimeoutIncludesGreeting(t *testing.T) {
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer closer.Discard(conn) // may run after the test has finished
 		<-release // Connected relay never sends a greeting.
 	}()
 	host, portText, err := net.SplitHostPort(listener.Addr().String())

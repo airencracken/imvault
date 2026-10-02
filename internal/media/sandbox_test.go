@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"imvault/internal/testutil"
 )
 
 func TestRequestedSandboxCannotFallBack(t *testing.T) {
@@ -45,7 +47,7 @@ func TestSandboxOutputRejectsSymlinksAndDirectories(t *testing.T) {
 		}
 	}
 	if f, err := openSandboxOutput(link); err == nil {
-		f.Close()
+		testutil.Close(t, f)
 		t.Fatal("output opener followed a symlink")
 	}
 	if data, err := os.ReadFile(destination); err != nil || string(data) != "unchanged" {
@@ -157,7 +159,7 @@ func TestSandboxJobHasNoInheritedCredentialsOrBroadMount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer finish(false)
+	defer abandon(finish)
 	args := strings.Join(cmd.Args, "\n")
 	for _, expected := range []string{"--unshare-net", "--disable-userns", "--die-with-parent", "--ro-bind\n" + input + "\n/input/media.mp4", "-i\n/input/media.mp4"} {
 		if !strings.Contains(args, expected) {

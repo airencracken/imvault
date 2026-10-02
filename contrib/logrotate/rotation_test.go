@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"imvault/internal/testutil"
 )
 
 type rotationFixture struct {
@@ -57,7 +59,7 @@ func TestRotationPreservesOpenWriterAndBoundsArchives(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer writer.Close()
+	defer testutil.Close(t, writer)
 	before, err := writer.Stat()
 	if err != nil {
 		t.Fatal(err)
@@ -85,12 +87,12 @@ func TestRotationPreservesOpenWriterAndBoundsArchives(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer oldest.Close()
+	defer testutil.Close(t, oldest)
 	compressed, err := gzip.NewReader(oldest)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer compressed.Close()
+	defer testutil.Close(t, compressed)
 	data, err := io.ReadAll(compressed)
 	if err != nil || string(data) != "record 2\n" {
 		t.Fatalf("oldest retained archive = %q (%v)", data, err)

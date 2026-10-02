@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"imvault/internal/config"
+	"imvault/internal/testutil"
 )
 
 type s3Fixture struct {
@@ -49,7 +50,7 @@ func testS3(t *testing.T) (*S3, *s3Fixture) {
 		}
 		if f.deny {
 			w.WriteHeader(403)
-			io.WriteString(w, "<Error><Code>AccessDenied</Code></Error>")
+			_, _ = io.WriteString(w, "<Error><Code>AccessDenied</Code></Error>") // the client under test sees any failure
 			return
 		}
 		if r.URL.Query().Has("uploads") || r.URL.Query().Has("uploadId") {
@@ -85,7 +86,7 @@ func (f *s3Fixture) object(w http.ResponseWriter, r *http.Request) {
 		data, ok := f.data[key]
 		if !ok {
 			w.WriteHeader(404)
-			io.WriteString(w, "<Error><Code>NoSuchKey</Code></Error>")
+			_, _ = io.WriteString(w, "<Error><Code>NoSuchKey</Code></Error>") // the client under test sees any failure
 			return
 		}
 		sum := sha256.Sum256(data)
@@ -103,7 +104,7 @@ func (f *s3Fixture) object(w http.ResponseWriter, r *http.Request) {
 		f.gets++
 		var start, end int
 		if _, err := fmt.Sscanf(r.Header.Get("Range"), "bytes=%d-%d", &start, &end); err != nil || start < 0 || end >= len(data) {
-			http.Error(w, "bad range", 416)
+			http.Error(w, "bad range", http.StatusRequestedRangeNotSatisfiable)
 			return
 		}
 		if !f.badRange {
@@ -112,7 +113,7 @@ func (f *s3Fixture) object(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Length", strconv.Itoa(end-start+1))
 		w.WriteHeader(206)
 		f.bytesRead += end - start + 1
-		w.Write(data[start : end+1])
+		_, _ = w.Write(data[start : end+1]) // the client under test sees any failure
 	default:
 		http.Error(w, "unexpected method", 400)
 	}
@@ -122,7 +123,7 @@ func (f *s3Fixture) multipart(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	w.Header().Set("Content-Type", "application/xml")
 	if q.Has("uploads") {
-		io.WriteString(w, `<InitiateMultipartUploadResult><UploadId>test-upload</UploadId></InitiateMultipartUploadResult>`)
+		_, _ = io.WriteString(w, `<InitiateMultipartUploadResult><UploadId>test-upload</UploadId></InitiateMultipartUploadResult>`) // the client under test sees any failure
 		return
 	}
 	switch r.Method {
@@ -149,7 +150,7 @@ func (f *s3Fixture) multipart(w http.ResponseWriter, r *http.Request) {
 			result = append(result, f.parts[part.Number]...)
 		}
 		f.data[r.URL.Path] = result
-		io.WriteString(w, `<CompleteMultipartUploadResult><ETag>"complete"</ETag></CompleteMultipartUploadResult>`)
+		_, _ = io.WriteString(w, `<CompleteMultipartUploadResult><ETag>"complete"</ETag></CompleteMultipartUploadResult>`) // the client under test sees any failure
 	case "DELETE":
 		f.aborts++
 		f.parts = map[int][]byte{}
@@ -192,7 +193,7 @@ func TestStorageContract(t *testing.T) {
 				t.Fatal(n, err)
 			}
 			data, err := io.ReadAll(reader)
-			reader.Close()
+			testutil.Close(t, reader)
 			if err != nil || string(data) != "def" {
 				t.Fatalf("seek or atomic save: %q %v", data, err)
 			}
@@ -226,7 +227,7 @@ func TestS3ReadsBoundedRangesAndHandlesRemoteFailures(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
+	defer testutil.Close(t, r)
 	if _, err := r.Seek(-16, io.SeekEnd); err != nil {
 		t.Fatal(err)
 	}
@@ -276,7 +277,7 @@ func TestS3MultipartCommitAndAbort(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
+	defer testutil.Close(t, f)
 	const size = 65 << 20
 	if err := f.Truncate(size); err != nil {
 		t.Fatal(err)

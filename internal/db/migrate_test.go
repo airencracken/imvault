@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"imvault/internal/testutil"
 )
 
 // schemaMigrationsDDL mirrors what the migration runner creates.
@@ -30,7 +32,7 @@ func buildLegacyDatabase(t *testing.T, path string, versions ...string) {
 	if err != nil {
 		t.Fatalf("open legacy db: %v", err)
 	}
-	defer raw.Close()
+	defer testutil.Close(t, raw)
 
 	exec := func(label, statement string) {
 		t.Helper()
@@ -102,7 +104,7 @@ func TestPerAccountTagMigrationSplitsExistingTags(t *testing.T) {
 	if err != nil {
 		t.Fatalf("upgrade database: %v", err)
 	}
-	defer database.Close()
+	defer testutil.Close(t, database)
 
 	// The instance-wide tag is now two rows, one per account; alice's other tag
 	// survives; the tag on the anonymous upload is gone.
@@ -116,7 +118,7 @@ func TestPerAccountTagMigrationSplitsExistingTags(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read tags: %v", err)
 	}
-	defer rows.Close()
+	defer testutil.Close(t, rows)
 
 	type row struct {
 		userID   int64
@@ -200,7 +202,7 @@ func TestQuotaMigrationBackfillsUsageAndLeavesAccountsUnlimited(t *testing.T) {
 	if err != nil {
 		t.Fatalf("upgrade database: %v", err)
 	}
-	defer database.Close()
+	defer testutil.Close(t, database)
 
 	type account struct {
 		username string
@@ -212,7 +214,7 @@ func TestQuotaMigrationBackfillsUsageAndLeavesAccountsUnlimited(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read users: %v", err)
 	}
-	defer rows.Close()
+	defer testutil.Close(t, rows)
 
 	var got []account
 	for rows.Next() {
@@ -256,7 +258,7 @@ func TestTwoFactorMigrationLeavesExistingAccountsAlone(t *testing.T) {
 	if err != nil {
 		t.Fatalf("upgrade database: %v", err)
 	}
-	defer database.Close()
+	defer testutil.Close(t, database)
 
 	rows, err := database.QueryContext(ctx, `
 		SELECT username, totp_secret, totp_enabled, totp_last_step
@@ -264,7 +266,7 @@ func TestTwoFactorMigrationLeavesExistingAccountsAlone(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read users: %v", err)
 	}
-	defer rows.Close()
+	defer testutil.Close(t, rows)
 
 	accounts := 0
 	for rows.Next() {
@@ -320,14 +322,14 @@ func TestAnonymousTagMigrationKeepsExistingTags(t *testing.T) {
 	`); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
-	raw.Close()
+	testutil.Close(t, raw)
 
 	ctx := context.Background()
 	database, err := Open(ctx, path)
 	if err != nil {
 		t.Fatalf("upgrade database: %v", err)
 	}
-	defer database.Close()
+	defer testutil.Close(t, database)
 
 	// The tag kept its id and its owner, and the link still points at it.
 	var (
@@ -408,14 +410,14 @@ func TestBlobMigrationBackfillsCountsAndMovesTheKeys(t *testing.T) {
 	`); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
-	raw.Close()
+	testutil.Close(t, raw)
 
 	ctx := context.Background()
 	database, err := Open(ctx, path)
 	if err != nil {
 		t.Fatalf("upgrade database: %v", err)
 	}
-	defer database.Close()
+	defer testutil.Close(t, database)
 
 	// One record for the shared content, counting both files.
 	var (
@@ -515,13 +517,13 @@ func TestVisibilityMigrationKeepsPublicPublic(t *testing.T) {
 			(1, 'Private album', 'private-album', '', 0, 0)`); err != nil {
 		t.Fatalf("seed albums: %v", err)
 	}
-	raw.Close()
+	testutil.Close(t, raw)
 
 	database, err := Open(context.Background(), path)
 	if err != nil {
 		t.Fatalf("upgrade database: %v", err)
 	}
-	defer database.Close()
+	defer testutil.Close(t, database)
 
 	// Nothing changes meaning. Public stays public, and everything else is
 	// private rather than members: widening access during an upgrade would be
@@ -537,7 +539,7 @@ func TestVisibilityMigrationKeepsPublicPublic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer rows.Close()
+	defer testutil.Close(t, rows)
 	seen := 0
 	for rows.Next() {
 		var id, visibility string
@@ -627,14 +629,14 @@ func TestSharedAlbumMigrationDefaultsToTheOwner(t *testing.T) {
 		VALUES (1, 'Old album', 'old-album', '', 'public', 0)`); err != nil {
 		t.Fatalf("seed album: %v", err)
 	}
-	raw.Close()
+	testutil.Close(t, raw)
 
 	ctx := context.Background()
 	database, err := Open(ctx, path)
 	if err != nil {
 		t.Fatalf("upgrade database: %v", err)
 	}
-	defer database.Close()
+	defer testutil.Close(t, database)
 
 	// An album that predates sharing has exactly one person who could add to
 	// it, and that does not change. Widening it during an upgrade would turn
@@ -696,14 +698,14 @@ func TestRoleMigrationKeepsAdministratorsAdministrators(t *testing.T) {
 	if _, err := raw.Exec(`UPDATE users SET is_admin = 1 WHERE username = 'alice'`); err != nil {
 		t.Fatalf("seed admin: %v", err)
 	}
-	raw.Close()
+	testutil.Close(t, raw)
 
 	ctx := context.Background()
 	database, err := Open(ctx, path)
 	if err != nil {
 		t.Fatalf("upgrade database: %v", err)
 	}
-	defer database.Close()
+	defer testutil.Close(t, database)
 
 	// The flag maps onto the role, and nothing gains power: the administrator
 	// stays one, and everybody else becomes an ordinary member.
@@ -712,7 +714,7 @@ func TestRoleMigrationKeepsAdministratorsAdministrators(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer rows.Close()
+	defer testutil.Close(t, rows)
 	seen := 0
 	for rows.Next() {
 		var username, role string
@@ -782,14 +784,14 @@ func TestInvitesMigrationArrivesEmpty(t *testing.T) {
 			t.Fatalf("record %s: %v", name, err)
 		}
 	}
-	raw.Close()
+	testutil.Close(t, raw)
 
 	ctx := context.Background()
 	database, err := Open(ctx, path)
 	if err != nil {
 		t.Fatalf("upgrade database: %v", err)
 	}
-	defer database.Close()
+	defer testutil.Close(t, database)
 
 	// An upgraded instance has issued nothing, so it must not accidentally be
 	// invitation-only on top of whatever its signup switch says.
@@ -849,14 +851,14 @@ func TestModerationMigrationArrivesEmpty(t *testing.T) {
 			t.Fatalf("record %s: %v", name, err)
 		}
 	}
-	raw.Close()
+	testutil.Close(t, raw)
 
 	ctx := context.Background()
 	database, err := Open(ctx, path)
 	if err != nil {
 		t.Fatalf("upgrade database: %v", err)
 	}
-	defer database.Close()
+	defer testutil.Close(t, database)
 
 	// Nothing is reported or moderated on an instance that has just upgraded,
 	// and in particular nobody is shown an empty queue badge.
@@ -917,14 +919,14 @@ func TestIdentityMigrationArrivesEmpty(t *testing.T) {
 			t.Fatalf("record %s: %v", name, err)
 		}
 	}
-	raw.Close()
+	testutil.Close(t, raw)
 
 	ctx := context.Background()
 	database, err := Open(ctx, path)
 	if err != nil {
 		t.Fatalf("upgrade database: %v", err)
 	}
-	defer database.Close()
+	defer testutil.Close(t, database)
 
 	var count int
 	if err := database.QueryRowContext(ctx, `SELECT COUNT(*) FROM user_identities`).Scan(&count); err != nil {
@@ -996,14 +998,14 @@ func TestMetadataPolicyMigrationDefaultsToInherit(t *testing.T) {
 			t.Fatalf("record %s: %v", name, err)
 		}
 	}
-	raw.Close()
+	testutil.Close(t, raw)
 
 	ctx := context.Background()
 	database, err := Open(ctx, path)
 	if err != nil {
 		t.Fatalf("upgrade database: %v", err)
 	}
-	defer database.Close()
+	defer testutil.Close(t, database)
 
 	// Existing files and albums change meaning in no way at all. Inherit is
 	// what they already did, and a migration that started hiding metadata
@@ -1079,14 +1081,14 @@ func TestBlobDetailsMigrationArrivesEmpty(t *testing.T) {
 			t.Fatalf("record %s: %v", name, err)
 		}
 	}
-	raw.Close()
+	testutil.Close(t, raw)
 
 	ctx := context.Background()
 	database, err := Open(ctx, path)
 	if err != nil {
 		t.Fatalf("upgrade database: %v", err)
 	}
-	defer database.Close()
+	defer testutil.Close(t, database)
 
 	// Every existing blob has nothing to say, which is what it already did.
 	var described int
@@ -1123,14 +1125,14 @@ func TestMigrationIsIdempotent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("open attempt %d: %v", attempt, err)
 		}
-		database.Close()
+		testutil.Close(t, database)
 	}
 
 	database, err := Open(ctx, path)
 	if err != nil {
 		t.Fatalf("reopen: %v", err)
 	}
-	defer database.Close()
+	defer testutil.Close(t, database)
 
 	// Count migrations from the embedded directory rather than hardcoding, so
 	// adding one does not require touching this test.
@@ -1168,7 +1170,7 @@ func TestSettingsMigrationLeavesAnExistingInstanceAlone(t *testing.T) {
 	if err != nil {
 		t.Fatalf("upgrade database: %v", err)
 	}
-	defer database.Close()
+	defer testutil.Close(t, database)
 
 	// The table arrives empty. That is the point: nothing is stored until an
 	// administrator changes something, so an upgraded instance keeps obeying

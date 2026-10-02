@@ -13,6 +13,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"imvault/internal/testutil"
 )
 
 func TestRealSandboxedServerLifecycle(t *testing.T) {
@@ -35,7 +37,7 @@ func TestRealSandboxedServerLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	address := listener.Addr().String()
-	listener.Close()
+	testutil.Close(t, listener)
 	environment := append(os.Environ(), "IMVAULT_DATA_DIR="+data, "IMVAULT_ADDR="+address)
 	environment = append(environment, "IMVAULT_MEDIA_SANDBOX=true")
 	check := exec.Command(binary, "sandbox", "--check")
@@ -61,7 +63,7 @@ func TestRealSandboxedServerLifecycle(t *testing.T) {
 	if err := command.Start(); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { command.Process.Kill() })
+	t.Cleanup(func() { _ = command.Process.Kill() }) // normally already stopped
 	done := make(chan error, 1)
 	go func() { done <- command.Wait() }()
 	ready := false
@@ -71,7 +73,7 @@ func TestRealSandboxedServerLifecycle(t *testing.T) {
 		response, err := client.Get("http://" + address + "/healthz")
 		if err == nil {
 			ready = response.StatusCode == 200
-			response.Body.Close()
+			testutil.Close(t, response.Body)
 		}
 		if ready {
 			break
@@ -80,7 +82,7 @@ func TestRealSandboxedServerLifecycle(t *testing.T) {
 		case err := <-done:
 			t.Fatalf("server stopped: %v\n%s", err, &log)
 		case <-deadline:
-			command.Process.Kill()
+			_ = command.Process.Kill() // the start failure is what is reported
 			<-done
 			t.Fatalf("server did not start:\n%s", &log)
 		case <-time.After(20 * time.Millisecond):
@@ -95,7 +97,7 @@ func TestRealSandboxedServerLifecycle(t *testing.T) {
 			t.Fatalf("graceful shutdown: %v\n%s", err, &log)
 		}
 	case <-time.After(5 * time.Second):
-		command.Process.Kill()
+		_ = command.Process.Kill() // the slow shutdown is what is reported
 		<-done
 		t.Fatalf("shutdown timed out:\n%s", &log)
 	}

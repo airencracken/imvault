@@ -12,6 +12,7 @@ import (
 	"imvault/internal/models"
 	"imvault/internal/storage"
 	"imvault/internal/store"
+	"imvault/internal/testutil"
 )
 
 func TestBackupRestoreKeepsLocationPolicyAndFilteredObjects(t *testing.T) {
@@ -44,7 +45,7 @@ func TestBackupRestoreKeepsLocationPolicyAndFilteredObjects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer database.Close()
+	defer testutil.Close(t, database)
 	st := store.New(database)
 	file, err := st.FileByID(t.Context(), f.file.ID)
 	if err != nil || file.Location != shown || file.Metadata != models.MetadataHidden {
@@ -64,7 +65,7 @@ func TestBackupRestoreKeepsLocationPolicyAndFilteredObjects(t *testing.T) {
 			t.Fatal(err)
 		}
 		data, err := io.ReadAll(object)
-		object.Close()
+		testutil.Close(t, object)
 		if err != nil || string(data) != key {
 			t.Fatal("filtered copy was not restored")
 		}

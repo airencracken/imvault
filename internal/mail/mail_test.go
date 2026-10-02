@@ -10,6 +10,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"imvault/internal/closer"
+	"imvault/internal/testutil"
 )
 
 // received is one message captured by the fake relay.
@@ -48,7 +51,7 @@ func newFakeSMTP(t *testing.T) *fakeSMTP {
 
 	go server.serve()
 
-	t.Cleanup(func() { listener.Close() })
+	t.Cleanup(func() { testutil.Close(t, listener) })
 	return server
 }
 
@@ -72,15 +75,19 @@ func (s *fakeSMTP) serve() {
 }
 
 func (s *fakeSMTP) handle(conn net.Conn) {
-	defer conn.Close()
+	// The fake has no test to report to; a broken connection shows up as a
+	// failure on the client's side, which is the side under test.
+	defer closer.Discard(conn)
 	_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
 
 	reader := bufio.NewReader(conn)
 	writer := bufio.NewWriter(conn)
 
 	reply := func(line string) {
-		writer.WriteString(line + "\r\n")
-		writer.Flush()
+		if _, err := writer.WriteString(line + "\r\n"); err != nil {
+			return // the client will see the missing reply
+		}
+		_ = writer.Flush() // likewise
 	}
 
 	reply("220 fake ESMTP ready")

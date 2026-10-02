@@ -81,9 +81,14 @@ func TestVerifyRejectsWrongKey(t *testing.T) {
 }
 
 func TestHashIsStable(t *testing.T) {
-	key := Generate().Full
-	if Hash(key) != Hash(key) {
-		t.Error("Hash is not deterministic")
+	// A known digest pins the algorithm and encoding: a stored hash written by
+	// one release has to verify under the next. Comparing Hash with itself
+	// would pass whatever it computed.
+	// The digest was computed independently, with Python's hashlib.
+	const key = "imv_abcdefghijkl_0123456789abcdefghijklmnopqrstuv"
+	const want = "d1c122f275b40cf7328357bc4a2ae9605c394624153db419036a16d0c9c88ce3"
+	if got := Hash(key); got != want {
+		t.Fatalf("Hash(%q) = %s, want %s", key, got, want)
 	}
 	if Hash(key) == Hash(key+"x") {
 		t.Error("Hash ignores the trailing character")

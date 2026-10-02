@@ -5,6 +5,8 @@ package instance
 import (
 	"path/filepath"
 	"testing"
+
+	"imvault/internal/testutil"
 )
 
 func TestMaintenanceExcludesServerAndOtherCommands(t *testing.T) {
@@ -13,28 +15,28 @@ func TestMaintenanceExcludesServerAndOtherCommands(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer server.Close()
+	defer testutil.Close(t, server)
 	admin, err := Acquire(path, false)
 	if err != nil {
 		t.Fatal("ordinary local commands should coexist", err)
 	}
-	admin.Close()
+	testutil.Close(t, admin)
 	if lock, err := Acquire(path, true); err == nil {
-		lock.Close()
+		testutil.Close(t, lock)
 		t.Fatal("maintenance ran beside the server")
 	}
-	server.Close()
+	testutil.Close(t, server)
 	maintenance, err := Acquire(path, true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer maintenance.Close()
+	defer testutil.Close(t, maintenance)
 	if lock, err := Acquire(path, false); err == nil {
-		lock.Close()
+		testutil.Close(t, lock)
 		t.Fatal("server started during maintenance")
 	}
 	if lock, err := Acquire(path, true); err == nil {
-		lock.Close()
+		testutil.Close(t, lock)
 		t.Fatal("two maintenance commands ran together")
 	}
 }
@@ -45,14 +47,14 @@ func TestOnlyOneServerMayUseADatabase(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer first.Close()
+	defer testutil.Close(t, first)
 	if second, err := AcquireServer(path); err == nil {
-		second.Close()
+		testutil.Close(t, second)
 		t.Fatal("second server was allowed")
 	}
 	admin, err := Acquire(path, false)
 	if err != nil {
 		t.Fatal("server prevented ordinary local command", err)
 	}
-	admin.Close()
+	testutil.Close(t, admin)
 }

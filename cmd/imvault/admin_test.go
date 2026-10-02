@@ -17,6 +17,7 @@ import (
 	"imvault/internal/db"
 	"imvault/internal/models"
 	"imvault/internal/store"
+	"imvault/internal/testutil"
 )
 
 func adminTestEnvironment(t *testing.T) string {
@@ -41,8 +42,8 @@ func TestCreateAdminPromptRequiresTerminalBeforeOpeningDatabase(t *testing.T) {
 	os.Stdin = stdin
 	t.Cleanup(func() {
 		os.Stdin = oldStdin
-		stdin.Close()
-		writer.Close()
+		testutil.Close(t, stdin)
+		testutil.Close(t, writer)
 	})
 	err = runCommand([]string{"create-admin", "--username", "marcus", "--password-prompt"}, strings.NewReader("unused"), &bytes.Buffer{})
 	if err == nil || !strings.Contains(err.Error(), "use --password-stdin") {
@@ -68,7 +69,7 @@ func TestCreateAdminAndRefuseExistingAccount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer database.Close()
+	defer testutil.Close(t, database)
 	st := store.New(database)
 	user, err := st.UserByUsername(t.Context(), "marcus")
 	if err != nil {
@@ -242,7 +243,7 @@ func TestConcurrentAdminProvisioningDoesNotOverwrite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer database.Close()
+	defer testutil.Close(t, database)
 	var workers sync.WaitGroup
 	results := make(chan error, 2)
 	for i := 0; i < 2; i++ {

@@ -6,6 +6,8 @@ import (
 	"database/sql"
 	"path/filepath"
 	"testing"
+
+	"imvault/internal/testutil"
 )
 
 func TestFavoritesUpgradePreservesAccountsAndFiles(t *testing.T) {
@@ -14,7 +16,7 @@ func TestFavoritesUpgradePreservesAccountsAndFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { raw.Close() })
+	t.Cleanup(func() { testutil.Close(t, raw) })
 	if _, err := raw.Exec(schemaMigrationsDDL); err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +52,7 @@ func TestFavoritesUpgradePreservesAccountsAndFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { database.Close() })
+	t.Cleanup(func() { testutil.Close(t, database) })
 	var role, hash, name string
 	if err := database.QueryRow(`SELECT role, password_hash FROM users WHERE id = 1`).Scan(&role, &hash); err != nil {
 		t.Fatal(err)
@@ -71,7 +73,7 @@ func TestFavoritesUpgradePreservesAccountsAndFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer reopened.Close()
+	defer testutil.Close(t, reopened)
 	var count int
 	if err := reopened.QueryRow(`SELECT COUNT(*) FROM favorites WHERE user_id = 1 AND file_id = 'existing-photo'`).Scan(&count); err != nil || count != 1 {
 		t.Fatalf("favorite did not survive reopening: count=%d err=%v", count, err)
