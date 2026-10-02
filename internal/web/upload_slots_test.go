@@ -279,3 +279,35 @@ func TestStalledBodiesHitTheReadDeadline(t *testing.T) {
 		t.Fatalf("a stalled body held the connection for %s", elapsed)
 	}
 }
+
+// A form posted as multipart to an ordinary route still reaches its handler
+// with its fields, once its token has been checked.
+func TestMultipartFormsReachOrdinaryHandlers(t *testing.T) {
+	h := newHarness(t)
+	alice := h.seedUser("alice")
+	s := h.sessionFor(t, alice.ID)
+
+	var body bytes.Buffer
+	w := multipart.NewWriter(&body)
+	for _, field := range [][2]string{{csrfField, s.token()}, {"title", "Multipart Album"}, {"visibility", "members"}} {
+		if err := w.WriteField(field[0], field[1]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	req, err := http.NewRequest(http.MethodPost, h.server.URL+"/albums", &body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", w.FormDataContentType())
+	resp, err := s.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	closeBody(t, resp)
+	if _, err := h.store.AlbumBySlug(t.Context(), "multipart-album"); err != nil {
+		t.Fatalf("a multipart form lost its fields: %d (%v)", resp.StatusCode, err)
+	}
+}
