@@ -61,7 +61,7 @@ func (s *Store) CreateInvite(ctx context.Context, createdBy int64, label, prefix
 	res, err := s.db.ExecContext(ctx, `
 		INSERT INTO invites (prefix, code_hash, label, created_by, created_at, expires_at, max_uses)
 		SELECT ?, ?, ?, u.id, ?, ?, ? FROM users u
-		WHERE u.id = ? AND (u.role = 'admin' OR u.can_invite = 1)`,
+		WHERE u.id = ? AND u.disabled = 0 AND (u.role = 'admin' OR u.can_invite = 1)`,
 		prefix, hash, label, created, nullableTime(expiresAt), maxUses, createdBy)
 	if err != nil {
 		if ok, col := isUniqueViolation(err); ok {
@@ -164,7 +164,9 @@ func (s *Store) listInvites(ctx context.Context, creatorID int64, all bool, limi
 // RevokeInviteByCreator limits delegated issuers to revoking their own codes.
 func (s *Store) RevokeInviteByCreator(ctx context.Context, id, creatorID int64) error {
 	res, err := s.db.ExecContext(ctx,
-		`UPDATE invites SET revoked_at = ? WHERE id = ? AND created_by = ? AND revoked_at IS NULL`,
+		`UPDATE invites SET revoked_at = ? WHERE id = ? AND created_by = ? AND revoked_at IS NULL
+		 AND EXISTS (SELECT 1 FROM users u WHERE u.id = invites.created_by
+		 AND u.disabled = 0 AND (u.role = 'admin' OR u.can_invite = 1))`,
 		nowUnix(), id, creatorID)
 	if err != nil {
 		return fmt.Errorf("revoke invite: %w", err)
@@ -212,7 +214,8 @@ func redeemInvite(ctx context.Context, ex execer, id int64) error {
 		WHERE id = ?
 		  AND revoked_at IS NULL
 		  AND (expires_at IS NULL OR expires_at > ?)
-		  AND (max_uses = 0 OR uses < max_uses)`, id, nowUnix())
+		  AND (max_uses = 0 OR uses < max_uses)
+		  AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id = invites.created_by AND u.disabled = 1)`, id, nowUnix())
 	if err != nil {
 		return fmt.Errorf("redeem invite: %w", err)
 	}
@@ -238,23 +241,11 @@ func (s *Store) RegisterWithInvite(ctx context.Context, in NewUser, inviteID int
 	var user *models.User
 
 	err := s.withTx(ctx, func(tx *sql.Tx) error {
-		var inviterID sql.NullInt64
-		var inviterName string
-		if err := tx.QueryRowContext(ctx, `SELECT i.created_by, COALESCE(u.username, '')
-			FROM invites i LEFT JOIN users u ON u.id = i.created_by WHERE i.id = ?`, inviteID).
-			Scan(&inviterID, &inviterName); err != nil {
-			return mapErr(err)
-		}
-		if err := redeemInvite(ctx, tx, inviteID); err != nil {
+		var err error
+		in, err = invitedUser(ctx, tx, in, inviteID)
+		if err != nil {
 			return err
 		}
-		if inviterID.Valid {
-			id := inviterID.Int64
-			in.InvitedBy = &id
-			in.InvitedByUsername = inviterName
-		}
-		id := inviteID
-		in.InvitationID = &id
 		created, err := createUser(ctx, tx, in)
 		if err != nil {
 			return err
@@ -266,4 +257,28 @@ func (s *Store) RegisterWithInvite(ctx context.Context, in NewUser, inviteID int
 		return nil, err
 	}
 	return user, nil
+}
+
+// invitedUser consumes the code and records its issuer in the same transaction
+// as either a password or provider registration.
+func invitedUser(ctx context.Context, tx *sql.Tx, in NewUser, inviteID int64) (NewUser, error) {
+	var inviterID sql.NullInt64
+	var inviterName string
+	if err := tx.QueryRowContext(ctx, `SELECT i.created_by, COALESCE(u.username, '')
+		FROM invites i LEFT JOIN users u ON u.id = i.created_by WHERE i.id = ?`, inviteID).
+		Scan(&inviterID, &inviterName); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return in, ErrInviteUnusable
+		}
+		return in, mapErr(err)
+	}
+	if err := redeemInvite(ctx, tx, inviteID); err != nil {
+		return in, err
+	}
+	in.InvitedBy, in.InvitedByUsername = nil, inviterName
+	if inviterID.Valid {
+		in.InvitedBy = &inviterID.Int64
+	}
+	in.InvitationID = &inviteID
+	return in, nil
 }

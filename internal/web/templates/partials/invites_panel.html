@@ -2,10 +2,10 @@
 <div id="invites" class="panel stack">
   {{if .NewCode}}
   <div class="flash ok">
-    <p><strong>Copy this invitation now.</strong> It is stored hashed and cannot be shown again.</p>
-    <input class="key-reveal" readonly value="{{.NewCode}}" onclick="this.select()">
+    <p><strong>Copy this invitation now.</strong> It cannot be shown again.</p>
+    <input class="key-reveal" aria-label="Invitation code" readonly value="{{.NewCode}}" onclick="this.select()">
     <p class="muted">Or send this link, which fills the code in for them:</p>
-    <input class="key-reveal" readonly value="{{.InviteURL}}" onclick="this.select()">
+    <input class="key-reveal" aria-label="Invitation link" readonly value="{{.InviteURL}}" onclick="this.select()">
   </div>
   {{end}}
   {{if .Error}}<p class="flash err">{{.Error}}</p>{{end}}
@@ -15,13 +15,13 @@
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
     <h2>Create an invitation</h2>
     <label>Label <span class="muted">(optional, for your own reference)</span>
-      <input name="label" maxlength="64" autocomplete="off" placeholder="e.g. for Sam">
+      <input name="label" maxlength="64" autocomplete="off" placeholder="e.g. for Sam" value="{{.Label}}">
     </label>
     <label>Uses <span class="muted">(0 for no limit)</span>
-      <input name="max_uses" type="number" min="0" max="10000" value="1">
+      <input name="max_uses" type="number" min="0" max="10000" value="{{.MaxUses}}">
     </label>
     <label>Expires after <span class="muted">(days, leave blank for never)</span>
-      <input name="expires_days" type="number" min="1" max="3650" placeholder="never">
+      <input name="expires_days" type="number" min="1" max="3650" placeholder="never" value="{{.ExpiresDays}}">
     </label>
     <button class="btn primary" type="submit">Create invitation</button>
   </form>
@@ -50,10 +50,16 @@
           {{if eq .Status "open"}}
           <form method="post" action="{{$.InvitePath}}/{{.Invite.ID}}/revoke"
                 hx-post="{{$.InvitePath}}/{{.Invite.ID}}/revoke"
-                hx-target="#invites" hx-swap="outerHTML"
-                onsubmit="return confirm('Revoke this invitation? Anybody holding it will no longer be able to register.');">
+                hx-target="#invites" hx-swap="outerHTML">
             <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
-            <button class="btn small danger" type="submit">Revoke</button>
+            <button class="btn small danger" type="submit"
+                    @click="if (!$el.form.dataset.confirmed) {
+                              $event.preventDefault();
+                              $store.confirm.ask($el.form, {
+                                message: 'Revoke this invitation?',
+                                detail: 'Anyone holding it will no longer be able to register.',
+                                action: 'Revoke' });
+                            }">Revoke</button>
           </form>
           {{end}}
         </td>

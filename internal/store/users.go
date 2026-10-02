@@ -130,8 +130,14 @@ func scanUser(sc rowScanner) (*models.User, error) {
 // SetUserInvitePermission grants or removes the separately controlled ability
 // to issue invitations.
 func (s *Store) SetUserInvitePermission(ctx context.Context, userID int64, allowed bool) error {
-	if _, err := s.db.ExecContext(ctx, `UPDATE users SET can_invite = ? WHERE id = ?`, allowed, userID); err != nil {
+	result, err := s.db.ExecContext(ctx, `UPDATE users SET can_invite = ? WHERE id = ? AND role != 'admin'`, allowed, userID)
+	if err != nil {
 		return fmt.Errorf("set invite permission: %w", err)
+	}
+	if affected, err := result.RowsAffected(); err != nil {
+		return fmt.Errorf("set invite permission: %w", err)
+	} else if affected != 1 {
+		return ErrNotFound
 	}
 	return nil
 }
