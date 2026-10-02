@@ -244,13 +244,19 @@ func (s *Server) handleFileDelete(w http.ResponseWriter, r *http.Request) {
 
 	next := safeNext(r.FormValue("next"))
 	switch {
-	case next != "":
+	case isHTMX(r) && next != "":
 		hxRedirect(w, next)
 	case isHTMX(r):
 		// Empty body with an outerHTML swap removes the card from the grid.
 		w.WriteHeader(http.StatusOK)
 	default:
-		s.redirectFlash(w, r, "/gallery", flashNotice, "Image deleted.")
+		// A plain form needs a real redirect. HX-Redirect means nothing to a
+		// browser without htmx, and the 204 that carries it left the page of
+		// a file that no longer exists on screen.
+		if next == "" {
+			next = "/gallery"
+		}
+		s.redirectFlash(w, r, next, flashNotice, "File deleted.")
 	}
 }
 
