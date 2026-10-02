@@ -44,7 +44,7 @@ MUTATIONS = [
      "\t\t\tin, err = invitedUser(ctx, tx, in, *inviteID)", "\t\t\terr = redeemInvite(ctx, tx, *inviteID)",
      STORE, "TestProviderAccountsRecordTheirInvitation"),
     ("member invitations are capped", "internal/web/handlers_admin_invites.go",
-     "\t\tcase limited && (parsed < 1 || parsed > usesCap):", "\t\tcase false:", WEB, "TestMemberInvitationsAreCapped"),
+     "\tcase limited && (parsed < 1 || parsed > memberMaxInviteUses):", "\tcase false:", WEB, "TestMemberInvitationsAreCapped"),
     ("album reports record the album id", "internal/web/handlers_moderation.go",
      "\t\ttargetID = albumReportTarget(album)\n", "", WEB, "TestAnAlbumReportStillReachesItsAlbum"),
     ("plain delete forms get a real redirect", "internal/web/handlers_files.go",

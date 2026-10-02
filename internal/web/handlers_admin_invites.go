@@ -190,45 +190,59 @@ func (s *Server) handleInvites(w http.ResponseWriter, r *http.Request) {
 // bounds; out-of-range values are refused rather than quietly clamped, so the
 // person sees what they are allowed to ask for.
 func parseInviteForm(form inviteForm, limited bool) (maxUses int, expiresAt *time.Time, problem string) {
-	usesCap, daysCap := maxInviteUses, maxInviteLifetimeDays
-	if limited {
-		usesCap, daysCap = memberMaxInviteUses, memberMaxInviteDays
+	maxUses, problem = parseInviteUses(form.MaxUses, limited)
+	if problem != "" {
+		return 0, nil, problem
 	}
-
-	maxUses = 1
-	if form.MaxUses != "" {
-		parsed, err := strconv.Atoi(form.MaxUses)
-		switch {
-		case err != nil || parsed < 0:
-			return 0, nil, "Uses must be a whole number, or 0 for no limit."
-		case limited && (parsed < 1 || parsed > usesCap):
-			return 0, nil, fmt.Sprintf("Uses must be between 1 and %d.", usesCap)
-		case parsed > usesCap:
-			parsed = usesCap
-		}
-		maxUses = parsed
-	}
-
-	days := 0
-	if form.ExpiresDays != "" {
-		parsed, err := strconv.Atoi(form.ExpiresDays)
-		switch {
-		case err != nil || parsed < 0:
-			return 0, nil, "Expiry must be a whole number of days."
-		case limited && (parsed < 1 || parsed > daysCap):
-			return 0, nil, fmt.Sprintf("Expiry must be between 1 and %d days.", daysCap)
-		case parsed > daysCap:
-			parsed = daysCap
-		}
-		days = parsed
-	} else if limited {
-		days = daysCap
+	days, problem := parseInviteDays(form.ExpiresDays, limited)
+	if problem != "" {
+		return 0, nil, problem
 	}
 	if days > 0 {
 		e := time.Now().UTC().AddDate(0, 0, days)
 		expiresAt = &e
 	}
 	return maxUses, expiresAt, ""
+}
+
+// parseInviteUses reads the use limit: blank means one, and zero means no
+// limit, which only an administrator may ask for.
+func parseInviteUses(raw string, limited bool) (int, string) {
+	if raw == "" {
+		return 1, ""
+	}
+	parsed, err := strconv.Atoi(raw)
+	switch {
+	case err != nil || parsed < 0:
+		return 0, "Uses must be a whole number, or 0 for no limit."
+	case limited && (parsed < 1 || parsed > memberMaxInviteUses):
+		return 0, fmt.Sprintf("Uses must be between 1 and %d.", memberMaxInviteUses)
+	case parsed > maxInviteUses:
+		return maxInviteUses, ""
+	}
+	return parsed, ""
+}
+
+// parseInviteDays reads the lifetime in days. Blank means never for an
+// administrator and the longest allowed for a member; zero means never, which
+// only an administrator may ask for.
+func parseInviteDays(raw string, limited bool) (int, string) {
+	if raw == "" {
+		if limited {
+			return memberMaxInviteDays, ""
+		}
+		return 0, ""
+	}
+	parsed, err := strconv.Atoi(raw)
+	switch {
+	case err != nil || parsed < 0:
+		return 0, "Expiry must be a whole number of days."
+	case limited && (parsed < 1 || parsed > memberMaxInviteDays):
+		return 0, fmt.Sprintf("Expiry must be between 1 and %d days.", memberMaxInviteDays)
+	case parsed > maxInviteLifetimeDays:
+		return maxInviteLifetimeDays, ""
+	}
+	return parsed, ""
 }
 
 // handleCreateInvite mints a code and reveals it once.
