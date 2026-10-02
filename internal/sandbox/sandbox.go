@@ -141,16 +141,11 @@ func (s Service) Policy() ([]string, []string, error) {
 		}
 		args = append(args, "--bind", path, path)
 	}
-	for _, path := range append(systemFiles(), s.ReadFiles...) {
-		if !filepath.IsAbs(path) || strings.ContainsAny(path, "\x00\r\n") {
-			return nil, nil, fmt.Errorf("sandbox read file must be an absolute path: %q", path)
-		}
-		info, err := os.Stat(path)
-		if err != nil || !info.Mode().IsRegular() {
-			return nil, nil, fmt.Errorf("sandbox read file must exist and be regular: %q", path)
-		}
-		args = append(args, "--ro-bind", path, path)
+	readOnly, err := readOnlyFiles(append(systemFiles(), s.ReadFiles...))
+	if err != nil {
+		return nil, nil, err
 	}
+	args = append(args, readOnly...)
 	// The CA directory is needed by SMTP, OIDC, S3 and Imvault clients.
 	if _, err := os.Stat("/etc/ssl/certs"); err == nil {
 		args = append(args, "--ro-bind", "/etc/ssl/certs", "/etc/ssl/certs")
@@ -161,17 +156,43 @@ func (s Service) Policy() ([]string, []string, error) {
 		args = append(args, "--ro-bind", bundle, "/app/ca-bundle.crt")
 		env = append(env, "SSL_CERT_FILE=/app/ca-bundle.crt")
 	}
+	env = append(env, s.forwarded()...)
+	if !s.NestedSandbox {
+		args = append(args, "--disable-userns")
+	}
+	env = append(env, s.Prefix+"DATA_DIR="+data)
+	return args, env, nil
+}
+
+// forwarded picks the variables the server receives from its launcher: its own
+// settings, by prefix, and the few others named in forwardedEnv. The data
+// directory is set separately, to the path actually mounted.
+func (s Service) forwarded() []string {
+	var env []string
 	for _, entry := range s.Env {
 		key, _, _ := strings.Cut(entry, "=")
 		if (strings.HasPrefix(key, s.Prefix) || forwardedEnv[key]) && key != s.Prefix+"DATA_DIR" {
 			env = append(env, entry)
 		}
 	}
-	if !s.NestedSandbox {
-		args = append(args, "--disable-userns")
+	return env
+}
+
+// readOnlyFiles binds each file read-only at its own path, refusing anything
+// that is not an existing regular file named by a clean absolute path.
+func readOnlyFiles(paths []string) ([]string, error) {
+	var args []string
+	for _, path := range paths {
+		if !filepath.IsAbs(path) || strings.ContainsAny(path, "\x00\r\n") {
+			return nil, fmt.Errorf("sandbox read file must be an absolute path: %q", path)
+		}
+		info, err := os.Stat(path)
+		if err != nil || !info.Mode().IsRegular() {
+			return nil, fmt.Errorf("sandbox read file must exist and be regular: %q", path)
+		}
+		args = append(args, "--ro-bind", path, path)
 	}
-	env = append(env, s.Prefix+"DATA_DIR="+data)
-	return args, env, nil
+	return args, nil
 }
 
 func systemFiles() []string {
