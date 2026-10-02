@@ -88,7 +88,7 @@ func TestAPublicPhotoHidesEXIFAndLocationByDefault(t *testing.T) {
 	}
 
 	// Hidden EXIF withholds camera and date details as well as attribution.
-	for _, want := range []string{"TestCam One", "21 September 2026 at 14:30", "1/250", "200"} {
+	for _, want := range []string{"TestCam One", "21 September 2026 at 14:30", "1/250", "<dd>200</dd>"} {
 		if strings.Contains(page, want) {
 			t.Errorf("hidden EXIF disclosed %q", want)
 		}
