@@ -61,7 +61,18 @@ func (s *Server) scopedObjectKey(ctx context.Context, file *models.File, origina
 // It hangs off the blob rather than the file because it is a function of the
 // bytes: two files with the same content share a single copy, so the second one
 // to be made public pays nothing.
+//
+// It holds the content lock while it works, as the filtered copies do. Without
+// it a copy built while the last file sharing the bytes was being deleted could
+// be written after the blob's objects were removed, and stay in storage with
+// nothing referring to it.
 func (s *Server) cleanObject(ctx context.Context, file *models.File) (string, error) {
+	unlock, err := s.content.acquire(ctx, file.SHA256)
+	if err != nil {
+		return "", err
+	}
+	defer unlock()
+
 	blob, err := s.store.BlobBySHA(ctx, file.SHA256)
 	if err != nil {
 		return "", fmt.Errorf("look up content: %w", err)
