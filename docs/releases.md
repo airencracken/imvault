@@ -64,7 +64,9 @@ handle a changed upstream default.
 Removal stops and disables the service. Purge also removes package
 configuration. **Neither removes application data or the service account.**
 Delete those separately only when you intend to discard the installation.
-An older binary may require restoring the matching pre-upgrade backup.
+An older binary refuses to start against a database a newer one has migrated;
+restore the matching pre-upgrade backup to go back. See
+[going back to an older binary](operations.md#going-back-to-an-older-binary).
 
 ## Portable binary archive
 

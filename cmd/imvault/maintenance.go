@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"flag"
 	"fmt"
@@ -49,12 +50,24 @@ func runMaintenance(command string, args []string, out io.Writer) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	return withMaintenance(ctx, cfg, func(st *store.Store, objects storage.Backend) error {
+	return withMaintenance(ctx, cfg, maintenanceOpener(command), func(st *store.Store, objects storage.Backend) error {
 		return performMaintenance(ctx, command, cfg, st, objects, output, videosOnly, out)
 	})
 }
 
-func withMaintenance(ctx context.Context, cfg *config.Config, run func(*store.Store, storage.Backend) error) (err error) {
+// maintenanceOpener picks how a command opens the database. Commands that
+// change the collection bring the schema up to date first, as the server does.
+// A backup must copy the database exactly as it stands, so it neither migrates
+// nor reads a schema other than this binary's own; see db.OpenCurrent. Every
+// opener refuses a database a newer Imvault has migrated.
+func maintenanceOpener(command string) func(context.Context, string) (*sql.DB, error) {
+	if command == "backup" {
+		return db.OpenCurrent
+	}
+	return db.Open
+}
+
+func withMaintenance(ctx context.Context, cfg *config.Config, open func(context.Context, string) (*sql.DB, error), run func(*store.Store, storage.Backend) error) (err error) {
 	if _, err := os.Stat(cfg.DBPath); err != nil {
 		return fmt.Errorf("open existing database: %w", err)
 	}
@@ -63,7 +76,7 @@ func withMaintenance(ctx context.Context, cfg *config.Config, run func(*store.St
 		return err
 	}
 	defer closeInto(&err, lock)
-	database, err := db.Open(ctx, cfg.DBPath)
+	database, err := open(ctx, cfg.DBPath)
 	if err != nil {
 		return err
 	}

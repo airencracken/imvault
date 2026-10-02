@@ -175,7 +175,12 @@ snapshot/
   objects/
 ```
 
-The directory must not already exist. The command takes a SQLite snapshot,
+The directory must not already exist. Run it with the Imvault version that
+last ran the database: `backup` never migrates, so that a backup taken before
+an upgrade is a copy of the database as it was, and it refuses a database that
+is older or newer than its own binary. See
+[going back to an older binary](operations.md#going-back-to-an-older-binary).
+The command takes a SQLite snapshot,
 copies every referenced original and rendition from the active disk or S3
 backend, and verifies hashes and sizes. It includes the active encryption key,
 including when supplied by `IMVAULT_SECRET_KEY`, and checks that it can decrypt
@@ -199,7 +204,8 @@ imvault restore --input /backups/snapshot --output /var/lib/imvault-restored
 ```
 
 Restore verifies the database, foreign keys, object inventory, file checksums,
-and encryption key before publishing the result. It refuses to replace an
+and encryption key before publishing the result. It refuses a backup taken by
+a newer Imvault, whose database this binary could not run. It refuses to replace an
 existing directory. It works without the old S3 connection or service
 configuration, making it suitable for a restore drill on another machine.
 
