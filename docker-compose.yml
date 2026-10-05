@@ -28,10 +28,11 @@ services:
     environment:
       # Set this to the URL you actually browse, so share links are absolute.
       IMVAULT_BASE_URL: "${IMVAULT_BASE_URL:-http://localhost:8080}"
-      # Turn this on behind TLS; leave off for plain http://localhost.
+      # HTTPS base URLs always enable secure cookies. Enable explicitly for TLS without a base URL.
       IMVAULT_SECURE_COOKIES: "${IMVAULT_SECURE_COOKIES:-false}"
       IMVAULT_ALLOW_SIGNUP: "${IMVAULT_ALLOW_SIGNUP:-true}"
-      IMVAULT_ALLOW_ANONYMOUS_UPLOADS: "${IMVAULT_ALLOW_ANONYMOUS_UPLOADS:-true}"
+      IMVAULT_INVITE_ONLY: "${IMVAULT_INVITE_ONLY:-true}"
+      IMVAULT_ALLOW_ANONYMOUS_UPLOADS: "${IMVAULT_ALLOW_ANONYMOUS_UPLOADS:-false}"
       IMVAULT_ANONYMOUS_TTL: "${IMVAULT_ANONYMOUS_TTL:-24h}"
       IMVAULT_MAX_VIDEO_DURATION: "${IMVAULT_MAX_VIDEO_DURATION:-60s}"
       # Storage cap for new accounts, in bytes. 0 means unlimited.

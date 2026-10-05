@@ -134,17 +134,16 @@ func TestOIDCListsAreSplitAndTrimmed(t *testing.T) {
 	}
 }
 
-func TestConcurrentUploadsSelfTunesAndValidates(t *testing.T) {
-	// Unset means "work it out": a one-core box and a sixteen-core one want
-	// different answers, and the number only has to be low enough that the
-	// simultaneous ffmpeg invocations fit.
+func TestConcurrentUploadsDefaultsToOneAndValidates(t *testing.T) {
+	// A small family host processes one decode at a time unless its operator
+	// explicitly budgets for more. CPU count does not measure available RAM.
 	t.Setenv("IMVAULT_DATA_DIR", t.TempDir())
 	cfg, err := Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.MaxConcurrentUploads < 2 {
-		t.Errorf("default concurrency = %d, want at least 2", cfg.MaxConcurrentUploads)
+	if cfg.MaxConcurrentUploads != 1 {
+		t.Errorf("default concurrency = %d, want 1", cfg.MaxConcurrentUploads)
 	}
 
 	t.Setenv("IMVAULT_MAX_CONCURRENT_UPLOADS", "3")
@@ -262,6 +261,27 @@ func TestTheOptionalLocationMap(t *testing.T) {
 	} {
 		if _, err := load(t, env); err == nil {
 			t.Errorf("%v was accepted", env)
+		}
+	}
+}
+
+func TestFamilyDefaultsAndHTTPSCookies(t *testing.T) {
+	t.Setenv("IMVAULT_DATA_DIR", t.TempDir())
+	t.Setenv("IMVAULT_INVITE_ONLY", "")
+	t.Setenv("IMVAULT_ALLOW_ANONYMOUS_UPLOADS", "")
+	t.Setenv("IMVAULT_MAX_CONCURRENT_UPLOADS", "")
+	for _, base := range []string{"", "http://localhost:8080", "https://photos.example.org"} {
+		t.Setenv("IMVAULT_BASE_URL", base)
+		t.Setenv("IMVAULT_SECURE_COOKIES", "false")
+		cfg, err := Load()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !cfg.InviteOnly || cfg.AllowAnonymousUploads || cfg.MaxConcurrentUploads != 1 {
+			t.Fatalf("unsafe fresh-install defaults: %+v", cfg)
+		}
+		if cfg.SecureCookies != strings.HasPrefix(base, "https:") {
+			t.Fatalf("secure cookies for %q: %v", base, cfg.SecureCookies)
 		}
 	}
 }

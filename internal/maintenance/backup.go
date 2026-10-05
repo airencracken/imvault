@@ -17,6 +17,7 @@ import (
 	"imvault/internal/closer"
 	"imvault/internal/config"
 	"imvault/internal/db"
+	"imvault/internal/instance"
 	"imvault/internal/secrets"
 	"imvault/internal/storage"
 	"imvault/internal/store"
@@ -30,9 +31,14 @@ type Manifest struct {
 	Objects   []Object  `json:"objects"`
 }
 
-// Backup requires the caller's exclusive instance lock for the entire copy.
+// Backup holds a shared instance lock and pins objects against deletion.
 // The output appears only after every database, key and object check succeeds.
 func Backup(ctx context.Context, cfg *config.Config, st *store.Store, source storage.Backend, output string, out io.Writer) (err error) {
+	lock, err := instance.AcquireBackup(ctx, cfg.DBPath)
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, lock.Close()) }()
 	stage, err := stageDirectory(output)
 	if err != nil {
 		return err
@@ -55,7 +61,12 @@ func Backup(ctx context.Context, cfg *config.Config, st *store.Store, source sto
 	if err := validateDatabase(ctx, filepath.Join(stage, "imvault.db"), key, nil); err != nil {
 		return err
 	}
-	manifest, err := backupObjects(ctx, st, source, stage, out)
+	snapshot, err := openSnapshot(filepath.Join(stage, "imvault.db"))
+	if err != nil {
+		return err
+	}
+	defer closer.Discard(snapshot)
+	manifest, err := backupObjects(ctx, store.New(snapshot), source, stage, out)
 	if err != nil {
 		return err
 	}

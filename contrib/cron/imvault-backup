@@ -1,0 +1,10 @@
+# Optional daily verified backup for OpenRC hosts.
+# Create /var/backups/imvault, owned by your Imvault service account, mode 0700.
+# The CLI reads the installed service's database/storage settings and drops to
+# its service account. No shell sourcing and no credentials in this file.
+# Cron mails failures and verification output to root; configure local mail.
+# Enable this OR imvault-backup.timer. Backups are retained until you remove them.
+SHELL=/bin/sh
+PATH=/usr/bin:/bin
+MAILTO=root
+17 3 * * * root /usr/bin/imvault backup --output-dir /var/backups/imvault

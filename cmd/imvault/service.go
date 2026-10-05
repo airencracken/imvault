@@ -45,12 +45,8 @@ func reexecProvisioningAsService(args []string) (bool, int, error) {
 		Commands:    serviceUserCommands,
 		Paths:       paths,
 		DefaultUser: "imvault",
-		Settings: func(_, dataDir string) (map[string]string, error) {
-			dbPath, err := childDBPath(paths, dataDir)
-			if err != nil {
-				return nil, err
-			}
-			return map[string]string{"IMVAULT_DB": dbPath}, nil
+		Settings: func(command, dataDir string) (map[string]string, error) {
+			return childCommandSettings(paths, command, dataDir)
 		},
 	})
 }
@@ -73,4 +69,33 @@ var geteuid = os.Geteuid
 // installed service says which account it should run as instead.
 func refuseRootMaintenance(command string) error {
 	return privdrop.RefuseRoot(geteuid(), command, "sudo -u imvault env IMVAULT_DATA_DIR="+serviceDataDir+" imvault "+command)
+}
+
+// backupServiceSettings make unattended root-invoked backups use the service's
+// storage and encryption key, including custom disk paths and S3 credentials.
+var backupServiceSettings = []string{
+	"IMVAULT_SECRET_KEY_FILE", "IMVAULT_SECRET_KEY", "IMVAULT_STORAGE", "IMVAULT_OBJECTS_DIR",
+	"IMVAULT_S3_ENDPOINT", "IMVAULT_S3_REGION", "IMVAULT_S3_BUCKET", "IMVAULT_S3_PREFIX",
+	"IMVAULT_S3_ACCESS_KEY", "IMVAULT_S3_SECRET_KEY", "IMVAULT_S3_SESSION_TOKEN",
+	"IMVAULT_S3_PATH_STYLE", "IMVAULT_S3_TIMEOUT", "SSL_CERT_FILE", "SSL_CERT_DIR",
+	"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AWS_PROFILE",
+	"AWS_CONFIG_FILE", "AWS_SHARED_CREDENTIALS_FILE", "AWS_REGION", "AWS_DEFAULT_REGION", "AWS_CA_BUNDLE",
+}
+
+func childCommandSettings(paths svcconfig.Paths, command, dataDir string) (map[string]string, error) {
+	dbPath, err := childDBPath(paths, dataDir)
+	if err != nil {
+		return nil, err
+	}
+	settings := map[string]string{"IMVAULT_DB": dbPath}
+	if command == "backup" {
+		source, err := paths.Settings(backupServiceSettings...)
+		if err != nil {
+			return nil, err
+		}
+		for key, value := range source {
+			settings[key] = value
+		}
+	}
+	return settings, nil
 }

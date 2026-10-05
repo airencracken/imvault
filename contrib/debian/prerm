@@ -3,8 +3,8 @@
 case "$1" in
 	remove|deconfigure)
 		if [ -d /run/systemd/system ]; then
-			deb-systemd-invoke stop imvault.service || exit 1
-			systemctl disable imvault.service || exit 1
+			deb-systemd-invoke stop imvault-backup.timer imvault-backup.service imvault.service || exit 1
+			systemctl disable imvault-backup.timer imvault.service || exit 1
 		fi
 		;;
 esac

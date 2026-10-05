@@ -11,7 +11,7 @@ What Imvault accepts, and what it does with it.
 | Images and animations | `IMVAULT_MAX_UPLOAD_BYTES`, 32 MiB by default |
 | Clips | `IMVAULT_MAX_VIDEO_BYTES`, 128 MiB by default |
 | Clip duration | `IMVAULT_MAX_VIDEO_DURATION`, 60 seconds by default, and only enforced when ffprobe is available to measure it |
-| Pixel count | 100 megapixels, refused before a pixel buffer is allocated |
+| Pixel count | 24 megapixels, refused before a pixel buffer is allocated |
 
 Thumbnails are fitted within `IMVAULT_THUMB_MAX` (480px by default) and previews
 within `IMVAULT_PREVIEW_MAX` (1600px). Both are bounded on their longest edge,

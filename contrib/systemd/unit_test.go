@@ -81,3 +81,19 @@ func containsValue(values []string, want string) bool {
 	}
 	return false
 }
+
+func TestBackupTimerUsesPrivateVerifiedSnapshotsWithoutStoppingServer(t *testing.T) {
+	service := parseUnit(t, "imvault-backup.service")["Service"]
+	for key, want := range map[string]string{"User": "imvault", "Group": "imvault", "UMask": "0077", "Type": "oneshot", "ExecStart": "/usr/local/bin/imvault backup --output-dir /var/backups/imvault"} {
+		if got := service[key]; len(got) != 1 || got[0] != want {
+			t.Fatalf("backup %s=%v", key, got)
+		}
+	}
+	if len(service["ExecStartPre"]) != 0 || len(service["ExecStopPost"]) != 0 {
+		t.Fatal("backup must not stop or restart the server")
+	}
+	timer := parseUnit(t, "imvault-backup.timer")
+	if len(timer["Timer"]["OnCalendar"]) != 1 || !containsValue(timer["Timer"]["Persistent"], "true") {
+		t.Fatal("backup timer is not scheduled or persistent")
+	}
+}

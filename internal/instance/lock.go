@@ -11,22 +11,29 @@ import (
 	"github.com/gofrs/flock"
 )
 
-type ServerLock struct{ shared, process *flock.Flock }
+type ServerLock struct{ shared, process, compatibility *flock.Flock }
 
 func AcquireServer(database string) (*ServerLock, error) {
 	shared, err := Acquire(database, false)
 	if err != nil {
 		return nil, err
 	}
-	process := flock.New(shared.Path()+".server", flock.SetPermissions(0o600))
-	ok, err := process.TryLock()
+	compatibility := flock.New(shared.Path()+".server", flock.SetPermissions(0o600))
+	ok, err := compatibility.TryRLock()
 	if err != nil || !ok {
-		return nil, errors.Join(errors.New("another Imvault server is using this database"), err, process.Close(), shared.Close())
+		return nil, errors.Join(errors.New("an older Imvault server is using this database"), err, compatibility.Close(), shared.Close())
 	}
-	return &ServerLock{shared, process}, nil
+	process := flock.New(shared.Path()+".server-current", flock.SetPermissions(0o600))
+	ok, err = process.TryLock()
+	if err != nil || !ok {
+		return nil, errors.Join(errors.New("another Imvault server is using this database"), err, process.Close(), compatibility.Close(), shared.Close())
+	}
+	return &ServerLock{shared, process, compatibility}, nil
 }
 
-func (l *ServerLock) Close() error { return errors.Join(l.process.Close(), l.shared.Close()) }
+func (l *ServerLock) Close() error {
+	return errors.Join(l.compatibility.Close(), l.process.Close(), l.shared.Close())
+}
 
 // Acquire takes a shared lock for normal operation, or an exclusive lock for
 // offline maintenance. Locks are released by the OS if a process exits.

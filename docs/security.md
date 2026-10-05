@@ -110,7 +110,7 @@ store so that a listing can never disagree with the route that serves the bytes:
 | --- | --- |
 | **Public** | Anybody, signed in or not, with the link or browsing |
 | **Members** | Any signed-in account, plus anybody the public level allows |
-| **Private** | Its owner, and administrators |
+| **Private** | Its owner, administrators and moderators |
 
 Anonymous uploads are always public. With no owner and no session there is
 nobody a closed level could be scoped to, and the share link handed back to the
@@ -269,7 +269,7 @@ the journal for `EPERM` after an upload.
 Every upload is validated by decoding it, not by trusting its extension or its
 `Content-Type`. Anything that is not a recognised image or clip is rejected.
 
-Decoding happens with limits: an image above 100 megapixels is refused before a
+Decoding happens with limits: an image above 24 megapixels is refused before a
 pixel buffer is allocated, which is what stops a decompression bomb from
 exhausting memory. Animated GIFs are counted by walking the block structure
 rather than decoding every frame.

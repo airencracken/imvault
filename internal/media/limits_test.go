@@ -59,7 +59,7 @@ func TestCheckDimensionsDoesNotOverflow(t *testing.T) {
 			t.Errorf("%dx%d accepted", size[0], size[1])
 		}
 	}
-	if err := imaging.CheckDimensions(10240, 10240); err != nil {
+	if err := imaging.CheckDimensions(6000, 4000); err != nil {
 		t.Errorf("exactly the limit refused: %v", err)
 	}
 }

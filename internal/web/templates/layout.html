@@ -62,7 +62,7 @@
   {{if .UseAlpine}}{{template "confirm_dialog" .}}{{end}}
 
   <footer class="foot">
-    <span>{{.SiteName}}</span>
+    <span>{{.SiteName}} · <a href="/about">About &amp; house rules</a></span>
     <span class="muted">
       Self-hosted photos and clips{{if .SourceURL}} ·
       <a href="{{.SourceURL}}" rel="noopener">source</a> · AGPLv3{{end}}

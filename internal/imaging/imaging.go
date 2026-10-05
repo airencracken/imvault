@@ -24,7 +24,7 @@ import (
 )
 
 // MaxPixels guards against decompression bombs.
-const MaxPixels = 100 << 20 // 100 megapixels
+const MaxPixels = 24_000_000 // 24 megapixels; one full-resolution decode at a time by default
 
 // CheckDimensions refuses an image before any of its pixels are allocated. It
 // is the one place the limit is enforced, so every decoder that can be handed

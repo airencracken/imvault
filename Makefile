@@ -130,6 +130,9 @@ install-systemd: ## Install the systemd unit and its environment file
 	sed 's|/usr/local/bin/imvault|$(PREFIX)/bin/imvault|' contrib/systemd/imvault.service \
 		> "$(DESTDIR)$(UNITDIR)/imvault.service"
 	chmod 644 "$(DESTDIR)$(UNITDIR)/imvault.service"
+	sed 's|/usr/local/bin/imvault|$(PREFIX)/bin/imvault|' contrib/systemd/imvault-backup.service > "$(DESTDIR)$(UNITDIR)/imvault-backup.service"
+	chmod 644 "$(DESTDIR)$(UNITDIR)/imvault-backup.service"
+	install -m644 contrib/systemd/imvault-backup.timer "$(DESTDIR)$(UNITDIR)/imvault-backup.timer"
 	@if [ -e "$(DESTDIR)$(SYSCONFDIR)/imvault/imvault.env" ]; then \
 		echo "  keeping the existing $(DESTDIR)$(SYSCONFDIR)/imvault/imvault.env"; \
 	else \
@@ -206,3 +209,13 @@ test-sandbox: ## Require real Bubblewrap boundary and lifecycle tests (Linux)
 
 test-sandbox-mutations: ## Verify sandbox regressions reject deliberate defects (needs bwrap)
 	$(MUTATE) scripts/mutations/sandbox.json
+
+.PHONY: install-backup-cron
+install-backup-cron: ## Install the optional daily backup cron job (prepare the backup directory first)
+	install -d "$(DESTDIR)$(SYSCONFDIR)/cron.d"
+	@if [ -e "$(DESTDIR)$(SYSCONFDIR)/cron.d/imvault-backup" ] || [ -L "$(DESTDIR)$(SYSCONFDIR)/cron.d/imvault-backup" ]; then \
+		echo "  keeping the existing backup cron job"; \
+	else \
+		sed 's|/usr/bin/imvault|$(PREFIX)/bin/imvault|' contrib/cron/imvault-backup > "$(DESTDIR)$(SYSCONFDIR)/cron.d/imvault-backup" || exit 1; \
+		chmod 644 "$(DESTDIR)$(SYSCONFDIR)/cron.d/imvault-backup"; \
+	fi

@@ -92,10 +92,11 @@ A few decisions worth knowing about:
 - **Storage is an interface.** Disk and S3 implement cancellable reads, writes,
   stats, and deletes. S3's seekable reader issues bounded ranges and pins reads
   to an ETag. ffmpeg uses temporary files when storage has no local path.
-- **Maintenance requires exclusive access.** The server and ordinary local
-  commands share an instance lock; migration, backup, and rendition repair take
-  it exclusively. Backups verify the database, media, and encryption key as one
-  stopped-instance snapshot. Restores publish a new directory after validation.
+- **Maintenance coordinates with the server.** Migration and rendition repair
+  require exclusive access. Backups take a shared lifecycle lock, pin object
+  deletion, then use a SQLite snapshot to inventory and verify the database,
+  media and encryption key. Browsing and uploads continue. Restores publish a
+  new directory after validation.
 
 ## Data layout
 

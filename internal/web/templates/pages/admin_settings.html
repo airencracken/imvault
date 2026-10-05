@@ -51,6 +51,14 @@
   </label>
   <p class="muted">The site name appears in the title, header, and footer. The welcome copy appears on the home page. Blank welcome fields restore the default copy; a blank source link hides that link.</p>
 
+  <label>Owner contact <span class="muted">(public)</span>
+    <textarea name="owner_contact" rows="2" maxlength="1000">{{.Branding.OwnerContact}}</textarea>
+  </label>
+  <label>House rules <span class="muted">(public)</span>
+    <textarea name="house_rules" rows="5" maxlength="10000">{{.Branding.HouseRules}}</textarea>
+  </label>
+  <p class="muted">These appear on <a href="/about">About &amp; house rules</a>, alongside the administrators and moderators. Use plain text.</p>
+
   <h2>Accounts</h2>
   <label class="row">
     <input type="checkbox" name="allow_signup" value="1" {{if .AllowSignup}}checked{{end}}>

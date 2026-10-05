@@ -86,6 +86,10 @@ started. [How it fits together](docs/architecture.md).
 
 ## Your place, your house rules
 
+Fresh installations require invitations and reject anonymous uploads. The
+public **About & house rules** page names the administrators and moderators,
+who can see private uploads too. Add your contact details and rules in settings.
+
 Start with a **Personal**, **Group**, or **Public** profile in **Admin → Settings**,
 then adjust it to taste. These are settings, not separate editions.
 

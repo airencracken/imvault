@@ -11,7 +11,9 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
+	"time"
 
 	"imvault/internal/config"
 	"imvault/internal/db"
@@ -24,10 +26,11 @@ import (
 
 func runMaintenance(command string, args []string, out io.Writer) error {
 	flags := commandFlags(command, out)
-	var output string
+	var output, outputDir string
 	var videosOnly bool
 	if command == "backup" {
-		flags.StringVar(&output, "output", "", "new backup directory (required)")
+		flags.StringVar(&output, "output", "", "new backup directory")
+		flags.StringVar(&outputDir, "output-dir", "", "parent directory for a dated backup (alternative to --output)")
 	}
 	if command == "rebuild-thumbnails" {
 		flags.BoolVar(&videosOnly, "videos-only", false, "rebuild only video posters")
@@ -38,8 +41,11 @@ func runMaintenance(command string, args []string, out io.Writer) error {
 		}
 		return err
 	}
-	if flags.NArg() != 0 || (command == "backup" && output == "") {
+	if flags.NArg() != 0 || (command == "backup" && (output == "") == (outputDir == "")) {
 		return fmt.Errorf("invalid arguments; use imvault %s --help", command)
+	}
+	if outputDir != "" {
+		output = filepath.Join(outputDir, time.Now().UTC().Format("20060102T150405.000000000Z"))
 	}
 	if err := refuseRootMaintenance(command); err != nil {
 		return err
@@ -50,7 +56,7 @@ func runMaintenance(command string, args []string, out io.Writer) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	return withMaintenance(ctx, cfg, maintenanceOpener(command), func(st *store.Store, objects storage.Backend) error {
+	return withMaintenanceMode(ctx, cfg, maintenanceOpener(command), command != "backup", func(st *store.Store, objects storage.Backend) error {
 		return performMaintenance(ctx, command, cfg, st, objects, output, videosOnly, out)
 	})
 }
@@ -68,10 +74,14 @@ func maintenanceOpener(command string) func(context.Context, string) (*sql.DB, e
 }
 
 func withMaintenance(ctx context.Context, cfg *config.Config, open func(context.Context, string) (*sql.DB, error), run func(*store.Store, storage.Backend) error) (err error) {
+	return withMaintenanceMode(ctx, cfg, open, true, run)
+}
+
+func withMaintenanceMode(ctx context.Context, cfg *config.Config, open func(context.Context, string) (*sql.DB, error), exclusive bool, run func(*store.Store, storage.Backend) error) (err error) {
 	if _, err := os.Stat(cfg.DBPath); err != nil {
 		return fmt.Errorf("open existing database: %w", err)
 	}
-	lock, err := instance.Acquire(cfg.DBPath, true)
+	lock, err := instance.Acquire(cfg.DBPath, exclusive)
 	if err != nil {
 		return err
 	}

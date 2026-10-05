@@ -227,6 +227,7 @@ async function main() {
   const serverEnv = {
     ...process.env,
     IMVAULT_DATA_DIR: dataDir,
+    IMVAULT_INVITE_ONLY: "false",
     IMVAULT_ADDR: `127.0.0.1:${port}`,
     IMVAULT_BASE_URL: base,
     IMVAULT_LOG_LEVEL: "error",

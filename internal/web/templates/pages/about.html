@@ -1,0 +1,15 @@
+{{define "content"}}
+<section class="narrow">
+  <h1>About {{.SiteName}}</h1>
+  <p>{{.WelcomeText}}</p>
+  <h2>Who looks after this site</h2>
+  <p>Administrators and moderators can see every upload, including private ones. They help run this site and handle reports.</p>
+  <ul>{{range .Staff}}<li>{{.Username}} — {{.Role.Label}}</li>{{else}}<li>No active administrators or moderators.</li>{{end}}</ul>
+  {{if .OwnerContact}}<h2>Contact</h2><p class="plain-prose">{{.OwnerContact}}</p>{{end}}
+  <h2>House rules</h2>
+  {{if .HouseRules}}<p class="plain-prose">{{.HouseRules}}</p>{{else}}
+  <p>Ask before sharing someone else's photos. Keep private moments private, and use the report link if something needs attention.</p>{{end}}
+  <h2>Your photos</h2>
+  <p>You choose who can see your uploads. You can download your originals and account information from settings, or delete your account and its uploads.</p>
+</section>
+{{end}}

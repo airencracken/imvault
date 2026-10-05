@@ -8,7 +8,7 @@
       <a class="btn" href="/gallery">Go to your gallery</a>
     {{else}}
       <a class="btn" href="/login">Sign in</a>
-      {{if .SignupOpen}}<a class="btn" href="/register">Create an account</a>{{end}}
+      {{if .SignupOpen}}<a class="btn" href="/register">Create an account</a>{{else}}<a class="btn" href="/register">Have an invitation?</a>{{end}}
     {{end}}
   </div>
 </section>

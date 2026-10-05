@@ -177,7 +177,7 @@ func (s *Server) base(r *http.Request, title string) base {
 		User:              user,
 		CSRFToken:         csrfToken(r.Context()),
 		AnonUploads:       policy.AllowAnonymousUploads,
-		SignupOpen:        policy.AllowSignup,
+		SignupOpen:        policy.AllowSignup && !policy.InviteOnly,
 		SourceURL:         branding.SourceURL,
 		VisibilityLevels:  models.VisibilityLevels(),
 		DefaultVisibility: policy.DefaultVisibility,

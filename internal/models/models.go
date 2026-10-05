@@ -22,7 +22,7 @@ import (
 type Visibility string
 
 const (
-	// VisibilityPrivate is the owner, and administrators.
+	// VisibilityPrivate is the owner, administrators and moderators.
 	VisibilityPrivate Visibility = "private"
 	// VisibilityMembers is any signed-in account.
 	VisibilityMembers Visibility = "members"
@@ -83,7 +83,7 @@ func (v Visibility) Explain() string {
 	case VisibilityMembers:
 		return "Anyone with an account on this instance"
 	}
-	return "Only you"
+	return "You and this site’s administrators and moderators"
 }
 
 // IsPublic reports whether the level is visible to logged-out visitors.
@@ -92,7 +92,7 @@ func (v Visibility) IsPublic() bool { return v == VisibilityPublic }
 // IsMembers reports whether the level is the middle tier.
 func (v Visibility) IsMembers() bool { return v == VisibilityMembers }
 
-// IsPrivate reports whether the level is owner-only.
+// IsPrivate reports whether ordinary members other than the owner are excluded.
 func (v Visibility) IsPrivate() bool { return v == VisibilityPrivate }
 
 // VisibilityLevels lists the levels most open first, which is the order they
@@ -398,6 +398,8 @@ const (
 	SettingSourceURL             = "source_url"
 	SettingWelcomeTitle          = "welcome_title"
 	SettingWelcomeText           = "welcome_text"
+	SettingHouseRules            = "house_rules"
+	SettingOwnerContact          = "owner_contact"
 )
 
 // Branding is the public-facing identity resolved from database settings and
@@ -407,6 +409,8 @@ type Branding struct {
 	SourceURL    string
 	WelcomeTitle string
 	WelcomeText  string
+	HouseRules   string
+	OwnerContact string
 }
 
 // Settings is that policy, resolved: stored values where an administrator has

@@ -91,11 +91,12 @@ root, `backup`, `migrate-storage`, `rebuild-thumbnails` and `refresh-metadata`
 switch to the account an installed systemd or OpenRC service names, exactly as
 `create-admin` does; with no such service they refuse to run, rather than leave
 files behind that the service cannot read.
-`migrate-storage`, `rebuild-thumbnails`, and `backup` require the server to be
-stopped. An instance lock rejects concurrent servers and maintenance; locks
-are released automatically if the process exits. Older Imvault binaries do not
-honor this lock, so stop any older service too. Avoid manual database writes or
-other writers to the bucket during maintenance.
+`migrate-storage` and `rebuild-thumbnails` require the server to be stopped.
+An instance lock rejects concurrent servers and offline maintenance; locks
+are released automatically if a process exits. `backup` can run alongside
+Imvault 0.13 or later: it takes a shared lifecycle lock and pins object deletion
+until the snapshot has been copied and verified. Older servers must be stopped.
+Avoid manual database writes or other writers to the bucket during maintenance.
 
 For a default disk installation on Gentoo, where the package puts the binary in
 `/usr/bin` (a `make install` from source uses `/usr/local/bin`):
@@ -218,6 +219,5 @@ Use `migrate-storage` afterward if the restored collection should live in S3.
 
 Keep a copy on another machine and periodically perform a restore drill. A live
 SQLite backup alone is consistent for the database, but independently copying
-media while deletions continue can leave it incomplete. The stopped-instance
-requirement covers both halves together; see
+media while deletions continue can leave it incomplete. The verified backup pins deletions for both halves together; see
 [SQLite's backup documentation](https://www.sqlite.org/backup.html).

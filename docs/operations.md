@@ -64,34 +64,63 @@ If you would rather not keep the key on disk at all, set `IMVAULT_SECRET_KEY`
 and supply it from wherever you already keep secrets. Note that changing or
 losing this value has the same effect as losing the file.
 
-Use the verified backup command with the service stopped. For a default disk
-installation on Gentoo, where the package puts the binary in `/usr/bin` (a
-`make install` from source uses `/usr/local/bin`):
+Use the verified backup command while Imvault 0.13 or later is running. The
+snapshot pins stored objects against deletion until copying finishes; browsing
+and uploads continue. Stop older servers before backing up: they do not support
+this coordination and the command refuses a live backup under 0.12.
 
-```bash
+For the native packages, create a private destination once and run:
+
+```sh
 sudo install -d -o imvault -g imvault -m 0700 /var/backups/imvault
-sudo rc-service imvault stop
-sudo -u imvault env IMVAULT_DATA_DIR=/var/lib/imvault \
-  /usr/bin/imvault backup \
-  --output "/var/backups/imvault/$(date +%Y%m%d-%H%M%S)"
-sudo rc-service imvault start
+sudo /usr/bin/imvault backup --output-dir /var/backups/imvault
 ```
 
-Check the backup command's exit status. For custom settings or S3, provide the
-complete service environment too; the CLI does not source `/etc/conf.d/imvault`.
-On systemd hosts, use `systemctl stop/start imvault` around the same command.
+`--output-dir` creates a uniquely named snapshot below an existing directory.
+`--output NEW_DIRECTORY` chooses an exact destination instead. When run as root,
+the CLI reads the installed service configuration and switches to its account,
+including database, storage and encryption settings. It reads literal settings;
+it does not evaluate shell commands. For an uninstalled instance, run as its
+account with the complete service environment.
 
-The backup contains a SQLite snapshot, encryption key, media, and checksum
-manifest. It is published only after verification. Copy it to another machine
-and periodically run `imvault restore --input BACKUP --output NEW_DIRECTORY` to
-test recovery. Restore refuses to overwrite an existing directory. See
-[Storage](storage.md#backup-and-restore) for restoring service settings and
-moving a restored collection back to S3.
+### Scheduled backups
 
-A live SQLite snapshot protects database consistency, but copying media
-separately while deletions continue can produce a backup with missing objects.
-Stop the service for the whole backup, and do not copy a live WAL-mode database
-with a plain filesystem copy.
+Choose one scheduler; both are optional and neither is enabled by installation.
+Create the private destination above before enabling it.
+
+On systemd, the packages and `make install-systemd` ship a daily timer:
+
+```sh
+sudo systemctl daemon-reload
+sudo systemctl enable --now imvault-backup.timer
+systemctl list-timers imvault-backup.timer
+journalctl -u imvault-backup.service
+```
+
+The backup unit uses `/etc/imvault/imvault.env`. For custom data paths, add those
+paths to its `ReadWritePaths` in a unit override. Its default runs around 03:00
+with up to 30 minutes of random delay and catches a missed run after startup.
+
+On OpenRC or another cron host, copy `contrib/cron/imvault-backup` to
+`/etc/cron.d/imvault-backup`, mode 0644, or use `make install-backup-cron
+PREFIX=/usr`. Native packages carry this example in their documentation, not as
+an active cron job. It runs daily at 03:17 as root; the CLI switches to the
+service account. Configure local cron mail to see failures. A source install
+with a different prefix should adjust the binary path.
+
+Backups are retained until you remove them. Check free space and command status,
+keep a copy on another machine, and periodically test recovery:
+
+```sh
+imvault restore --input BACKUP --output NEW_DIRECTORY
+```
+
+The snapshot contains the database, encryption key, media and checksum manifest,
+and appears only after verification. Restore refuses an existing destination.
+See [Storage](storage.md#backup-and-restore) for restoring service settings and
+moving a restored collection back to S3. Avoid manual database writes or outside
+bucket changes during a backup. A plain copy of a live WAL database and media
+does not provide these guarantees.
 
 ## What maintains itself
 

@@ -56,6 +56,7 @@ type Server struct {
 	// processing bounds how many uploads are worked on at once, across
 	// everybody. Rate limiting is per identity and does not bound the total.
 	processing *gate
+	exports    *gate
 	// formReadTimeout and uploadReadTimeout bound how long a request body may
 	// take to arrive. They are fields so a test can shorten them.
 	formReadTimeout   time.Duration
@@ -91,6 +92,7 @@ func New(cfg *config.Config, st *store.Store, objects storage.Backend, proc *med
 		logins:            ratelimit.New(cfg.LoginRatePerHour, cfg.LoginBurst),
 		mailRetryInterval: cfg.MailRetryInterval,
 		processing:        newGate(cfg.MaxConcurrentUploads),
+		exports:           newGate(1),
 		flashKey:          newFlashKey(),
 		formReadTimeout:   formReadTimeout,
 		uploadReadTimeout: uploadReadTimeout,
@@ -162,6 +164,7 @@ func (s *Server) routes() *http.ServeMux {
 	// or sends mail on an anonymous request shares the sign-in budget, so none
 	// of them is a way around it.
 	mux.HandleFunc("GET /{$}", s.handleHome)
+	mux.HandleFunc("GET /about", s.handleAbout)
 	mux.HandleFunc("GET /login", s.handleLoginPage)
 	mux.HandleFunc("POST /login", s.rateLimitLogins(s.handleLogin))
 	mux.HandleFunc("GET /login/2fa", s.handleLoginTwoFactorPage)

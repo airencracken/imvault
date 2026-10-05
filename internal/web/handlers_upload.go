@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"imvault/internal/ids"
+	"imvault/internal/instance"
 	"imvault/internal/media"
 	"imvault/internal/metadata"
 	"imvault/internal/models"
@@ -570,6 +571,12 @@ func (s *Server) saveRenditions(ctx context.Context, keys objectKeys, result *me
 }
 
 func (s *Server) deleteKeys(ctx context.Context, keys []string) bool {
+	lock, err := instance.AcquireSnapshot(ctx, s.cfg.DBPath, false)
+	if err != nil {
+		s.log.Error("pin objects for deletion", "error", err)
+		return false
+	}
+	defer lock.Close()
 	ok := true
 	for _, key := range keys {
 		if err := s.objects.Delete(ctx, key); err != nil && !errors.Is(err, storage.ErrNotFound) {

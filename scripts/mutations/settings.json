@@ -150,5 +150,37 @@
         "after": "\t\t\t\tif false {",
         "package": "./scripts",
         "run": "^TestModuleCheckRejectsReplacementsAndUnpinnedVersions$"
+    },
+    {
+        "name": "fresh installs require invitations",
+        "file": "internal/config/config.go",
+        "before": "env.boolean(\"IMVAULT_INVITE_ONLY\", true)",
+        "after": "env.boolean(\"IMVAULT_INVITE_ONLY\", false)",
+        "package": "./internal/config",
+        "run": "^TestFamilyDefaultsAndHTTPSCookies$"
+    },
+    {
+        "name": "fresh installs prohibit anonymous uploads",
+        "file": "internal/config/config.go",
+        "before": "env.boolean(\"IMVAULT_ALLOW_ANONYMOUS_UPLOADS\", false)",
+        "after": "env.boolean(\"IMVAULT_ALLOW_ANONYMOUS_UPLOADS\", true)",
+        "package": "./internal/config",
+        "run": "^TestFamilyDefaultsAndHTTPSCookies$"
+    },
+    {
+        "name": "decode concurrency is independent of CPU count",
+        "file": "internal/config/config.go",
+        "before": "c.MaxConcurrentUploads = 1",
+        "after": "c.MaxConcurrentUploads = 16",
+        "package": "./internal/config",
+        "run": "^TestFamilyDefaultsAndHTTPSCookies$"
+    },
+    {
+        "name": "HTTPS base URLs force secure cookies",
+        "file": "internal/config/config.go",
+        "before": "c.SecureCookies = c.SecureCookies || usesHTTPS(c.BaseURL)",
+        "after": "c.SecureCookies = c.SecureCookies",
+        "package": "./internal/config",
+        "run": "^TestFamilyDefaultsAndHTTPSCookies$"
     }
 ]

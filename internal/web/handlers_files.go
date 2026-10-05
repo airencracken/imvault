@@ -26,9 +26,6 @@ func (s *Server) handleFileRaw(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Count the view once we know the request is legitimate.
-	if err := s.store.IncrementViews(r.Context(), file.ID); err != nil {
-		s.log.Error("increment views", "id", file.ID, "error", err)
-	}
 
 	key, ok := s.objectFor(w, r, file, file.ObjectKey)
 	if !ok {

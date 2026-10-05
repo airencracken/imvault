@@ -37,7 +37,7 @@ func TestBrandingSettingsFallbackPersistAndClear(t *testing.T) {
 		t.Fatal(err)
 	}
 	resolved, stored, err = s.LoadBranding(ctx, defaults)
-	if err != nil || resolved != custom || len(stored) != 4 {
+	if err != nil || resolved != custom || len(stored) != 6 {
 		t.Fatalf("custom branding: %+v stored=%v err=%v", resolved, stored, err)
 	}
 	invalidPolicy := settings

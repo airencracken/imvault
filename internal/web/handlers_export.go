@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"path"
 	"time"
 
@@ -62,7 +63,6 @@ type exportFile struct {
 	// existed still reads the same way. Visibility is the level itself.
 	Public     bool        `json:"public"`
 	Visibility string      `json:"visibility"`
-	Views      int64       `json:"views"`
 	CreatedAt  string      `json:"created_at"`
 	ExpiresAt  *string     `json:"expires_at"`
 	Tags       []exportTag `json:"tags"`
@@ -91,15 +91,17 @@ type exportAlbum struct {
 	Files       []string `json:"file_ids"`
 }
 
-// handleAccountExport streams everything an account has uploaded, plus a
-// manifest describing it, as a zip.
-//
-// The zip is written straight to the response rather than assembled somewhere
-// first: an export can be larger than the free space on the server, and there
-// is no reason to write a copy of somebody's library in order to hand it to
-// them. The cost is that a failure part-way through cannot be reported as an
-// error status, only logged and truncated.
+// handleAccountExport prepares a complete archive before sending successful headers.
+// Only one export is prepared at a time, and its private temporary file is removed
+// on success, failure, or cancellation. Large exports need temporary disk space.
 func (s *Server) handleAccountExport(w http.ResponseWriter, r *http.Request) {
+	release, ok := s.exports.acquire(r.Context())
+	if !ok {
+		w.Header().Set("Retry-After", "10")
+		http.Error(w, "Another export is being prepared. Try again shortly.", http.StatusServiceUnavailable)
+		return
+	}
+	defer release()
 	user := currentUser(r.Context())
 	ctx := r.Context()
 
@@ -136,42 +138,43 @@ func (s *Server) handleAccountExport(w http.ResponseWriter, r *http.Request) {
 			"are not exported.",
 	}
 
-	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(
-		`attachment; filename="%s"`, exportFilename(s.branding().SiteName, user.Username)))
-	w.Header().Set("Cache-Control", "no-store")
-
-	// The archive is only finished once everything is in it. Closing it after a
-	// failure would write a valid directory for a partial archive, and the
-	// download would look complete with files missing from it.
-	archive := zip.NewWriter(w)
-
+	temp, err := os.CreateTemp("", "imvault-export-*.zip")
+	if err != nil {
+		s.exportFailure(w, user, "prepare archive", err)
+		return
+	}
+	defer os.Remove(temp.Name())
+	defer temp.Close()
+	archive := zip.NewWriter(temp)
 	if err := writeJSONEntry(archive, "manifest.json", manifest); err != nil {
-		s.abortExport(user, "", "write manifest", err)
+		s.exportFailure(w, user, "write manifest", err)
+		return
 	}
-
-	written := 0
 	for _, file := range files {
-		if err := s.writeExportEntry(r.Context(), archive, file); err != nil {
-			s.abortExport(user, file.ID, "write file", err)
+		if err := s.writeExportEntry(ctx, archive, file); err != nil {
+			s.exportFailure(w, user, "write file", err)
+			return
 		}
-		written++
 	}
-
 	if err := archive.Close(); err != nil {
-		s.abortExport(user, "", "finish archive", err)
+		s.exportFailure(w, user, "finish archive", err)
+		return
 	}
-	s.log.Info("account exported", "user", user.ID, "files", written)
+	info, err := temp.Stat()
+	if err != nil {
+		s.exportFailure(w, user, "read archive", err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, exportFilename(s.branding().SiteName, user.Username)))
+	w.Header().Set("Cache-Control", "no-store")
+	http.ServeContent(w, r, "", info.ModTime(), temp)
+	s.log.Info("account exported", "user", user.ID, "files", len(files))
 }
 
-// abortExport gives up on an export whose response has already begun.
-//
-// The status has been sent, so there is no error to report in it. Aborting the
-// handler makes the server drop the connection without completing the body,
-// which every client reports as a failed download instead of a finished one.
-func (s *Server) abortExport(user *models.User, fileID, step string, err error) {
-	s.log.Error("export: "+step, "user", user.ID, "id", fileID, "error", err)
-	panic(http.ErrAbortHandler)
+func (s *Server) exportFailure(w http.ResponseWriter, user *models.User, step string, err error) {
+	s.log.Error("export: "+step, "user", user.ID, "error", err)
+	http.Error(w, "Could not prepare your export. Please try again.", http.StatusInternalServerError)
 }
 
 // exportFilename is the name the browser saves the archive as. It is named for
@@ -220,7 +223,6 @@ func (s *Server) exportableFiles(r *http.Request, userID int64) ([]exportFile, e
 				SHA256:      file.SHA256,
 				Public:      file.Visibility.IsPublic(),
 				Visibility:  string(file.Visibility),
-				Views:       file.Views,
 				CreatedAt:   file.CreatedAt.UTC().Format(time.RFC3339),
 				ExpiresAt:   exportExpiry(file),
 				Tags:        exportTags(file.Tags),

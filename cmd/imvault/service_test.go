@@ -141,3 +141,35 @@ func TestASystemdSpecifierInEnvironmentFileIsRefused(t *testing.T) {
 		t.Fatalf("a specifier was accepted or the hint is missing: %v", err)
 	}
 }
+
+func TestScheduledBackupInheritsStorageAndEncryptionBeforePrivilegeDrop(t *testing.T) {
+	for _, key := range backupServiceSettings {
+		t.Setenv(key, "")
+	}
+	t.Setenv("IMVAULT_DB", "")
+	config := filepath.Join(t.TempDir(), "imvault.confd")
+	writeFile(t, config, "IMVAULT_DB=/srv/photos/library.db\nIMVAULT_SECRET_KEY_FILE=/srv/photos/secret.key\nIMVAULT_STORAGE=s3\nIMVAULT_OBJECTS_DIR=/srv/photos/objects\nIMVAULT_S3_BUCKET=family\nIMVAULT_S3_ACCESS_KEY=example-access\nIMVAULT_S3_SECRET_KEY=example-secret\nAWS_SHARED_CREDENTIALS_FILE=/srv/photos/aws-credentials\n")
+	paths := imvaultPaths(svcconfig.Paths{OpenRCConfig: config, OpenRCInstalled: true, OpenRCActive: true})
+	settings, err := childCommandSettings(paths, "backup", "/srv/photos")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, want := range map[string]string{
+		"IMVAULT_DB": "/srv/photos/library.db", "IMVAULT_SECRET_KEY_FILE": "/srv/photos/secret.key",
+		"IMVAULT_STORAGE": "s3", "IMVAULT_OBJECTS_DIR": "/srv/photos/objects", "IMVAULT_S3_BUCKET": "family",
+		"IMVAULT_S3_ACCESS_KEY": "example-access", "IMVAULT_S3_SECRET_KEY": "example-secret", "AWS_SHARED_CREDENTIALS_FILE": "/srv/photos/aws-credentials",
+	} {
+		if settings[key] != want {
+			t.Errorf("backup setting %s did not reach the child", key)
+		}
+	}
+	t.Setenv("IMVAULT_S3_BUCKET", "explicit-family")
+	settings, err = childCommandSettings(paths, "backup", "/srv/photos")
+	if err != nil || settings["IMVAULT_S3_BUCKET"] != "explicit-family" {
+		t.Fatal("explicit environment did not override service settings", err)
+	}
+	settings, err = childCommandSettings(paths, "create-admin", "/srv/photos")
+	if err != nil || len(settings) != 1 {
+		t.Fatal("unrelated command inherited storage credentials", err)
+	}
+}

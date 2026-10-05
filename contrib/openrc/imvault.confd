@@ -21,7 +21,7 @@
 # Required when email or an OpenID Connect provider is configured.
 # IMVAULT_BASE_URL=https://img.example.com
 
-# Enable when serving over HTTPS, behind a TLS-terminating proxy.
+# HTTPS base URLs automatically enable secure cookies.
 # IMVAULT_SECURE_COOKIES=true
 
 # Reverse proxies whose X-Forwarded-For and X-Forwarded-Proto are believed, as
@@ -30,7 +30,8 @@
 # IMVAULT_TRUSTED_PROXIES="127.0.0.1/32,::1/128"
 
 # IMVAULT_ALLOW_SIGNUP=false
-# IMVAULT_ALLOW_ANONYMOUS_UPLOADS=true
+# IMVAULT_INVITE_ONLY=true
+# IMVAULT_ALLOW_ANONYMOUS_UPLOADS=false
 # IMVAULT_ANONYMOUS_TTL=24h
 # IMVAULT_DEFAULT_QUOTA_BYTES=5368709120
 # IMVAULT_MAX_UPLOAD_BYTES=33554432

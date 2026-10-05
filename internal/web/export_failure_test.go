@@ -3,8 +3,6 @@
 package web
 
 import (
-	"archive/zip"
-	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -49,16 +47,11 @@ func TestAFailedExportIsNotAValidArchive(t *testing.T) {
 
 	resp, err := owner.client.Get(h.server.URL + "/settings/account/export")
 	if err != nil {
-		// Failing before anything was flushed drops the connection outright,
-		// which is a failed download, as it should be.
-		return
+		t.Fatal(err)
 	}
-	body, readErr := io.ReadAll(resp.Body)
-	closeErr := resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("export = %d", resp.StatusCode)
-	}
-	if _, zipErr := zip.NewReader(bytes.NewReader(body), int64(len(body))); zipErr == nil && readErr == nil && closeErr == nil {
-		t.Fatal("a failed export arrived as a complete, valid archive")
+	body, err := io.ReadAll(resp.Body)
+	mustClose(t, resp.Body)
+	if err != nil || resp.StatusCode != http.StatusInternalServerError || resp.Header.Get("Content-Type") == "application/zip" {
+		t.Fatalf("failed export: status=%d, read=%v body=%q", resp.StatusCode, err, body)
 	}
 }

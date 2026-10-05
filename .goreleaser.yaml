@@ -58,6 +58,10 @@ nfpms:
     contents:
       - src: .release/imvault.service
         dst: /usr/lib/systemd/system/imvault.service
+      - src: .release/imvault-backup.service
+        dst: /usr/lib/systemd/system/imvault-backup.service
+      - src: contrib/systemd/imvault-backup.timer
+        dst: /usr/lib/systemd/system/imvault-backup.timer
       - src: .release/imvault.env
         dst: /etc/imvault/imvault.env
         type: config
@@ -71,6 +75,9 @@ nfpms:
         dst: /usr/share/doc/imvault/README.md
       - src: docs/
         dst: /usr/share/doc/imvault/docs
+        type: tree
+      - src: contrib/cron/
+        dst: /usr/share/doc/imvault/contrib/cron
         type: tree
       - src: contrib/caddy/
         dst: /usr/share/doc/imvault/contrib/caddy

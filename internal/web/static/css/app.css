@@ -620,3 +620,5 @@ code {
   font-size: .88em;
   color: var(--accent);
 }
+
+.plain-prose { white-space: pre-wrap; }

@@ -57,8 +57,7 @@
       {{with .File.Dimensions}}<dt>Dimensions</dt><dd>{{.}}</dd>{{end}}
       {{with .File.DurationLabel}}<dt>Duration</dt><dd>{{.}}</dd>{{end}}
       <dt>Size</dt><dd>{{humanSize .File.Size}}</dd>
-      <dt>Views</dt><dd>{{.File.Views}}</dd>
-      <dt>Visibility</dt><dd>{{.File.Visibility.Label}} <span class="muted">— {{.File.Visibility.Explain}}</span></dd>
+      <dt>Visibility</dt><dd>{{.File.Visibility.Label}} <span class="muted">— {{.File.Visibility.Explain}}</span>{{if .File.Visibility.IsPrivate}} · <a href="/about">Who looks after this site?</a>{{end}}</dd>
       {{with .File.ExpiryLabel}}<dt>Retention</dt><dd class="warn">{{.}}</dd>{{end}}
     </dl>
 

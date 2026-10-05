@@ -35,7 +35,7 @@
       {{range .VisibilityLevels}}
       <label class="row">
         <input type="radio" name="visibility" value="{{.}}" {{if eq . $current}}checked{{end}}>
-        <span><strong>{{.Label}}</strong> — {{.Explain}}</span>
+        <span><strong>{{.Label}}</strong> — {{.Explain}}{{if .IsPrivate}} · <a href="/about">Who looks after this site?</a>{{end}}</span>
       </label>
       {{end}}
       <p class="muted">You can change this later on each file.</p>

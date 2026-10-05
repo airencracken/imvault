@@ -7,6 +7,8 @@ out=${RELEASE_DIR:-.release}
 mkdir -p "$out" || exit 1
 sed -e "s|/usr/local/bin/$app|/usr/bin/$app|g" \
 	"contrib/systemd/$app.service" > "$out/$app.service" || exit 1
+sed -e "s|/usr/local/bin/$app|/usr/bin/$app|g" \
+ "contrib/systemd/$app-backup.service" > "$out/$app-backup.service" || exit 1
 # Package defaults bind only to loopback. Existing conffiles remain dpkg-managed.
 {
 	printf '%s\n' '# Debian package defaults.' 'IMVAULT_ADDR=127.0.0.1:8080'

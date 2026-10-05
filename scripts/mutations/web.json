@@ -112,9 +112,9 @@
         "run": "^TestPlainDeleteFormRedirects$"
     },
     {
-        "name": "a failed export is aborted",
+        "name": "a failed export reports failure before successful headers",
         "file": "internal/web/handlers_export.go",
-        "before": "\t\t\ts.abortExport(user, file.ID, \"write file\", err)",
+        "before": "\t\t\ts.exportFailure(w, user, \"write file\", err)\n\t\t\treturn",
         "after": "\t\t\tcontinue",
         "package": "./internal/web",
         "run": "^TestAFailedExportIsNotAValidArchive$"
@@ -326,5 +326,21 @@
         "after": "key := \"login:\" + s.clientIP(r).String()",
         "package": "./internal/web",
         "run": "^TestSignInBudgetIsSharedAcrossAnIPv6Network$"
+    },
+    {
+        "name": "backups pin objects against live deletion",
+        "file": "internal/maintenance/backup.go",
+        "before": "instance.AcquireBackup(ctx, cfg.DBPath)",
+        "after": "instance.AcquireSnapshot(ctx, cfg.DBPath, false)",
+        "package": "./internal/web",
+        "run": "^TestLiveBackupRetainsSnapshotObjectsDuringConcurrentDeletion$"
+    },
+    {
+        "name": "about does not expose ordinary members",
+        "file": "internal/web/about.go",
+        "before": "AND role IN ('admin', 'moderator')",
+        "after": "",
+        "package": "./internal/web",
+        "run": "^TestPublicHouseRulesAndInvitationEntrance$"
     }
 ]

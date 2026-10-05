@@ -82,8 +82,8 @@ func (s *Store) LoadSettings(ctx context.Context, defaults models.Settings) (mod
 // LoadBranding resolves public-facing identity from stored overrides and the
 // supplied configuration defaults.
 func (s *Store) LoadBranding(ctx context.Context, defaults models.Branding) (models.Branding, map[string]bool, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT key, value FROM settings WHERE key IN (?, ?, ?, ?)`,
-		models.SettingSiteName, models.SettingSourceURL, models.SettingWelcomeTitle, models.SettingWelcomeText)
+	rows, err := s.db.QueryContext(ctx, `SELECT key, value FROM settings WHERE key IN (?, ?, ?, ?, ?, ?)`,
+		models.SettingSiteName, models.SettingSourceURL, models.SettingWelcomeTitle, models.SettingWelcomeText, models.SettingHouseRules, models.SettingOwnerContact)
 	if err != nil {
 		return defaults, nil, fmt.Errorf("load branding: %w", err)
 	}
@@ -113,6 +113,12 @@ func (s *Store) LoadBranding(ctx context.Context, defaults models.Branding) (mod
 	}
 	if stored[models.SettingWelcomeText] && strings.TrimSpace(values[models.SettingWelcomeText]) != "" {
 		resolved.WelcomeText = values[models.SettingWelcomeText]
+	}
+	if stored[models.SettingHouseRules] {
+		resolved.HouseRules = values[models.SettingHouseRules]
+	}
+	if stored[models.SettingOwnerContact] {
+		resolved.OwnerContact = values[models.SettingOwnerContact]
 	}
 	return resolved, stored, nil
 }
@@ -153,6 +159,8 @@ func (s *Store) saveSettings(ctx context.Context, settings models.Settings, bran
 			values[models.SettingSourceURL] = strings.TrimSpace(branding.SourceURL)
 			values[models.SettingWelcomeTitle] = strings.TrimSpace(branding.WelcomeTitle)
 			values[models.SettingWelcomeText] = strings.TrimSpace(branding.WelcomeText)
+			values[models.SettingHouseRules] = strings.TrimSpace(branding.HouseRules)
+			values[models.SettingOwnerContact] = strings.TrimSpace(branding.OwnerContact)
 		}
 		for key, value := range values {
 			_, err := tx.ExecContext(ctx, `
@@ -174,7 +182,7 @@ func ValidateBranding(branding models.Branding) error {
 		value     string
 		max       int
 		multiline bool
-	}{{"site name", branding.SiteName, 80, false}, {"welcome title", branding.WelcomeTitle, 120, false}, {"welcome text", branding.WelcomeText, 2000, true}}
+	}{{"site name", branding.SiteName, 80, false}, {"welcome title", branding.WelcomeTitle, 120, false}, {"welcome text", branding.WelcomeText, 2000, true}, {"house rules", branding.HouseRules, 10000, true}, {"owner contact", branding.OwnerContact, 1000, true}}
 	for _, check := range checks {
 		if err := validateBrandingText(check.name, check.value, check.max, check.multiline); err != nil {
 			return err

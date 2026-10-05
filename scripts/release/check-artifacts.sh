@@ -18,6 +18,9 @@ for arch in amd64 arm64; do
 	test -x "$work/$arch/imvault" || fail 'Archive binary is not executable.'
 	test -s "$work/$arch/LICENSE" || fail 'Archive license is missing.'
 	test -s "$work/$arch/THIRD_PARTY_NOTICES.txt" || fail 'Dependency notices are missing.'
+	for example in systemd/imvault-backup.service systemd/imvault-backup.timer cron/imvault-backup; do
+		cmp "contrib/$example" "$work/$arch/contrib/$example" || fail "Backup example differs: $example"
+	done
 	test -s "$work/$arch/contrib/openrc/imvault" || fail 'OpenRC example is missing.'
 	cmp "contrib/logrotate/imvault" "$work/$arch/contrib/logrotate/imvault" || fail 'Archive logrotate rule is missing or differs.'
 	for setting in StandardOutput=journal StandardError=journal SyslogIdentifier=imvault; do
@@ -49,6 +52,10 @@ for arch in amd64 arm64; do
 	for proxy in caddy/Caddyfile nginx/imvault.conf apache/imvault.conf; do
 		cmp "$work/$arch/contrib/$proxy" "$work/deb-$arch/usr/share/doc/imvault/contrib/$proxy" || fail "Debian proxy example is missing or differs: $proxy"
 	done
+	grep -qx 'ExecStart=/usr/bin/imvault backup --output-dir /var/backups/imvault' "$work/deb-$arch/usr/lib/systemd/system/imvault-backup.service" || fail 'Debian backup command is incorrect.'
+	cmp contrib/systemd/imvault-backup.timer "$work/deb-$arch/usr/lib/systemd/system/imvault-backup.timer" || fail 'Debian backup timer differs.'
+	cmp contrib/cron/imvault-backup "$work/deb-$arch/usr/share/doc/imvault/contrib/cron/imvault-backup" || fail 'Debian cron example differs.'
+	test ! -e "$work/deb-$arch/etc/cron.d/imvault-backup" || fail 'Debian package activates backups without consent.'
 	cmp "$work/$arch/imvault" "$work/deb-$arch/usr/bin/imvault" || fail 'Archive and Debian binaries differ.'
 done
 set -- dist/imvault_*_source.tar.gz

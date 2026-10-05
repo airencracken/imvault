@@ -88,7 +88,7 @@ printf '%s\n' "$PASSWORD" | IMVAULT_DATA_DIR="$DATA_DIR" \
   || die "could not provision the demo administrator"
 
 say "Starting the server on $BASE"
-IMVAULT_ADDR="127.0.0.1:$PORT" \
+IMVAULT_INVITE_ONLY=false IMVAULT_ADDR="127.0.0.1:$PORT" \
 IMVAULT_DATA_DIR="$DATA_DIR" \
 IMVAULT_BASE_URL="$BASE" \
 IMVAULT_LOG_LEVEL=warn \

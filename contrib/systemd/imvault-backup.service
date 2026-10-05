@@ -1,0 +1,20 @@
+[Unit]
+Description=Verified Imvault backup
+Documentation=https://github.com/airencracken/imvault/blob/master/docs/operations.md
+
+[Service]
+Type=oneshot
+User=imvault
+Group=imvault
+UMask=0077
+Environment=IMVAULT_DATA_DIR=/var/lib/imvault
+EnvironmentFile=-/etc/imvault/imvault.env
+StateDirectory=imvault
+StateDirectoryMode=0700
+ExecStart=/usr/local/bin/imvault backup --output-dir /var/backups/imvault
+ReadWritePaths=/var/lib/imvault /var/backups/imvault
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes

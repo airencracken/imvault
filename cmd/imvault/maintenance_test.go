@@ -4,9 +4,7 @@ package main
 
 import (
 	"io"
-	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"imvault/internal/db"
@@ -30,7 +28,7 @@ func TestMaintenanceCommandsHelpAndArguments(t *testing.T) {
 	}
 }
 
-func TestBackupCommandRequiresStoppedInstanceAndRestoresWithoutSourceConfig(t *testing.T) {
+func TestBackupCommandCoexistsWithServerAndRestoresWithoutSourceConfig(t *testing.T) {
 	path := adminTestEnvironment(t)
 	database, err := db.Open(t.Context(), path)
 	if err != nil {
@@ -46,16 +44,10 @@ func TestBackupCommandRequiresStoppedInstanceAndRestoresWithoutSourceConfig(t *t
 	}
 	backup := filepath.Join(t.TempDir(), "snapshot")
 	args := []string{"backup", "--output", backup}
-	if err := runCommand(args, nil, io.Discard); err == nil || !strings.Contains(err.Error(), "stop Imvault") {
-		t.Fatal("backup did not reject running server", err)
-	}
-	if _, err := os.Stat(backup); !os.IsNotExist(err) {
-		t.Fatal("blocked backup changed output")
+	if err := runCommand(args, nil, io.Discard); err != nil {
+		t.Fatal("live backup refused", err)
 	}
 	testutil.Close(t, server)
-	if err := runCommand(args, nil, io.Discard); err != nil {
-		t.Fatal(err)
-	}
 	t.Setenv("IMVAULT_STORAGE", "s3") // Intentionally incomplete and unavailable.
 	t.Setenv("IMVAULT_S3_BUCKET", "")
 	output := filepath.Join(t.TempDir(), "restored")

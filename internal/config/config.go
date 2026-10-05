@@ -14,7 +14,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -187,8 +186,8 @@ func load(dataDirOverride, dbPathOverride string) (*Config, error) {
 		// Set but empty hides the link, so empty is a value here.
 		SourceURL:             lookupenv("IMVAULT_SOURCE_URL", "https://github.com/airencracken/imvault"),
 		AllowSignup:           env.boolean("IMVAULT_ALLOW_SIGNUP", true),
-		InviteOnly:            env.boolean("IMVAULT_INVITE_ONLY", false),
-		AllowAnonymousUploads: env.boolean("IMVAULT_ALLOW_ANONYMOUS_UPLOADS", true),
+		InviteOnly:            env.boolean("IMVAULT_INVITE_ONLY", true),
+		AllowAnonymousUploads: env.boolean("IMVAULT_ALLOW_ANONYMOUS_UPLOADS", false),
 		AnonymousTTL:          env.duration("IMVAULT_ANONYMOUS_TTL", 24*time.Hour),
 		DefaultVisibility:     models.Visibility(getenv("IMVAULT_DEFAULT_VISIBILITY", string(models.VisibilityMembers))),
 		SessionTTL:            env.duration("IMVAULT_SESSION_TTL", 30*24*time.Hour),
@@ -266,12 +265,11 @@ func load(dataDirOverride, dbPathOverride string) (*Config, error) {
 		return nil, fmt.Errorf("IMVAULT_DEFAULT_VISIBILITY must be public, members or private, got %q",
 			c.DefaultVisibility)
 	}
-	if c.MaxConcurrentUploads == 0 {
-		c.MaxConcurrentUploads = max(2, runtime.NumCPU())
-	}
+	c.defaultUploadConcurrency()
 	if err := c.validateMedia(); err != nil {
 		return nil, err
 	}
+	c.SecureCookies = c.SecureCookies || usesHTTPS(c.BaseURL)
 	if err := c.validateAccounts(); err != nil {
 		return nil, err
 	}
@@ -568,4 +566,15 @@ func (r *reader) duration(key string, fallback time.Duration) time.Duration {
 	}
 	r.fail(key, raw, `a duration such as "90s" or "24h", or a number of seconds`)
 	return fallback
+}
+
+func usesHTTPS(baseURL string) bool {
+	base, err := url.Parse(baseURL)
+	return err == nil && base.Scheme == "https"
+}
+
+func (c *Config) defaultUploadConcurrency() {
+	if c.MaxConcurrentUploads == 0 {
+		c.MaxConcurrentUploads = 1
+	}
 }

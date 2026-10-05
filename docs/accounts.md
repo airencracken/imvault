@@ -106,8 +106,11 @@ each file's visibility, tags, albums, and the dates. Each original sits at
 The manifest carries both `visibility` and the older `public` boolean, so a
 reader written against two levels keeps working.
 
-The archive is streamed as it is built rather than assembled on disk first,
-because an export can easily be larger than the space left on the server.
+The archive is prepared in a private temporary file before the download starts.
+A missing original or storage failure returns an error instead of a successful
+response with an incomplete ZIP. Only one export is prepared or downloaded at
+a time. The host needs enough free space in `TMPDIR` (the system temporary
+directory by default) for the archive; temporary files are removed afterward.
 
 What is deliberately **not** in it: passwords, sessions, API keys, recovery
 codes, and the two-factor secret. Neither is anything belonging to another

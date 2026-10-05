@@ -13,7 +13,7 @@ variable, rather than quietly using the default. Booleans accept `true`/`false`,
 `1`/`0` and `t`/`f`; sizes are whole numbers of bytes; durations are Go
 durations such as `90s` or `24h`, or a whole number of seconds.
 
-Three of them are also editable while it is running; see [Instance
+Several policies and the public site information are also editable while it is running; see [Instance
 settings](#instance-settings) below.
 
 | Variable | Default | Purpose |
@@ -25,8 +25,8 @@ settings](#instance-settings) below.
 | `IMVAULT_NAME` | `Imvault` | Default name shown in the page title, header, and footer |
 | `IMVAULT_SOURCE_URL` | `https://github.com/airencracken/imvault` | Source link shown in the footer; set it to an empty value to hide it |
 | `IMVAULT_ALLOW_SIGNUP` | `true` | Whether new accounts can register |
-| `IMVAULT_INVITE_ONLY` | `false` | Whether registering needs an invitation code |
-| `IMVAULT_ALLOW_ANONYMOUS_UPLOADS` | `true` | Whether logged-out visitors may upload |
+| `IMVAULT_INVITE_ONLY` | `true` | Whether registering needs an invitation code |
+| `IMVAULT_ALLOW_ANONYMOUS_UPLOADS` | `false` | Whether logged-out visitors may upload |
 | `IMVAULT_ANONYMOUS_TTL` | `24h` | How long anonymous uploads survive |
 | `IMVAULT_DEFAULT_VISIBILITY` | `members` | What a new upload is visible to: `public`, `members`, or `private` |
 | `IMVAULT_SESSION_TTL` | `720h` | Login session lifetime; must be positive |
@@ -36,7 +36,7 @@ settings](#instance-settings) below.
 | `IMVAULT_MAX_VIDEO_DURATION` | `60s` | Longest accepted clip |
 | `IMVAULT_DEFAULT_QUOTA_BYTES` | `5368709120` (5 GiB) | Storage cap given to new accounts; `0` for unlimited |
 | `IMVAULT_MAX_TOTAL_BYTES` | `0` | Ceiling for the whole instance; `0` for none |
-| `IMVAULT_MAX_CONCURRENT_UPLOADS` | one per CPU, minimum 2 | Uploads processed at once, across everybody |
+| `IMVAULT_MAX_CONCURRENT_UPLOADS` | `1` | Uploads processed at once, across everybody |
 | `IMVAULT_SMTP_HOST` | *(empty)* | Mail relay. Empty disables email entirely; setting it requires `IMVAULT_BASE_URL` |
 | `IMVAULT_SMTP_PORT` | `587` | Relay port |
 | `IMVAULT_SMTP_USERNAME` | *(empty)* | Skip authentication when empty, for a local relay |
@@ -63,7 +63,7 @@ settings](#instance-settings) below.
 | `IMVAULT_MAP_URL` | *(empty)* | Static-map URL template with `{lat}`, `{lon}`, `{zoom}`, `{key}` placeholders; empty disables the map |
 | `IMVAULT_MAP_KEY` | *(empty)* | Map provider key, substituted server-side and never sent to the browser |
 | `IMVAULT_MAP_ZOOM` | `13` | Zoom level for the map and the OpenStreetMap link |
-| `IMVAULT_SECURE_COOKIES` | `false` | Set the `Secure` flag on cookies |
+| `IMVAULT_SECURE_COOKIES` | automatic for HTTPS | HTTPS base URLs always enable `Secure`; set `true` to require it elsewhere too |
 | `IMVAULT_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` |
 | `IMVAULT_OIDC_ISSUER` | *(empty)* | OpenID Connect issuer. Empty disables provider sign-in |
 | `IMVAULT_OIDC_CLIENT_ID` | *(empty)* | Client id registered with the provider |
@@ -105,7 +105,7 @@ restart.
 
 ## Instance settings
 
-Three instance-wide policies are editable at `/admin/settings`, because all of
+Instance-wide policies are editable at `/admin/settings`, because all of
 them are things an operator may need to change in a hurry:
 
 | Setting | Variable it falls back to |
@@ -149,7 +149,10 @@ setting, whether it is currently coming from the file or from the interface, and
 environment.
 
 The same page lets an administrator customize the site name, footer source
-link, and welcome copy, then upload a favicon and mascot for this instance.
+link, welcome copy, public contact details and house rules, then upload a favicon
+and mascot for this instance. The footer links to `/about`, which names the
+active administrators and moderators. Contact details and rules are public;
+do not put private member information there.
 Images can be PNG, JPEG, or GIF up to 2 MiB; Imvault converts them to PNG
 before serving them. The source link starts at `IMVAULT_SOURCE_URL` and can be
 changed or hidden in the page.
