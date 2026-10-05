@@ -83,6 +83,28 @@ else
 fi
 health
 [ "$(stat -c '%U:%G:%a' "$data")" = "$app:$app:700" ] || fail 'Service startup changed private data permissions.'
+
+# Both schedulers are shipped as opt-in examples. Exercise the actual backup
+# unit while the installed server keeps running, and verify a restore as well.
+test -s /usr/lib/systemd/system/imvault-backup.timer || fail 'Backup timer is missing.'
+test -s /usr/share/doc/imvault/contrib/cron/imvault-backup || fail 'Cron example is missing.'
+[ ! -e /etc/cron.d/imvault-backup ] || fail 'Package activated cron backups.'
+install -d -o imvault -g imvault -m 0700 /var/backups/imvault || exit 1
+if [ "$init" = yes ]; then
+	systemd-analyze verify /usr/lib/systemd/system/imvault-backup.service /usr/lib/systemd/system/imvault-backup.timer || fail 'Invalid backup units.'
+	if systemctl is-enabled --quiet imvault-backup.timer; then fail 'Package enabled automatic backups.'; fi
+	systemctl start imvault-backup.service || fail 'Online backup unit failed.'
+else
+	/usr/bin/imvault backup --output-dir /var/backups/imvault || fail 'Service-aware cron backup command failed.'
+fi
+health
+for snapshot in /var/backups/imvault/*; do
+	[ -f "$snapshot/manifest.json" ] || fail 'Verified snapshot was not published.'
+	[ "$(stat -c '%U:%G:%a' "$snapshot")" = imvault:imvault:700 ] || fail 'Backup directory is not private.'
+	/usr/bin/imvault restore --input "$snapshot" --output "$work/restored" || fail 'Packaged backup did not restore.'
+	break
+done
+
 # The Ubuntu VM gate also exercises the actual hardened unit with Bubblewrap.
 # Containers retain the normal package lifecycle test because their outer
 # namespace policy is controlled by the container host.
