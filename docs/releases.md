@@ -21,7 +21,7 @@ recommends it. HTTPS connections also need your system's CA certificates.
 Select the version and architecture you want. For example:
 
 ```sh
-release_version=0.12.0
+release_version=0.13.0
 release_arch=amd64
 release_url="https://github.com/airencracken/imvault/releases/download/v$release_version"
 curl -fLO "$release_url/imvault_${release_version}_${release_arch}.deb"
@@ -38,7 +38,7 @@ keeps settings in `/etc/imvault/imvault.env`, readable only by root.
 **The first install leaves the service stopped and disabled.** Edit that
 configuration, provision the administrator, then enable the service. Native package
 defaults bind to `127.0.0.1:8080`; configure your HTTPS reverse proxy and
-secure cookies before exposing the site.
+a public HTTPS base URL before exposing the site; it enables secure cookies.
 
 In a terminal, provision the account using the same data directory. The hidden
 prompt asks for the password twice:

@@ -222,7 +222,9 @@ Deleting a file credits the owner back.
 ## Concurrency
 
 `IMVAULT_MAX_CONCURRENT_UPLOADS` bounds how many uploads are being processed at
-once, across everybody. It defaults to one per CPU, with a floor of two.
+once, across everybody. It defaults to one, regardless of CPU count. Images are
+capped at 24 megapixels before decoding; increase concurrency only when the host
+has enough memory for several decodes and rendition buffers.
 
 This is a different control from rate limiting and an instance needs both. A
 token bucket bounds how many uploads one identity may start per hour, but its

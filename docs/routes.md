@@ -82,6 +82,7 @@ current-password checks under `/settings`) share the sign-in rate limit.
 | `POST` | `/admin/maintenance/blobs` | Recalculate content reference counts |
 | `GET` | `/admin/files` | Every upload, for moderation (moderators and administrators) |
 | `POST` | `/admin/files/{id}/delete` | Delete any file (moderators and administrators) |
+| `GET` | `/about` | Public house rules, contact details and active site staff |
 | `GET` | `/healthz` | Liveness probe |
 
 Mutating requests that use cookies must carry the CSRF token, either as the

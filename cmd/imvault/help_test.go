@@ -56,3 +56,15 @@ func TestHelpExplainsDeployment(t *testing.T) {
 		}
 	}
 }
+
+func TestBackupHelpDescribesOnlineSnapshotsAndBothOutputModes(t *testing.T) {
+	var output bytes.Buffer
+	if err := runCommand([]string{"backup", "--help"}, nil, &output); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"--output-dir", "EXISTING_PARENT", "can stay running", "Stop older servers first", "never migrates"} {
+		if !strings.Contains(output.String(), want) {
+			t.Errorf("backup help omits %q", want)
+		}
+	}
+}
