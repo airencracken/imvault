@@ -61,7 +61,7 @@ var commandDescriptions = map[string]string{
 	"refresh-metadata":   "Refresh photo details from stored originals without changing sharing settings.\nUse the same IMVAULT_DATA_DIR and storage settings as the service.",
 	"migrate-storage":    "Copy and verify objects to IMVAULT_DEST_* storage. Stop the server first.\nUse the service's data/storage settings and configure the destination; see docs/storage.md.",
 	"rebuild-thumbnails": "Regenerate thumbnails, previews and video posters. Stop the server first.\nUse the service's IMVAULT_DATA_DIR and storage settings; video posters need ffmpeg.",
-	"backup":             "Create a verified, self-contained backup in a new directory. Imvault 0.13 or later can stay running.\nChoose --output NEW_DIRECTORY or --output-dir EXISTING_PARENT for a dated snapshot.\nStop older servers first.\nUse the service's IMVAULT_DATA_DIR and storage settings, and the Imvault version that last ran the database; backup never migrates it.",
+	"backup":             "Create a verified, self-contained backup in a new directory. Imvault 0.13 or later can stay running.\nChoose --output NEW_DIRECTORY or --output-dir EXISTING_PARENT for dated snapshots, retaining the newest seven.\nUse --keep N with --output-dir to change retention; --keep 0 keeps all. Manual --output backups never rotate.\nStop older servers first.\nUse the service's IMVAULT_DATA_DIR and storage settings, and the Imvault version that last ran the database; backup never migrates it.",
 	"restore":            "Verify a backup and restore it into a new local data directory.\nStop the server and restore its service configuration separately.",
 }
 

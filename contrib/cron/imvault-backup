@@ -3,8 +3,9 @@
 # The CLI reads the installed service's database/storage settings and drops to
 # its service account. No shell sourcing and no credentials in this file.
 # Cron mails failures and verification output to root; configure local mail.
-# Enable this OR imvault-backup.timer. Backups are retained until you remove them.
+# Enable this OR imvault-backup.timer. Keep the newest seven completed snapshots.
+# Rotation starts only after the new backup verifies. Change --keep as needed.
 SHELL=/bin/sh
 PATH=/usr/bin:/bin
 MAILTO=root
-17 3 * * * root /usr/bin/imvault backup --output-dir /var/backups/imvault
+17 3 * * * root /usr/bin/imvault backup --output-dir /var/backups/imvault --keep 7

@@ -62,7 +62,7 @@ func TestBackupHelpDescribesOnlineSnapshotsAndBothOutputModes(t *testing.T) {
 	if err := runCommand([]string{"backup", "--help"}, nil, &output); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"--output-dir", "EXISTING_PARENT", "can stay running", "Stop older servers first", "never migrates"} {
+	for _, want := range []string{"--output-dir", "EXISTING_PARENT", "--keep", "newest seven", "can stay running", "Stop older servers first", "never migrates"} {
 		if !strings.Contains(output.String(), want) {
 			t.Errorf("backup help omits %q", want)
 		}

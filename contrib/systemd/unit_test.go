@@ -84,7 +84,7 @@ func containsValue(values []string, want string) bool {
 
 func TestBackupTimerUsesPrivateVerifiedSnapshotsWithoutStoppingServer(t *testing.T) {
 	service := parseUnit(t, "imvault-backup.service")["Service"]
-	for key, want := range map[string]string{"User": "imvault", "Group": "imvault", "UMask": "0077", "Type": "oneshot", "ExecStart": "/usr/local/bin/imvault backup --output-dir /var/backups/imvault"} {
+	for key, want := range map[string]string{"User": "imvault", "Group": "imvault", "UMask": "0077", "Type": "oneshot", "ExecStart": "/usr/local/bin/imvault backup --output-dir /var/backups/imvault --keep 7"} {
 		if got := service[key]; len(got) != 1 || got[0] != want {
 			t.Fatalf("backup %s=%v", key, got)
 		}

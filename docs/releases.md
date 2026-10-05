@@ -21,7 +21,7 @@ recommends it. HTTPS connections also need your system's CA certificates.
 Select the version and architecture you want. For example:
 
 ```sh
-release_version=0.13.0
+release_version=0.13.1
 release_arch=amd64
 release_url="https://github.com/airencracken/imvault/releases/download/v$release_version"
 curl -fLO "$release_url/imvault_${release_version}_${release_arch}.deb"

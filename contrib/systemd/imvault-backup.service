@@ -11,7 +11,7 @@ Environment=IMVAULT_DATA_DIR=/var/lib/imvault
 EnvironmentFile=-/etc/imvault/imvault.env
 StateDirectory=imvault
 StateDirectoryMode=0700
-ExecStart=/usr/local/bin/imvault backup --output-dir /var/backups/imvault
+ExecStart=/usr/local/bin/imvault backup --output-dir /var/backups/imvault --keep 7
 ReadWritePaths=/var/lib/imvault /var/backups/imvault
 NoNewPrivileges=yes
 PrivateTmp=yes

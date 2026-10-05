@@ -11,9 +11,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
-	"time"
 
 	"imvault/internal/config"
 	"imvault/internal/db"
@@ -27,10 +25,12 @@ import (
 func runMaintenance(command string, args []string, out io.Writer) error {
 	flags := commandFlags(command, out)
 	var output, outputDir string
+	var keep int
 	var videosOnly bool
 	if command == "backup" {
 		flags.StringVar(&output, "output", "", "new backup directory")
 		flags.StringVar(&outputDir, "output-dir", "", "parent directory for a dated backup (alternative to --output)")
+		flags.IntVar(&keep, "keep", 7, "completed scheduled backups to retain with --output-dir (0 keeps all)")
 	}
 	if command == "rebuild-thumbnails" {
 		flags.BoolVar(&videosOnly, "videos-only", false, "rebuild only video posters")
@@ -44,8 +44,8 @@ func runMaintenance(command string, args []string, out io.Writer) error {
 	if flags.NArg() != 0 || (command == "backup" && (output == "") == (outputDir == "")) {
 		return fmt.Errorf("invalid arguments; use imvault %s --help", command)
 	}
-	if outputDir != "" {
-		output = filepath.Join(outputDir, time.Now().UTC().Format("20060102T150405.000000000Z"))
+	if err := validateRetention(flags, outputDir, keep); err != nil {
+		return err
 	}
 	if err := refuseRootMaintenance(command); err != nil {
 		return err
@@ -57,8 +57,21 @@ func runMaintenance(command string, args []string, out io.Writer) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	return withMaintenanceMode(ctx, cfg, maintenanceOpener(command), command != "backup", func(st *store.Store, objects storage.Backend) error {
+		if command == "backup" && outputDir != "" {
+			_, err := maintenance.ScheduledBackup(ctx, cfg, st, objects, outputDir, keep, out)
+			return err
+		}
 		return performMaintenance(ctx, command, cfg, st, objects, output, videosOnly, out)
 	})
+}
+
+func validateRetention(flags *flag.FlagSet, outputDir string, keep int) error {
+	explicit := false
+	flags.Visit(func(f *flag.Flag) { explicit = explicit || f.Name == "keep" })
+	if keep < 0 || (explicit && outputDir == "") {
+		return errors.New("--keep requires --output-dir and a nonnegative count")
+	}
+	return nil
 }
 
 // maintenanceOpener picks how a command opens the database. Commands that

@@ -93,10 +93,18 @@ install -d -o imvault -g imvault -m 0700 /var/backups/imvault || exit 1
 if [ "$init" = yes ]; then
 	systemd-analyze verify /usr/lib/systemd/system/imvault-backup.service /usr/lib/systemd/system/imvault-backup.timer || fail 'Invalid backup units.'
 	if systemctl is-enabled --quiet imvault-backup.timer; then fail 'Package enabled automatic backups.'; fi
-	systemctl start imvault-backup.service || fail 'Online backup unit failed.'
-else
-	/usr/bin/imvault backup --output-dir /var/backups/imvault || fail 'Service-aware cron backup command failed.'
 fi
+iteration=0
+while [ "$iteration" -lt 9 ]; do
+	if [ "$init" = yes ]; then
+		systemctl start imvault-backup.service || fail 'Online backup unit failed.'
+	else
+		/usr/bin/imvault backup --output-dir /var/backups/imvault --keep 7 || fail 'Service-aware cron backup command failed.'
+	fi
+	iteration=$((iteration + 1))
+done
+snapshot_count=$(find /var/backups/imvault -mindepth 1 -maxdepth 1 -type d -name 'imvault-*' | wc -l) || exit 1
+[ "$snapshot_count" -eq 7 ] || fail 'Scheduled backups did not rotate to seven snapshots.'
 health
 for snapshot in /var/backups/imvault/*; do
 	[ -f "$snapshot/manifest.json" ] || fail 'Verified snapshot was not published.'

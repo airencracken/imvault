@@ -26,7 +26,7 @@ func TestOptionalCronUsesServiceAwareVerifiedBackup(t *testing.T) {
 		t.Fatalf("cron jobs=%v", jobs)
 	}
 	fields := strings.Fields(jobs[0])
-	if len(fields) != 10 || fields[5] != "root" || strings.Join(fields[6:], " ") != "/usr/bin/imvault backup --output-dir /var/backups/imvault" {
+	if len(fields) != 12 || fields[5] != "root" || strings.Join(fields[6:], " ") != "/usr/bin/imvault backup --output-dir /var/backups/imvault --keep 7" {
 		t.Fatalf("cron does not use the verified service command: %v", fields)
 	}
 	if strings.Contains(jobs[0], "%") || strings.Contains(jobs[0], " stop") {
@@ -56,7 +56,7 @@ func TestCronInstallationIsOptInAndPreservesLocalConfiguration(t *testing.T) {
 	}
 	run("install-backup-cron")
 	contents, err := os.ReadFile(job)
-	if err != nil || !strings.Contains(string(contents), "root /opt/photos/bin/imvault backup --output-dir /var/backups/imvault") {
+	if err != nil || !strings.Contains(string(contents), "root /opt/photos/bin/imvault backup --output-dir /var/backups/imvault --keep 7") {
 		t.Fatal("installed cron has the wrong prefix", err)
 	}
 	if err := os.WriteFile(job, []byte("# local schedule\n"), 0o644); err != nil {

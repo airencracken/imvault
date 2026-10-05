@@ -76,8 +76,10 @@ sudo install -d -o imvault -g imvault -m 0700 /var/backups/imvault
 sudo /usr/bin/imvault backup --output-dir /var/backups/imvault
 ```
 
-`--output-dir` creates a uniquely named snapshot below an existing directory.
-`--output NEW_DIRECTORY` chooses an exact destination instead. When run as root,
+`--output-dir` creates a uniquely named snapshot and keeps the newest seven
+completed scheduled snapshots for this instance. It creates a missing destination
+with mode 0700; native services need the destination provisioned above.
+`--output NEW_DIRECTORY` chooses a manual destination and never rotates it. When run as root,
 the CLI reads the installed service configuration and switches to its account,
 including database, storage and encryption settings. It reads literal settings;
 it does not evaluate shell commands. For an uninstalled instance, run as its
@@ -108,8 +110,19 @@ an active cron job. It runs daily at 03:17 as root; the CLI switches to the
 service account. Configure local cron mail to see failures. A source install
 with a different prefix should adjust the binary path.
 
-Backups are retained until you remove them. Check free space and command status,
-keep a copy on another machine, and periodically test recovery:
+Both examples use `--keep 7`. Change the cron command or override the systemd
+service's `ExecStart` to use another count; `--keep 0` disables rotation.
+Rotation runs only after a new snapshot verifies and is flushed to disk. It
+removes only completed scheduled snapshots marked for this database's resolved
+path. Manual backups, snapshots for another instance, symlinks, and incomplete
+or unrecognized directories are left alone. Moving the database starts a new
+retention group; inspect the old snapshots before removing them yourself.
+Concurrent scheduled runs serialize backup and rotation in the destination.
+
+The destination is private because snapshots contain passwords, tokens and
+private media, not because they need manual housekeeping. Allow room for the
+new full snapshot before rotation, check command status, keep an off-host copy,
+and periodically test recovery:
 
 ```sh
 imvault restore --input BACKUP --output NEW_DIRECTORY

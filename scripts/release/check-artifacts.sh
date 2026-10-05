@@ -52,7 +52,7 @@ for arch in amd64 arm64; do
 	for proxy in caddy/Caddyfile nginx/imvault.conf apache/imvault.conf; do
 		cmp "$work/$arch/contrib/$proxy" "$work/deb-$arch/usr/share/doc/imvault/contrib/$proxy" || fail "Debian proxy example is missing or differs: $proxy"
 	done
-	grep -qx 'ExecStart=/usr/bin/imvault backup --output-dir /var/backups/imvault' "$work/deb-$arch/usr/lib/systemd/system/imvault-backup.service" || fail 'Debian backup command is incorrect.'
+	grep -qx 'ExecStart=/usr/bin/imvault backup --output-dir /var/backups/imvault --keep 7' "$work/deb-$arch/usr/lib/systemd/system/imvault-backup.service" || fail 'Debian backup command is incorrect.'
 	cmp contrib/systemd/imvault-backup.timer "$work/deb-$arch/usr/lib/systemd/system/imvault-backup.timer" || fail 'Debian backup timer differs.'
 	cmp contrib/cron/imvault-backup "$work/deb-$arch/usr/share/doc/imvault/contrib/cron/imvault-backup" || fail 'Debian cron example differs.'
 	test ! -e "$work/deb-$arch/etc/cron.d/imvault-backup" || fail 'Debian package activates backups without consent.'

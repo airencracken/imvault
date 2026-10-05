@@ -182,5 +182,77 @@
         "after": "c.SecureCookies = c.SecureCookies",
         "package": "./internal/config",
         "run": "^TestFamilyDefaultsAndHTTPSCookies$"
+    },
+    {
+        "name": "scheduled backups default to seven",
+        "file": "cmd/imvault/maintenance.go",
+        "before": "flags.IntVar(&keep, \"keep\", 7,",
+        "after": "flags.IntVar(&keep, \"keep\", 30,",
+        "package": "./cmd/imvault",
+        "run": "^TestScheduledBackupCommandDefaultsToSevenAndAllowsExplicitRetention$"
+    },
+    {
+        "name": "retention count has no off by one",
+        "file": "internal/maintenance/rotation.go",
+        "before": "i >= keep-1",
+        "after": "i >= keep",
+        "package": "./internal/maintenance",
+        "run": "^TestScheduledRetentionCountsAndRestoresForEachPolicy$"
+    },
+    {
+        "name": "rotation preserves the just completed snapshot",
+        "file": "internal/maintenance/rotation.go",
+        "before": "if name != current {",
+        "after": "if true {",
+        "package": "./internal/maintenance",
+        "run": "^TestRotationPreservesNewSnapshotAfterClockMovesBack$"
+    },
+    {
+        "name": "rotation does not touch another instance",
+        "file": "internal/maintenance/rotation.go",
+        "before": "marker.Instance == instanceID",
+        "after": "true",
+        "package": "./internal/maintenance",
+        "run": "^TestRotationLeavesManualOtherInstanceMalformedAndSymlinkBackups$"
+    },
+    {
+        "name": "rotation only selects scheduled names",
+        "file": "internal/maintenance/rotation.go",
+        "before": "if !entry.IsDir() || !scheduledName(entry.Name()) {",
+        "after": "if !entry.IsDir() {",
+        "package": "./internal/maintenance",
+        "run": "^TestRotationLeavesManualOtherInstanceMalformedAndSymlinkBackups$"
+    },
+    {
+        "name": "retention marker schema rejects extra fields",
+        "file": "internal/maintenance/rotation.go",
+        "before": "\tdecoder.DisallowUnknownFields()",
+        "after": "\t// unknown fields accepted",
+        "package": "./internal/maintenance",
+        "run": "^TestRetentionRejectsUnsafeDirectoriesAndMarkerSchemas$"
+    },
+    {
+        "name": "failed backup is reported without rotation",
+        "file": "internal/maintenance/rotation.go",
+        "before": "if err := Backup(ctx, cfg, st, objects, output, out); err != nil {\n\t\treturn \"\", err",
+        "after": "if err := Backup(ctx, cfg, st, objects, output, out); err != nil {\n\t\treturn output, nil",
+        "package": "./internal/maintenance",
+        "run": "^TestFailedScheduledBackupAndMissingCurrentCannotPrune$"
+    },
+    {
+        "name": "scheduled backups respect the destination lock",
+        "file": "internal/maintenance/rotation.go",
+        "before": "lock, err := lockBackupDestination(ctx, parent)",
+        "after": "lock, err := lockBackupDestination(ctx, filepath.Join(parent, \"other\"))",
+        "package": "./internal/maintenance",
+        "run": "^TestScheduledBackupWaitsForDestinationLock$"
+    },
+    {
+        "name": "public backup destinations are refused",
+        "file": "internal/maintenance/rotation.go",
+        "before": "!info.IsDir() || info.Mode().Perm()&0o077 != 0",
+        "after": "!info.IsDir()",
+        "package": "./internal/maintenance",
+        "run": "^TestRetentionRejectsUnsafeDirectoriesAndMarkerSchemas$"
     }
 ]
