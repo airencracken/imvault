@@ -292,6 +292,8 @@ func ParseKind(s string) Kind {
 //
 // UserID is nil for anonymous uploads; those carry an ExpiresAt deadline.
 type File struct {
+	// Rotation is a clockwise display correction; the original is unchanged.
+	Rotation     int
 	ID           string
 	UserID       *int64
 	OriginalName string
@@ -343,6 +345,9 @@ func (f *File) IsAnimated() bool { return f.Kind == KindAnimated }
 // HasMotion reports whether the file moves, either as a clip or an animation.
 func (f *File) HasMotion() bool { return f.IsVideo() || f.IsAnimated() }
 
+// CanRotate reports whether this photo has both generated still renditions.
+func (f *File) CanRotate() bool { return !f.HasMotion() && f.ThumbKey != "" && f.PreviewKey != "" }
+
 // IsAnimatedGIF is used by templates to decide whether a grid thumbnail can be
 // swapped for the moving version on hover.
 func (f *File) IsAnimatedGIF() bool { return f.IsAnimated() && f.Ext == "gif" }
@@ -382,7 +387,11 @@ func (f *File) Dimensions() string {
 	if f.Width == 0 || f.Height == 0 {
 		return ""
 	}
-	return fmt.Sprintf("%d×%d", f.Width, f.Height)
+	width, height := f.Width, f.Height
+	if f.Rotation == 90 || f.Rotation == 270 {
+		width, height = height, width
+	}
+	return fmt.Sprintf("%d×%d", width, height)
 }
 
 // Setting keys for the instance-wide policy an administrator can change while

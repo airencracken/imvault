@@ -213,3 +213,12 @@ uploads and albums. Referring to another account's resource returns `404`, not
 `403`, so the API cannot be used to probe for what exists.
 
 ---
+
+### Photo rotation
+
+File responses include `rotation` (clockwise degrees: 0, 90, 180, or 270) and
+`preview_url`. Thumbnails and previews include the saved correction; `raw_url`
+always serves the original under its metadata sharing policy. A corrected
+full-resolution PNG without metadata is available at `/f/{id}/rotated` when
+rotation is nonzero, subject to the file's usual access rules. The account
+export retains the original and records its rotation in the manifest.

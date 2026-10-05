@@ -9,7 +9,9 @@ Each version has Linux **amd64** (x86-64) and **arm64** (AArch64) builds:
 - `imvault_VERSION_source.tar.gz`: the corresponding source.
 - `imvault_VERSION_checksums.txt`: SHA-256 checksums for all five artifacts.
 
-See [the 0.12.0 release notes](release-notes/0.12.0.md) before upgrading: it
+See [the 0.14.0 release notes](release-notes/0.14.0.md) for photo rotation and
+its database migration. See [the 0.13.1 release notes](release-notes/0.13.1.md)
+for family defaults and scheduled backups. See [the 0.12.0 release notes](release-notes/0.12.0.md) before upgrading: it
 changes proxy, mail and OIDC settings and the database schema.
 
 The Go compiler is only needed when building from source.
@@ -21,7 +23,7 @@ recommends it. HTTPS connections also need your system's CA certificates.
 Select the version and architecture you want. For example:
 
 ```sh
-release_version=0.13.1
+release_version=0.14.0
 release_arch=amd64
 release_url="https://github.com/airencracken/imvault/releases/download/v$release_version"
 curl -fLO "$release_url/imvault_${release_version}_${release_arch}.deb"

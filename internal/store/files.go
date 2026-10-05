@@ -17,7 +17,7 @@ import (
 // through the content hash. COALESCE keeps a file whose blob is somehow missing
 // from breaking every listing that touches it.
 const fileColumns = `f.id, f.user_id, f.original_name, f.description, f.ext, f.mime, f.size,
-	f.width, f.height, f.sha256,
+	f.width, f.height, f.rotation, f.sha256,
 	COALESCE(b.object_key, ''), COALESCE(b.thumb_key, ''), COALESCE(b.preview_key, ''),
 	COALESCE(b.details_json, ''), COALESCE(b.details_version, 0),
 	f.visibility, f.metadata, f.location, f.kind, f.duration_ms, f.frame_count, f.views, f.created_at, f.expires_at,
@@ -40,7 +40,7 @@ func scanFile(sc rowScanner) (*models.File, error) {
 	)
 	if err := sc.Scan(
 		&f.ID, &userID, &f.OriginalName, &f.Description, &f.Ext, &f.Mime, &f.Size,
-		&f.Width, &f.Height, &f.SHA256, &f.ObjectKey, &f.ThumbKey, &f.PreviewKey, &f.Details, &f.DetailsVersion,
+		&f.Width, &f.Height, &f.Rotation, &f.SHA256, &f.ObjectKey, &f.ThumbKey, &f.PreviewKey, &f.Details, &f.DetailsVersion,
 		&visibility, &metadata, &location, &kind, &f.DurationMS, &f.FrameCount, &f.Views, &created, &expires, &f.Username,
 	); err != nil {
 		return nil, err

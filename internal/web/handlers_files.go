@@ -25,8 +25,6 @@ func (s *Server) handleFileRaw(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Count the view once we know the request is legitimate.
-
 	key, ok := s.objectFor(w, r, file, file.ObjectKey)
 	if !ok {
 		return
@@ -42,6 +40,10 @@ func (s *Server) handleFileThumb(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if file.Rotation != 0 {
+		s.serveRotatedPhoto(w, r, file, file.ThumbKey, false)
+		return
+	}
 	s.serveObject(w, r, file, file.ThumbKey, mimeForKey(file.ThumbKey), "inline")
 }
 
@@ -55,6 +57,10 @@ func (s *Server) handleFilePreview(w http.ResponseWriter, r *http.Request) {
 	}
 
 	key := file.PreviewKeyOrObject()
+	if file.Rotation != 0 {
+		s.serveRotatedPhoto(w, r, file, key, false)
+		return
+	}
 	// A rendition has already been re-encoded and carries nothing, so the
 	// policy only has anything to say when the preview is the stored object,
 	// which is how animations and clips are served.

@@ -342,5 +342,37 @@
         "after": "",
         "package": "./internal/web",
         "run": "^TestPublicHouseRulesAndInvitationEntrance$"
+    },
+    {
+        "name": "photo rotation requires edit permission",
+        "file": "internal/web/photo_rotation.go",
+        "before": "file, ok := s.loadChangeableFile(w, r)",
+        "after": "file, ok := s.loadFile(w, r)",
+        "package": "./internal/web",
+        "run": "^TestPhotoRotationAccessValidationAndAPIContract$"
+    },
+    {
+        "name": "clockwise photo rotation uses correct turn",
+        "file": "internal/imaging/rotate.go",
+        "before": "rotated = imaging.Rotate270(decoded)",
+        "after": "rotated = imaging.Rotate90(decoded)",
+        "package": "./internal/imaging",
+        "run": "^TestRotationPreservesPixelsAlphaAndQuarterTurnGeometry$"
+    },
+    {
+        "name": "photo rotation stays on one file",
+        "file": "internal/store/photo_rotation.go",
+        "before": " WHERE id=? AND kind='image'",
+        "after": " WHERE (id=? OR 1=1) AND kind='image'",
+        "package": "./internal/store",
+        "run": "^TestPhotoRotationIsPerFileAtomicAndConcurrent$"
+    },
+    {
+        "name": "rotated previews change cache version",
+        "file": "internal/models/renditions.go",
+        "before": "return fmt.Sprintf(\"%s|rotation-v1:%d\", key, f.Rotation)",
+        "after": "return key",
+        "package": "./internal/web",
+        "run": "^TestPhotoRotationRoutesRenditionsOriginalAndCache$"
     }
 ]

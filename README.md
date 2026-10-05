@@ -101,6 +101,12 @@ Anonymous files are public and expire after the configured retention window.
 Found a keeper? Open a photo and choose **Favorite**. Your **Favorites** page
 keeps those little discoveries together, just for you.
 
+To correct a sideways photo, open it and choose **Rotate left** or **Rotate
+right**. The correction appears in the gallery and previews; **Reset rotation**
+restores the uploaded orientation. The original is kept intact, and **Download
+rotated photo** saves a full-resolution PNG without metadata. Videos and
+animations cannot be rotated.
+
 To tag several photos, open **Your gallery**, select their checkboxes (or choose
 **Select all on this page**), enter comma-separated tags, and choose **Add tags**.
 Existing tags are kept. A photo's **Location** section shows its coordinates and

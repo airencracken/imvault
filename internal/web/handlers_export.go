@@ -47,6 +47,7 @@ type exportAccount struct {
 }
 
 type exportFile struct {
+	Rotation    int    `json:"rotation"`
 	ID          string `json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
@@ -209,6 +210,7 @@ func (s *Server) exportableFiles(r *http.Request, userID int64) ([]exportFile, e
 
 		for _, file := range batch {
 			out = append(out, exportFile{
+				Rotation:    file.Rotation,
 				ID:          file.ID,
 				Name:        file.OriginalName,
 				Description: file.Description,

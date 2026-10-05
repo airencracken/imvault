@@ -21,6 +21,8 @@ import (
 
 // apiFileJSON is the wire representation of a stored file.
 type apiFileJSON struct {
+	Rotation    int    `json:"rotation"`
+	PreviewURL  string `json:"preview_url"`
 	ID          string `json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
@@ -71,6 +73,8 @@ type apiUploadResponse struct {
 
 func newAPIFile(r *http.Request, s *Server, f *models.File) apiFileJSON {
 	out := apiFileJSON{
+		Rotation:    f.Rotation,
+		PreviewURL:  s.absoluteURL(r, f.PreviewURL()),
 		ID:          f.ID,
 		Name:        f.OriginalName,
 		Description: f.Description,

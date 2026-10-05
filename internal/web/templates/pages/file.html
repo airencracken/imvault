@@ -19,6 +19,18 @@
     {{with .File.Description}}<p class="file-description">{{.}}</p>{{end}}
 
     {{if .IsOwner}}
+    {{if .File.CanRotate}}
+    <section class="panel stack" aria-label="Photo rotation">
+      <h2>Rotate photo</h2>
+      <form method="post" action="/f/{{.File.ID}}/rotate" class="row-actions">
+        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+        <button class="btn small" name="direction" value="left" type="submit">Rotate left</button>
+        <button class="btn small" name="direction" value="right" type="submit">Rotate right</button>
+        {{if .File.Rotation}}<button class="btn small" name="direction" value="reset" type="submit">Reset rotation</button>{{end}}
+      </form>
+      <p class="muted">Changes the gallery and previews. Your original stays untouched.</p>
+    </section>
+    {{end}}
     <details class="panel stack">
       <summary>Rename</summary>
       <form class="stack" method="post" action="/f/{{.File.ID}}/rename">
@@ -43,6 +55,9 @@
     </details>
     {{end}}
 
+    {{if .File.Rotation}}
+    <p><a href="/f/{{.File.ID}}/rotated" hx-boost="false">Download rotated photo</a> <span class="muted">(PNG)</span></p>
+    {{end}}
     {{if .IsAuthed}}{{template "favorite_button" .}}{{end}}
 
     <dl class="facts">
@@ -95,7 +110,7 @@
 
     <section class="block">
       <h2>Links</h2>
-      <label class="copy">Direct
+      <label class="copy">{{if .File.Rotation}}Original{{else}}Direct{{end}}
         <input readonly value="{{.RawURL}}" onclick="this.select()">
       </label>
       <label class="copy">Page

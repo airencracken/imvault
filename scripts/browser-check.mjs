@@ -20,6 +20,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { checkThemes } from "./browser-themes.mjs";
+import { checkPhotoRotation } from "./browser-rotation.mjs";
 
 const BROWSER_CANDIDATES = [
   process.env.CHROME,
@@ -415,6 +416,10 @@ async function main() {
     `);
     record("a members-level upload succeeds", fileID !== "", "the upload returned no file card");
 
+    await page.goto(`${base}/f/${fileID}`);
+
+    await checkPhotoRotation(page, base);
+    record("photo rotation, reset and mobile controls work with and without JavaScript", true);
     await page.goto(`${base}/f/${fileID}`);
 
     // --- rename through the ordinary HTML form ---
