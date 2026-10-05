@@ -114,6 +114,8 @@ jobs:
           docker run --rm -v "$PWD:/work:ro" -w /work \
             -e RELEASE_PACKAGE_TEST=1 -e PACKAGE_ARCH \
             debian:trixie-slim sh -c '
+              # Slim images exclude docs by default; exercise the complete package.
+              rm -f /etc/dpkg/dpkg.cfg.d/docker || exit 1
               apt-get update || exit 1
               apt-get install -y ca-certificates curl binutils || exit 1
               sh scripts/release/test-deb.sh dist/imvault_*_"$PACKAGE_ARCH".deb
