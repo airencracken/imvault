@@ -76,9 +76,8 @@ nfpms:
       - src: docs/
         dst: /usr/share/doc/imvault/docs
         type: tree
-      - src: contrib/cron/
-        dst: /usr/share/doc/imvault/contrib/cron
-        type: tree
+      - src: contrib/cron/imvault-backup
+        dst: /usr/share/doc/imvault/contrib/cron/imvault-backup
       - src: contrib/caddy/
         dst: /usr/share/doc/imvault/contrib/caddy
         type: tree
