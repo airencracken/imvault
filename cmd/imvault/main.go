@@ -86,6 +86,7 @@ func run() (err error) {
 		return err
 	}
 
+	cfg.Version = buildVersion()
 	if err := cfg.EnsureDirs(); err != nil {
 		return err
 	}

@@ -409,11 +409,13 @@ const (
 	SettingWelcomeText           = "welcome_text"
 	SettingHouseRules            = "house_rules"
 	SettingOwnerContact          = "owner_contact"
+	SettingShowVersion           = "show_version"
 )
 
 // Branding is the public-facing identity resolved from database settings and
 // configuration defaults.
 type Branding struct {
+	ShowVersion  bool
 	SiteName     string
 	SourceURL    string
 	WelcomeTitle string

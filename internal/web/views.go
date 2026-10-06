@@ -10,6 +10,8 @@ import (
 // base is embedded in every page/view struct so the layout always has what it
 // needs to render navigation, the CSRF token and flash messages.
 type base struct {
+	Version      string
+	ShowVersion  bool
 	Title        string
 	SiteName     string
 	WelcomeTitle string

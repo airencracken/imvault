@@ -14,13 +14,14 @@
 // Needs node and a Chromium-family browser. Exits 0 without running anything if
 // either is missing, so it is safe to leave in a general check target.
 
-import { spawn } from "node:child_process";
+import { spawn, execFileSync } from "node:child_process";
 import { mkdtemp, rm, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { checkThemes } from "./browser-themes.mjs";
 import { checkPhotoRotation } from "./browser-rotation.mjs";
+import { checkVersionDisplay } from "./browser-version.mjs";
 
 const BROWSER_CANDIDATES = [
   process.env.CHROME,
@@ -215,7 +216,7 @@ async function main() {
   const debugPort = 9223;
   const base = `http://127.0.0.1:${port}`;
 
-  const build = spawn("go", ["build", "-o", join(dataDir, "imvault"), "./cmd/imvault"], {
+  const build = spawn("go", ["build", "-ldflags", "-X main.version=browser-version-test", "-o", join(dataDir, "imvault"), "./cmd/imvault"], {
     cwd: root,
     stdio: "inherit",
   });
@@ -295,6 +296,9 @@ async function main() {
       `));
     }
     await page.send("Emulation.clearDeviceMetricsOverride");
+
+    await checkVersionDisplay(page, base, execFileSync(join(dataDir, "imvault"), ["--version"], { encoding: "utf8" }).trim());
+    record("optional version footer saves and renders with and without JavaScript", true);
 
     // --- the admin page loads and wires itself up ---
     await page.goto(`${base}/admin/users`);

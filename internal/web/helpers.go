@@ -168,6 +168,8 @@ func (s *Server) base(r *http.Request, title string) base {
 	}
 
 	b := base{
+		Version:           s.cfg.Version,
+		ShowVersion:       branding.ShowVersion,
 		Title:             title,
 		SiteName:          branding.SiteName,
 		WelcomeTitle:      branding.WelcomeTitle,

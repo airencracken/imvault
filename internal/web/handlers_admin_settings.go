@@ -309,6 +309,7 @@ func (s *Server) handleAdminSaveSettings(w http.ResponseWriter, r *http.Request)
 	var saveErr error
 	if _, hasBranding := r.Form["site_name"]; hasBranding {
 		branding := models.Branding{
+			ShowVersion:  r.FormValue("show_version") == "1",
 			SiteName:     strings.TrimSpace(r.FormValue("site_name")),
 			SourceURL:    strings.TrimSpace(r.FormValue("source_url")),
 			WelcomeTitle: strings.TrimSpace(r.FormValue("welcome_title")),

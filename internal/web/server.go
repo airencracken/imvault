@@ -74,6 +74,9 @@ type Server struct {
 
 // New constructs a Server and installs the middleware chain.
 func New(cfg *config.Config, st *store.Store, objects storage.Backend, proc *media.Processor, sender smtp.Sender, cipher *secrets.Cipher, log *slog.Logger) (*Server, error) {
+	if cfg.Version == "" {
+		cfg.Version = "devel"
+	}
 	r, err := newRenderer()
 	if err != nil {
 		return nil, err

@@ -101,6 +101,10 @@ Anonymous files are public and expire after the configured retention window.
 Found a keeper? Open a photo and choose **Favorite**. Your **Favorites** page
 keeps those little discoveries together, just for you.
 
+Run `imvault --version` to identify your binary. The site settings page also
+shows the running version. **Show version in the footer** makes it visible to
+visitors; it is off by default.
+
 To correct a sideways photo, open it and choose **Rotate left** or **Rotate
 right**. The correction appears in the gallery and previews; **Reset rotation**
 restores the uploaded orientation. The original is kept intact, and **Download

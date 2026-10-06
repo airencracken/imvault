@@ -2,6 +2,7 @@
 <header class="page-head">
   <div>
     <h1>Instance settings</h1>
+    <p class="muted">Running Imvault {{.Version}}.</p>
     <p class="muted">
       Policy that applies to everybody. Per-account limits live under
       <a href="/admin/users">Users</a>.
@@ -42,6 +43,10 @@
   </label>
   <label>Source link <span class="muted">(blank hides it)</span>
     <input name="source_url" type="url" maxlength="512" value="{{.Branding.SourceURL}}" placeholder="https://example.org/source">
+  </label>
+  <label class="row">
+    <input type="checkbox" name="show_version" value="1" {{if .Branding.ShowVersion}}checked{{end}}>
+    Show version in the footer
   </label>
   <label>Welcome heading
     <input name="welcome_title" maxlength="120" value="{{.Branding.WelcomeTitle}}">

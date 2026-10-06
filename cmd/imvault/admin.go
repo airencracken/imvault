@@ -31,6 +31,13 @@ func runCommand(args []string, stdin io.Reader, stdout io.Writer) error {
 		return runSandbox(args[1:], stdout)
 	}
 	switch args[0] {
+	case "version":
+		return printVersion(args[1:], stdout)
+	case "--version":
+		if len(args) != 1 {
+			return errors.New("usage: imvault --version")
+		}
+		return printVersion(nil, stdout)
 	case "serve":
 		return serve(args[1:], stdout)
 	case "proxy-config":

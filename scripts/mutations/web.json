@@ -374,5 +374,29 @@
         "after": "return key",
         "package": "./internal/web",
         "run": "^TestPhotoRotationRoutesRenditionsOriginalAndCache$"
+    },
+    {
+        "name": "version hidden unless opted in",
+        "file": "internal/web/templates/layout.html",
+        "before": "{{if .ShowVersion}}",
+        "after": "{{if true}}",
+        "package": "./internal/web",
+        "run": "^TestVersionDisplayDefaultsPermissionsPersistenceAndEscaping$"
+    },
+    {
+        "name": "version preference saved",
+        "file": "internal/store/settings.go",
+        "before": "strconv.FormatBool(branding.ShowVersion)",
+        "after": "strconv.FormatBool(false)",
+        "package": "./internal/store",
+        "run": "^TestVersionBrandingFallbackAndAtomicity$"
+    },
+    {
+        "name": "version command reports build",
+        "file": "cmd/imvault/version.go",
+        "before": "buildVersion())",
+        "after": "\"devel\")",
+        "package": "./cmd/imvault",
+        "run": "^TestVersionCommandIsExactAndDoesNotTouchData$"
     }
 ]

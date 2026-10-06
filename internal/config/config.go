@@ -26,6 +26,8 @@ import (
 
 // Config holds all runtime settings for the server.
 type Config struct {
+	// Version identifies the running build; it is supplied by the executable.
+	Version string
 	// Name is the default instance name when an administrator has not set one.
 	Name string
 	// Addr is the host:port the HTTP server listens on.
