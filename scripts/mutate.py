@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Synced from github.com/airencracken/comfylib v0.1.2 tools/mutate.py; do not edit here. scripts/mutate_sync_test.go holds it to that copy.
+# Synced from github.com/airencracken/comfylib v0.1.3 tools/mutate.py; do not edit here. scripts/mutate_sync_test.go holds it to that copy.
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Check that regression tests reject deliberate defects.
 

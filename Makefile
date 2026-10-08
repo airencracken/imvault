@@ -115,7 +115,7 @@ check-fmt: ## Verify Go formatting without changing files
 check-complexity: ## Keep production Go functions at cyclomatic complexity 15 or below
 	go run github.com/fzipp/gocyclo/cmd/gocyclo@v0.6.0 -over 15 -ignore '_test\.go$$' cmd internal contrib
 
-check: check-fmt vet test check-js test-js check-complexity release-check ## What CI should run
+check: test-cli check-fmt vet test check-js test-js check-complexity release-check ## What CI should run
 
 # --- installing on a server -------------------------------------------------
 
@@ -219,3 +219,7 @@ install-backup-cron: ## Install the optional daily backup cron job (prepare the 
 		sed 's|/usr/bin/imvault|$(PREFIX)/bin/imvault|' contrib/cron/imvault-backup > "$(DESTDIR)$(SYSCONFDIR)/cron.d/imvault-backup" || exit 1; \
 		chmod 644 "$(DESTDIR)$(SYSCONFDIR)/cron.d/imvault-backup"; \
 	fi
+
+.PHONY: test-cli
+test-cli: build ## Check hidden password prompts through an actual terminal
+	python3 scripts/check_password_cli.py --binary bin/imvault --command create-admin --data-env IMVAULT_DATA_DIR --prompt "Administrator password: " --confirmation "Confirm administrator password: "

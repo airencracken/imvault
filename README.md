@@ -266,4 +266,4 @@ For the coordinated Comfylib CSRF update on this branch, see
 
 Explicit album discussion handoffs and private preview rules: [docs/discussions.md](docs/discussions.md).
 
-[Shared administration helpers](docs/shared-administration.md) use Comfylib v0.1.2 across the Comfyware apps.
+[Shared administration helpers](docs/shared-administration.md) use Comfylib v0.1.3 across the Comfyware apps.

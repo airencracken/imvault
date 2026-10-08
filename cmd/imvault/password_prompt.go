@@ -17,8 +17,10 @@ func readPromptAdminPassword() (string, error) {
 	if !term.IsTerminal(fd) {
 		return "", errors.New("password prompt requires a terminal; use --password-stdin")
 	}
-	return readConfirmedAdminPassword(os.Stderr, func() ([]byte, error) {
-		return term.ReadPassword(fd)
+	return password.WithHiddenInput(fd, func() (string, error) {
+		return readConfirmedAdminPassword(os.Stderr, func() ([]byte, error) {
+			return term.ReadPassword(fd)
+		})
 	})
 }
 
