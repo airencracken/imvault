@@ -3,19 +3,15 @@
 package web
 
 import (
-	"bytes"
 	"errors"
-	"image"
-	_ "image/gif"
-	_ "image/jpeg"
-	"image/png"
+	"github.com/airencracken/comfylib/brandimage"
 	"io"
 	"net/http"
 
 	"imvault/internal/store"
 )
 
-const maxBrandImageBytes = 2 << 20
+const maxBrandImageBytes = brandimage.MaxBytes
 
 func (s *Server) handleBrandingAsset(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
@@ -88,20 +84,5 @@ func uploadedBrandImage(r *http.Request, field string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(data) == 0 || len(data) > maxBrandImageBytes {
-		return nil, errors.New("choose an image no larger than 2 MiB")
-	}
-	config, _, err := image.DecodeConfig(bytes.NewReader(data))
-	if err != nil || config.Width < 1 || config.Height < 1 || config.Width > 2048 || config.Height > 2048 || int64(config.Width)*int64(config.Height) > 4_194_304 {
-		return nil, errors.New("choose a valid image up to 2048 by 2048 pixels")
-	}
-	img, _, err := image.Decode(bytes.NewReader(data))
-	if err != nil {
-		return nil, errors.New("choose a PNG, JPEG, or GIF image")
-	}
-	var output bytes.Buffer
-	if err := png.Encode(&output, img); err != nil {
-		return nil, err
-	}
-	return output.Bytes(), nil
+	return brandimage.Normalize(data)
 }
