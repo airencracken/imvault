@@ -43,6 +43,8 @@ current-password checks under `/settings`) share the sign-in rate limit.
 | `POST` | `/f/{id}/delete` | Delete the file |
 | `POST` | `/f/{id}/tags`, `/f/{id}/tags/{tagID}/delete` | Attach or detach a tag |
 | `GET` `POST` | `/albums` | List and create albums; lists the ones others shared too |
+| `POST` | `/a/{slug}/share` | Prepare an explicit link-only Witmoot draft (signed-in album reader) |
+| `POST` | `/a/{slug}/discussion` | Owner-managed discussion links |
 | `GET` | `/a/{slug}` | Album page |
 | `POST` | `/a/{slug}/settings` | Rename, change visibility or sharing (owner only) |
 | `POST` | `/a/{slug}/delete` | Delete an album (keeps its files) |

@@ -20,6 +20,7 @@
 </header>
 
 {{template "file_grid" .Grid}}
+<section class="panel"><h2>Album discussions</h2><p class="muted">The album stays here; a discussion keeps a link to it. Its contents can change.</p>{{range .Discussions}}<p><a href="{{.}}" hx-boost="false" rel="noreferrer">{{.}}</a></p>{{if $.DiscussionOwner}}<form method="post" action="/a/{{$.Album.Slug}}/discussion"><input type="hidden" name="csrf_token" value="{{$.CSRFToken}}"><input type="hidden" name="url" value="{{.}}"><input type="hidden" name="remove" value="1"><button type="submit">Remove link</button></form>{{end}}{{end}}{{if .DiscussionOwner}}<form method="post" action="/a/{{.Album.Slug}}/discussion"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><label>Existing discussion link<input type="url" name="url" required maxlength="4096"></label><button type="submit">Link discussion</button></form>{{end}}{{if and .User .DiscussionEnabled}}<form method="post" action="/a/{{.Album.Slug}}/share"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><button type="submit">Prepare a Witmoot discussion</button></form>{{end}}</section>
 
 {{with .ReportForm}}{{template "report_form" .}}{{end}}
 

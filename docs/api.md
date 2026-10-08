@@ -202,6 +202,7 @@ batch unchanged.
 | `GET` | `/api/v1/tags` | List tags |
 | `GET` | `/api/v1/albums` | List your albums |
 | `POST` | `/api/v1/albums` | Create an album (optionally seeding `files`) |
+| `GET` | `/api/v1/albums/{ref}/preview` | Authenticated owned-album summary; only public albums, with public image count |
 | `GET` | `/api/v1/albums/{ref}` | Album with its files |
 | `PATCH` | `/api/v1/albums/{ref}` | Update title, description, visibility, `access`, `metadata`, or `location` |
 | `DELETE` | `/api/v1/albums/{ref}` | Delete an album, keeping its files |
@@ -222,3 +223,5 @@ always serves the original under its metadata sharing policy. A corrected
 full-resolution PNG without metadata is available at `/f/{id}/rotated` when
 rotation is nonzero, subject to the file's usual access rules. The account
 export retains the original and records its rotation in the manifest.
+
+Album previews and discussion links follow [the discussion access rules](discussions.md).

@@ -328,6 +328,8 @@ type tagPageView struct {
 }
 
 type albumView struct {
+	Discussions                        []string
+	DiscussionEnabled, DiscussionOwner bool
 	base
 	Album *models.Album
 	Grid  fileCardsView

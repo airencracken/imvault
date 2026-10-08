@@ -26,6 +26,7 @@ import (
 
 // Config holds all runtime settings for the server.
 type Config struct {
+	WitmootURL string
 	// Version identifies the running build; it is supplied by the executable.
 	Version string
 	// Name is the default instance name when an administrator has not set one.
@@ -181,10 +182,11 @@ func load(dataDirOverride, dbPathOverride string) (*Config, error) {
 	}
 
 	c := &Config{
-		Name:    getenv("IMVAULT_NAME", "Imvault"),
-		Addr:    getenv("IMVAULT_ADDR", ":8080"),
-		DataDir: dataDir,
-		BaseURL: strings.TrimRight(getenv("IMVAULT_BASE_URL", ""), "/"),
+		Name:       getenv("IMVAULT_NAME", "Imvault"),
+		Addr:       getenv("IMVAULT_ADDR", ":8080"),
+		DataDir:    dataDir,
+		WitmootURL: getenv("IMVAULT_WITMOOT_URL", ""),
+		BaseURL:    strings.TrimRight(getenv("IMVAULT_BASE_URL", ""), "/"),
 		// Set but empty hides the link, so empty is a value here.
 		SourceURL:             lookupenv("IMVAULT_SOURCE_URL", "https://github.com/airencracken/imvault"),
 		AllowSignup:           env.boolean("IMVAULT_ALLOW_SIGNUP", true),

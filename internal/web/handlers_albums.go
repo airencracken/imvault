@@ -208,7 +208,13 @@ func (s *Server) handleAlbumPage(w http.ResponseWriter, r *http.Request) {
 		grid.ShowOwner = true
 	}
 
+	links, err := s.store.AlbumDiscussions(r.Context(), album.ID)
+	if err != nil {
+		http.Error(w, "database error", 500)
+		return
+	}
 	view := albumView{
+		Discussions: links, DiscussionEnabled: s.cfg.WitmootURL != "", DiscussionOwner: ownsAlbum(user, album),
 		base:          s.base(r, album.Title),
 		Album:         album,
 		IsOwner:       isOwner,

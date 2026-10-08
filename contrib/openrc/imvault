@@ -14,6 +14,8 @@
 # server reads from its environment.
 
 name="imvault"
+export IMVAULT_WITMOOT_URL
+
 description="Self-hosted image and short clip host"
 
 # Defaults; anything set in /etc/conf.d/imvault overrides them and is exported

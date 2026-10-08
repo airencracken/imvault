@@ -84,6 +84,11 @@ func newQueueHarness(t *testing.T) *harness {
 
 // newHarnessFull assembles a server with a capturing mail sender.
 func newHarnessFull(t *testing.T, mutate func(*config.Config), mode mailMode) *harness {
+	return newHarnessTransport(t, mutate, mode, true)
+}
+
+// Recorder tests use the complete router without requiring a listening socket.
+func newHarnessTransport(t *testing.T, mutate func(*config.Config), mode mailMode, listen bool) *harness {
 	t.Helper()
 
 	dir := t.TempDir()
@@ -169,8 +174,13 @@ func newHarnessFull(t *testing.T, mutate func(*config.Config), mode mailMode) *h
 		t.Fatalf("cookie jar: %v", err)
 	}
 
-	ts := httptest.NewServer(srv.Handler())
-	t.Cleanup(ts.Close)
+	var ts *httptest.Server
+	if listen {
+		ts = httptest.NewServer(srv.Handler())
+		t.Cleanup(ts.Close)
+	} else {
+		ts = &httptest.Server{URL: "https://vault.example"}
+	}
 
 	// A relay needs a configured address for the links it sends, exactly as
 	// config.Load insists on one.

@@ -55,3 +55,6 @@
 # IMVAULT_SANDBOX=true
 # IMVAULT_MEDIA_SANDBOX=true
 # IMVAULT_BWRAP=/usr/bin/bwrap
+
+# Optional explicit album discussions; also configure IMVAULT_BASE_URL.
+# IMVAULT_WITMOOT_URL=https://board.example.org

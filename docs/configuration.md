@@ -21,6 +21,7 @@ settings](#instance-settings) below.
 | `IMVAULT_ADDR` | `:8080` | Listen address |
 | `IMVAULT_DATA_DIR` | `./data` | Root for the database and stored objects |
 | `IMVAULT_DB` | `<data>/imvault.db` | SQLite database path |
+| `IMVAULT_WITMOOT_URL` | *(empty)* | Optional Witmoot base URL for explicit album discussion drafts; requires configured IMVAULT_BASE_URL |
 | `IMVAULT_BASE_URL` | *(derived from request)* | Absolute prefix used when building share links; required when mail or OpenID Connect is configured |
 | `IMVAULT_NAME` | `Imvault` | Default name shown in the page title, header, and footer |
 | `IMVAULT_SOURCE_URL` | `https://github.com/airencracken/imvault` | Source link shown in the footer; set it to an empty value to hide it |

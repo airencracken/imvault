@@ -263,3 +263,5 @@ Optional Linux service confinement: [Bubblewrap setup and boundaries](docs/sandb
 
 For the coordinated Comfylib CSRF update on this branch, see
 [shared CSRF release coordination](docs/shared-csrf.md).
+
+Explicit album discussion handoffs and private preview rules: [docs/discussions.md](docs/discussions.md).
