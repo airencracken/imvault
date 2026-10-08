@@ -4,10 +4,7 @@ package web
 
 import (
 	"bytes"
-	"crypto/hmac"
-	"crypto/sha256"
 	"crypto/subtle"
-	"encoding/hex"
 	"errors"
 	"io"
 	"log/slog"
@@ -21,6 +18,7 @@ import (
 	"time"
 
 	"github.com/airencracken/comfylib/clientip"
+	tokens "github.com/airencracken/comfylib/token"
 
 	"imvault/internal/apikeys"
 	"imvault/internal/ids"
@@ -291,9 +289,7 @@ func (s *Server) expectedCSRF(w http.ResponseWriter, r *http.Request) string {
 // token never leaves its HttpOnly cookie, so nobody without it can compute
 // this, and the derivation is one-way, so publishing this reveals nothing.
 func sessionCSRFToken(sessionToken string) string {
-	mac := hmac.New(sha256.New, []byte(sessionToken))
-	mac.Write([]byte("imvault-csrf-v1"))
-	return hex.EncodeToString(mac.Sum(nil))
+	return tokens.SessionCSRF(sessionToken, "imvault-csrf-v1")
 }
 
 // setCSRFCookie hands the browser the token its forms and htmx headers echo.

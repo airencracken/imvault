@@ -260,3 +260,6 @@ The footer links to the source. If you run a modified version, point
 `IMVAULT_SOURCE_URL` at the corresponding source for your instance.
 
 Optional Linux service confinement: [Bubblewrap setup and boundaries](docs/sandbox.md).
+
+For the coordinated Comfylib CSRF update on this branch, see
+[shared CSRF release coordination](docs/shared-csrf.md).
