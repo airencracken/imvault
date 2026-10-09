@@ -72,7 +72,7 @@
   <a class="album-card" href="/a/{{.Slug}}">
     <strong>{{.Title}}</strong>
     <span class="muted">
-      {{.FileCount}} file{{if ne .FileCount 1}}s{{end}} · by {{default "unknown" .Username}}
+      {{.FileCount}} file{{if ne .FileCount 1}}s{{end}} · by {{if .Username}}<a href="/members/{{.UserID}}">{{.Username}}</a>{{else}}unknown{{end}}
     </span>
     {{if not .Visibility.IsPublic}}<span class="badge private">{{.Visibility.ShortLabel}}</span>{{end}}
     {{if .Access.Shared}}<span class="badge">shared</span>{{end}}

@@ -622,3 +622,7 @@ code {
 }
 
 .plain-prose { white-space: pre-wrap; }
+
+.member-profile { overflow-wrap:anywhere; max-width:48rem; }
+.profile-bio { white-space:pre-wrap; }
+.profile-link-fields { display:grid; gap:.5rem; min-width:0; padding:1rem; }

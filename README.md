@@ -266,4 +266,13 @@ For the coordinated Comfylib CSRF update on this branch, see
 
 Explicit album discussion handoffs and private preview rules: [docs/discussions.md](docs/discussions.md).
 
-[Shared administration helpers](docs/shared-administration.md) use Comfylib v0.1.3 across the Comfyware apps.
+[Shared administration helpers](docs/shared-administration.md) use Comfylib v0.1.5 across the Comfyware apps.
+
+## Member profiles
+
+Open Settings → Account → Profile to optionally add a name, a plain-text bio
+and up to five labeled HTTP/HTTPS links. Profile pages require sign-in and are
+linked from file and album authors, including public content. Private uploads,
+email and credentials stay off profiles; your username stays unchanged. Your
+account export includes your own profile even if you have no uploads. See the
+[0.17.0 release notes](docs/release-notes/0.17.0.md) before the migration 031 upgrade.

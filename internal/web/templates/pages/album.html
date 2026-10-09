@@ -6,7 +6,7 @@
       {{.Album.FileCount}} file{{if ne .Album.FileCount 1}}s{{end}}
       · visible to {{.Album.Visibility.Label}}
       · {{if .Album.Access.Shared}}anyone here can add their own{{else}}only its owner can add{{end}}
-      · by {{default "unknown" .Album.Username}}
+      · by {{if .Album.Username}}<a href="/members/{{.Album.UserID}}">{{.Album.Username}}</a>{{else}}unknown{{end}}
     </p>
     {{with .Album.Description}}<p>{{.}}</p>{{end}}
   </div>

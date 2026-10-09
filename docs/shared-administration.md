@@ -1,6 +1,6 @@
 # Shared administration helpers
 
-This release pins Comfylib v0.1.3. Confirmed CLI password prompting and branding
+This release pins Comfylib v0.1.5. Confirmed CLI password prompting and branding
 image normalization use the same implementations as Songstead and the other
 Comfyware companion. Comfylib disables terminal echo before either prompt is displayed and restores
 the terminal afterward. Prompt labels and password strength policy remain

@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/airencracken/comfylib/memberprofile"
 	"io"
 	"net/http"
 	"os"
@@ -36,14 +37,15 @@ type exportManifest struct {
 }
 
 type exportAccount struct {
-	Username        string `json:"username"`
-	Email           string `json:"email,omitempty"`
-	EmailVerified   bool   `json:"email_verified"`
-	Role            string `json:"role"`
-	CreatedAt       string `json:"created_at"`
-	FileCount       int    `json:"file_count"`
-	StorageUsed     int64  `json:"storage_used_bytes"`
-	TwoFactorEnable bool   `json:"two_factor_enabled"`
+	Profile         memberprofile.Profile `json:"profile"`
+	Username        string                `json:"username"`
+	Email           string                `json:"email,omitempty"`
+	EmailVerified   bool                  `json:"email_verified"`
+	Role            string                `json:"role"`
+	CreatedAt       string                `json:"created_at"`
+	FileCount       int                   `json:"file_count"`
+	StorageUsed     int64                 `json:"storage_used_bytes"`
+	TwoFactorEnable bool                  `json:"two_factor_enabled"`
 }
 
 type exportFile struct {
@@ -120,9 +122,15 @@ func (s *Server) handleAccountExport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	profile, err := s.store.MemberProfile(r.Context(), user.ID)
+	if err != nil {
+		s.exportFailure(w, user, "read profile", err)
+		return
+	}
 	manifest := exportManifest{
 		ExportedAt: time.Now().UTC().Format(time.RFC3339),
 		Account: exportAccount{
+			Profile:         profile.Biography,
 			Username:        user.Username,
 			Email:           user.Email,
 			EmailVerified:   user.EmailVerified,

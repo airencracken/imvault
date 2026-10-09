@@ -398,5 +398,37 @@
         "after": "\"devel\")",
         "package": "./cmd/imvault",
         "run": "^TestVersionCommandIsExactAndDoesNotTouchData$"
-    }
+    },
+  {
+    "name": "member profile authentication",
+    "file": "internal/web/server.go",
+    "before": "s.requireUser(s.handleMemberProfile)",
+    "after": "s.handleMemberProfile",
+    "package": "./internal/web",
+    "run": "^TestMemberProfileRoutesOwnershipPrivacyAndExport$"
+  },
+  {
+    "name": "member profile actor ownership",
+    "file": "internal/web/handlers_member_profiles.go",
+    "before": "s.store.SetMemberProfile(r.Context(), currentUser(r.Context()).ID, p)",
+    "after": "s.store.SetMemberProfile(r.Context(), currentUser(r.Context()).ID+1, p)",
+    "package": "./internal/web",
+    "run": "^TestMemberProfileRoutesOwnershipPrivacyAndExport$"
+  },
+  {
+    "name": "member profile active write boundary",
+    "file": "internal/store/member_profiles.go",
+    "before": "SELECT id,?,?,? FROM users WHERE id=? AND disabled=0",
+    "after": "SELECT id,?,?,? FROM users WHERE id=?",
+    "package": "./internal/store",
+    "run": "^TestMemberProfileStorageAtomicitySchemaAndProperties$"
+  },
+  {
+    "name": "member profile normalization before write",
+    "file": "internal/store/member_profiles.go",
+    "before": "p, err := memberprofile.Normalize(p)",
+    "after": "p, err := p, error(nil)",
+    "package": "./internal/store",
+    "run": "^TestMemberProfileStorageAtomicitySchemaAndProperties$"
+  }
 ]

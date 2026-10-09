@@ -22,6 +22,7 @@ import { pathToFileURL } from "node:url";
 import { checkThemes } from "./browser-themes.mjs";
 import { checkPhotoRotation } from "./browser-rotation.mjs";
 import { checkVersionDisplay } from "./browser-version.mjs";
+import { checkProfiles } from "./browser-profiles.mjs";
 
 const BROWSER_CANDIDATES = [
   process.env.CHROME,
@@ -298,6 +299,8 @@ async function main() {
     await page.send("Emulation.clearDeviceMetricsOverride");
 
     await checkVersionDisplay(page, base, execFileSync(join(dataDir, "imvault"), ["--version"], { encoding: "utf8" }).trim());
+    await checkProfiles(page, base);
+    record("optional profiles save, link and clear with JavaScript enabled and disabled",true);
     record("optional version footer saves and renders with and without JavaScript", true);
 
     // --- the admin page loads and wires itself up ---

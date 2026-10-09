@@ -241,6 +241,9 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /p/{id}", s.handleShortLink)
 
 	// Account settings
+	mux.HandleFunc("GET /members/{id}", s.requireUser(s.handleMemberProfile))
+	mux.HandleFunc("GET /settings/profile", s.requireUser(s.handleProfileSettings))
+	mux.HandleFunc("POST /settings/profile", s.requireUser(s.handleProfileSave))
 	mux.HandleFunc("GET /settings/account", s.requireUser(s.handleAccountPage))
 	mux.HandleFunc("GET /settings/account/export", s.requireUser(s.handleAccountExport))
 	mux.HandleFunc("POST /settings/account/delete", s.requireUser(s.rateLimitLogins(s.handleAccountDelete)))

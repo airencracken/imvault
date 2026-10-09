@@ -118,7 +118,7 @@ func (s *Server) renderPage(w http.ResponseWriter, status int, name string, data
 
 // templateFuncs returns the helpers exposed to templates.
 func templateFuncs() template.FuncMap {
-	return template.FuncMap{
+	return template.FuncMap{"linkNumber": func(i int) int { return i + 1 },
 		"humanSize": models.HumanSize,
 		"humanTime": models.HumanTime,
 		"date": func(t time.Time) string {

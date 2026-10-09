@@ -8,6 +8,7 @@
     <a class="btn small" href="/settings/password">Password</a>
     <a class="btn small" href="/settings/2fa">Two-factor</a>
     <a class="btn small" href="/settings/account">Account</a>
+<a class="btn small" href="/settings/profile">Profile</a>
     <a class="btn small" href="/settings/api-keys">API keys</a>
   </nav>
 </header>
@@ -17,6 +18,7 @@
 
 <section class="panel stack">
   <h2>Account</h2>
+<p><a href="/members/{{.User.ID}}">View your profile</a> · <a href="/settings/profile">Edit your profile</a></p>
   <dl class="facts">
     <dt>Username</dt><dd>{{.Status.User.Username}}</dd>
     {{if .Status.User.Email}}
@@ -73,7 +75,7 @@
 <section class="panel stack">
   <h2>Export your data</h2>
   <p class="muted">
-    Downloads a zip of everything you have uploaded, plus a
+    Downloads your profile and a zip of everything you have uploaded, plus a
     <code>manifest.json</code> describing it: names, sizes, dimensions, tags,
     albums, and the dates they were added.
   </p>
@@ -83,10 +85,10 @@
     {{humanSize .ExportableBytes}} in total. The download starts as soon as you
     ask for it, so a large library takes a while and cannot be resumed.
   </p>
-  <p><a class="btn" href="/settings/account/export">Download export</a></p>
   {{else}}
-  <p class="muted">There is nothing to export yet.</p>
+  <p class="muted">No uploads yet. Your profile and account information can still be exported.</p>
   {{end}}
+  <p><a class="btn" href="/settings/account/export">Download export</a></p>
   <p class="muted">
     Originals only: thumbnails and previews are generated from them and are not
     included. Passwords, sessions, API keys, and two-factor secrets are not

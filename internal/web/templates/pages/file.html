@@ -62,7 +62,7 @@
 
     <dl class="facts">
       <dt>Uploaded</dt>
-      <dd>{{date .File.CreatedAt}}{{if .File.Username}} by {{.File.Username}}{{end}}</dd>
+      <dd>{{date .File.CreatedAt}}{{if .File.Username}} by <a href="/members/{{.File.UserID}}">{{.File.Username}}</a>{{end}}</dd>
       <dt>Type</dt>
       <dd>
         {{if .File.IsVideo}}Video clip

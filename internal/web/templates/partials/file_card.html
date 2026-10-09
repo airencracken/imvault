@@ -21,7 +21,7 @@
       {{if .File.IsAnimated}}<span class="badge">gif</span>{{end}}
       {{if .File.IsVideo}}<span class="badge">video</span>{{end}}
       <span>{{humanTime .File.CreatedAt}}</span>
-      {{if .ShowOwner}}<span class="by">{{if .File.Username}}{{.File.Username}}{{else}}anonymous{{end}}</span>{{end}}
+      {{if .ShowOwner}}<span class="by">{{if .File.Username}}<a href="/members/{{.File.UserID}}">{{.File.Username}}</a>{{else}}anonymous{{end}}</span>{{end}}
       {{if not .File.Visibility.IsPublic}}<span class="badge private">{{.File.Visibility.ShortLabel}}</span>{{end}}
       {{with .File.ExpiryLabel}}<span class="badge warn">{{.}}</span>{{end}}
     </div>
