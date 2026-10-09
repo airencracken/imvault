@@ -113,7 +113,7 @@ jobs:
         run: |
           docker run --rm -v "$PWD:/work:ro" -w /work \
             -e RELEASE_PACKAGE_TEST=1 -e PACKAGE_ARCH \
-            debian:trixie-slim sh -c '
+            public.ecr.aws/docker/library/debian:trixie-slim@sha256:a29215f6a35e51e22adffa17f89e9d2ef06214e64a2bad10d765c46aea49f11f sh -c '
               # Slim images exclude docs by default; exercise the complete package.
               rm -f /etc/dpkg/dpkg.cfg.d/docker || exit 1
               apt-get update || exit 1
