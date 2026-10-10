@@ -276,3 +276,18 @@ linked from file and album authors, including public content. Private uploads,
 email and credentials stay off profiles; your username stays unchanged. Your
 account export includes your own profile even if you have no uploads. See the
 [0.17.0 release notes](docs/release-notes/0.17.0.md) before the migration 031 upgrade.
+
+## Avatars
+
+In Imvault 0.18.0, open Settings → Account → Profile to upload or remove an
+optional avatar. PNG, JPEG and GIF inputs are re-encoded through Comfylib's
+shared profile-image normalizer, stripping embedded metadata. Pictures must
+be no larger than 2 MiB and 512 by 512 pixels, with at most 64 GIF frames.
+
+Avatars appear on signed-in member profiles and file contributor rows. Guests
+cannot fetch them, including from public file pages. Administrators can remove
+an avatar from its member profile. **Show animated avatars** is your viewing
+preference; turn it off for still pictures. Device reduced-motion preferences
+also select still PNGs. Account exports include your own renditions and viewing
+preference, and deleting an account removes both. See the
+[0.18.0 release notes](docs/release-notes/0.18.0.md) before migration 032.

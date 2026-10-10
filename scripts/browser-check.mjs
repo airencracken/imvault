@@ -22,6 +22,7 @@ import { pathToFileURL } from "node:url";
 import { checkThemes } from "./browser-themes.mjs";
 import { checkPhotoRotation } from "./browser-rotation.mjs";
 import { checkVersionDisplay } from "./browser-version.mjs";
+import { checkAvatars } from "./browser-avatars.mjs";
 import { checkProfiles } from "./browser-profiles.mjs";
 
 const BROWSER_CANDIDATES = [
@@ -300,6 +301,8 @@ async function main() {
 
     await checkVersionDisplay(page, base, execFileSync(join(dataDir, "imvault"), ["--version"], { encoding: "utf8" }).trim());
     await checkProfiles(page, base);
+    await checkAvatars(page, base, dataDir);
+    record("avatars upload, respect animation and reduced motion, and remove with and without JavaScript",true);
     record("optional profiles save, link and clear with JavaScript enabled and disabled",true);
     record("optional version footer saves and renders with and without JavaScript", true);
 

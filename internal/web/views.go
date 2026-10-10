@@ -290,6 +290,7 @@ type adminFilesView struct {
 }
 
 type fileView struct {
+	OwnerProfile store.MemberProfile
 	base
 	Favorited    bool
 	File         *models.File

@@ -37,15 +37,18 @@ type exportManifest struct {
 }
 
 type exportAccount struct {
-	Profile         memberprofile.Profile `json:"profile"`
-	Username        string                `json:"username"`
-	Email           string                `json:"email,omitempty"`
-	EmailVerified   bool                  `json:"email_verified"`
-	Role            string                `json:"role"`
-	CreatedAt       string                `json:"created_at"`
-	FileCount       int                   `json:"file_count"`
-	StorageUsed     int64                 `json:"storage_used_bytes"`
-	TwoFactorEnable bool                  `json:"two_factor_enabled"`
+	AvatarPath         string                `json:"avatar_path,omitempty"`
+	AnimatedAvatarPath string                `json:"animated_avatar_path,omitempty"`
+	AnimateAvatars     bool                  `json:"animate_avatars"`
+	Profile            memberprofile.Profile `json:"profile"`
+	Username           string                `json:"username"`
+	Email              string                `json:"email,omitempty"`
+	EmailVerified      bool                  `json:"email_verified"`
+	Role               string                `json:"role"`
+	CreatedAt          string                `json:"created_at"`
+	FileCount          int                   `json:"file_count"`
+	StorageUsed        int64                 `json:"storage_used_bytes"`
+	TwoFactorEnable    bool                  `json:"two_factor_enabled"`
 }
 
 type exportFile struct {
@@ -127,10 +130,16 @@ func (s *Server) handleAccountExport(w http.ResponseWriter, r *http.Request) {
 		s.exportFailure(w, user, "read profile", err)
 		return
 	}
+	picture, on, err := s.store.AvatarExport(ctx, user.ID)
+	if err != nil {
+		s.exportFailure(w, user, "read avatar", err)
+		return
+	}
 	manifest := exportManifest{
 		ExportedAt: time.Now().UTC().Format(time.RFC3339),
 		Account: exportAccount{
 			Profile:         profile.Biography,
+			AnimateAvatars:  on,
 			Username:        user.Username,
 			Email:           user.Email,
 			EmailVerified:   user.EmailVerified,
@@ -155,6 +164,10 @@ func (s *Server) handleAccountExport(w http.ResponseWriter, r *http.Request) {
 	defer os.Remove(temp.Name())
 	defer temp.Close()
 	archive := zip.NewWriter(temp)
+	if err := writeAvatarEntries(archive, &manifest.Account, picture); err != nil {
+		s.exportFailure(w, user, "write avatar", err)
+		return
+	}
 	if err := writeJSONEntry(archive, "manifest.json", manifest); err != nil {
 		s.exportFailure(w, user, "write manifest", err)
 		return

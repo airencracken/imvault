@@ -4,6 +4,7 @@ package web
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
@@ -112,5 +113,19 @@ func TestForwardedProtoNeedsATrustedProxy(t *testing.T) {
 		if got := h.srv.absoluteURL(req, "/x"); strings.HasPrefix(got, "https://") != trusted {
 			t.Errorf("trusted=%v: absolute URL %q", trusted, got)
 		}
+	}
+}
+
+func TestFlashURLPreservesAnchorAndExistingQuery(t *testing.T) {
+	h := newHarness(t)
+	target := h.srv.flashURL("/settings/profile?tab=picture#avatar", flashNotice, "Avatar saved.")
+	u, err := url.Parse(target)
+	if err != nil || u.Fragment != "avatar" || u.Query().Get("tab") != "picture" {
+		t.Fatal("redirect target lost structure", target, err)
+	}
+	request := httptest.NewRequest("GET", target, nil)
+	notice, problem := h.srv.flash(request)
+	if notice != "Avatar saved." || problem != "" {
+		t.Fatal("signed feedback lost at anchor", target)
 	}
 }

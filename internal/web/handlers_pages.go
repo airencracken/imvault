@@ -124,6 +124,14 @@ func (s *Server) handleFilePage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if user != nil {
+		if file.UserID != nil {
+			var err error
+			view.OwnerProfile, err = s.store.MemberProfile(r.Context(), *file.UserID)
+			if err != nil && !errors.Is(err, store.ErrNotFound) {
+				s.avatarError(w, err)
+				return
+			}
+		}
 		favorite, err := s.store.IsFavorite(r.Context(), user.ID, file.ID)
 		if err != nil {
 			s.log.Error("file page: favorite", "error", err)

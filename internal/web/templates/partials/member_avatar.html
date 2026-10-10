@@ -1,0 +1,1 @@
+{{define "member_avatar"}}{{if .HasAvatar}}<picture class="member-avatar"><source media="(prefers-reduced-motion: reduce)" srcset="/avatars/{{.ID}}?still=1"><img src="/avatars/{{.ID}}" alt="" width="80" height="80" loading="lazy"></picture>{{end}}{{end}}

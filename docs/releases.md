@@ -1,8 +1,8 @@
 # Binary releases
 
 Download Imvault from [GitHub Releases](https://github.com/airencracken/imvault/releases).
-The [prepared 0.16.0 album discussion changes](release-notes/0.16.0.md) are not
-yet published and require the coordinated Comfylib release first.
+The [0.18.0 release notes](release-notes/0.18.0.md) describe optional avatars,
+viewer animation preferences and migration 032.
 Each version has Linux **amd64** (x86-64) and **arm64** (AArch64) builds:
 
 - `imvault_VERSION_linux_ARCH.tar.gz`: a static binary, documentation,

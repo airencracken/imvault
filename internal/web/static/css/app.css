@@ -626,3 +626,6 @@ code {
 .member-profile { overflow-wrap:anywhere; max-width:48rem; }
 .profile-bio { white-space:pre-wrap; }
 .profile-link-fields { display:grid; gap:.5rem; min-width:0; padding:1rem; }
+
+.member-avatar { display:inline-block; vertical-align:middle; }
+.member-avatar img { width:5rem; height:5rem; object-fit:cover; border-radius:50%; }

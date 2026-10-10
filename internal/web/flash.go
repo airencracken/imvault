@@ -65,12 +65,14 @@ func (s *Server) flashQuery(q url.Values, kind flashKind, message string) {
 
 // flashURL is path with a signed message attached.
 func (s *Server) flashURL(path string, kind flashKind, message string) string {
-	q := url.Values{}
-	s.flashQuery(q, kind, message)
-	if encoded := q.Encode(); encoded != "" {
-		return path + "?" + encoded
+	target, err := url.Parse(path)
+	if err != nil {
+		return path
 	}
-	return path
+	q := target.Query()
+	s.flashQuery(q, kind, message)
+	target.RawQuery = q.Encode()
+	return target.String()
 }
 
 // redirectFlash sends the browser to path with a message to show there.

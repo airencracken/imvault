@@ -240,6 +240,10 @@ func (s *Server) routes() *http.ServeMux {
 	// Share links
 	mux.HandleFunc("GET /p/{id}", s.handleShortLink)
 
+	mux.HandleFunc("GET /avatars/{id}", s.requireUser(s.handleAvatar))
+	mux.HandleFunc("POST /settings/avatar", s.requireUser(s.handleAvatarSave))
+	mux.HandleFunc("POST /settings/avatar-preference", s.requireUser(s.handleAvatarPreference))
+	mux.HandleFunc("POST /admin/users/{id}/avatar/remove", s.requireAdmin(s.handleAdminAvatarRemove))
 	// Account settings
 	mux.HandleFunc("GET /members/{id}", s.requireUser(s.handleMemberProfile))
 	mux.HandleFunc("GET /settings/profile", s.requireUser(s.handleProfileSettings))

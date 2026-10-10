@@ -10,6 +10,7 @@ import (
 
 // MemberProfile omits email, credentials, quotas and private account settings.
 type MemberProfile struct {
+	HasAvatar bool
 	ID        int64
 	Username  string
 	Biography memberprofile.Profile
@@ -18,7 +19,7 @@ type MemberProfile struct {
 func (s *Store) MemberProfile(ctx context.Context, id int64) (MemberProfile, error) {
 	var p MemberProfile
 	var links string
-	err := s.db.QueryRowContext(ctx, `SELECT u.id,u.username,coalesce(p.name,''),coalesce(p.bio,''),coalesce(p.links,'[]') FROM users u LEFT JOIN member_profiles p ON p.user_id=u.id WHERE u.id=? AND u.disabled=0`, id).Scan(&p.ID, &p.Username, &p.Biography.Name, &p.Biography.Bio, &links)
+	err := s.db.QueryRowContext(ctx, `SELECT u.id,u.username,coalesce(p.name,''),coalesce(p.bio,''),coalesce(p.links,'[]'),EXISTS(SELECT 1 FROM user_avatars a WHERE a.user_id=u.id) FROM users u LEFT JOIN member_profiles p ON p.user_id=u.id WHERE u.id=? AND u.disabled=0`, id).Scan(&p.ID, &p.Username, &p.Biography.Name, &p.Biography.Bio, &links, &p.HasAvatar)
 	if err != nil {
 		return p, mapErr(err)
 	}

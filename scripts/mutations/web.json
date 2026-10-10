@@ -430,5 +430,69 @@
     "after": "p, err := p, error(nil)",
     "package": "./internal/store",
     "run": "^TestMemberProfileStorageAtomicitySchemaAndProperties$"
-  }
+  },
+    {
+        "name": "avatars require signed-in viewer",
+        "file": "internal/web/server.go",
+        "before": "s.requireUser(s.handleAvatar)",
+        "after": "s.handleAvatar",
+        "package": "./internal/web",
+        "run": "^TestAvatarRoutesPreferencesPrivacyExportAndRemoval$"
+    },
+    {
+        "name": "avatar upload actor ownership",
+        "file": "internal/web/handlers_avatars.go",
+        "before": "s.store.SaveAvatar(r.Context(), user.ID, data)",
+        "after": "s.store.SaveAvatar(r.Context(), user.ID+1, data)",
+        "package": "./internal/web",
+        "run": "^TestAvatarRoutesPreferencesPrivacyExportAndRemoval$"
+    },
+    {
+        "name": "avatar inactive writes refused",
+        "file": "internal/store/avatars.go",
+        "before": "INSERT INTO user_avatars(user_id,still,animation) SELECT id,?,? FROM users WHERE id=? AND disabled=0",
+        "after": "INSERT INTO user_avatars(user_id,still,animation) SELECT id,?,? FROM users WHERE id=?",
+        "package": "./internal/store",
+        "run": "^TestAvatarStorageAtomicitySchemaAndProperties$"
+    },
+    {
+        "name": "avatar normalization before storage",
+        "file": "internal/store/avatars.go",
+        "before": "picture, err := profileimage.Normalize(data)",
+        "after": "picture, err := profileimage.Picture{Still:data,Animation:nil}, error(nil)",
+        "package": "./internal/store",
+        "run": "^TestAvatarStorageAtomicitySchemaAndProperties$"
+    },
+    {
+        "name": "avatar viewer animation setting",
+        "file": "internal/web/handlers_avatars.go",
+        "before": "if on && r.URL.Query().Get(\"still\") != \"1\"",
+        "after": "if (on || !on) && r.URL.Query().Get(\"still\") != \"1\"",
+        "package": "./internal/web",
+        "run": "^TestAvatarRoutesPreferencesPrivacyExportAndRemoval$"
+    },
+    {
+        "name": "avatar reduced-motion source",
+        "file": "internal/web/templates/partials/member_avatar.html",
+        "before": "<source media=\"(prefers-reduced-motion: reduce)\" srcset=\"/avatars/{{.ID}}?still=1\">",
+        "after": "",
+        "package": "./internal/web",
+        "run": "^TestAvatarRoutesPreferencesPrivacyExportAndRemoval$"
+    },
+    {
+        "name": "avatar duplicate upload rejection",
+        "file": "internal/web/handlers_avatars.go",
+        "before": "if remove || count != 1 {",
+        "after": "if remove || count < 1 {",
+        "package": "./internal/web",
+        "run": "^TestAvatarRoutesPreferencesPrivacyExportAndRemoval$"
+    },
+    {
+        "name": "avatar preference schema constraint",
+        "file": "internal/db/migrations/032_avatars.sql",
+        "before": "CHECK(animate IN (0,1))",
+        "after": "CHECK(animate IN (-1,0,1,2))",
+        "package": "./internal/store",
+        "run": "^TestAvatarStorageAtomicitySchemaAndProperties$"
+    }
 ]

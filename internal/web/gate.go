@@ -65,6 +65,8 @@ func (s *Server) requestLimitsMW(next http.Handler) http.Handler {
 		limit := int64(formRewriteLimit)
 		timeout := s.formReadTimeout
 		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/settings/avatar":
+			limit = 3 << 20
 		case r.Method == http.MethodPost && r.URL.Path == "/admin/settings/branding-assets":
 			limit = 5 << 20
 		case isUploadPath(r):

@@ -12,8 +12,9 @@ import (
 
 type memberProfileView struct {
 	base
-	Member    store.MemberProfile
-	Biography memberprofile.Profile
+	Member         store.MemberProfile
+	Biography      memberprofile.Profile
+	AnimateAvatars bool
 }
 
 func (s *Server) handleMemberProfile(w http.ResponseWriter, r *http.Request) {
@@ -34,7 +35,9 @@ func (s *Server) handleMemberProfile(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Could not load the profile.", 500)
 		return
 	}
-	s.renderPage(w, 200, "member_profile", memberProfileView{base: s.base(r, p.Username+"'s profile"), Member: p})
+	view := memberProfileView{base: s.base(r, p.Username+"'s profile"), Member: p}
+	view.Notice, view.Error = s.flash(r)
+	s.renderPage(w, 200, "member_profile", view)
 }
 
 func (s *Server) handleProfileSettings(w http.ResponseWriter, r *http.Request) {
@@ -45,7 +48,12 @@ func (s *Server) handleProfileSettings(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Could not load your profile.", 500)
 		return
 	}
-	view := memberProfileView{base: s.base(r, "Your profile"), Biography: p.Biography}
+	view := memberProfileView{base: s.base(r, "Your profile"), Biography: p.Biography, Member: p}
+	view.AnimateAvatars, err = s.store.AnimateAvatars(r.Context(), p.ID)
+	if err != nil {
+		s.avatarError(w, err)
+		return
+	}
 	view.Notice, view.Error = s.flash(r)
 	s.renderPage(w, 200, "profile_settings", view)
 }
@@ -54,7 +62,17 @@ func (s *Server) handleProfileSave(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	p, err := memberprofile.ParseForm(r.PostForm)
 	if err != nil {
-		view := memberProfileView{base: s.base(r, "Your profile"), Biography: p}
+		member, loadErr := s.store.MemberProfile(r.Context(), currentUser(r.Context()).ID)
+		if loadErr != nil {
+			s.avatarError(w, loadErr)
+			return
+		}
+		animate, loadErr := s.store.AnimateAvatars(r.Context(), member.ID)
+		if loadErr != nil {
+			s.avatarError(w, loadErr)
+			return
+		}
+		view := memberProfileView{base: s.base(r, "Your profile"), Biography: p, Member: member, AnimateAvatars: animate}
 		view.Error = err.Error()
 		s.renderPage(w, 422, "profile_settings", view)
 		return
