@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/airencracken/comfylib/autobackup"
 	"io"
 	"os"
 	"path/filepath"
@@ -33,7 +34,23 @@ type Manifest struct {
 
 // Backup holds a shared instance lock and pins objects against deletion.
 // The output appears only after every database, key and object check succeeds.
-func Backup(ctx context.Context, cfg *config.Config, st *store.Store, source storage.Backend, output string, out io.Writer) (err error) {
+func Backup(ctx context.Context, cfg *config.Config, st *store.Store, source storage.Backend, output string, out io.Writer) error {
+	return backupWithLimit(ctx, cfg, st, source, output, 0, out)
+}
+
+// BackupLimited bounds the entire uncompressed snapshot while copying. The
+// existing manual backup keeps its original behavior and has no implicit cap.
+func BackupLimited(ctx context.Context, cfg *config.Config, st *store.Store, source storage.Backend, output string, limit int64, out io.Writer) error {
+	if limit <= 0 {
+		return errors.New("backup copy cap must be positive")
+	}
+	if err := autobackup.CheckDatabase(ctx, st.DB(), limit); err != nil {
+		return err
+	}
+	return backupWithLimit(ctx, cfg, st, source, output, limit, out)
+}
+
+func backupWithLimit(ctx context.Context, cfg *config.Config, st *store.Store, source storage.Backend, output string, limit int64, out io.Writer) (err error) {
 	lock, err := instance.AcquireBackup(ctx, cfg.DBPath)
 	if err != nil {
 		return err
@@ -66,10 +83,21 @@ func Backup(ctx context.Context, cfg *config.Config, st *store.Store, source sto
 		return err
 	}
 	defer closer.Discard(snapshot)
-	manifest, err := backupObjects(ctx, store.New(snapshot), source, stage, out)
+	remaining, err := remainingCopyBudget(stage, limit)
 	if err != nil {
 		return err
 	}
+	manifest, err := backupObjects(ctx, store.New(snapshot), source, stage, remaining, out)
+	if err != nil {
+		return err
+	}
+	if err := writeBackupManifest(ctx, stage, manifest, remaining); err != nil {
+		return err
+	}
+	return publishDirectory(stage, output)
+}
+
+func writeBackupManifest(ctx context.Context, stage string, manifest Manifest, remaining *int64) error {
 	root, err := storage.NewDisk(stage)
 	if err != nil {
 		return err
@@ -86,13 +114,16 @@ func Backup(ctx context.Context, cfg *config.Config, st *store.Store, source sto
 	if err != nil {
 		return err
 	}
+	if remaining != nil && int64(len(encoded)+1) > *remaining {
+		return errors.New("backup manifest exceeds copy cap")
+	}
 	if err := os.WriteFile(filepath.Join(stage, "manifest.json"), append(encoded, '\n'), 0o600); err != nil {
 		return err
 	}
-	return publishDirectory(stage, output)
+	return nil
 }
 
-func backupObjects(ctx context.Context, st *store.Store, source storage.Backend, stage string, out io.Writer) (Manifest, error) {
+func backupObjects(ctx context.Context, st *store.Store, source storage.Backend, stage string, remaining *int64, out io.Writer) (Manifest, error) {
 	manifest := Manifest{Version: 1, CreatedAt: time.Now().UTC(), Objects: []Object{}}
 	entries, err := Inventory(ctx, st)
 	if err != nil {
@@ -102,7 +133,11 @@ func backupObjects(ctx context.Context, st *store.Store, source storage.Backend,
 	if err != nil {
 		return manifest, err
 	}
-	copied, err := copyInventory(ctx, source, dest, entries, out, "backed up")
+	var bounded storage.Backend = dest
+	if remaining != nil {
+		bounded = &copyBudgetBackend{Backend: dest, remaining: remaining}
+	}
+	copied, err := copyInventory(ctx, source, bounded, entries, out, "backed up")
 	if err != nil {
 		return manifest, fmt.Errorf("backup %w", err)
 	}

@@ -10,6 +10,16 @@
   </div>
   {{template "admin_nav" .}}
 </header>
+<section class="panel stack" aria-labelledby="backup-heading"><h2 id="backup-heading">Automatic backups</h2>
+{{if .Backups.Enabled}}<p>A verified backup runs every {{.Backups.Interval}}. At most {{.Backups.Keep}} automatic copies are kept, with a total archive cap of {{.Backups.ArchiveCap}} and an uncompressed copy cap of {{.Backups.CopyCap}} per backup.</p>
+<p>Private destination: <code>{{.Backups.Directory}}</code>.</p>
+{{if .Backups.Running}}<p role="status">A backup is running.</p>{{end}}
+{{if .Backups.LastSuccess.IsZero}}<p>No automatic backup has succeeded yet. The first attempt starts one minute after service startup.</p>{{else}}<p>Last successful backup: <time>{{.Backups.LastSuccess.UTC.Format "2006-01-02 15:04:05 UTC"}}</time>.</p>{{end}}
+{{if .Backups.LastError}}<p role="alert">Last backup error: {{.Backups.LastError}}</p>{{end}}
+{{if not .Backups.NextAttempt.IsZero}}<p>Next attempt: <time>{{.Backups.NextAttempt.UTC.Format "2006-01-02 15:04:05 UTC"}}</time>.</p>{{end}}
+{{else}}<p>Automatic backups are disabled or no service worker is attached.</p>{{end}}
+<p>Copy completed backups to another machine. Local copies cannot recover from a lost disk. Schedule and caps are configured in the service environment and take effect after a restart.</p></section>
+
 
 <section class="panel stack">
   <h2>What is this instance for?</h2>

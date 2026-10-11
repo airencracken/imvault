@@ -399,38 +399,38 @@
         "package": "./cmd/imvault",
         "run": "^TestVersionCommandIsExactAndDoesNotTouchData$"
     },
-  {
-    "name": "member profile authentication",
-    "file": "internal/web/server.go",
-    "before": "s.requireUser(s.handleMemberProfile)",
-    "after": "s.handleMemberProfile",
-    "package": "./internal/web",
-    "run": "^TestMemberProfileRoutesOwnershipPrivacyAndExport$"
-  },
-  {
-    "name": "member profile actor ownership",
-    "file": "internal/web/handlers_member_profiles.go",
-    "before": "s.store.SetMemberProfile(r.Context(), currentUser(r.Context()).ID, p)",
-    "after": "s.store.SetMemberProfile(r.Context(), currentUser(r.Context()).ID+1, p)",
-    "package": "./internal/web",
-    "run": "^TestMemberProfileRoutesOwnershipPrivacyAndExport$"
-  },
-  {
-    "name": "member profile active write boundary",
-    "file": "internal/store/member_profiles.go",
-    "before": "SELECT id,?,?,? FROM users WHERE id=? AND disabled=0",
-    "after": "SELECT id,?,?,? FROM users WHERE id=?",
-    "package": "./internal/store",
-    "run": "^TestMemberProfileStorageAtomicitySchemaAndProperties$"
-  },
-  {
-    "name": "member profile normalization before write",
-    "file": "internal/store/member_profiles.go",
-    "before": "p, err := memberprofile.Normalize(p)",
-    "after": "p, err := p, error(nil)",
-    "package": "./internal/store",
-    "run": "^TestMemberProfileStorageAtomicitySchemaAndProperties$"
-  },
+    {
+        "name": "member profile authentication",
+        "file": "internal/web/server.go",
+        "before": "s.requireUser(s.handleMemberProfile)",
+        "after": "s.handleMemberProfile",
+        "package": "./internal/web",
+        "run": "^TestMemberProfileRoutesOwnershipPrivacyAndExport$"
+    },
+    {
+        "name": "member profile actor ownership",
+        "file": "internal/web/handlers_member_profiles.go",
+        "before": "s.store.SetMemberProfile(r.Context(), currentUser(r.Context()).ID, p)",
+        "after": "s.store.SetMemberProfile(r.Context(), currentUser(r.Context()).ID+1, p)",
+        "package": "./internal/web",
+        "run": "^TestMemberProfileRoutesOwnershipPrivacyAndExport$"
+    },
+    {
+        "name": "member profile active write boundary",
+        "file": "internal/store/member_profiles.go",
+        "before": "SELECT id,?,?,? FROM users WHERE id=? AND disabled=0",
+        "after": "SELECT id,?,?,? FROM users WHERE id=?",
+        "package": "./internal/store",
+        "run": "^TestMemberProfileStorageAtomicitySchemaAndProperties$"
+    },
+    {
+        "name": "member profile normalization before write",
+        "file": "internal/store/member_profiles.go",
+        "before": "p, err := memberprofile.Normalize(p)",
+        "after": "p, err := p, error(nil)",
+        "package": "./internal/store",
+        "run": "^TestMemberProfileStorageAtomicitySchemaAndProperties$"
+    },
     {
         "name": "avatars require signed-in viewer",
         "file": "internal/web/server.go",
@@ -494,5 +494,21 @@
         "after": "CHECK(animate IN (-1,0,1,2))",
         "package": "./internal/store",
         "run": "^TestAvatarStorageAtomicitySchemaAndProperties$"
+    },
+    {
+        "name": "automatic media copy budget",
+        "file": "internal/maintenance/copy_budget.go",
+        "before": "*r.remaining -= int64(n)",
+        "after": "*r.remaining -= 0",
+        "package": "./internal/maintenance",
+        "run": "^TestAutomaticBackupCopiesVerifiedMediaAndBoundsStaging$"
+    },
+    {
+        "name": "automatic complete snapshot copy cap",
+        "file": "internal/maintenance/backup.go",
+        "before": "return backupWithLimit(ctx, cfg, st, source, output, limit, out)",
+        "after": "return backupWithLimit(ctx, cfg, st, source, output, 0, out)",
+        "package": "./internal/maintenance",
+        "run": "^TestAutomaticBackupCopiesVerifiedMediaAndBoundsStaging$"
     }
 ]

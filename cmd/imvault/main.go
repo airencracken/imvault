@@ -137,6 +137,16 @@ func run() (err error) {
 		return err
 	}
 
+	backups, err := automaticBackups(cfg, store.New(database), objects, logger)
+	if err != nil {
+		return err
+	}
+	srv.Backups = backups
+	backupCtx, cancelBackups := context.WithCancel(ctx)
+	backupsDone := make(chan struct{})
+	go func() { defer close(backupsDone); backups.Run(backupCtx) }()
+	defer func() { cancelBackups(); <-backupsDone }()
+
 	httpServer := &http.Server{
 		Addr:    cfg.Addr,
 		Handler: srv.Handler(),

@@ -9,6 +9,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"github.com/airencracken/comfylib/autobackup"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -35,6 +36,8 @@ var staticFS embed.FS
 
 // Server holds the application dependencies and the routing table.
 type Server struct {
+	Backups *autobackup.Runner
+
 	cfg     *config.Config
 	store   *store.Store
 	objects storage.Backend

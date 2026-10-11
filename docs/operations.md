@@ -278,3 +278,6 @@ tail -f /var/log/imvault.log | grep 'level=WARN'
 
 If you are reporting a bug, the log line and the output of `imvault` started
 with `IMVAULT_LOG_LEVEL=debug` are the two things that make it reproducible.
+
+The running service also makes bounded compressed backups automatically; see
+[automatic backups](automatic-backups.md) for defaults, status and recovery.

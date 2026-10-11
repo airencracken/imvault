@@ -58,3 +58,10 @@
 
 # Optional explicit album discussions; also configure IMVAULT_BASE_URL.
 # IMVAULT_WITMOOT_URL=https://board.example.org
+
+# Built-in compressed backups: daily, seven copies, 10 GiB archive cap,
+# 5 GiB maximum uncompressed snapshot. Set interval to 0 to disable.
+# IMVAULT_BACKUP_INTERVAL="24h"
+# IMVAULT_BACKUP_KEEP="7"
+# IMVAULT_BACKUP_MAX_BYTES="10737418240"
+# IMVAULT_BACKUP_COPY_MAX_BYTES="5368709120"

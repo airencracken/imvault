@@ -1,6 +1,7 @@
 # Binary releases
 
 Download Imvault from [GitHub Releases](https://github.com/airencracken/imvault/releases).
+The [0.19.0 release notes](release-notes/0.19.0.md) describe automatic compressed backups and bounded retention.
 The [0.18.0 release notes](release-notes/0.18.0.md) describe optional avatars,
 viewer animation preferences and migration 032.
 Each version has Linux **amd64** (x86-64) and **arm64** (AArch64) builds:

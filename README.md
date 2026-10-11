@@ -266,7 +266,7 @@ For the coordinated Comfylib CSRF update on this branch, see
 
 Explicit album discussion handoffs and private preview rules: [docs/discussions.md](docs/discussions.md).
 
-[Shared administration helpers](docs/shared-administration.md) use Comfylib v0.1.5 across the Comfyware apps.
+[Shared administration helpers](docs/shared-administration.md) use Comfylib v0.1.6 across the Comfyware apps.
 
 ## Member profiles
 
@@ -291,3 +291,11 @@ preference; turn it off for still pictures. Device reduced-motion preferences
 also select still PNGs. Account exports include your own renditions and viewing
 preference, and deleting an account removes both. See the
 [0.18.0 release notes](docs/release-notes/0.18.0.md) before migration 032.
+
+## Automatic backups
+
+Imvault 0.19.0 backs itself up daily while running, using zstd when
+available and gzip otherwise. It keeps at most seven copies within a 10 GiB
+archive cap and bounds each uncompressed copy to 5 GiB. Owners can check status
+in instance settings. See [automatic backups](docs/automatic-backups.md) for
+configuration, retention, off-host copies and recovery.

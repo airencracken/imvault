@@ -51,6 +51,8 @@ Examples:
   imvault proxy-config caddy --domain img.example.com > imvault.Caddyfile
   imvault backup --output /var/backups/imvault/first
 
+Built-in backups: IMVAULT_BACKUP_INTERVAL (24h; 0 disables), IMVAULT_BACKUP_KEEP (7),
+IMVAULT_BACKUP_MAX_BYTES (10 GiB), IMVAULT_BACKUP_COPY_MAX_BYTES (5 GiB).
 Logs: stdout/stderr; systemd uses journald, OpenRC uses /var/log/imvault.log.
 OpenRC packages include /etc/logrotate.d/imvault; a cron job or timer runs rotation.
 More settings and deployment examples: docs/deployment.md and docs/reverse-proxies.md.`

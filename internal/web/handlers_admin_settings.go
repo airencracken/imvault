@@ -5,6 +5,7 @@ package web
 import (
 	"context"
 	"fmt"
+	"github.com/airencracken/comfylib/autobackup"
 	"math"
 	"net/http"
 	"strconv"
@@ -125,6 +126,8 @@ func (s *Server) settingSources() map[string]bool {
 
 // settingsView backs the instance settings page.
 type settingsView struct {
+	Backups autobackup.Status
+
 	base
 	Branding              models.Branding
 	BrandingStored        map[string]bool
@@ -227,6 +230,7 @@ func (s *Server) handleAdminSettings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	view := settingsView{
+		Backups:               s.Backups.Status(),
 		Branding:              s.branding(),
 		BrandingStored:        s.settingBrandingSources(),
 		AllowSignup:           policy.AllowSignup,

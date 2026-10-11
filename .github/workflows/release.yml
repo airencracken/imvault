@@ -38,7 +38,7 @@ jobs:
         run: |
           sudo apt-get update || exit 1
           sudo systemctl mask --runtime caddy.service nginx.service apache2.service || exit 1
-          sudo apt-get install -y bubblewrap logrotate ffmpeg caddy nginx apache2 || exit 1
+          sudo apt-get install -y bubblewrap zstd logrotate ffmpeg caddy nginx apache2 || exit 1
       - name: Allow test namespaces on the disposable runner
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       # Installed before the checks, which validate the release configuration.
@@ -104,7 +104,7 @@ jobs:
           PACKAGE_ARCH: ${{ matrix.arch }}
         run: |
           sudo apt-get update || exit 1
-          sudo apt-get install -y bubblewrap ffmpeg || exit 1
+          sudo apt-get install -y bubblewrap zstd ffmpeg || exit 1
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || exit 1
           sudo env RELEASE_SANDBOX_TEST=1 RELEASE_PACKAGE_TEST=1 sh scripts/release/test-deb.sh dist/imvault_*_"$PACKAGE_ARCH".deb || exit 1
       - name: Debian package lifecycle
