@@ -4,6 +4,7 @@ package maintenance
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -218,8 +219,18 @@ func TestScheduledBackupWaitsForDestinationLock(t *testing.T) {
 	defer lock.Close()
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Millisecond)
 	defer cancel()
-	if _, err := ScheduledBackup(ctx, f.cfg, f.store, f.objects, parent, 1, io.Discard); err == nil {
-		t.Fatal("scheduled backup bypassed destination lock")
+	if _, err := ScheduledBackup(ctx, f.cfg, f.store, f.objects, parent, 1, io.Discard); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal("blocked backup did not report its deadline", err)
+	}
+	// An unrelated lock can let copying start and then hit the same deadline
+	// on a slow runner. Check the destination itself, not just the error or
+	// completed snapshots, so that failure cannot mask a bypassed lock.
+	entries, err := os.ReadDir(parent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].Name() != ".imvault-backup.lock" {
+		t.Fatal("blocked backup changed the destination", entries)
 	}
 	if names := rotatedNames(t, parent, rotationID(t, f)); len(names) != 0 {
 		t.Fatal("blocked backup created a snapshot", names)
