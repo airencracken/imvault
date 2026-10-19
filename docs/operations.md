@@ -281,3 +281,14 @@ with `IMVAULT_LOG_LEVEL=debug` are the two things that make it reproducible.
 
 The running service also makes bounded compressed backups automatically; see
 [automatic backups](automatic-backups.md) for defaults, status and recovery.
+
+
+## Trash retention
+
+Owner deletion hides an upload immediately and retains it for 30 days in private
+Trash. The existing cleanup worker purges it at the next pass after the deadline;
+restoration is refused at the deadline even before cleanup. Trash continues to
+count toward storage limits until permanent deletion. Quota recomputation and
+backup inventories include trashed files. Staff removals and account deletion
+remain permanent. See [organizing your library](library.md#trash-and-restore)
+for restoration, sharing behavior, exports and backup retention.

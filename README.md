@@ -84,6 +84,9 @@ The front end is server-rendered Go templates with htmx. No JavaScript build
 step, no framework bundle to assemble, no external service required to get
 started. [How it fits together](docs/architecture.md).
 
+Your gallery supports camera-date browsing, bulk organization, and a private
+30-day Trash with restoration. See [organizing your library](docs/library.md).
+
 ## Your place, your house rules
 
 Fresh installations require invitations and reject anonymous uploads. The

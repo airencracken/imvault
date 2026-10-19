@@ -38,12 +38,12 @@ func scanBlob(sc rowScanner) (*models.Blob, error) {
 // the blob exists before the file does.
 func (s *Store) EnsureBlob(ctx context.Context, sha string, size int64, objectKey, thumbKey, previewKey, details string) error {
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO blobs (sha256, size, object_key, thumb_key, preview_key, details_json, details_version, camera_key, location_key, refcount, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, '', '', 0, ?)
+		INSERT INTO blobs (sha256, size, object_key, thumb_key, preview_key, details_json, details_version, taken_at, camera_key, location_key, refcount, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', '', 0, ?)
 		ON CONFLICT (sha256) DO UPDATE SET object_key=excluded.object_key,
 		thumb_key=excluded.thumb_key, preview_key=excluded.preview_key,
-		clean_key='', camera_key='', location_key='', details_json=excluded.details_json, details_version=excluded.details_version WHERE blobs.refcount <= 0`,
-		sha, size, objectKey, thumbKey, previewKey, details, metadata.Version, nowUnix())
+		clean_key='', camera_key='', location_key='', details_json=excluded.details_json, details_version=excluded.details_version, taken_at=excluded.taken_at WHERE blobs.refcount <= 0`,
+		sha, size, objectKey, thumbKey, previewKey, details, metadata.Version, metadata.CaptureDate(details), nowUnix())
 	if err != nil {
 		return fmt.Errorf("ensure blob: %w", err)
 	}
@@ -54,7 +54,7 @@ func (s *Store) EnsureBlob(ctx context.Context, sha string, size int64, objectKe
 // or file-level visibility settings. Identical uploads share these details.
 func (s *Store) SetBlobDetails(ctx context.Context, sha, details string) error {
 	if _, err := s.db.ExecContext(ctx,
-		`UPDATE blobs SET details_json = ?, details_version = ? WHERE sha256 = ?`, details, metadata.Version, sha); err != nil {
+		`UPDATE blobs SET details_json = ?, details_version = ?, taken_at = ? WHERE sha256 = ?`, details, metadata.Version, metadata.CaptureDate(details), sha); err != nil {
 		return fmt.Errorf("set blob details: %w", err)
 	}
 	return nil

@@ -13,7 +13,7 @@ import (
 )
 
 const albumColumns = `a.id, a.user_id, a.title, a.slug, a.description, a.visibility, a.access, a.metadata, a.location, a.created_at,
-	COALESCE(u.username, ''), (SELECT COUNT(*) FROM album_files WHERE album_id = a.id)`
+	COALESCE(u.username, ''), (SELECT COUNT(*) FROM album_files af JOIN files f ON f.id = af.file_id WHERE af.album_id = a.id AND f.trashed_at IS NULL)`
 
 func scanAlbum(sc rowScanner) (*models.Album, error) {
 	var (

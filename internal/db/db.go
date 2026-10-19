@@ -280,6 +280,11 @@ func applyMigration(ctx context.Context, sqlDB *sql.DB, name string) error {
 	if _, err := tx.ExecContext(ctx, string(body)); err != nil {
 		return errors.Join(fmt.Errorf("apply migration %s: %w", name, err), tx.Rollback())
 	}
+	if name == "034_capture_dates.sql" {
+		if err := backfillCaptureDates(ctx, tx); err != nil {
+			return errors.Join(fmt.Errorf("backfill capture dates: %w", err), tx.Rollback())
+		}
+	}
 	if _, err := tx.ExecContext(ctx,
 		`INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)`,
 		name, time.Now().UTC().Unix(),

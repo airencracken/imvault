@@ -197,6 +197,11 @@ func (s *Server) routes() *http.ServeMux {
 	// Library
 	mux.HandleFunc("GET /gallery", s.requireUser(s.handleGallery))
 	mux.HandleFunc("POST /gallery/tags", s.requireUser(s.handleBulkTags))
+	mux.HandleFunc("POST /gallery/{action}", s.requireUser(s.handleBulkLibrary))
+	mux.HandleFunc("GET /trash", s.requireUser(s.handleTrash))
+	mux.HandleFunc("GET /trash/{id}/thumb", s.requireUser(s.handleTrashThumb))
+	mux.HandleFunc("POST /trash/{id}/restore", s.requireUser(s.handleTrashRestore))
+	mux.HandleFunc("POST /trash/{id}/purge", s.requireUser(s.handleTrashPurge))
 	mux.HandleFunc("GET /favorites", s.requireUser(s.handleFavorites))
 	mux.HandleFunc("GET /recent", s.requireUser(s.handleRecent))
 	mux.HandleFunc("GET /upload", s.handleUploadPage)
@@ -310,6 +315,10 @@ func (s *Server) routes() *http.ServeMux {
 
 	mux.HandleFunc("POST /api/v1/files/{id}/tags", s.requireAPIKey(s.apiAddFileTag))
 	mux.HandleFunc("POST /api/v1/files/tags", s.requireAPIKey(s.apiBulkTags))
+	mux.HandleFunc("POST /api/v1/library/{action}", s.requireAPIKey(s.apiBulkLibrary))
+	mux.HandleFunc("GET /api/v1/trash", s.requireAPIKey(s.apiListTrash))
+	mux.HandleFunc("POST /api/v1/trash/{id}/restore", s.requireAPIKey(s.apiRestoreTrash))
+	mux.HandleFunc("DELETE /api/v1/trash/{id}", s.requireAPIKey(s.apiPurgeTrash))
 	mux.HandleFunc("DELETE /api/v1/files/{id}/tags/{tagRef}", s.requireAPIKey(s.apiRemoveFileTag))
 
 	mux.HandleFunc("GET /api/v1/albums", s.requireAPIKey(s.apiListAlbums))

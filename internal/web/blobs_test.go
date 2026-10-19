@@ -10,7 +10,7 @@ import (
 )
 
 func TestReferenceCountTracksSharedContent(t *testing.T) {
-	h := newHarness(t)
+	h := newLibraryHarness(t, nil)
 	h.registerForm("marcus")
 
 	image := pngFixture(t, 40, 40)
@@ -55,6 +55,7 @@ func TestReferenceCountTracksSharedContent(t *testing.T) {
 		"csrf_token": {h.csrf()},
 		"next":       {"/gallery"},
 	})
+	h.purgeTrash(firstID)
 
 	blob, err = h.store.BlobBySHA(t.Context(), first.SHA256)
 	if err != nil {
@@ -72,6 +73,7 @@ func TestReferenceCountTracksSharedContent(t *testing.T) {
 		"csrf_token": {h.csrf()},
 		"next":       {"/gallery"},
 	})
+	h.purgeTrash(secondID)
 
 	if _, err := h.store.BlobBySHA(t.Context(), first.SHA256); err == nil {
 		t.Error("the blob outlived the last file referring to it")

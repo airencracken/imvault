@@ -324,7 +324,7 @@ func TestTheCleanCopyIsSharedByContent(t *testing.T) {
 }
 
 func TestRemovingTheLastFileRemovesTheCleanCopy(t *testing.T) {
-	h := newHarness(t)
+	h := newLibraryHarness(t, nil)
 	h.provisionAdmin("boss")
 
 	id := uploadWith(t, h, map[string]string{"visibility": "public"}, jpegWithLocation(t))
@@ -336,6 +336,7 @@ func TestRemovingTheLastFileRemovesTheCleanCopy(t *testing.T) {
 	}
 
 	h.postForm("/f/"+id+"/delete", url.Values{"csrf_token": {h.csrf()}, "next": {"/gallery"}})
+	h.purgeTrash(id)
 
 	// The clean copy belongs to the content, so it goes when the content does.
 	// Leaving it behind would be a slow disk leak that nothing would notice.

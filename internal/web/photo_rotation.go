@@ -59,6 +59,9 @@ func (s *Server) serveRotatedPhoto(w http.ResponseWriter, r *http.Request, file 
 		return
 	}
 	etag, cache := rotationHeaders(file, key, download, r.URL.Query().Get("v") != "")
+	if file.TrashedAt != nil {
+		cache = "private, no-store"
+	}
 	w.Header().Set("Cache-Control", "no-store")
 	if rotationNotModified(w, r, etag, cache) {
 		return

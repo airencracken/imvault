@@ -140,7 +140,7 @@ func placeholders(n int) string {
 //
 // It applies to the files table under the alias "f", which every query that
 // uses it shares, and carries one placeholder argument (the current time).
-const expiryClause = "(f.expires_at IS NULL OR f.expires_at > ?)"
+const expiryClause = "f.trashed_at IS NULL AND (f.expires_at IS NULL OR f.expires_at > ?)"
 
 // visibilityClause restricts files to those a viewer may see: everything
 // public, plus everything shared with members when they are signed in, plus

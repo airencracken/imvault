@@ -175,6 +175,9 @@ func (s *Server) serveObject(w http.ResponseWriter, r *http.Request, file *model
 	}
 	w.Header().Set("ETag", `"`+etag+`"`)
 	w.Header().Set("Cache-Control", cacheControl)
+	if file.TrashedAt != nil {
+		noStore(w)
+	}
 
 	http.ServeContent(w, r, file.OriginalName, time.Time{}, f)
 }
@@ -229,16 +232,16 @@ func (s *Server) handleFileMetadata(w http.ResponseWriter, r *http.Request) {
 	s.redirectFlash(w, r, "/f/"+file.ID, flashNotice, "Metadata setting updated.")
 }
 
-// handleFileDelete removes a file and its stored objects.
+// handleFileDelete trashes an owned file or permanently removes moderated content.
 func (s *Server) handleFileDelete(w http.ResponseWriter, r *http.Request) {
 	file, ok := s.loadDeletableFile(w, r)
 	if !ok {
 		return
 	}
 
-	// Drop the database row first: if that fails nothing is lost and the
-	// object can be retried, whereas orphaned bytes are recoverable.
-	if err := s.deleteFileAndRelease(r.Context(), file); err != nil {
+	// Change database state before releasing any content. Owner trash keeps
+	// the stored bytes, while staff removal releases them after deletion.
+	if err := s.removeOrTrashFile(r, file); err != nil {
 		s.log.Error("delete file", "id", file.ID, "error", err)
 		http.Error(w, "could not delete the file", http.StatusInternalServerError)
 		return
@@ -259,8 +262,20 @@ func (s *Server) handleFileDelete(w http.ResponseWriter, r *http.Request) {
 		if next == "" {
 			next = "/gallery"
 		}
-		s.redirectFlash(w, r, next, flashNotice, "File deleted.")
+		message := "File permanently deleted."
+		if ownsFile(currentUser(r.Context()), file) {
+			message = "Moved to Trash. You can restore it within 30 days."
+		}
+		s.redirectFlash(w, r, next, flashNotice, message)
 	}
+}
+
+func (s *Server) removeOrTrashFile(r *http.Request, file *models.File) error {
+	user := currentUser(r.Context())
+	if ownsFile(user, file) {
+		return s.store.TrashFile(r.Context(), file.ID, user.ID, time.Now())
+	}
+	return s.deleteFileAndRelease(r.Context(), file)
 }
 
 // handleTagAdd attaches a tag to a file.

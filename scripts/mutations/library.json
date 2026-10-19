@@ -1,0 +1,66 @@
+[
+  {
+    "name": "trash is hidden from ordinary file lookup",
+    "file": "internal/store/files.go",
+    "before": " WHERE f.id = ? AND f.trashed_at IS NULL`, id)",
+    "after": " WHERE f.id = ?`, id)",
+    "package": "./internal/store",
+    "run": "^TestTrashLifecyclePreservesReferencesAndRelations$"
+  },
+  {
+    "name": "trash is hidden from gallery and feed listings",
+    "file": "internal/store/store.go",
+    "before": "const expiryClause = \"f.trashed_at IS NULL AND (f.expires_at IS NULL OR f.expires_at > ?)\"",
+    "after": "const expiryClause = \"(f.expires_at IS NULL OR f.expires_at > ?)\"",
+    "package": "./internal/store",
+    "run": "^TestTrashLifecyclePreservesReferencesAndRelations$"
+  },
+  {
+    "name": "restore refuses the exact retention deadline",
+    "file": "internal/store/trash.go",
+    "before": "AND trashed_at > ? AND (expires_at",
+    "after": "AND trashed_at >= ? AND (expires_at",
+    "package": "./internal/store",
+    "run": "^TestTrashDeadlinePurgeAndAuthorization$"
+  },
+  {
+    "name": "trash restoration is owner only",
+    "file": "internal/store/trash.go",
+    "before": "SET trashed_at = NULL WHERE id = ? AND user_id = ? AND trashed_at",
+    "after": "SET trashed_at = NULL WHERE id = ? AND ? > 0 AND trashed_at",
+    "package": "./internal/store",
+    "run": "^TestTrashLifecyclePreservesReferencesAndRelations$"
+  },
+  {
+    "name": "bulk actions check file ownership",
+    "file": "internal/store/bulk_library.go",
+    "before": "WHERE f.id = ? AND f.user_id = ? AND ",
+    "after": "WHERE f.id = ? AND ? > 0 AND ",
+    "package": "./internal/store",
+    "run": "^TestBulkLibraryAuthorizationAndRollback$"
+  },
+  {
+    "name": "bulk album actions respect contribution settings",
+    "file": "internal/store/bulk_library.go",
+    "before": "access = 'members' AND visibility IN ('public','members')",
+    "after": "1 = 1 AND visibility IN ('public','members')",
+    "package": "./internal/store",
+    "run": "^TestBulkAlbumContributionPolicyAndSubsetProperty$"
+  },
+  {
+    "name": "date taken ordering uses capture time",
+    "file": "internal/store/files.go",
+    "before": "order = `COALESCE(b.taken_at, '') DESC, f.created_at DESC, f.id DESC`",
+    "after": "order = `f.created_at DESC, f.id DESC`",
+    "package": "./internal/store",
+    "run": "^TestCaptureDatesSortFilterRefreshAndScope$"
+  },
+  {
+    "name": "capture date backfill runs during upgrade",
+    "file": "internal/db/db.go",
+    "before": "if name == \"034_capture_dates.sql\" {",
+    "after": "if false {",
+    "package": "./internal/db",
+    "run": "^TestCaptureMigrationBackfillsExistingMetadataInBatches$"
+  }
+]

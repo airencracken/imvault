@@ -22,10 +22,11 @@ const maxReportNote = 500
 
 // reportRow is one report with its target resolved for display.
 type reportRow struct {
-	Report      *models.Report
-	TargetLabel string
-	TargetURL   string
-	TargetThumb string
+	TargetTrashed bool
+	Report        *models.Report
+	TargetLabel   string
+	TargetURL     string
+	TargetThumb   string
 	// TargetGone means the content was removed before the queue reached it,
 	// which is the usual outcome for an obvious report and worth saying.
 	TargetGone bool
@@ -204,7 +205,7 @@ func (s *Server) reportRowFor(r *http.Request, report *models.Report) reportRow 
 		row.TargetURL = "/a/" + album.Slug
 		row.Owner = album.Username
 	case models.TargetFile:
-		file, err := s.store.FileByID(r.Context(), report.TargetID)
+		file, err := s.store.FileForModeration(r.Context(), report.TargetID)
 		if err != nil {
 			row.TargetGone = true
 			row.TargetLabel = report.TargetID
@@ -213,6 +214,11 @@ func (s *Server) reportRowFor(r *http.Request, report *models.Report) reportRow 
 		row.TargetLabel = file.OriginalName
 		row.TargetURL = "/f/" + file.ID
 		row.TargetThumb = file.ThumbURL()
+		if file.TrashedAt != nil {
+			row.TargetTrashed = true
+			row.TargetURL = ""
+			row.TargetThumb = ""
+		}
 		row.Owner = file.Username
 	}
 	return row
@@ -381,7 +387,7 @@ func (s *Server) reportLabel(r *http.Request, report *models.Report) string {
 			return album.Title
 		}
 	case models.TargetFile:
-		if file, err := s.store.FileByID(r.Context(), report.TargetID); err == nil {
+		if file, err := s.store.FileForModeration(r.Context(), report.TargetID); err == nil {
 			return file.OriginalName
 		}
 	}
@@ -411,7 +417,7 @@ func (s *Server) removeReportedTarget(ctx context.Context, actor *models.User,
 			models.TargetAlbum, album.Slug, album.Title, reason)
 		return album.Title, nil
 	case models.TargetFile:
-		file, err := s.store.FileByID(ctx, report.TargetID)
+		file, err := s.store.FileForModeration(ctx, report.TargetID)
 		if err != nil {
 			return "", err
 		}

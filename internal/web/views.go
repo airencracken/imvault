@@ -62,6 +62,7 @@ func (b base) CanModerate() bool { return b.User != nil && b.User.CanModerate() 
 
 // fileCard is the data for a single tile in a grid.
 type fileCard struct {
+	ShowTaken     bool
 	SelectionForm string
 	File          *models.File
 	CSRFToken     string
@@ -76,6 +77,7 @@ type fileCard struct {
 
 // fileCardsView backs the reusable grid fragment.
 type fileCardsView struct {
+	ShowTaken     bool
 	SelectionForm string
 	base
 	Files      []*models.File
@@ -145,6 +147,9 @@ type authView struct {
 
 type galleryView struct {
 	base
+	Dates      libraryDates
+	Years      []string
+	Albums     []*models.Album
 	Grid       fileCardsView
 	Query      string
 	Pagination paginationView

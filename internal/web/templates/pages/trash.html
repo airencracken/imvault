@@ -1,0 +1,30 @@
+{{define "content"}}
+<header class="page-head"><h1>Trash</h1><a class="btn small" href="/gallery">Your gallery</a></header>
+<p>Files in Trash are hidden from galleries, albums and shared links. Restore them within 30 days, or permanently delete them now to reclaim storage.</p>
+<p class="muted">Restoring brings back their previous sharing settings, tags and album membership. Trashed files still count toward your storage. Backups may retain earlier copies.</p>
+{{if .Files}}
+<div class="grid trash-grid">
+{{range .Files}}
+<article class="card">
+  {{if .Restorable}}<img class="trash-thumb" src="/trash/{{.ID}}/thumb" alt="{{.OriginalName}}" loading="lazy">{{end}}
+  <div class="caption stack">
+    <h2 class="name">{{.OriginalName}}</h2>
+    <p class="muted">{{humanSize .Size}} · Trashed {{date .TrashedAt}}<br>Delete after {{date .TrashDeadline}}</p>
+    {{if .Restorable}}
+    <form method="post" action="/trash/{{.ID}}/restore">
+      <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+      <button class="btn" type="submit">Restore</button>
+    </form>
+    {{else}}<p class="muted">Restore window ended. Waiting for cleanup.</p>{{end}}
+    <form method="post" action="/trash/{{.ID}}/purge">
+      <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+      <label class="row"><input type="checkbox" name="confirm" value="yes" required> I understand this permanently deletes this file.</label>
+      <button class="btn danger" type="submit">Permanently delete</button>
+    </form>
+  </div>
+</article>
+{{end}}
+</div>
+{{else}}<p class="empty">Trash is empty.</p>{{end}}
+{{template "pagination" .Pagination}}
+{{end}}

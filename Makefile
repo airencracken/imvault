@@ -29,6 +29,7 @@ DIST_FILES := cmd internal docs go.mod go.sum Makefile README.md LICENSE \
 
 .PHONY: release-check release-snapshot test-proxies
 .PHONY: test-invitation-mutations test-web-mutations test-settings-mutations test-mutations
+.PHONY: test-library-mutations
 
 # The mutation engine is comfylib's tools/mutate.py, copied to scripts/ because
 # it runs from a copy of the tree with the module proxy off. Each table lists
@@ -38,13 +39,16 @@ MUTATE := GOWORK=off python3 scripts/mutate.py
 test-web-mutations: ## Check the web regression tests against deliberate security regressions
 	$(MUTATE) scripts/mutations/web.json
 
+test-library-mutations: ## Check trash, bulk organization and capture-date regression tests
+	$(MUTATE) scripts/mutations/library.json
+
 test-invitation-mutations: ## Check invitation tests against deliberate permission regressions
 	$(MUTATE) scripts/mutations/invitation.json
 
 test-settings-mutations: ## Check configuration, mail, rate-limit, key and service-account regressions
 	$(MUTATE) scripts/mutations/settings.json
 
-test-mutations: test-sandbox-mutations test-invitation-mutations test-web-mutations test-settings-mutations ## Run every mutation table
+test-mutations: test-sandbox-mutations test-invitation-mutations test-web-mutations test-settings-mutations test-library-mutations ## Run every mutation table
 
 test-proxies: ## Test nginx and Apache TLS proxy examples (needs both servers)
 	go test $(GOFLAGS) -tags=proxyintegration -count=1 -timeout=60s ./contrib/proxy

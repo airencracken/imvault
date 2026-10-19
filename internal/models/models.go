@@ -317,6 +317,8 @@ type File struct {
 	Views      int64
 	CreatedAt  time.Time
 	ExpiresAt  *time.Time
+	TrashedAt  *time.Time
+	TakenAt    string
 
 	// Populated by list queries that join for display.
 	Username string

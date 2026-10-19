@@ -21,7 +21,7 @@ const fileColumns = `f.id, f.user_id, f.original_name, f.description, f.ext, f.m
 	COALESCE(b.object_key, ''), COALESCE(b.thumb_key, ''), COALESCE(b.preview_key, ''),
 	COALESCE(b.details_json, ''), COALESCE(b.details_version, 0),
 	f.visibility, f.metadata, f.location, f.kind, f.duration_ms, f.frame_count, f.views, f.created_at, f.expires_at,
-	COALESCE(u.username, '')`
+	COALESCE(u.username, ''), f.trashed_at, COALESCE(b.taken_at, '')`
 
 const fileFrom = `FROM files f
 	LEFT JOIN users u ON u.id = f.user_id
@@ -32,6 +32,7 @@ func scanFile(sc rowScanner) (*models.File, error) {
 		f          models.File
 		userID     sql.NullInt64
 		expires    sql.NullInt64
+		trashed    sql.NullInt64
 		visibility string
 		metadata   string
 		location   string
@@ -41,7 +42,7 @@ func scanFile(sc rowScanner) (*models.File, error) {
 	if err := sc.Scan(
 		&f.ID, &userID, &f.OriginalName, &f.Description, &f.Ext, &f.Mime, &f.Size,
 		&f.Width, &f.Height, &f.Rotation, &f.SHA256, &f.ObjectKey, &f.ThumbKey, &f.PreviewKey, &f.Details, &f.DetailsVersion,
-		&visibility, &metadata, &location, &kind, &f.DurationMS, &f.FrameCount, &f.Views, &created, &expires, &f.Username,
+		&visibility, &metadata, &location, &kind, &f.DurationMS, &f.FrameCount, &f.Views, &created, &expires, &f.Username, &trashed, &f.TakenAt,
 	); err != nil {
 		return nil, err
 	}
@@ -55,6 +56,7 @@ func scanFile(sc rowScanner) (*models.File, error) {
 	f.Kind = models.ParseKind(kind)
 	f.CreatedAt = toTime(created)
 	f.ExpiresAt = timePtr(expires)
+	f.TrashedAt = timePtr(trashed)
 	return &f, nil
 }
 
@@ -133,7 +135,7 @@ func nullableTime(t *time.Time) any {
 // FileByID loads a single file together with its tags.
 func (s *Store) FileByID(ctx context.Context, id string) (*models.File, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT `+fileColumns+` `+fileFrom+` WHERE f.id = ?`, id)
+		`SELECT `+fileColumns+` `+fileFrom+` WHERE f.id = ? AND f.trashed_at IS NULL`, id)
 	f, err := scanFile(row)
 	if err != nil {
 		return nil, mapErr(err)
@@ -148,6 +150,13 @@ func (s *Store) FileByID(ctx context.Context, id string) (*models.File, error) {
 
 // FileQuery describes a filtered, paginated file listing.
 type FileQuery struct {
+	// IncludeTrash is for an owner's account export only, never browsing.
+	IncludeTrash bool
+	// SortTaken orders known camera dates first, then undated uploads.
+	SortTaken bool
+	// TakenPrefix is YYYY or YYYY-MM. UnknownTaken selects missing dates.
+	TakenPrefix  string
+	UnknownTaken bool
 	// OwnerID restricts results to one account.
 	OwnerID *int64
 	// AnonymousOnly restricts results to uploads with no owner.
@@ -241,10 +250,23 @@ func (q FileQuery) where() (string, []any) {
 		args = append(args, pattern, pattern, pattern, pattern)
 	}
 
-	// Retention is checked last so its argument always lines up with the
-	// trailing placeholder.
-	clauses = append(clauses, expiryClause)
+	// Expiry and trash are checked independently of audience filters.
+	if q.IncludeTrash && q.OwnerID != nil {
+		clauses = append(clauses, "(f.expires_at IS NULL OR f.expires_at > ?)")
+	} else {
+		clauses = append(clauses, expiryClause)
+	}
 	args = append(args, nowUnix())
+	// Capture-date queries stay in the owner's library: hidden EXIF must not
+	// become discoverable by filtering somebody else's shared photos.
+	if q.OwnerID != nil {
+		if q.UnknownTaken {
+			clauses = append(clauses, `COALESCE((SELECT taken_at FROM blobs WHERE sha256=f.sha256), '') = ''`)
+		} else if q.TakenPrefix != "" {
+			clauses = append(clauses, `(SELECT taken_at FROM blobs WHERE sha256=f.sha256) LIKE ? ESCAPE '\'`)
+			args = append(args, escapeLike(q.TakenPrefix)+"%")
+		}
+	}
 
 	return " WHERE " + strings.Join(clauses, " AND "), args
 }
@@ -257,6 +279,9 @@ func (s *Store) ListFiles(ctx context.Context, q FileQuery) ([]*models.File, err
 	}
 	where, args := q.where()
 	order := `f.created_at DESC, f.id DESC`
+	if q.SortTaken && q.OwnerID != nil {
+		order = `COALESCE(b.taken_at, '') DESC, f.created_at DESC, f.id DESC`
+	}
 	if q.FavoritedBy != nil {
 		order = `(SELECT created_at FROM favorites WHERE user_id = ? AND file_id = f.id) DESC, f.id DESC`
 		args = append(args, *q.FavoritedBy)
@@ -396,9 +421,10 @@ func (s *Store) ExpiredFiles(ctx context.Context, at time.Time, limit int) ([]*m
 	}
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT `+fileColumns+` `+fileFrom+`
-		 WHERE f.expires_at IS NOT NULL AND f.expires_at <= ?
-		 ORDER BY f.expires_at ASC LIMIT ?`,
-		ts(at), limit,
+		 WHERE (f.expires_at IS NOT NULL AND f.expires_at <= ?)
+		 OR (f.trashed_at IS NOT NULL AND f.trashed_at <= ?)
+		 ORDER BY f.id LIMIT ?`,
+		ts(at), at.Add(-TrashRetention).Unix(), limit,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list expired files: %w", err)

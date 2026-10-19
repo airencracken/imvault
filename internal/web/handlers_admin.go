@@ -519,7 +519,7 @@ func (s *Server) handleAdminFiles(w http.ResponseWriter, r *http.Request) {
 // handleAdminDeleteFile removes any account's upload, adjusting its owner's
 // usage.
 func (s *Server) handleAdminDeleteFile(w http.ResponseWriter, r *http.Request) {
-	file, err := s.store.FileByID(r.Context(), r.PathValue("id"))
+	file, err := s.store.FileForModeration(r.Context(), r.PathValue("id"))
 	if err != nil {
 		s.notFound(w, r, "That file does not exist.")
 		return

@@ -629,3 +629,16 @@ code {
 
 .member-avatar { display:inline-block; vertical-align:middle; }
 .member-avatar img { width:5rem; height:5rem; object-fit:cover; border-radius:50%; }
+
+/* Keep library controls usable on narrow screens and long file names. */
+.library-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 1rem;
+}
+.library-controls fieldset, .library-controls label { min-width: 0; }
+.library-controls select { width: 100%; max-width: 100%; }
+.trash-thumb { width: 100%; height: 12rem; object-fit: contain; }
+.trash-grid .caption { overflow-wrap: anywhere; }
+.trash-grid .name { white-space: normal; }
+.trash-grid input[type="checkbox"] { flex-shrink: 0; }

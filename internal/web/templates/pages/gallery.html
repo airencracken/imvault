@@ -1,31 +1,43 @@
 {{define "content"}}
 <header class="page-head">
   <h1>Your gallery</h1>
-  <form class="search" method="get" action="/gallery">
+  <a class="btn small" href="/trash">Trash</a>
+</header>
+  <form class="panel stack library-filters" method="get" action="/gallery">
     <label class="sr-only" for="gallery-search">Search your gallery</label>
     <input id="gallery-search" type="search" name="q" value="{{.Query}}" placeholder="Search by name, tag or id" autocomplete="off">
-    <button class="btn small" type="submit">Search</button>
-    {{if .Query}}<a class="btn small" href="/gallery">Clear</a>{{end}}
+    <div class="library-controls">
+      <label>Sort by<select name="sort"><option value="uploaded" {{if ne .Dates.Sort "taken"}}selected{{end}}>Date uploaded</option><option value="taken" {{if eq .Dates.Sort "taken"}}selected{{end}}>Date taken</option></select></label>
+      <label>Year taken<select name="year"><option value="">All years</option>{{range .Years}}<option value="{{.}}" {{if eq $.Dates.Year .}}selected{{end}}>{{.}}</option>{{end}}<option value="unknown" {{if eq .Dates.Year "unknown"}}selected{{end}}>Unknown date</option></select></label>
+      <label>Month taken<select name="month"><option value="">All months</option>{{range months}}<option value="{{.Value}}" {{if eq $.Dates.Month .Value}}selected{{end}}>{{.Label}}</option>{{end}}</select></label>
+    </div>
+    <p class="muted">Newest first. Date taken uses the camera's recorded time; undated files follow dated photos. Choose a year before choosing a month.</p>
+    <div class="actions"><button class="btn small" type="submit">Apply filters</button><a class="btn small" href="/gallery">Clear filters</a></div>
   </form>
-</header>
 
 {{if .Grid.Files}}
 <form id="bulk-tags" class="panel stack" method="post" action="/gallery/tags">
   <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
   <input type="hidden" name="q" value="{{.Query}}">
   <input type="hidden" name="page" value="{{.Pagination.Page}}">
-  <h2>Tag selected photos</h2>
-  <p class="muted">Select photos below, then add tags to all of them. Existing tags are kept.</p>
+  <input type="hidden" name="sort" value="{{.Dates.Sort}}"><input type="hidden" name="year" value="{{.Dates.Year}}"><input type="hidden" name="month" value="{{.Dates.Month}}">
+  <h2>Organize selected photos</h2>
+  <p class="muted">Select photos below, then choose an action. Selection applies to this page.</p>
   <div class="actions" id="bulk-selection" hidden>
     <button class="btn small" type="button" id="bulk-select-all">Select all on this page</button>
     <button class="btn small" type="button" id="bulk-clear">Clear selection</button>
     <span id="bulk-count" role="status" aria-live="polite"></span>
   </div>
-  <label>Tags, separated by commas
+  <div class="library-controls">
+  <fieldset class="stack"><legend>Add tags</legend><label>Tags, separated by commas
     <input name="tags" required placeholder="Holiday, Family" aria-describedby="bulk-tags-help">
   </label>
   <p id="bulk-tags-help" class="muted">Up to 50 tags, 48 characters each. Selection applies to this page.</p>
   <button class="btn primary" type="submit" id="bulk-submit">Add tags</button>
+  </fieldset>
+  {{if .Albums}}<fieldset class="stack"><legend>Add to album</legend><label>Album<select name="album"><option value="">Choose an album</option>{{range .Albums}}<option value="{{.ID}}">{{.Title}}{{if ne .UserID $.User.ID}} (shared by {{.Username}}){{end}}</option>{{end}}</select></label><button class="btn" type="submit" id="bulk-album" formaction="/gallery/album" formnovalidate>Add to album</button></fieldset>{{end}}
+  <fieldset class="stack"><legend>Change sharing</legend><label>Visible to<select name="visibility"><option value="">Choose visibility</option>{{range .VisibilityLevels}}<option value="{{.}}">{{.Label}} — {{.Explain}}</option>{{end}}</select></label><p class="muted">Applies to every selected file. Making files public also changes their existing shared links.</p><button class="btn" type="submit" id="bulk-visibility" formaction="/gallery/visibility" formnovalidate>Change visibility</button></fieldset>
+  </div>
 </form>
 {{end}}
 

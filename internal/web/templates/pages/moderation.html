@@ -37,7 +37,7 @@
         {{if .TargetGone}}
         <span class="muted">{{.TargetLabel}} — no longer exists</span>
         {{else}}
-        <a href="{{.TargetURL}}">{{.TargetLabel}}</a>
+        {{if .TargetTrashed}}<strong>{{.TargetLabel}}</strong> <span class="muted">— in its owner’s Trash; removal here is permanent</span>{{else}}<a href="{{.TargetURL}}">{{.TargetLabel}}</a>{{end}}
         {{if .Owner}}<br><span class="muted">by {{.Owner}}</span>{{end}}
         {{end}}
       </div>

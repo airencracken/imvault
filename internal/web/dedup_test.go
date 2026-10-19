@@ -72,7 +72,7 @@ func TestIdenticalUploadsShareTheirBytes(t *testing.T) {
 }
 
 func TestDeletingOneCopyKeepsTheSharedBytes(t *testing.T) {
-	h := newHarness(t)
+	h := newLibraryHarness(t, nil)
 	h.registerForm("marcus")
 
 	image := pngFixture(t, 64, 64)
@@ -93,6 +93,7 @@ func TestDeletingOneCopyKeepsTheSharedBytes(t *testing.T) {
 		"csrf_token": {h.csrf()},
 		"next":       {"/gallery"},
 	})
+	h.purgeTrash(firstID)
 
 	if _, err := h.store.FileByID(t.Context(), firstID); err == nil {
 		t.Error("the deleted file is still in the database")
@@ -112,6 +113,7 @@ func TestDeletingOneCopyKeepsTheSharedBytes(t *testing.T) {
 		"csrf_token": {h.csrf()},
 		"next":       {"/gallery"},
 	})
+	h.purgeTrash(secondID)
 	if objects := countStoredObjects(t, h.dataDir); objects != 0 {
 		t.Errorf("%d objects remain after the last copy went", objects)
 	}
@@ -146,7 +148,7 @@ func TestDifferentImagesAreStoredSeparately(t *testing.T) {
 }
 
 func TestDeduplicationAcrossAccounts(t *testing.T) {
-	h := newHarness(t)
+	h := newLibraryHarness(t, nil)
 	h.provisionAdmin("boss")
 
 	// A second account, so the two uploads have different owners.
@@ -208,6 +210,7 @@ func TestDeduplicationAcrossAccounts(t *testing.T) {
 		"csrf_token": {h.csrf()},
 		"next":       {"/gallery"},
 	})
+	h.purgeTrash(adminID)
 	if resp, _ := h.get("/f/" + aliceID + "/raw"); resp.StatusCode != http.StatusOK {
 		t.Errorf("one account's delete removed another's bytes: %d", resp.StatusCode)
 	}

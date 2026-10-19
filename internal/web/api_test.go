@@ -58,6 +58,7 @@ func (h *harness) apiDo(method, path, key string, body io.Reader, contentType st
 	}
 
 	client := &http.Client{
+		Transport: h.client.Transport,
 		CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		},

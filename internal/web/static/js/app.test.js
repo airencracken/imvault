@@ -19,7 +19,7 @@ const SOURCE = fs.readFileSync(path.join(__dirname, "app.js"), "utf8");
 
 function loadBulkSelection() {
   const elements = {};
-  for (const id of ["bulk-tags", "bulk-count", "bulk-submit", "bulk-selection", "bulk-select-all", "bulk-clear"]) {
+  for (const id of ["bulk-tags", "bulk-count", "bulk-submit", "bulk-album", "bulk-visibility", "bulk-selection", "bulk-select-all", "bulk-clear"]) {
     elements[id] = { listeners: {}, addEventListener(name, fn) { this.listeners[name] = fn; } };
   }
   let picks = [{ checked: false }, { checked: false }];
@@ -43,11 +43,15 @@ test("bulk selection counts individual picks, selects the page and clears it", (
   const { elements, picks, listeners } = loadBulkSelection();
   assert.equal(elements["bulk-selection"].hidden, false);
   assert.equal(elements["bulk-submit"].disabled, true);
+  assert.equal(elements["bulk-album"].disabled, true);
+  assert.equal(elements["bulk-visibility"].disabled, true);
   assert.equal(elements["bulk-count"].textContent, "0 selected");
   picks[0].checked = true;
   listeners.change();
   assert.equal(elements["bulk-count"].textContent, "1 selected");
   assert.equal(elements["bulk-submit"].disabled, false);
+  assert.equal(elements["bulk-album"].disabled, false);
+  assert.equal(elements["bulk-visibility"].disabled, false);
   elements["bulk-select-all"].listeners.click();
   assert.ok(picks.every((pick) => pick.checked));
   assert.equal(elements["bulk-count"].textContent, "2 selected");

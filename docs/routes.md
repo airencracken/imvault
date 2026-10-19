@@ -25,8 +25,12 @@ first part is read to find it). The routes that check a credential, register
 an account, or send mail for a signed-out visitor (`/login`, `/login/2fa`,
 `/register`, `/forgot`, `/reset/{token}`, `/auth/oidc/complete`, and the
 current-password checks under `/settings`) share the sign-in rate limit.
-| `GET` | `/gallery` | Your uploads (supports `?q=` and `?page=`) |
+| `GET` | `/gallery` | Your uploads (`q`, `page`, `sort`, `year`, `month=MM`) |
 | `POST` | `/gallery/tags` | Add comma-separated tags to selected own files; session and CSRF required |
+| `POST` | `/gallery/album`, `/gallery/visibility` | Atomically add selected own files to an album or change sharing |
+| `GET` | `/trash` | Owner-only removed files, private thumbnails and restoration controls |
+| `GET` | `/trash/{id}/thumb` | Owner-only uncached thumbnail while restoration is available |
+| `POST` | `/trash/{id}/restore`, `/trash/{id}/purge` | Restore within 30 days or permanently delete (confirmation required for purge) |
 | `GET` | `/favorites` | Your private favorites (supports `?q=` and `?page=`) |
 | `GET` | `/recent` | The instance feed: what everybody has shared (supports `?page=`) |
 | `GET` `POST` | `/upload` | Uploader and upload endpoint |
@@ -40,7 +44,7 @@ current-password checks under `/settings`) share the sign-in rate limit.
 | `POST` | `/f/{id}/location` | Set location sharing independently of EXIF |
 | `POST` | `/f/{id}/rename` | Rename an upload (owner or administrator) |
 | `POST` | `/f/{id}/description` | Set or clear a plain-text description (owner or administrator) |
-| `POST` | `/f/{id}/delete` | Delete the file |
+| `POST` | `/f/{id}/delete` | Move an owned file to 30-day Trash; staff removal of another account's file is permanent |
 | `POST` | `/f/{id}/tags`, `/f/{id}/tags/{tagID}/delete` | Attach or detach a tag |
 | `GET` `POST` | `/albums` | List and create albums; lists the ones others shared too |
 | `POST` | `/a/{slug}/share` | Prepare an explicit link-only Witmoot draft (signed-in album reader) |

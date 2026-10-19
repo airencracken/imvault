@@ -5,6 +5,7 @@ package web
 import (
 	"errors"
 	"net/http"
+	"slices"
 	"time"
 
 	"imvault/internal/models"
@@ -32,6 +33,11 @@ func (s *Server) handleGallery(w http.ResponseWriter, r *http.Request) {
 		OwnerID: &user.ID,
 		Search:  query,
 	}
+	dates, err := applyLibraryDates(r.URL.Query(), &filter)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	total, err := s.store.CountFiles(r.Context(), filter)
 	if err != nil {
@@ -53,11 +59,25 @@ func (s *Server) handleGallery(w http.ResponseWriter, r *http.Request) {
 
 	grid := s.grid(r, files, true, true, "", "You have not uploaded anything yet.")
 	grid.SelectionForm = "bulk-tags"
+	grid.ShowTaken = true
+	years, err := s.store.CaptureYears(r.Context(), user.ID)
+	if err != nil {
+		http.Error(w, "could not load photo dates", http.StatusInternalServerError)
+		return
+	}
+	if dates.Year != "" && dates.Year != "unknown" && !slices.Contains(years, dates.Year) {
+		years = append(years, dates.Year)
+		slices.Sort(years)
+		slices.Reverse(years)
+	}
 	s.renderPage(w, http.StatusOK, "gallery", galleryView{
 		base:       s.base(r, "Your gallery"),
 		Grid:       grid,
 		Query:      query,
 		Pagination: pg,
+		Dates:      dates,
+		Years:      years,
+		Albums:     s.contributableAlbums(r, user),
 	})
 }
 

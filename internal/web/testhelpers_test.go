@@ -59,7 +59,8 @@ func (h *harness) signIn(t *testing.T, userID int64) *http.Client {
 	}})
 
 	return &http.Client{
-		Jar: jar,
+		Transport: h.client.Transport,
+		Jar:       jar,
 		CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
@@ -280,7 +281,8 @@ func (h *harness) newSession(t *testing.T) *session {
 		h:   h,
 		jar: jar,
 		client: &http.Client{
-			Jar: jar,
+			Transport: h.client.Transport,
+			Jar:       jar,
 			CheckRedirect: func(*http.Request, []*http.Request) error {
 				return http.ErrUseLastResponse
 			},
@@ -386,7 +388,8 @@ func (h *harness) sessionFor(t *testing.T, userID int64) *session {
 		h:   h,
 		jar: jar,
 		client: &http.Client{
-			Jar: jar,
+			Transport: h.client.Transport,
+			Jar:       jar,
 			CheckRedirect: func(*http.Request, []*http.Request) error {
 				return http.ErrUseLastResponse
 			},
@@ -522,5 +525,13 @@ func trustLoopback(c *config.Config, trusted bool) {
 	c.TrustedProxies = nil
 	if trusted {
 		c.TrustedProxies = loopbackProxies
+	}
+}
+
+// purgeTrash finishes an owner's deletion when a test checks byte reclamation.
+func (h *harness) purgeTrash(id string) {
+	h.t.Helper()
+	if resp, _ := h.postForm("/trash/"+id+"/purge", url.Values{"csrf_token": {h.csrf()}, "confirm": {"yes"}}); resp.StatusCode != http.StatusSeeOther {
+		h.t.Fatalf("permanent deletion: %d", resp.StatusCode)
 	}
 }

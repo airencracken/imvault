@@ -19,6 +19,10 @@
       var selected = picks().filter(function (pick) { return pick.checked; }).length;
       bulkCount.textContent = selected + " selected";
       bulkSubmit.disabled = selected === 0;
+      ["bulk-album", "bulk-visibility"].forEach(function (id) {
+        var button = document.getElementById(id);
+        if (button) button.disabled = selected === 0;
+      });
     }
     function selectPage(checked) {
       picks().forEach(function (pick) { pick.checked = checked; });

@@ -401,6 +401,10 @@ func (s *Server) apiListFiles(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if _, err := applyLibraryDates(query, &filter); err != nil {
+		writeAPIError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 
 	total, err := s.store.CountFiles(r.Context(), filter)
 	if err != nil {
@@ -467,14 +471,14 @@ func parseKindFilter(raw string) (models.Kind, error) {
 	}
 }
 
-// apiDeleteFile removes a file the caller owns, bytes included.
+// apiDeleteFile moves an owned file to Trash; staff removal remains permanent.
 func (s *Server) apiDeleteFile(w http.ResponseWriter, r *http.Request) {
 	file, ok := s.apiOwnedFile(w, r, currentUser(r.Context()))
 	if !ok {
 		return
 	}
 
-	if err := s.deleteFileAndRelease(r.Context(), file); err != nil {
+	if err := s.removeOrTrashFile(r, file); err != nil {
 		s.log.Error("api: delete file", "id", file.ID, "error", err)
 		writeAPIError(w, http.StatusInternalServerError, "could not delete the file")
 		return
@@ -484,7 +488,11 @@ func (s *Server) apiDeleteFile(w http.ResponseWriter, r *http.Request) {
 	s.recordFileRemoval(r.Context(), currentUser(r.Context()), file, "")
 
 	noStore(w)
-	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted", "id": file.ID})
+	status := "deleted"
+	if ownsFile(currentUser(r.Context()), file) {
+		status = "trashed"
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": status, "id": file.ID})
 }
 
 // wantsPlainText reports whether the client asked for bare URLs, which is what

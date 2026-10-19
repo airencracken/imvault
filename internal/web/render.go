@@ -119,6 +119,14 @@ func (s *Server) renderPage(w http.ResponseWriter, status int, name string, data
 // templateFuncs returns the helpers exposed to templates.
 func templateFuncs() template.FuncMap {
 	return template.FuncMap{"linkNumber": func(i int) int { return i + 1 },
+		"months": func() []struct{ Value, Label string } {
+			out := make([]struct{ Value, Label string }, 12)
+			for i := range out {
+				out[i].Value = fmt.Sprintf("%02d", i+1)
+				out[i].Label = time.Month(i + 1).String()
+			}
+			return out
+		},
 		"humanSize": models.HumanSize,
 		"humanTime": models.HumanTime,
 		"date": func(t time.Time) string {
@@ -152,6 +160,7 @@ func templateFuncs() template.FuncMap {
 				removeURL = strings.Replace(pattern, "%s", f.ID, 1)
 			}
 			return fileCard{
+				ShowTaken:     view.ShowTaken,
 				SelectionForm: view.SelectionForm,
 				File:          f,
 				CSRFToken:     view.CSRFToken,

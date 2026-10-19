@@ -54,6 +54,7 @@ jobs:
           make test-invitation-mutations || exit 1
           make test-web-mutations || exit 1
           make test-settings-mutations || exit 1
+          make test-library-mutations || exit 1
           make test-race || exit 1
           make test-proxies || exit 1
       - name: Build archives and Debian packages

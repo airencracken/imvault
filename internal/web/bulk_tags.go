@@ -29,7 +29,7 @@ func (s *Server) handleBulkTags(w http.ResponseWriter, r *http.Request) {
 	}
 	q := url.Values{}
 	s.flashQuery(q, kind, message)
-	for _, field := range []string{"q", "page"} {
+	for _, field := range []string{"q", "page", "sort", "year", "month"} {
 		if value := r.PostForm.Get(field); value != "" {
 			q.Set(field, value)
 		}

@@ -538,7 +538,7 @@ func (s *Store) Stats(ctx context.Context) (InstanceStats, error) {
 			(SELECT COUNT(*) FROM users WHERE role = 'moderator'),
 			(SELECT COUNT(*) FROM users WHERE disabled = 1),
 			(SELECT COUNT(*) FROM files),
-			(SELECT COUNT(*) FROM files WHERE visibility = 'public'),
+			(SELECT COUNT(*) FROM files WHERE visibility = 'public' AND trashed_at IS NULL),
 			(SELECT COALESCE(SUM(size), 0) FROM files),
 			(SELECT COUNT(*) FROM api_keys WHERE expires_at IS NULL OR expires_at > ?)`,
 		nowUnix(),

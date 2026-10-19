@@ -41,7 +41,7 @@ func (f *failingStorage) Stat(ctx context.Context, key string) (int64, error) {
 }
 
 func TestFailedObjectDeletionIsRetriedByCleanup(t *testing.T) {
-	h := newHarness(t)
+	h := newLibraryHarness(t, nil)
 	user := h.seedUser("alice")
 	owner := h.sessionFor(t, user.ID)
 	id := uploadAs(t, owner, "photo.png", "private")
@@ -53,6 +53,9 @@ func TestFailedObjectDeletionIsRetriedByCleanup(t *testing.T) {
 	h.srv.objects = failing
 	if resp, _ := owner.post("/f/"+id+"/delete", url.Values{}); resp.StatusCode != 303 {
 		t.Fatal("delete route failed")
+	}
+	if resp, _ := owner.post("/trash/"+id+"/purge", url.Values{"confirm": {"yes"}}); resp.StatusCode != 303 {
+		t.Fatal("purge route failed")
 	}
 	blob, err := h.store.BlobBySHA(t.Context(), file.SHA256)
 	if err != nil || !blob.Orphaned() {

@@ -78,7 +78,7 @@ func TestStorageQuotaIsEnforcedOnUpload(t *testing.T) {
 }
 
 func TestStorageIsReleasedWhenAFileIsDeleted(t *testing.T) {
-	h := newHarness(t)
+	h := newLibraryHarness(t, nil)
 	h.registerForm("marcus")
 
 	resp, body := h.uploadFiles(map[string]string{"public": "1"}, []uploadFile{
@@ -101,6 +101,7 @@ func TestStorageIsReleasedWhenAFileIsDeleted(t *testing.T) {
 		"csrf_token": {h.csrf()},
 		"next":       {"/gallery"},
 	})
+	h.purgeTrash(id)
 
 	after, err := h.store.UserByID(t.Context(), user.ID)
 	if err != nil {

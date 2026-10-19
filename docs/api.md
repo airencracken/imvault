@@ -225,3 +225,57 @@ rotation is nonzero, subject to the file's usual access rules. The account
 export retains the original and records its rotation in the manifest.
 
 Album previews and discussion links follow [the discussion access rules](discussions.md).
+
+
+## Library actions and capture dates
+
+`GET /api/v1/files` accepts these filters together with its existing search,
+visibility, tag, album and media-kind filters:
+
+| Parameter | Values |
+| --- | --- |
+| `sort` | `uploaded` (default) or `taken`; newest first, undated files last for `taken` |
+| `year` | Four-digit camera year, `0001` through `9999`, or `unknown` |
+| `month` | `01` through `12`, requires a numeric `year` |
+
+Invalid combinations return `400`. These filters apply to the caller's own
+library; other people's hidden camera dates cannot be inferred through them.
+Camera dates are wall times with no assumed timezone. Missing dates are not
+replaced by upload time. The normal `files`, `total`, `limit`, `offset` response
+shape is unchanged.
+
+`POST /api/v1/library/album` accepts `files` (an array of file ids) and `album`
+(an album id, string or number). `POST /api/v1/library/visibility` accepts `files`
+and `visibility` (`public`, `members` or `private`). Both accept JSON or ordinary
+form encoding and return `{"updated": N}`. Repeated file ids count once. Every
+file must belong to the caller, including for administrators, and the selection
+is limited to 500 entries. The album must currently accept contributions from
+the caller. An invalid value returns `400`; an unavailable file or album returns
+`404`. A failed batch writes nothing. Adding to an album preserves file visibility
+and other memberships.
+
+## Trash
+
+`DELETE /api/v1/files/{id}` moves the caller's own upload to Trash and returns
+`{"status":"trashed","id":"..."}`. This replaces immediate permanent deletion.
+Normal file and media routes then return `404`. Staff removal of somebody else's
+upload remains permanent and returns `status: "deleted"`.
+
+| Method | Path | Result |
+| --- | --- | --- |
+| `GET` | `/api/v1/trash` | Owner-only list; `limit` (1–200, default 50) and `offset` |
+| `POST` | `/api/v1/trash/{id}/restore` | `{"status":"restored","id":"..."}` |
+| `DELETE` | `/api/v1/trash/{id}` | Permanent deletion: `{"status":"deleted","id":"..."}` |
+
+The list contains `files`, `total`, `limit` and `offset`. Each file has `id`,
+`name`, `size`, `trashed_at` and `purge_after`; both dates are UTC RFC3339 strings.
+It includes files awaiting cleanup after their restore deadline. No original
+media URLs are supplied. These routes accept only the owner's bearer key;
+administrators cannot restore another account's files. A missing, foreign or
+non-trashed file returns `404`, as does restoration at or after the 30-day
+deadline. Permanent deletion remains available after that deadline until cleanup.
+
+Restoration preserves the old sharing settings and surviving album memberships.
+Trashed files still count toward quota until purged. Account exports include
+their original bytes and `trashed_at`; backups can retain earlier copies after
+permanent deletion from the running instance.

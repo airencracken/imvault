@@ -71,6 +71,7 @@ type exportFile struct {
 	Visibility string      `json:"visibility"`
 	CreatedAt  string      `json:"created_at"`
 	ExpiresAt  *string     `json:"expires_at"`
+	TrashedAt  *string     `json:"trashed_at,omitempty"`
 	Tags       []exportTag `json:"tags"`
 	Albums     []string    `json:"albums,omitempty"`
 	URL        string      `json:"url"`
@@ -218,9 +219,10 @@ func (s *Server) exportableFiles(r *http.Request, userID int64) ([]exportFile, e
 
 	for offset := 0; ; offset += exportPageSize {
 		batch, err := s.store.ListFiles(ctx, store.FileQuery{
-			OwnerID: &userID,
-			Limit:   exportPageSize,
-			Offset:  offset,
+			IncludeTrash: true,
+			OwnerID:      &userID,
+			Limit:        exportPageSize,
+			Offset:       offset,
 		})
 		if err != nil {
 			return nil, err
@@ -248,6 +250,7 @@ func (s *Server) exportableFiles(r *http.Request, userID int64) ([]exportFile, e
 				Visibility:  string(file.Visibility),
 				CreatedAt:   file.CreatedAt.UTC().Format(time.RFC3339),
 				ExpiresAt:   exportExpiry(file),
+				TrashedAt:   exportTrashedAt(file),
 				Tags:        exportTags(file.Tags),
 				URL:         s.absoluteURL(r, "/f/"+file.ID),
 				RawURL:      s.absoluteURL(r, "/f/"+file.ID+"/raw"),
@@ -279,7 +282,7 @@ func (s *Server) exportableAlbums(ctx context.Context, userID int64, files []exp
 	out := make([]exportAlbum, 0, len(albums))
 	for _, album := range albums {
 		albumID := album.ID
-		members, err := s.store.ListFiles(ctx, store.FileQuery{AlbumID: &albumID, Limit: 10000})
+		members, err := s.store.ListFiles(ctx, store.FileQuery{OwnerID: &userID, IncludeTrash: true, AlbumID: &albumID, Limit: 10000})
 		if err != nil {
 			return nil, err
 		}
@@ -318,6 +321,14 @@ func exportExpiry(file *models.File) *string {
 		return nil
 	}
 	formatted := file.ExpiresAt.UTC().Format(time.RFC3339)
+	return &formatted
+}
+
+func exportTrashedAt(file *models.File) *string {
+	if file.TrashedAt == nil {
+		return nil
+	}
+	formatted := file.TrashedAt.UTC().Format(time.RFC3339)
 	return &formatted
 }
 

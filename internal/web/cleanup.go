@@ -62,11 +62,16 @@ func (s *Server) reapExpiredFiles(ctx context.Context, now time.Time) (int, bool
 		for _, f := range batch {
 			// Row first, then bytes: a crash mid-way leaves recoverable
 			// orphans rather than dangling references.
-			if err := s.store.DeleteFile(ctx, f.ID); err != nil {
+			deleted, err := s.store.DeleteExpiredFile(ctx, f.ID, now)
+			if err != nil {
 				s.log.Error("cleanup: delete file row", "id", f.ID, "error", err)
 				continue
 			}
+			if !deleted {
+				continue
+			}
 			s.deleteFileObjects(ctx, f)
+			s.releaseStorage(ctx, f.UserID, f.Size)
 			files++
 		}
 
