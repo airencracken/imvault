@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"imvault/internal/config"
+	"imvault/internal/db"
 	"imvault/internal/instance"
 	"imvault/internal/maintenance"
 	"imvault/internal/storage"
@@ -42,6 +43,10 @@ func TestLiveBackupRetainsSnapshotObjectsDuringConcurrentDeletion(t *testing.T) 
 	user := h.seedUser("alice")
 	owner := h.sessionFor(t, user.ID)
 	id := uploadAs(t, owner, "keep.png", "private")
+	file, err := h.store.FileByID(t.Context(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
 	server, err := instance.AcquireServer(h.srv.cfg.DBPath)
 	if err != nil {
 		t.Fatal(err)
@@ -68,10 +73,21 @@ func TestLiveBackupRetainsSnapshotObjectsDuringConcurrentDeletion(t *testing.T) 
 	case <-ctx.Done():
 		t.Fatal(ctx.Err())
 	}
+	// Moving to Trash retains the snapshot's bytes and must not wait for the
+	// backup's object lock. Permanent purging must wait for that lock.
+	if response, _ := owner.post("/f/"+id+"/delete", url.Values{}); response.StatusCode != http.StatusSeeOther {
+		t.Fatalf("move to Trash during backup: %d", response.StatusCode)
+	}
+	if _, err := h.store.TrashedFile(ctx, id, user.ID); err != nil {
+		t.Fatal("deletion did not retain the file in Trash", err)
+	}
 	deleted := make(chan int, 1)
-	go func() { response, _ := owner.post("/f/"+id+"/delete", url.Values{}); deleted <- response.StatusCode }()
+	go func() {
+		response, _ := owner.post("/trash/"+id+"/purge", url.Values{"confirm": {"yes"}})
+		deleted <- response.StatusCode
+	}()
 	for {
-		_, err := h.store.FileByID(ctx, id)
+		_, err := h.store.TrashedFile(ctx, id, user.ID)
 		if errors.Is(err, store.ErrNotFound) {
 			break
 		}
@@ -109,6 +125,18 @@ func TestLiveBackupRetainsSnapshotObjectsDuringConcurrentDeletion(t *testing.T) 
 	restored := filepath.Join(t.TempDir(), "restored")
 	if err := maintenance.Restore(ctx, backup, restored, io.Discard); err != nil {
 		t.Fatal("live snapshot cannot be restored", err)
+	}
+	database, err := db.OpenCurrent(ctx, filepath.Join(restored, "imvault.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mustClose(t, database)
+	restoredFile, err := store.New(database).FileByID(ctx, id)
+	if err != nil || restoredFile.SHA256 != file.SHA256 {
+		t.Fatal("snapshot lost the file purged during backup", restoredFile, err)
+	}
+	if _, err := h.srv.objects.Stat(ctx, file.ObjectKey); !errors.Is(err, storage.ErrNotFound) {
+		t.Fatal("purge did not remove the live original after backup", err)
 	}
 }
 

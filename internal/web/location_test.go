@@ -5,6 +5,7 @@ package web
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -13,6 +14,7 @@ import (
 
 	"imvault/internal/metadata"
 	"imvault/internal/models"
+	"imvault/internal/storage"
 	"imvault/internal/store"
 )
 
@@ -211,10 +213,26 @@ func TestLocationVariantsSurvivePolicyChangesAndMissingCache(t *testing.T) {
 	if resp.StatusCode != 200 || !bytes.Equal(gps, rebuilt) {
 		t.Fatal("missing filtered object not rebuilt")
 	}
-	h.apiJSON(http.MethodDelete, "/api/v1/files/"+id, key, nil)
+	resp, raw = h.apiJSON(http.MethodDelete, "/api/v1/files/"+id, key, nil)
+	var result map[string]string
+	if err := json.Unmarshal(raw, &result); err != nil || resp.StatusCode != http.StatusOK || result["status"] != "trashed" || result["id"] != id {
+		t.Fatalf("trash response: %d %s (%v)", resp.StatusCode, raw, err)
+	}
+	if _, err := h.store.TrashedFile(t.Context(), id, u.ID); err != nil {
+		t.Fatal("file missing from Trash", err)
+	}
 	for _, objectKey := range blob.Keys() {
-		if _, err := h.srv.objects.Stat(t.Context(), objectKey); err == nil {
-			t.Fatalf("deleted file left object %s", objectKey)
+		if _, err := h.srv.objects.Stat(t.Context(), objectKey); err != nil {
+			t.Fatalf("Trash lost retained object %s: %v", objectKey, err)
+		}
+	}
+	resp, raw = h.apiJSON(http.MethodDelete, "/api/v1/trash/"+id, key, nil)
+	if err := json.Unmarshal(raw, &result); err != nil || resp.StatusCode != http.StatusOK || result["status"] != "deleted" || result["id"] != id {
+		t.Fatalf("purge response: %d %s (%v)", resp.StatusCode, raw, err)
+	}
+	for _, objectKey := range blob.Keys() {
+		if _, err := h.srv.objects.Stat(t.Context(), objectKey); !errors.Is(err, storage.ErrNotFound) {
+			t.Fatalf("purged file left object %s: %v", objectKey, err)
 		}
 	}
 }

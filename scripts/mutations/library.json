@@ -56,6 +56,22 @@
     "run": "^TestCaptureDatesSortFilterRefreshAndScope$"
   },
   {
+    "name": "owner deletion retains location variants in trash",
+    "file": "internal/web/handlers_files.go",
+    "before": "return s.store.TrashFile(r.Context(), file.ID, user.ID, time.Now())",
+    "after": "return s.deleteFileAndRelease(r.Context(), file)",
+    "package": "./internal/web",
+    "run": "^TestLocationVariantsSurvivePolicyChangesAndMissingCache$"
+  },
+  {
+    "name": "API purge releases location variants",
+    "file": "internal/web/trash.go",
+    "before": "\ts.deleteFileObjects(r.Context(), file)\n\ts.releaseStorage(r.Context(), file.UserID, file.Size)\n\tnoStore(w)",
+    "after": "\ts.releaseStorage(r.Context(), file.UserID, file.Size)\n\tnoStore(w)",
+    "package": "./internal/web",
+    "run": "^TestLocationVariantsSurvivePolicyChangesAndMissingCache$"
+  },
+  {
     "name": "capture date backfill runs during upgrade",
     "file": "internal/db/db.go",
     "before": "if name == \"034_capture_dates.sql\" {",
