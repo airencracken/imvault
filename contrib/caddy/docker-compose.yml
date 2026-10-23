@@ -11,7 +11,7 @@
 
 services:
   imvault:
-    image: ${IMVAULT_IMAGE:-ghcr.io/airencracken/imvault:v0.20.1}
+    image: ${IMVAULT_IMAGE:-ghcr.io/airencracken/imvault:v0.20.2}
     container_name: imvault
     restart: unless-stopped
     # Multipart bodies spill here past 8 MiB, so this is sized in RAM rather

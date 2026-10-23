@@ -1,7 +1,7 @@
 # Binary releases
 
 Download Imvault from [GitHub Releases](https://github.com/airencracken/imvault/releases).
-The latest release is [0.20.1](release-notes/0.20.1.md), adding tested multi-platform container images.
+The latest release is [0.20.2](release-notes/0.20.2.md), adding tested multi-platform container images.
 The [0.20.0 notes](release-notes/0.20.0.md) describe Trash, library organization,
 and the migration and API compatibility changes to read before upgrading.
 
@@ -30,7 +30,7 @@ recommends it. HTTPS connections also need your system's CA certificates.
 Select the version and architecture you want. For example:
 
 ```sh
-release_version=0.20.1
+release_version=0.20.2
 release_arch=amd64
 release_url="https://github.com/airencracken/imvault/releases/download/v$release_version"
 curl -fLO "$release_url/imvault_${release_version}_${release_arch}.deb"
@@ -84,8 +84,8 @@ Download the archive and checksum file for your architecture, verify them as
 above, and extract the archive:
 
 ```sh
-tar -xzf imvault_0.20.1_linux_amd64.tar.gz
-cd imvault_0.20.1_linux_amd64
+tar -xzf imvault_0.20.2_linux_amd64.tar.gz
+cd imvault_0.20.2_linux_amd64
 sudo install -m 0755 imvault /usr/local/bin/imvault
 sudo install -d /usr/local/share/doc/imvault
 sudo install -m 0644 LICENSE README.md THIRD_PARTY_NOTICES.txt /usr/local/share/doc/imvault/

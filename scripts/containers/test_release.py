@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 import hashlib
+import importlib.util
 import io
 import json
 import os
@@ -187,6 +188,45 @@ class ConfigurationTests(unittest.TestCase):
         self.assertIn(f"github.repository == 'airencracken/{cfg['app']}'", parent)
         self.assertRegex(parent, r"needs: \[build, (?:packages, )?containers\]")
         self.assertIn("docs/containers.md", (release.ROOT / "README.md").read_text())
+
+
+class AptMirrorTests(unittest.TestCase):
+    def test_official_mirror_selection_preserves_source_schema_and_is_idempotent(self):
+        spec = importlib.util.spec_from_file_location('apt_mirror', release.ROOT / 'scripts/release/apt_mirror.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            sources = root / 'sources.list.d'
+            sources.mkdir()
+            fixtures = {
+                'apt-mirrors.txt': 'http://azure.archive.ubuntu.com/ubuntu priority:1\nhttps://archive.ubuntu.com/ubuntu priority:2\n',
+                'apt-mirrors-security.txt': 'http://azure.archive.ubuntu.com/ubuntu/ priority:1\n',
+                'sources.list': 'deb [arch=amd64 signed-by=/keys/ubuntu.gpg] http://azure.archive.ubuntu.com/ubuntu/ noble main universe\n',
+                'sources.list.d/ubuntu.sources': 'Types: deb\nURIs: mirror+file:/etc/apt/apt-mirrors.txt\nSuites: noble noble-updates\nSigned-By: /keys/ubuntu.gpg\n',
+                'sources.list.d/direct.sources': 'URIs: https://azure.archive.ubuntu.com/ubuntu\nSuites: noble-security\n',
+                'sources.list.d/ports.list': 'deb http://ports.ubuntu.com/ubuntu-ports noble main\n',
+                'sources.list.d/unrelated.list': 'deb https://packages.example.com/ubuntu noble main\n',
+                'sources.list.d/adversarial.list': 'deb http://azure.archive.ubuntu.com.evil.example/ubuntu noble main\nhttp://azure.archive.ubuntu.com/ubuntu-other\n',
+            }
+            for name, text in fixtures.items():
+                (root / name).write_text(text)
+            self.assertEqual(set(module.configure(root)), {'apt-mirrors.txt', 'apt-mirrors-security.txt', 'sources.list', 'direct.sources'})
+            for name, original in fixtures.items():
+                expected = original.replace('http://azure.archive.ubuntu.com/ubuntu', 'https://archive.ubuntu.com/ubuntu') if name in ('apt-mirrors.txt', 'apt-mirrors-security.txt', 'sources.list') else original
+                if name.endswith('direct.sources'):
+                    expected = original.replace('https://azure.archive.ubuntu.com/ubuntu', 'https://archive.ubuntu.com/ubuntu')
+                self.assertEqual((root / name).read_text(), expected)
+            self.assertEqual(module.configure(root), [])
+            # Refuse symlinks before changing any of the other source files.
+            target = root / 'outside'
+            target.write_text('keep')
+            (sources / 'linked.list').symlink_to(target)
+            with self.assertRaises(ValueError):
+                module.configure(root)
+            self.assertEqual(target.read_text(), 'keep')
+        workflow = (release.ROOT / '.github/workflows/release.yml').read_text()
+        self.assertEqual(workflow.count('sudo python3 scripts/release/apt_mirror.py || exit 1'), 2)
 
 
 class BackupTests(unittest.TestCase):
