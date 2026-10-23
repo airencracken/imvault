@@ -1,13 +1,12 @@
 {{define "page_notices"}}{{if .Notice}}<p class="flash ok">{{.Notice}}</p>{{end}}{{end}}
 {{define "content"}}
-  <header class="page-head">
-  <div>
+<section class="invitation-page">
+  <header class="invitation-header">
     <h1>Invitations</h1>
     <p class="muted">
-      Invite someone to join, even while registration is closed.
+      Create a link to invite someone to join, even while registration is closed.
       {{if not .IsAdmin}}You can manage the invitations you create.{{end}}
     </p>
-  </div>
   {{if .IsAdmin}}{{template "admin_nav" .}}{{end}}
 </header>
 
@@ -23,4 +22,5 @@
 {{if .IsAdmin}}<p class="muted">To let a member invite others, choose <strong>Allow invites</strong> on the <a href="/admin/users">Users</a> page. Removing that access revokes the member's open invitations.</p>{{end}}
 
 {{template "invites_panel" .}}
+</section>
 {{end}}

@@ -642,3 +642,80 @@ code {
 .trash-grid .caption { overflow-wrap: anywhere; }
 .trash-grid .name { white-space: normal; }
 .trash-grid input[type="checkbox"] { flex-shrink: 0; }
+
+/* Shared invitation layout; each app keeps its own palette. */
+.invitation-page {
+  --invitation-panel: var(--bg-elev, var(--panel, var(--paper)));
+  --invitation-border: var(--border, var(--line));
+  --invitation-soft: var(--bg-elev-2, var(--soft));
+  --invitation-accent: var(--accent, var(--green));
+  width: 100%; max-width: 1040px; margin-inline: auto;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 15px; line-height: 1.55;
+}
+.invitation-header { margin-bottom: 24px; }
+.invitation-header h1 { font: 700 26px/1.25 ui-sans-serif, system-ui, sans-serif; letter-spacing: -.02em; margin: 0 0 8px; }
+.invitation-header p { max-width: 72ch; margin: 0 0 16px; }
+.invitation-header nav { flex-wrap: wrap; }
+.invitation-page p a { text-decoration: underline; }
+.invitation-layout { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 24px; align-items: start; }
+.invitation-create, .invitation-list, .invitation-result, .invitation-permissions {
+  min-width: 0; padding: 24px; background: var(--invitation-panel);
+  border: 1px solid var(--invitation-border); border-radius: 10px;
+}
+.invitation-page h2 { font: 650 17px/1.4 ui-sans-serif, system-ui, sans-serif; margin: 0 0 16px; }
+.invitation-create form { display: grid; gap: 16px; margin: 0; }
+.invitation-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.invitation-field { min-width: 0; }
+.invitation-page label { display: block; font-size: 14px; font-weight: 600; line-height: 1.5; margin: 0 0 6px; }
+.invitation-page input:not([type="hidden"]) {
+  display: block; width: 100%; min-width: 0; min-height: 44px; margin: 0;
+  padding: 9px 11px; border: 1px solid var(--invitation-border); border-radius: 7px;
+  background: var(--invitation-panel); color: inherit; font: inherit;
+}
+.invitation-field p, .invitation-help { font-size: 13px; font-weight: 400; margin: 6px 0 0; }
+.invitation-help { margin-top: 16px; }
+.invitation-page button { width: fit-content; max-width: 100%; min-height: 44px; padding: 8px 14px; border-radius: 7px; font: 600 14px/1.5 ui-sans-serif, system-ui, sans-serif; }
+.invitation-record { padding: 20px 0; border: 0; border-top: 1px solid var(--invitation-border); overflow-wrap: anywhere; }
+.invitation-record:last-of-type { padding-bottom: 0; }
+.invitation-record-head { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.invitation-record h3 { min-width: 0; font-size: 16px; font-weight: 600; line-height: 1.4; margin: 0; }
+.invitation-status { flex-shrink: 0; padding: 2px 8px; border: 1px solid var(--invitation-border); border-radius: 20px; background: var(--invitation-soft); color: inherit; font-size: 13px; text-transform: capitalize; }
+.invitation-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; margin: 16px 0; font-size: 14px; }
+.invitation-meta > div { min-width: 0; }
+.invitation-meta dt { color: var(--muted); font-size: 13px; }
+.invitation-meta dd { margin: 2px 0 0; }
+.invitation-meta code { font-size: 13px; }
+.invitation-record form { display: block; margin: 12px 0 0; }
+.invitation-empty { margin: 0; padding-block: 8px; }
+.invitation-result { margin-bottom: 24px; border-color: var(--invitation-accent); }
+.invitation-result p { margin: 0 0 16px; font-size: 14px; }
+.invitation-result input + label { margin-top: 16px; }
+.invitation-result input + p { margin-top: 8px; }
+.invitation-permissions { margin-top: 24px; }
+.invitation-permissions > p { max-width: 72ch; }
+@media (max-width: 900px) {
+  .invitation-layout { grid-template-columns: minmax(0, 1fr); }
+  .invitation-create, .invitation-list, .invitation-result, .invitation-permissions { padding: 20px; }
+}
+@media (max-width: 380px) {
+  .invitation-fields, .invitation-meta { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Account forms use the same proportions as invitation controls. */
+.account-page { width: 100%; max-width: 480px; margin: 32px auto; font: 15px/1.55 ui-sans-serif, system-ui, sans-serif; }
+.account-page.panel, .account-page.paper, .account-page .panel { padding: 24px; }
+.account-page.stack, .account-page form.stack { gap: 0; }
+.account-page h1 { font: 700 26px/1.25 ui-sans-serif, system-ui, sans-serif; letter-spacing: -.02em; margin: 0 0 12px; }
+.account-page h2 { font-size: 20px; margin: 0 0 16px; }
+.account-page form { margin: 16px 0 0; }
+.account-page label { display: block; font-size: 14px; font-weight: 600; margin: 16px 0 6px; }
+.account-page form > label:first-of-type { margin-top: 0; }
+.account-page input:not([type="hidden"]) { display: block; width: 100%; min-width: 0; min-height: 44px; padding: 9px 11px; margin: 6px 0 0; border-radius: 7px; font: 15px/1.55 ui-sans-serif, system-ui, sans-serif; }
+.account-page button[type="submit"] { width: 100%; min-height: 44px; margin-top: 20px; padding: 8px 14px; border-radius: 7px; font: 600 14px/1.5 ui-sans-serif, system-ui, sans-serif; }
+.account-page .field-help { font-size: 13px; margin: 6px 0 0; }
+.account-page .account-note { margin-top: 20px; }
+.welcome .account-page { margin: 0; }
+@media (max-width: 600px) {
+  .account-page.panel, .account-page.paper, .account-page .panel { padding: 20px; }
+}

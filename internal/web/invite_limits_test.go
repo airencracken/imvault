@@ -100,11 +100,11 @@ func TestInvitationListIsPaginated(t *testing.T) {
 		}
 	}
 	_, first := owner.get("/admin/invites")
-	if strings.Count(first, "<td><code>") != invitesPageSize || !strings.Contains(first, "page=2") {
-		t.Errorf("first page lists %d codes, want %d and a link onwards", strings.Count(first, "<td><code>"), invitesPageSize)
+	if strings.Count(first, `<article class="invitation-record">`) != invitesPageSize || !strings.Contains(first, "page=2") {
+		t.Errorf("first page lists %d codes, want %d and a link onwards", strings.Count(first, `<article class="invitation-record">`), invitesPageSize)
 	}
 	_, second := owner.get("/admin/invites?page=2")
-	if got := strings.Count(second, "<td><code>"); got != 3 {
+	if got := strings.Count(second, `<article class="invitation-record">`); got != 3 {
 		t.Errorf("second page lists %d codes, want 3", got)
 	}
 }

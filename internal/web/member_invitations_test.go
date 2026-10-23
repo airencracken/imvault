@@ -79,6 +79,7 @@ func TestMemberInvitationResponsesWorkWithAndWithoutHTMX(t *testing.T) {
 			if resp.Header.Get("Cache-Control") != "no-store" {
 				t.Fatal("one-time invitation can be cached")
 			}
+			assertInvitationPageSchema(t, body, !partial)
 			if strings.Contains(body, label) {
 				t.Fatal("invitation label was not escaped")
 			}

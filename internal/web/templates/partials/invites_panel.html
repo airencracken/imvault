@@ -1,88 +1,72 @@
 {{define "invites_panel"}}
-<div id="invites" class="panel stack">
+<div id="invites">
   {{if .NewCode}}
-  <div class="flash ok">
-    <p><strong>Copy this invitation now.</strong> It cannot be shown again.</p>
-    <input class="key-reveal" aria-label="Invitation code" readonly value="{{.NewCode}}" onclick="this.select()">
-    <p class="muted">Or send this link, which fills the code in for them:</p>
-    <input class="key-reveal" aria-label="Invitation link" readonly value="{{.InviteURL}}" onclick="this.select()">
-  </div>
+  <section class="invitation-result" role="status" aria-labelledby="invitation-ready">
+    <h2 id="invitation-ready">Copy this invitation now</h2>
+    <p class="muted">Send the link privately to the person you're inviting. It cannot be shown again.</p>
+    <label for="invitation-link">Invitation link</label>
+    <input id="invitation-link" aria-label="Invitation link" readonly value="{{.InviteURL}}" onclick="this.select()">
+    <label for="invitation-code">Invitation code</label>
+    <input id="invitation-code" aria-label="Invitation code" readonly value="{{.NewCode}}" onclick="this.select()">
+  </section>
   {{end}}
-  {{if .Error}}<p class="flash err">{{.Error}}</p>{{end}}
-
-  <form class="stack" method="post" action="{{.InvitePath}}"
-        hx-post="{{.InvitePath}}" hx-target="#invites" hx-swap="outerHTML">
-    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-    <h2>Create an invitation</h2>
-    <label>Label <span class="muted">(optional, for your own reference)</span>
-      <input name="label" maxlength="64" autocomplete="off" placeholder="e.g. for Sam" value="{{.Label}}">
-    </label>
-    {{if .Limited}}
-    <label>Uses <span class="muted">(1 to {{.MaxUsesCap}})</span>
-      <input name="max_uses" type="number" min="1" max="{{.MaxUsesCap}}" required value="{{.MaxUses}}">
-    </label>
-    <label>Expires after <span class="muted">(days, 1 to {{.MaxDaysCap}})</span>
-      <input name="expires_days" type="number" min="1" max="{{.MaxDaysCap}}" required value="{{.ExpiresDays}}">
-    </label>
-    <p class="muted">
-      Your invitations admit at most {{.MaxUsesCap}} people each and lapse within
-      {{.MaxDaysCap}} days. An administrator can issue wider ones.
-    </p>
-    {{else}}
-    <label>Uses <span class="muted">(0 for no limit)</span>
-      <input name="max_uses" type="number" min="0" max="{{.MaxUsesCap}}" value="{{.MaxUses}}">
-    </label>
-    <label>Expires after <span class="muted">(days, leave blank for never)</span>
-      <input name="expires_days" type="number" min="1" max="{{.MaxDaysCap}}" placeholder="never" value="{{.ExpiresDays}}">
-    </label>
-    {{end}}
-    <button class="btn primary" type="submit">Create invitation</button>
-  </form>
-
-  {{if .Rows}}
-  <table class="keys">
-    <thead>
-      <tr>
-        <th>Label</th><th>Prefix</th><th>Uses</th><th>Expires</th>
-        <th>Issued by</th><th>Status</th><th></th>
-      </tr>
-    </thead>
-    <tbody>
+  {{if .Error}}<p class="flash err" role="alert">{{.Error}}</p>{{end}}
+  <div class="invitation-layout">
+    <section class="invitation-create" aria-labelledby="create-invitation">
+      <h2 id="create-invitation">Create an invitation</h2>
+      <form method="post" action="{{.InvitePath}}" hx-post="{{.InvitePath}}" hx-target="#invites" hx-swap="outerHTML">
+        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+        <div class="invitation-field">
+          <label for="invite-label">Label (optional)</label>
+          <input id="invite-label" name="label" maxlength="64" autocomplete="off" placeholder="e.g. for Sam" value="{{.Label}}">
+        </div>
+        <div class="invitation-fields">
+          <div class="invitation-field">
+            <label for="invite-uses">Uses</label>
+            <input id="invite-uses" name="max_uses" type="number" min="{{if .Limited}}1{{else}}0{{end}}" max="{{.MaxUsesCap}}" required value="{{.MaxUses}}" aria-describedby="invite-uses-help">
+            <p id="invite-uses-help" class="muted">{{if .Limited}}1 to {{.MaxUsesCap}} people.{{else}}0 for no limit.{{end}}</p>
+          </div>
+          <div class="invitation-field">
+            <label for="invite-days">Expires after (days)</label>
+            <input id="invite-days" name="expires_days" type="number" min="1" max="{{.MaxDaysCap}}" value="{{.ExpiresDays}}" {{if .Limited}}required{{else}}placeholder="Never"{{end}} aria-describedby="invite-days-help">
+            <p id="invite-days-help" class="muted">{{if .Limited}}1 to {{.MaxDaysCap}} days.{{else}}Leave blank for no expiry.{{end}}</p>
+          </div>
+        </div>
+        <button class="btn primary" type="submit">Create invitation</button>
+      </form>
+      {{if .Limited}}<p class="muted invitation-help">An administrator can issue invitations with wider limits.</p>{{end}}
+    </section>
+    <section class="invitation-list" aria-labelledby="existing-invitations">
+      <h2 id="existing-invitations">Existing invitations</h2>
       {{range .Rows}}
-      <tr>
-        <td>{{default "—" .Invite.Label}}</td>
-        <td><code>{{.Invite.Prefix}}</code></td>
-        <td>{{.Uses}}</td>
-        <td>{{.Expiry}}</td>
-        <td>{{.Creator}}</td>
-        <td>
-          {{if eq .Status "open"}}<span class="badge">open</span>
-          {{else}}<span class="badge private">{{.Status}}</span>{{end}}
-        </td>
-        <td>
-          {{if eq .Status "open"}}
-          <form method="post" action="{{$.InvitePath}}/{{.Invite.ID}}/revoke"
-                hx-post="{{$.InvitePath}}/{{.Invite.ID}}/revoke"
-                hx-target="#invites" hx-swap="outerHTML">
-            <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
-            <button class="btn small danger" type="submit"
-                    @click="if (!$el.form.dataset.confirmed) {
-                              $event.preventDefault();
-                              $store.confirm.ask($el.form, {
-                                message: 'Revoke this invitation?',
-                                detail: 'Anyone holding it will no longer be able to register.',
-                                action: 'Revoke' });
-                            }">Revoke</button>
-          </form>
-          {{end}}
-        </td>
-      </tr>
-      {{end}}
-    </tbody>
-  </table>
-  {{template "pagination" .Pagination}}
-  {{else}}
-  <p class="muted">No invitations yet.</p>
-  {{end}}
+      <article class="invitation-record">
+        <div class="invitation-record-head">
+          <h3>{{if .Invite.Label}}{{.Invite.Label}}{{else}}Invitation {{.Invite.Prefix}}{{end}}</h3>
+          <span class="invitation-status">{{.Status}}</span>
+        </div>
+        <dl class="invitation-meta">
+          <div><dt>Uses</dt><dd>{{.Uses}}</dd></div>
+          <div><dt>Expires</dt><dd>{{.Expiry}}</dd></div>
+          <div><dt>Created by</dt><dd>{{.Creator}}</dd></div>
+          <div><dt>Code prefix</dt><dd><code>{{.Invite.Prefix}}</code></dd></div>
+        </dl>
+        {{if eq .Status "open"}}
+        <form method="post" action="{{$.InvitePath}}/{{.Invite.ID}}/revoke" hx-post="{{$.InvitePath}}/{{.Invite.ID}}/revoke" hx-target="#invites" hx-swap="outerHTML">
+          <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+          <button class="btn" type="submit" aria-label="Revoke invitation {{if .Invite.Label}}{{.Invite.Label}}{{else}}{{.Invite.Prefix}}{{end}}"
+                  @click="if (!$el.form.dataset.confirmed) {
+                            $event.preventDefault();
+                            $store.confirm.ask($el.form, {
+                              message: 'Revoke this invitation?',
+                              detail: 'Anyone holding it will no longer be able to register.',
+                              action: 'Revoke' });
+                          }">Revoke invitation</button>
+        </form>
+        {{end}}
+      </article>
+      {{else}}<p class="muted invitation-empty">No invitations yet. Create one to invite someone to join.</p>{{end}}
+      {{template "pagination" .Pagination}}
+    </section>
+  </div>
 </div>
 {{end}}

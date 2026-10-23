@@ -25,6 +25,7 @@ import { checkLibrary } from "./browser-library.mjs";
 import { checkVersionDisplay } from "./browser-version.mjs";
 import { checkAvatars } from "./browser-avatars.mjs";
 import { checkProfiles } from "./browser-profiles.mjs";
+import { checkAccountPages, checkInvitations } from "./browser-invitations.mjs";
 
 const BROWSER_CANDIDATES = [
   process.env.CHROME,
@@ -285,6 +286,8 @@ async function main() {
     page = await Page.connect(debugPort);
     await checkThemes(page, base);
     record("themes follow the system, persist across pages, and work without JavaScript", true);
+    await checkAccountPages(page, base);
+    record("sign-in and invitation acceptance use compact forms on mobile and desktop", true);
     await signIn(page, base, "boss");
     await page.goto(`${base}/gallery`);
     for (const width of [320, 390, 768]) {
@@ -300,6 +303,8 @@ async function main() {
     }
     await page.send("Emulation.clearDeviceMetricsOverride");
 
+    await checkInvitations(page, base);
+    record("invitations fit at four widths in both themes, with and without JavaScript", true);
     await checkVersionDisplay(page, base, execFileSync(join(dataDir, "imvault"), ["--version"], { encoding: "utf8" }).trim());
     await checkProfiles(page, base);
     await checkAvatars(page, base, dataDir);
@@ -730,14 +735,14 @@ async function main() {
       const form = document.querySelector('#invites form[action="/admin/invites"]');
       if (!form) return { error: "no create form" };
       form.querySelector('input[name="label"]').value = "Browser guest";
-      const before = document.querySelectorAll("#invites tbody tr").length;
+      const before = document.querySelectorAll("#invites .invitation-record").length;
       form.querySelector('button[type="submit"]').click();
       await new Promise((r) => setTimeout(r, 600));
-      const reveal = document.querySelector("#invites .key-reveal");
+      const reveal = document.querySelector('#invites input[aria-label="Invitation code"]');
       return {
         revealed: reveal ? reveal.value : "",
         warned: document.body.textContent.includes("cannot be shown again"),
-        rows: document.querySelectorAll("#invites tbody tr").length,
+        rows: document.querySelectorAll("#invites .invitation-record").length,
         before,
       };
     `);

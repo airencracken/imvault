@@ -119,7 +119,7 @@ check-fmt: ## Verify Go formatting without changing files
 check-complexity: ## Keep production Go functions at cyclomatic complexity 15 or below
 	go run github.com/fzipp/gocyclo/cmd/gocyclo@v0.6.0 -over 15 -ignore '_test\.go$$' cmd internal contrib
 
-check: test-cli check-fmt vet test check-js test-js check-complexity release-check ## What CI should run
+check: test-design-mutations test-cli check-fmt vet test check-js test-js check-complexity release-check ## What CI should run
 
 # --- installing on a server -------------------------------------------------
 
@@ -238,3 +238,7 @@ test-container-lifecycle: ## Exercise a local image (build it first; needs Docke
 .PHONY: test-container-registry
 test-container-registry: ## Exercise real multi-platform publication in an isolated local registry
 	python3 scripts/containers/check_registry.py
+
+.PHONY: test-design-mutations
+test-design-mutations: ## Verify invitation design regressions reject deliberate defects
+	GOWORK=off python3 scripts/mutate.py scripts/mutations/design.json

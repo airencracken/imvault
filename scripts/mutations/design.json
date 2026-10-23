@@ -1,0 +1,26 @@
+[
+  {
+    "name": "invitation layout contract",
+    "file": "internal/web/templates/partials/invites_panel.html",
+    "before": "class=\"invitation-layout\"",
+    "after": "class=\"legacy-layout\"",
+    "package": "./internal/web",
+    "run": "^TestInvitationPageSchemaAndEscaping$"
+  },
+  {
+    "name": "invitation field help association",
+    "file": "internal/web/templates/partials/invites_panel.html",
+    "before": "aria-describedby=\"invite-uses-help\"",
+    "after": "aria-describedby=\"missing-help\"",
+    "package": "./internal/web",
+    "run": "^TestInvitationPageSchemaAndEscaping$"
+  },
+  {
+    "name": "decorative invitation eyebrow",
+    "file": "internal/web/templates/partials/invites_panel.html",
+    "before": "<h2 id=\"create-invitation\">",
+    "after": "<p class=\"eyebrow\">Invite people</p><h2 id=\"create-invitation\">",
+    "package": "./internal/web",
+    "run": "^TestPageHeadingsAvoidDecorativeEyebrows$"
+  }
+]
