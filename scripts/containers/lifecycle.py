@@ -26,6 +26,13 @@ def download_previous(cfg, arch, directory):
     return target / "bin" / app
 
 
+def completed_backups(paths, app):
+    return [path for path in paths.splitlines()
+            if Path(path).parent.parent == Path("/data/backups")
+            and Path(path).parent.name.startswith(app + "-")
+            and Path(path).name == "snapshot.tar.zst"]
+
+
 class Lifecycle:
     def __init__(self, cfg, image):
         self.cfg, self.image = cfg, image
@@ -143,12 +150,13 @@ class Lifecycle:
         deadline = time.monotonic() + 90
         while time.monotonic() < deadline:
             files = run("docker", "exec", running, "find", "/data", "-name", "*.tar.zst")
-            if files:
+            completed = completed_backups(files, self.cfg["app"])
+            if completed:
                 break
             time.sleep(0.5)
         else:
             raise AssertionError("automatic compressed backup was not created")
-        archive = files.splitlines()[0]
+        archive = completed[0]
         run("docker", "exec", running, "zstd", "--test", archive)
         manifest = json.loads(run("docker", "exec", running, "cat", str(Path(archive).parent / "manifest.json")))
         assert manifest["app"] == self.cfg["app"] and manifest["version"] == 1

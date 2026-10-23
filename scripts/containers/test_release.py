@@ -14,6 +14,7 @@ import unittest
 from unittest.mock import patch
 
 import release
+import lifecycle
 
 
 class ArchiveTests(unittest.TestCase):
@@ -188,6 +189,16 @@ class ConfigurationTests(unittest.TestCase):
         self.assertIn("docs/containers.md", (release.ROOT / "README.md").read_text())
 
 
+class BackupTests(unittest.TestCase):
+    def test_only_completed_snapshots_are_used_for_restore_checks(self):
+        app = release.config()["app"]
+        complete = f"/data/backups/{app}-20261022T000000Z/snapshot.tar.zst"
+        paths = [f"/data/backups/.{app}-autobackup-stage-abcd/snapshot.tar.zst",
+                 "/data/backups/other-20261022/snapshot.tar.zst", complete,
+                 f"/data/{app}-20261022/snapshot.tar.zst", f"/data/backups/{app}-20261022/manifest.json"]
+        self.assertEqual(lifecycle.completed_backups('\n'.join(paths), app), [complete])
+
+
 class SavedImageTests(unittest.TestCase):
     def test_saved_config_identity_is_independent_of_docker_storage_backend(self):
         image = 'example:tested-amd64'
@@ -315,6 +326,7 @@ class MutationTests(unittest.TestCase):
             scripts = Path(temporary) / 'scripts/containers'
             scripts.mkdir(parents=True)
             shutil.copyfile(Path(__file__), scripts / 'test_release.py')
+            shutil.copyfile(Path(lifecycle.__file__), scripts / 'lifecycle.py')
             shutil.copyfile(release.ROOT / 'scripts/containers/config.json', scripts / 'config.json')
             target = scripts / 'release.py'
             for name, before, after, test in mutations:
