@@ -241,4 +241,5 @@ test-container-registry: ## Exercise real multi-platform publication in an isola
 
 .PHONY: test-design-mutations
 test-design-mutations: ## Verify invitation design regressions reject deliberate defects
+	GOWORK=off go mod download
 	GOWORK=off python3 scripts/mutate.py scripts/mutations/design.json
