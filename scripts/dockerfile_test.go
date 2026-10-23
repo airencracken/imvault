@@ -130,15 +130,15 @@ func TestDockerfileDataDirectoryIsPrivate(t *testing.T) {
 			user = instruction
 		}
 	}
-	for _, step := range []string{"chown -R imvault:imvault /data", "chmod 0700 /data"} {
+	for _, step := range []string{"chown 10001:10001 /data", "chmod 0700 /data"} {
 		if !strings.Contains(run, step) {
 			t.Errorf("the image does not %q: %s", step, run)
 		}
 	}
 	if strings.Index(run, "chmod 0700 /data") < strings.Index(run, "adduser") {
-		t.Error("/data is tightened before adduser creates it")
+		t.Error("/data is tightened before the service account is created")
 	}
-	if user != "USER imvault" {
+	if user != "USER 10001:10001" {
 		t.Errorf("the image runs as %q", user)
 	}
 }

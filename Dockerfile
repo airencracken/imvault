@@ -1,56 +1,36 @@
-# Build stage. The SQLite driver is pure Go, so no cgo toolchain is needed.
-FROM golang:1.26-alpine AS build
-
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Developer build. Published images use Dockerfile.release and tested archives.
+FROM golang:1.26-alpine@sha256:27f2d3b83cfc5803c8078f8e730af0f7c431bf067afaec8f60a36fb763187cba AS build
 WORKDIR /src
-
-# Cache dependencies separately from the source.
+ENV GOWORK=off CGO_ENABLED=0
 COPY go.mod go.sum ./
 RUN go mod download
-
 COPY . .
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/imvault ./cmd/imvault
+ARG VERSION=development
+RUN go build -buildvcs=false -trimpath -ldflags="-s -w -X main.version=$VERSION" -o /out/imvault ./cmd/imvault
 
-# Runtime stage. Alpine (rather than a distroless image) is used because
-# multipart uploads spill to a temporary directory, and /tmp must be writable.
-#
-# ffmpeg provides clip poster frames and duration checks. It is optional: drop
-# it from this line (and set IMVAULT_FFMPEG and IMVAULT_FFPROBE to empty
-# values) to shrink the image, and clips will be accepted with placeholder
-# posters.
-#
-# /data belongs to the imvault user (uid 10001) at mode 0700: it holds
-# account credentials, the encryption key and private uploads. A new named
-# volume mounted there inherits that ownership and mode. A bind mount does
-# not: chown the host directory to 10001:10001 and chmod it 0700 first.
-FROM alpine:3.23
-
-RUN apk add --no-cache ca-certificates tzdata ffmpeg \
- && adduser -D -u 10001 -h /data imvault \
- && chown -R imvault:imvault /data \
- && chmod 0700 /data
-
-COPY --from=build /out/imvault /usr/local/bin/imvault
-
-# Temporary files go to /tmp, deliberately not to /data.
-#
-# A multipart body past 8 MiB spills to TMPDIR, and one request may carry up to
-# twenty files. Leaving that on /data put a runaway spill and the SQLite
-# database on the same filesystem, so filling the first took the second with it.
-# Keeping them apart means a spill that runs out of room fails an upload rather
-# than the instance.
-ENV IMVAULT_DATA_DIR=/data \
-    IMVAULT_ADDR=:8080 \
-    TMPDIR=/tmp
-
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Update the multi-platform base digest through a reviewed change. A runtime
+# security update gets a new application patch release, preserving old tags.
+FROM alpine:3.23@sha256:21f3e19bafab57a9ff7aa9dd571dac72f868370472c10f450cc0416cc1aca553
+ARG VERSION=development
+ARG REVISION=unknown
+LABEL org.opencontainers.image.source="https://github.com/airencracken/imvault" \
+      org.opencontainers.image.licenses="AGPL-3.0-or-later" \
+      org.opencontainers.image.version="$VERSION" \
+      org.opencontainers.image.revision="$REVISION"
+RUN apk add --no-cache ca-certificates tzdata zstd ffmpeg \
+    && addgroup -S -g 10001 imvault \
+    && adduser -S -D -H -u 10001 -G imvault -h /data imvault \
+    && mkdir /data \
+    && chown 10001:10001 /data \
+    && chmod 0700 /data
+ENV IMVAULT_DATA_DIR=/data IMVAULT_ADDR=:8080 TMPDIR=/tmp
+USER 10001:10001
 VOLUME ["/data"]
 EXPOSE 8080
-
-# /healthz answers once the server is listening and its database responds.
-# Busybox's wget is already in the image, so the probe adds nothing. It
-# follows IMVAULT_ADDR's port; an instance bound to one specific non-loopback
-# address needs this probe overridden in the run or compose configuration.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD port="${IMVAULT_ADDR##*:}"; wget -q -T 4 -O /dev/null "http://127.0.0.1:${port:-8080}/healthz" || exit 1
-
-USER imvault
 ENTRYPOINT ["/usr/local/bin/imvault"]
+COPY --from=build --chown=0:0 /out/imvault /usr/local/bin/imvault
+COPY LICENSE README.md /usr/share/doc/imvault/

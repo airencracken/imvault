@@ -313,3 +313,8 @@ custom paths and verification. Existing startup remains unchanged by default.
 
 The running service also makes bounded compressed backups automatically; see
 [automatic backups](automatic-backups.md) for defaults, status and recovery.
+
+## Published container images
+
+See [Docker installation and operations](containers.md) for multi-platform images,
+Compose setup, version pins, backups, upgrades, and restore instructions.

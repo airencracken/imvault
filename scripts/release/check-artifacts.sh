@@ -65,7 +65,7 @@ tar -xzf "$1" -C "$work/source" --strip-components=1 || exit 1
 cmp go.mod "$work/source/go.mod" || fail 'Source archive does not match the build.'
 cmp .goreleaser.yaml "$work/source/.goreleaser.yaml" || fail 'Source archive is missing current release configuration.'
 test -f "$work/source/cmd/imvault/main.go" || fail 'Source archive is incomplete.'
-git ls-files -- cmd internal docs scripts contrib go.mod go.sum Makefile README.md LICENSE .github/FUNDING.yml .goreleaser.yaml > "$work/source-files" || exit 1
+git ls-files -- cmd internal docs scripts contrib go.mod go.sum Makefile README.md LICENSE Dockerfile Dockerfile.release docker-compose.yml docker-compose.build.yml .dockerignore .github/FUNDING.yml .goreleaser.yaml > "$work/source-files" || exit 1
 while IFS= read -r source_file; do
 	cmp "$source_file" "$work/source/$source_file" || fail "Source archive differs: $source_file"
 done < "$work/source-files"

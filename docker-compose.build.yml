@@ -1,0 +1,9 @@
+# docker compose -f docker-compose.yml -f docker-compose.build.yml up --build -d
+services:
+  imvault:
+    image: imvault:local
+    pull_policy: build
+    build:
+      context: .
+      args:
+        VERSION: ${VERSION:-development}

@@ -1,0 +1,86 @@
+name: Container images
+on:
+  workflow_call:
+    inputs:
+      publish:
+        type: boolean
+        required: true
+permissions:
+  contents: read
+defaults:
+  run:
+    shell: bash --noprofile --norc {0}
+jobs:
+  images:
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: release-packages
+          path: dist
+      - name: Container unit, schema, mutation and publication contracts
+        run: make test-containers
+      - name: Exercise real multi-platform publication in an isolated registry
+        if: matrix.arch == 'amd64'
+        run: make test-container-registry
+      - name: Validate Compose configuration
+        run: |
+          docker compose config --quiet || exit 1
+          docker compose -f docker-compose.yml -f docker-compose.build.yml config --quiet || exit 1
+      - name: Build and exercise native image, upgrade and backup restore
+        env:
+          IMAGE_ARCH: ${{ matrix.arch }}
+          IMAGE_REVISION: ${{ github.sha }}
+        run: python3 scripts/containers/release.py build --arch "$IMAGE_ARCH" --revision "$IMAGE_REVISION"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: container-${{ matrix.arch }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+          path: container-artifacts/*
+
+  publish:
+    if: inputs.publish
+    needs: images
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    # Exact release tags are preserved; serialize all registry writers.
+    concurrency:
+      group: container-publication
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: container-*
+          merge-multiple: true
+          path: container-artifacts
+      - name: Authenticate to GHCR using the workflow token
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+          REGISTRY_ACTOR: ${{ github.actor }}
+        run: printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io -u "$REGISTRY_ACTOR" --password-stdin
+      - name: Publish the tested images and verify anonymous access
+        env:
+          IMAGE_TAG: ${{ github.ref_name }}
+          IMAGE_REVISION: ${{ github.sha }}
+        run: python3 scripts/containers/release.py publish --tag "$IMAGE_TAG" --revision "$IMAGE_REVISION"
+      - name: Remove registry credentials
+        if: always()
+        run: docker logout ghcr.io

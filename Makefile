@@ -55,7 +55,7 @@ test-proxies: ## Test nginx and Apache TLS proxy examples (needs both servers)
 
 # Release builds and the mutation harness must resolve go.mod alone, never a
 # developer's go.work pointing at local checkouts.
-release-check: ## Validate the release configuration
+release-check: test-containers ## Validate the release configuration
 	GOWORK=off $(GORELEASER) check
 
 release-snapshot: release-check ## Build local binary archives and Debian packages without publishing
@@ -196,7 +196,7 @@ docker: ## Build the container image
 	docker build -t $(BINARY) .
 
 compose-up: ## Start the compose stack in the background
-	docker compose up --build -d
+	docker compose -f docker-compose.yml -f docker-compose.build.yml up --build -d
 
 compose-down: ## Stop the compose stack
 	docker compose down
@@ -227,3 +227,14 @@ install-backup-cron: ## Install the optional daily backup cron job (prepare the 
 .PHONY: test-cli
 test-cli: build ## Check hidden password prompts through an actual terminal
 	python3 scripts/check_password_cli.py --binary bin/imvault --command create-admin --data-env IMVAULT_DATA_DIR --prompt "Administrator password: " --confirmation "Confirm administrator password: "
+
+.PHONY: test-containers test-container-lifecycle
+test-containers: ## Check container release, schema, mutation and publication contracts
+	python3 -m unittest discover -s scripts/containers -p 'test_*.py' -v
+
+test-container-lifecycle: ## Exercise a local image (build it first; needs Docker)
+	python3 scripts/containers/lifecycle.py --image imvault:local --version "$(VERSION)" --upgrade
+
+.PHONY: test-container-registry
+test-container-registry: ## Exercise real multi-platform publication in an isolated local registry
+	python3 scripts/containers/check_registry.py

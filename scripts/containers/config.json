@@ -1,0 +1,7 @@
+{
+  "app": "imvault",
+  "previous": "0.20.0",
+  "port": 8080,
+  "tmp_mb": 512,
+  "owner_command": "create-admin"
+}

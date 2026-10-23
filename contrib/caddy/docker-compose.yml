@@ -4,15 +4,14 @@
 # nothing, so the only way in is through the proxy. That is the point: an
 # application port left open beside a TLS terminator is a way around it.
 #
-#   docker compose -f contrib/caddy/docker-compose.yml up -d --build
+#   docker compose -f contrib/caddy/docker-compose.yml up -d
 #
 # Edit the site address in Caddyfile.compose before starting, or Caddy will try to get a
 # certificate for a name that does not resolve here.
 
 services:
   imvault:
-    build: ../..
-    image: imvault
+    image: ${IMVAULT_IMAGE:-ghcr.io/airencracken/imvault:v0.20.1}
     container_name: imvault
     restart: unless-stopped
     # Multipart bodies spill here past 8 MiB, so this is sized in RAM rather

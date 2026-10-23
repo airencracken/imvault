@@ -33,6 +33,8 @@ Public for an audience, members-only for your people, private for the
 
 *The actual local demo, stocked with sample media.*
 
+Run a published image with Docker Compose: [container installation, upgrades, and backups](docs/containers.md).
+
 ## Come on in
 
 Prebuilt Linux amd64/arm64 archives and Debian packages live in

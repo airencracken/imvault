@@ -28,3 +28,5 @@ __pycache__/
 # They belong to one developer's worktree; releases resolve go.mod alone.
 /go.work
 /go.work.sum
+
+/container-artifacts/

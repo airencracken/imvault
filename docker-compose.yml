@@ -1,16 +1,23 @@
 # Local stack for trying Imvault out.
 #
-#   docker compose up --build -d     (or: make compose-up)
+#   docker compose up -d     (or: make compose-up)
 #
 # Everything below can be overridden from a .env file or the environment.
 services:
   imvault:
-    build: .
-    image: imvault
-    container_name: imvault
+    image: ${IMVAULT_IMAGE:-ghcr.io/airencracken/imvault:v0.20.1}
     restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 25s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     ports:
-      - "${PORT:-8080}:8080"
+      - "127.0.0.1:${PORT:-8080}:8080"
     # Multipart bodies spill here past 8 MiB, so this is sized in RAM rather
     # than left on the data volume: a runaway spill should fail an upload, not
     # fill the disk the database lives on. One request may carry

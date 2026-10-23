@@ -122,9 +122,18 @@ jobs:
               sh scripts/release/test-deb.sh dist/imvault_*_"$PACKAGE_ARCH".deb
             ' || exit 1
 
+  containers:
+    needs: [build, packages]
+    uses: ./.github/workflows/containers.yml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      publish: ${{ startsWith(github.ref, 'refs/tags/v') && github.repository == 'airencracken/imvault' }}
+
   publish:
     if: startsWith(github.ref, 'refs/tags/v') && github.repository == 'airencracken/imvault'
-    needs: [build, packages]
+    needs: [build, packages, containers]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
