@@ -51,6 +51,7 @@ The following full-volume backup also preserves keys, uploaded files, and
 scheduling state. Stop the server before taking it:
 
 ```sh
+umask 077
 docker compose stop imvault
 docker compose run --rm --no-deps -T --entrypoint tar imvault -C /data -cf - . > imvault-before-upgrade.tar
 ```
