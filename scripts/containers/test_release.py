@@ -235,6 +235,10 @@ class PublishTests(unittest.TestCase):
                         image=f"{self.app}:tested-{arch}", id=self.ids[arch])
             (self.path / f"image-{arch}.json").write_text(json.dumps(item))
         self.calls = []
+        self.original_package_exists = release.package_exists
+        package_patch = patch.object(release, "package_exists", return_value=True)
+        package_patch.start()
+        self.addCleanup(package_patch.stop)
         print_patch = patch('builtins.print')
         print_patch.start()
         self.addCleanup(print_patch.stop)
@@ -300,6 +304,22 @@ class PublishTests(unittest.TestCase):
             with self.assertRaises(subprocess.CalledProcessError):
                 release.publish(self.cfg, self.path, "v1.2.3", self.revision)
         self.assertFalse(any(c[:4] == ("docker", "buildx", "imagetools", "create") for c in self.calls))
+
+    def test_first_ghcr_publication_requires_confirmed_package_absence(self):
+        responses = [{"amd64": self.ids["amd64"]}, {"arm64": self.ids["arm64"]}, None, self.ids]
+        with patch.object(release, "package_exists", return_value=False), patch.object(release, "run", side_effect=self.fake_run), patch.object(release, "remote_images", side_effect=responses):
+            release.publish(self.cfg, self.path, "v1.2.3", self.revision)
+        self.assertEqual(len([c for c in self.calls if c[:2] == ("docker", "push")]), 2)
+
+    def test_package_absence_is_distinct_from_authentication_and_network_failures(self):
+        for status, present in ((0, True), (404, False)):
+            response = subprocess.CompletedProcess([], int(bool(status)), json.dumps({"status": str(status)}), '')
+            with patch.object(release.subprocess, 'run', return_value=response):
+                self.assertEqual(self.original_package_exists(self.app), present)
+        for status in (401, 403, 500):
+            response = subprocess.CompletedProcess([], 1, json.dumps({"status": str(status)}), 'failed')
+            with patch.object(release.subprocess, 'run', return_value=response), self.assertRaises(RuntimeError):
+                self.original_package_exists(self.app)
 
     def test_registry_auth_and_network_errors_are_not_missing_tags(self):
         for message in ("unauthorized", "denied", "timeout", "connection refused"):

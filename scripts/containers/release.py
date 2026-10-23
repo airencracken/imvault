@@ -185,6 +185,23 @@ def remote_images(ref, expected_arch=None):
     return images
 
 
+def package_exists(app):
+    # GHCR can report a pull denial for a package that has never been created.
+    # Distinguish that case using the authenticated package API, not by treating
+    # an authorization failure as permission to overwrite a registry tag.
+    result = subprocess.run(["gh", "api", f"users/airencracken/packages/container/{app}"],
+                            text=True, capture_output=True, timeout=60)
+    if result.returncode == 0:
+        return True
+    try:
+        body = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        body = {}
+    if str(body.get("status")) == "404":
+        return False
+    raise RuntimeError(f"cannot inspect GHCR package: {result.stderr}")
+
+
 def publish(cfg, directory, tag, revision, registry="ghcr.io/airencracken"):
     release = version(tag)
     if tag != "v" + release:
@@ -208,7 +225,8 @@ def publish(cfg, directory, tag, revision, registry="ghcr.io/airencracken"):
                 or labels["org.opencontainers.image.revision"] != revision):
             raise ValueError("saved image differs from tested artifact")
         expected[arch], metadata[arch] = item["id"], item
-    existing = remote_images(f"{image}:{tag}")
+    known_package = registry != "ghcr.io/airencracken" or package_exists(app)
+    existing = remote_images(f"{image}:{tag}") if known_package else None
     if existing is not None:
         if existing != expected:
             raise ValueError("refusing to replace an existing release tag; publish a new version")
