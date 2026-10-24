@@ -18,6 +18,7 @@ import (
 
 	"github.com/airencracken/comfylib/reference"
 	"github.com/airencracken/comfylib/smtp"
+	"github.com/airencracken/comfylib/ui"
 
 	"imvault/internal/config"
 	"imvault/internal/media"
@@ -168,6 +169,7 @@ func (s *Server) routes() *http.ServeMux {
 		panic(fmt.Sprintf("web: static assets: %v", err))
 	}
 	mux.Handle("GET /static/", http.StripPrefix("/static/", immutableCache(http.FileServer(http.FS(staticSub)))))
+	mux.Handle("GET /static/comfyware/", http.StripPrefix("/static/comfyware/", http.FileServerFS(ui.Assets())))
 	mux.HandleFunc("GET /branding/{name}", s.handleBrandingAsset)
 
 	mux.HandleFunc("GET /healthz", s.handleHealth)

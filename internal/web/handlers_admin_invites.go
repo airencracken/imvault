@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/airencracken/comfylib/invitation"
+
 	"imvault/internal/invites"
 	"imvault/internal/models"
 	"imvault/internal/store"
@@ -67,16 +69,7 @@ type invitesView struct {
 }
 
 func inviteStatus(inv *models.Invite, now time.Time) string {
-	switch {
-	case inv.Revoked():
-		return "revoked"
-	case inv.Expired(now):
-		return "expired"
-	case !inv.Unlimited() && inv.Uses >= inv.MaxUses:
-		return "used up"
-	default:
-		return "open"
-	}
+	return string((invitation.State{Revoked: inv.Revoked(), ExpiresAt: inv.ExpiresAt, Uses: inv.Uses, MaxUses: inv.MaxUses}).Status(now))
 }
 
 func inviteRows(list []*models.Invite) []inviteRow {
