@@ -5,6 +5,9 @@ import { join } from 'node:path';
 
 async function checkBulkAlbumCreation(page, base, photoID, enabled) {
   const title = enabled ? 'Bulk browser album with scripts' : 'Bulk browser album without scripts';
+  if (enabled) {
+    assert.equal(await page.evaluate(`return document.querySelector('#bulk-album-create').getBoundingClientRect().height;`), 0, 'New album fields must be visually hidden before choosing creation');
+  }
   await page.evaluate(`
     document.querySelector('input[name="files"][value="${photoID}"]').click();
     const select = document.querySelector('#bulk-album-select');
@@ -12,6 +15,7 @@ async function checkBulkAlbumCreation(page, base, photoID, enabled) {
     select.dispatchEvent(new Event('change', {bubbles:true}));
   `);
   assert.equal(await page.evaluate(`return document.querySelector('#bulk-album-create').hidden;`), false);
+  assert.ok(await page.evaluate(`return document.querySelector('#bulk-album-create').getBoundingClientRect().height > 0;`), 'New album fields must be visible when creating');
   if (enabled) {
     await page.evaluate(`document.querySelector('#bulk-album').click();`);
     assert.equal(await page.evaluate(`return document.querySelector('#bulk-album-error').hidden;`), false);
@@ -37,6 +41,15 @@ async function checkBulkAlbumCreation(page, base, photoID, enabled) {
   await page.goto(base + path);
   assert.equal(await page.evaluate(`return !!document.getElementById('file-${photoID}');`), true, 'Selected photo is attached to the new album');
   await page.goto(base + '/gallery?sort=taken&year=unknown');
+  if (enabled) {
+    await page.evaluate(`
+      const select = document.querySelector('#bulk-album-select');
+      select.value = 'new'; select.dispatchEvent(new Event('change', {bubbles:true}));
+      select.selectedIndex = [...select.options].findIndex(o => o.textContent === ${JSON.stringify(title)});
+      select.dispatchEvent(new Event('change', {bubbles:true}));
+    `);
+    assert.equal(await page.evaluate(`return document.querySelector('#bulk-album-create').getBoundingClientRect().height;`), 0, 'Switching to an existing album hides the creation fields');
+  }
 }
 
 export async function checkLibrary(page, base, photoID) {

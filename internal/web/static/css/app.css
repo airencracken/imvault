@@ -433,7 +433,7 @@ details.file-details p.muted { margin: .6rem 0 0; font-size: .8rem; }
 .file-location { margin-bottom: 1rem; }
 #bulk-tags { margin-bottom: 1rem; }
 #bulk-selection { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
-#bulk-selection[hidden] { display: none; }
+#bulk-selection[hidden], #bulk-album-create[hidden] { display: none; }
 .card.selectable:has(input[name="files"]:checked) { outline: 2px solid var(--accent); }
 
 /* ---------- moderation ---------- */
