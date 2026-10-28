@@ -72,6 +72,12 @@ func (in AlbumInput) normalised() AlbumInput {
 
 // CreateAlbum inserts an album, deriving a unique slug from the title.
 func (s *Store) CreateAlbum(ctx context.Context, userID int64, in AlbumInput) (*models.Album, error) {
+	return createAlbum(ctx, s.db, userID, in)
+}
+
+// createAlbum accepts either the database or a transaction so callers can
+// create an album and its initial memberships atomically.
+func createAlbum(ctx context.Context, writer execer, userID int64, in AlbumInput) (*models.Album, error) {
 	in = in.normalised()
 	if in.Title == "" {
 		return nil, fmt.Errorf("album title is empty")
@@ -93,7 +99,7 @@ func (s *Store) CreateAlbum(ctx context.Context, userID int64, in AlbumInput) (*
 			slug = fmt.Sprintf("%s-%s", base, ids.New(4))
 		}
 
-		res, err := s.db.ExecContext(ctx, `
+		res, err := writer.ExecContext(ctx, `
 			INSERT INTO albums (user_id, title, slug, description, visibility, access, metadata, location, created_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			userID, title, slug, description, string(visibility), string(access), string(metadata), string(in.Location), created,

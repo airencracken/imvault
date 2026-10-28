@@ -17,6 +17,9 @@ func (s *Server) changeLibrary(r *http.Request, p *params, action string) (int, 
 	if action == "visibility" {
 		return s.store.SetFilesVisibility(r.Context(), owner, files, models.Visibility(p.str("visibility")))
 	}
+	if p.str("album") == "new" {
+		return s.store.CreateAlbumWithFiles(r.Context(), owner, files, p.str("album_title"))
+	}
 	album, err := strconv.ParseInt(p.str("album"), 10, 64)
 	if err != nil || album <= 0 {
 		return 0, fmt.Errorf("%w: choose an album", store.ErrInvalidTags)

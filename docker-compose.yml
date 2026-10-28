@@ -5,7 +5,7 @@
 # Everything below can be overridden from a .env file or the environment.
 services:
   imvault:
-    image: ${IMVAULT_IMAGE:-ghcr.io/airencracken/imvault:v0.20.4}
+    image: ${IMVAULT_IMAGE:-ghcr.io/airencracken/imvault:v0.20.5}
     restart: unless-stopped
     read_only: true
     cap_drop: [ALL]

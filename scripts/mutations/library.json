@@ -78,5 +78,37 @@
     "after": "if false {",
     "package": "./internal/db",
     "run": "^TestCaptureMigrationBackfillsExistingMetadataInBatches$"
+  },
+  {
+    "name": "new bulk albums start private",
+    "file": "internal/store/bulk_library.go",
+    "before": "AlbumInput{Title: titles[0]}",
+    "after": "AlbumInput{Title: titles[0], Visibility: models.VisibilityPublic}",
+    "package": "./internal/store",
+    "run": "^TestCreateAlbumWithFilesSubsetAndPrivacy$"
+  },
+  {
+    "name": "new bulk albums reject invalid titles",
+    "file": "internal/store/bulk_library.go",
+    "before": "bulkTagValues([]string{title}, 1, 120, \"album title\")",
+    "after": "bulkTagValues([]string{title}, 1, 121, \"album title\")",
+    "package": "./internal/store",
+    "run": "^TestCreateAlbumWithFilesRejectsInvalidInputAndRollsBack$"
+  },
+  {
+    "name": "bulk album membership errors roll back creation",
+    "file": "internal/store/bulk_library.go",
+    "before": "return addFilesToAlbumTx(ctx, tx, album.ID, files)",
+    "after": "_ = addFilesToAlbumTx(ctx, tx, album.ID, files)\n\t\treturn nil",
+    "package": "./internal/store",
+    "run": "^TestCreateAlbumWithFilesRejectsInvalidInputAndRollsBack$"
+  },
+  {
+    "name": "bulk album creation is available before the first album",
+    "file": "internal/web/templates/pages/gallery.html",
+    "before": "<option value=\"new\">Create a new album</option>",
+    "after": "{{if .Albums}}<option value=\"new\">Create a new album</option>{{end}}",
+    "package": "./internal/web",
+    "run": "^TestBulkCreateAlbumWebAndAPI$"
   }
 ]

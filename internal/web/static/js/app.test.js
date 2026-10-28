@@ -19,9 +19,12 @@ const SOURCE = fs.readFileSync(path.join(__dirname, "app.js"), "utf8");
 
 function loadBulkSelection() {
   const elements = {};
-  for (const id of ["bulk-tags", "bulk-count", "bulk-submit", "bulk-album", "bulk-visibility", "bulk-selection", "bulk-select-all", "bulk-clear"]) {
+  for (const id of ["bulk-tags", "bulk-count", "bulk-submit", "bulk-album", "bulk-visibility", "bulk-selection", "bulk-select-all", "bulk-clear", "bulk-album-select", "bulk-album-create", "bulk-album-title", "bulk-album-error"]) {
     elements[id] = { listeners: {}, addEventListener(name, fn) { this.listeners[name] = fn; } };
   }
+  elements["bulk-album-select"].value = "";
+  elements["bulk-album-title"].value = "";
+  elements["bulk-album-title"].focus = function () { this.focused = true; };
   let picks = [{ checked: false }, { checked: false }];
   const listeners = {};
   const bodyListeners = {};
@@ -74,6 +77,43 @@ test("bulk selection handles browser restore, deleted cards and empty submission
   assert.equal(elements["bulk-count"].textContent, "0 selected");
   elements["bulk-tags"].listeners.submit(event);
   assert.equal(prevented, true);
+});
+
+test("bulk album creation reveals its title and keeps selection when validation fails", () => {
+  const { elements, picks, listeners, windowListeners } = loadBulkSelection();
+  const title = elements["bulk-album-title"];
+  assert.equal(elements["bulk-album-create"].hidden, true);
+  assert.equal(title.disabled, true);
+  picks[0].checked = true;
+  elements["bulk-album-select"].value = "new";
+  listeners.change();
+  assert.equal(elements["bulk-album-create"].hidden, false);
+  assert.equal(title.disabled, false);
+  title.value = "   ";
+  let prevented = false;
+  const event = { submitter: {id: "bulk-album"}, preventDefault() { prevented = true; } };
+  elements["bulk-tags"].listeners.submit(event);
+  assert.equal(prevented, true);
+  assert.equal(elements["bulk-album-error"].hidden, false);
+  assert.equal(title.focused, true);
+  assert.equal(picks[0].checked, true);
+  // The album title never blocks unrelated tags or visibility actions.
+  for (const action of ["bulk-submit", "bulk-visibility"]) {
+    prevented = false;
+    elements["bulk-tags"].listeners.submit({...event, submitter: {id: action}});
+    assert.equal(prevented, false);
+  }
+  title.value = "Family picnic";
+  title.listeners.input();
+  assert.equal(elements["bulk-album-error"].hidden, true);
+  prevented = false;
+  elements["bulk-tags"].listeners.submit(event);
+  assert.equal(prevented, false);
+  elements["bulk-album-select"].value = "42";
+  windowListeners.pageshow();
+  assert.equal(elements["bulk-album-create"].hidden, true);
+  assert.equal(title.disabled, true);
+  assert.equal(title.value, "Family picnic", "Switching albums keeps the unfinished title");
 });
 
 // The Alpine object the listener uses is the global one, so it is captured by

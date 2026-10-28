@@ -12,6 +12,10 @@
   if (bulkForm) {
     var bulkCount = document.getElementById("bulk-count");
     var bulkSubmit = document.getElementById("bulk-submit");
+    var albumSelect = document.getElementById("bulk-album-select");
+    var albumCreate = document.getElementById("bulk-album-create");
+    var albumTitle = document.getElementById("bulk-album-title");
+    var albumError = document.getElementById("bulk-album-error");
     function picks() {
       return Array.prototype.slice.call(document.querySelectorAll('input[name="files"][form="bulk-tags"]'));
     }
@@ -23,6 +27,12 @@
         var button = document.getElementById(id);
         if (button) button.disabled = selected === 0;
       });
+      if (albumSelect && albumCreate && albumTitle) {
+        var creating = albumSelect.value === "new";
+        albumCreate.hidden = !creating;
+        albumTitle.disabled = !creating;
+        if (!creating && albumError) albumError.hidden = true;
+      }
     }
     function selectPage(checked) {
       picks().forEach(function (pick) { pick.checked = checked; });
@@ -37,7 +47,17 @@
     bulkForm.addEventListener("submit", function (event) {
       updateSelection();
       if (bulkSubmit.disabled) event.preventDefault();
+      // Album actions skip the unrelated required tags field. Validate only
+      // the new album title, keeping the selected photos and draft on errors.
+      if (event.submitter && event.submitter.id === "bulk-album" && albumTitle && !albumTitle.disabled) {
+        if (!albumTitle.value.trim()) {
+          event.preventDefault();
+          if (albumError) albumError.hidden = false;
+          albumTitle.focus();
+        }
+      }
     });
+    if (albumTitle) albumTitle.addEventListener("input", function () { if (albumError) albumError.hidden = true; });
     updateSelection();
   }
 

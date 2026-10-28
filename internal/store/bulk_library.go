@@ -54,11 +54,31 @@ func (s *Store) AddFilesToAlbum(ctx context.Context, owner int64, ids []string, 
 		if err != nil {
 			return mapErr(err)
 		}
-		for _, id := range files {
-			if _, err := tx.ExecContext(ctx, `INSERT INTO album_files (album_id, file_id, added_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING`, albumID, id, nowUnix()); err != nil {
-				return err
-			}
-		}
-		return nil
+		return addFilesToAlbumTx(ctx, tx, albumID, files)
 	})
+}
+
+// CreateAlbumWithFiles creates a private, owner-managed album and adds the
+// entire owned selection. Failed validation or membership writes leave no album.
+func (s *Store) CreateAlbumWithFiles(ctx context.Context, owner int64, ids []string, title string) (int, error) {
+	titles, err := bulkTagValues([]string{title}, 1, 120, "album title")
+	if err != nil {
+		return 0, err
+	}
+	return s.withOwnedFiles(ctx, owner, ids, func(tx *sql.Tx, files []string) error {
+		album, err := createAlbum(ctx, tx, owner, AlbumInput{Title: titles[0]})
+		if err != nil {
+			return err
+		}
+		return addFilesToAlbumTx(ctx, tx, album.ID, files)
+	})
+}
+
+func addFilesToAlbumTx(ctx context.Context, tx *sql.Tx, albumID int64, files []string) error {
+	for _, id := range files {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO album_files (album_id, file_id, added_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING`, albumID, id, nowUnix()); err != nil {
+			return err
+		}
+	}
+	return nil
 }

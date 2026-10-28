@@ -245,7 +245,12 @@ replaced by upload time. The normal `files`, `total`, `limit`, `offset` response
 shape is unchanged.
 
 `POST /api/v1/library/album` accepts `files` (an array of file ids) and `album`
-(an album id, string or number). `POST /api/v1/library/visibility` accepts `files`
+(an album id, string or number). To create an album and attach the selection in
+one transaction, send `album: "new"` and `album_title` (1–120 characters, without
+control characters). New albums are private and managed by their creator; this
+operation does not change file visibility. Invalid selections or failed writes
+leave no new album. The gallery's album picker offers the same creation option.
+`POST /api/v1/library/visibility` accepts `files`
 and `visibility` (`public`, `members` or `private`). Both accept JSON or ordinary
 form encoding and return `{"updated": N}`. Repeated file ids count once. Every
 file must belong to the caller, including for administrators, and the selection

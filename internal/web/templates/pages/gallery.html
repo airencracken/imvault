@@ -35,7 +35,15 @@
   <p id="bulk-tags-help" class="muted">Up to 50 tags, 48 characters each. Selection applies to this page.</p>
   <button class="btn primary" type="submit" id="bulk-submit">Add tags</button>
   </fieldset>
-  {{if .Albums}}<fieldset class="stack"><legend>Add to album</legend><label>Album<select name="album"><option value="">Choose an album</option>{{range .Albums}}<option value="{{.ID}}">{{.Title}}{{if ne .UserID $.User.ID}} (shared by {{.Username}}){{end}}</option>{{end}}</select></label><button class="btn" type="submit" id="bulk-album" formaction="/gallery/album" formnovalidate>Add to album</button></fieldset>{{end}}
+  <fieldset class="stack"><legend>Add to album</legend>
+    <label>Album<select name="album" id="bulk-album-select"><option value="">Choose an album</option><option value="new">Create a new album</option>{{range .Albums}}<option value="{{.ID}}">{{.Title}}{{if ne .UserID $.User.ID}} (shared by {{.Username}}){{end}}</option>{{end}}</select></label>
+    <div class="stack" id="bulk-album-create">
+      <label>New album title<input name="album_title" id="bulk-album-title" maxlength="120" autocomplete="off" aria-describedby="bulk-album-help"></label>
+      <p id="bulk-album-error" role="alert" hidden>An album needs a title.</p>
+      <p id="bulk-album-help" class="muted">Enter a title when choosing “Create a new album”. New albums start private. Photo sharing stays the same.</p>
+    </div>
+    <button class="btn" type="submit" id="bulk-album" formaction="/gallery/album" formnovalidate>Add to album</button>
+  </fieldset>
   <fieldset class="stack"><legend>Change sharing</legend><label>Visible to<select name="visibility"><option value="">Choose visibility</option>{{range .VisibilityLevels}}<option value="{{.}}">{{.Label}} — {{.Explain}}</option>{{end}}</select></label><p class="muted">Applies to every selected file. Making files public also changes their existing shared links.</p><button class="btn" type="submit" id="bulk-visibility" formaction="/gallery/visibility" formnovalidate>Change visibility</button></fieldset>
   </div>
 </form>

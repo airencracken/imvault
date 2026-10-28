@@ -3,6 +3,42 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
+async function checkBulkAlbumCreation(page, base, photoID, enabled) {
+  const title = enabled ? 'Bulk browser album with scripts' : 'Bulk browser album without scripts';
+  await page.evaluate(`
+    document.querySelector('input[name="files"][value="${photoID}"]').click();
+    const select = document.querySelector('#bulk-album-select');
+    select.value = 'new';
+    select.dispatchEvent(new Event('change', {bubbles:true}));
+  `);
+  assert.equal(await page.evaluate(`return document.querySelector('#bulk-album-create').hidden;`), false);
+  if (enabled) {
+    await page.evaluate(`document.querySelector('#bulk-album').click();`);
+    assert.equal(await page.evaluate(`return document.querySelector('#bulk-album-error').hidden;`), false);
+    assert.equal(await page.evaluate(`return document.querySelector('input[name="files"][value="${photoID}"]').checked;`), true, 'A missing title keeps the selected photo');
+    assert.equal(await page.evaluate(`return document.activeElement.id;`), 'bulk-album-title');
+  }
+  await page.evaluate(`
+    const input = document.querySelector('#bulk-album-title');
+    input.value = ${JSON.stringify(title)};
+    input.dispatchEvent(new Event('input', {bubbles:true}));
+  `);
+  for (const width of [320, 390, 768, 1280]) {
+    await page.send('Emulation.setDeviceMetricsOverride', {width, height: 900, deviceScaleFactor: 1, mobile: false});
+    assert.equal(await page.evaluate(`return document.documentElement.scrollWidth <= innerWidth;`), true, 'New album fields overflow at ' + width);
+  }
+  await page.evaluate(`document.querySelector('#bulk-album').click();`);
+  await page.waitFor(`document.querySelector('.flash.ok')?.textContent.includes('Updated 1 selected file.')`);
+  assert.equal(await page.evaluate(`return new URL(location.href).searchParams.get('year');`), 'unknown');
+  assert.equal(await page.evaluate(`return [...document.querySelectorAll('#bulk-album-select option')].filter(o => o.textContent === ${JSON.stringify(title)}).length;`), 1, 'New album appears in the picker');
+  await page.goto(base + '/albums');
+  const path = await page.evaluate(`return [...document.querySelectorAll('.album-card')].find(a => a.querySelector('strong')?.textContent === ${JSON.stringify(title)})?.getAttribute('href');`);
+  assert.ok(path?.startsWith('/a/'), 'New album can be opened');
+  await page.goto(base + path);
+  assert.equal(await page.evaluate(`return !!document.getElementById('file-${photoID}');`), true, 'Selected photo is attached to the new album');
+  await page.goto(base + '/gallery?sort=taken&year=unknown');
+}
+
 export async function checkLibrary(page, base, photoID) {
   await page.goto(base + '/albums');
   const albumPath = await page.evaluate(`
@@ -15,6 +51,7 @@ export async function checkLibrary(page, base, photoID) {
     await page.send('Emulation.setScriptExecutionDisabled', {value: !enabled});
     try {
       await page.goto(base + '/gallery?sort=taken&year=unknown');
+      await checkBulkAlbumCreation(page, base, photoID, enabled);
       await page.evaluate(`document.querySelector('input[name="files"][value="${photoID}"]').click();`);
       if (enabled) {
         assert.equal(await page.evaluate(`return document.querySelector('#bulk-count').textContent;`), '1 selected');
