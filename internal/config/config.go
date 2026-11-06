@@ -7,6 +7,7 @@
 package config
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"math"
@@ -163,7 +164,7 @@ type Config struct {
 
 // Load reads configuration from the environment, applying defaults.
 func Load() (*Config, error) {
-	return load("", "")
+	return load("", "", false)
 }
 
 // LoadWithProvisioningPaths reads the environment like Load, using the supplied
@@ -171,15 +172,19 @@ func Load() (*Config, error) {
 // create-admin command uses this to honor service-manager paths without
 // mutating process environment shared with other commands.
 func LoadWithProvisioningPaths(dataDir, dbPath string) (*Config, error) {
-	return load(dataDir, dbPath)
+	return load(dataDir, dbPath, false)
 }
 
-func load(dataDirOverride, dbPathOverride string) (*Config, error) {
+// LoadWithDataDirectory uses an already resolved account command directory,
+// including an explicit --data-dir override. IMVAULT_DB still selects a custom
+// database when configured, as it does for the service.
+func LoadWithDataDirectory(dataDir, dbPath string) (*Config, error) {
+	return load(dataDir, dbPath, true)
+}
+
+func load(dataDirOverride, dbPathOverride string, explicitDirectory bool) (*Config, error) {
 	env := &reader{}
-	dataDir := getenv("IMVAULT_DATA_DIR", "./data")
-	if os.Getenv("IMVAULT_DATA_DIR") == "" && dataDirOverride != "" {
-		dataDir = dataDirOverride
-	}
+	dataDir := dataDirectory(dataDirOverride, explicitDirectory)
 
 	c := &Config{
 		Name:       getenv("IMVAULT_NAME", "Imvault"),
@@ -581,4 +586,11 @@ func (c *Config) defaultUploadConcurrency() {
 	if c.MaxConcurrentUploads == 0 {
 		c.MaxConcurrentUploads = 1
 	}
+}
+
+func dataDirectory(override string, explicit bool) string {
+	if explicit && override != "" {
+		return override
+	}
+	return getenv("IMVAULT_DATA_DIR", cmp.Or(override, "./data"))
 }

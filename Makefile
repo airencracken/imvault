@@ -48,7 +48,7 @@ test-invitation-mutations: ## Check invitation tests against deliberate permissi
 test-settings-mutations: ## Check configuration, mail, rate-limit, key and service-account regressions
 	$(MUTATE) scripts/mutations/settings.json
 
-test-mutations: test-sandbox-mutations test-invitation-mutations test-web-mutations test-settings-mutations test-library-mutations ## Run every mutation table
+test-mutations: test-setup-mutations test-sandbox-mutations test-invitation-mutations test-web-mutations test-settings-mutations test-library-mutations ## Run every mutation table
 
 test-proxies: ## Test nginx and Apache TLS proxy examples (needs both servers)
 	go test $(GOFLAGS) -tags=proxyintegration -count=1 -timeout=60s ./contrib/proxy
@@ -226,7 +226,8 @@ install-backup-cron: ## Install the optional daily backup cron job (prepare the 
 
 .PHONY: test-cli
 test-cli: build ## Check hidden password prompts through an actual terminal
-	python3 scripts/check_password_cli.py --binary bin/imvault --command create-admin --data-env IMVAULT_DATA_DIR --prompt "Administrator password: " --confirmation "Confirm administrator password: "
+	python3 "$$(go list -m -f '{{.Dir}}' github.com/airencracken/comfylib)/tools/check_password_cli.py" --binary bin/imvault --command create-owner --data-env IMVAULT_DATA_DIR --prompt "Password: " --confirmation "Confirm password: "
+	python3 "$$(go list -m -f '{{.Dir}}' github.com/airencracken/comfylib)/tools/check_setup.py" --binary bin/imvault --app imvault
 
 .PHONY: test-containers test-container-lifecycle
 test-containers: ## Check container release, schema, mutation and publication contracts
@@ -243,3 +244,7 @@ test-container-registry: ## Exercise real multi-platform publication in an isola
 test-design-mutations: ## Verify invitation design regressions reject deliberate defects
 	GOWORK=off go mod download
 	GOWORK=off python3 scripts/mutate.py scripts/mutations/design.json
+
+.PHONY: test-setup-mutations
+test-setup-mutations: ## Check atomic browser owner provisioning
+	$(MUTATE) scripts/mutations/setup.json

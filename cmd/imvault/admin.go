@@ -42,8 +42,8 @@ func runCommand(args []string, stdin io.Reader, stdout io.Writer) error {
 		return serve(args[1:], stdout)
 	case "proxy-config":
 		return proxyconfig.Run(contrib.ProxySpec, args[1:], stdout)
-	case "create-admin":
-		return createAdmin(args[1:], stdin, stdout)
+	case "setup", "set-password", "create-owner", "create-admin":
+		return accountCommand(args[0], args[1:], stdin, stdout)
 	case "refresh-metadata":
 		return refreshMetadata(args[1:], stdout)
 	case "migrate-storage", "rebuild-thumbnails", "backup":
@@ -63,40 +63,45 @@ func runCommand(args []string, stdin io.Reader, stdout io.Writer) error {
 	}
 }
 
+func accountCommand(command string, args []string, in io.Reader, out io.Writer) error {
+	switch command {
+	case "setup":
+		return setupCommand(args, out, servicePaths())
+	case "set-password":
+		return setAccountPassword(args, in, out, servicePaths())
+	default:
+		return ownerCommand(command, args, in, out, servicePaths())
+	}
+}
+
 func createAdmin(args []string, stdin io.Reader, stdout io.Writer) error {
 	return createAdminWithConfigPaths(args, stdin, stdout, servicePaths())
 }
 
 func createAdminWithConfigPaths(args []string, stdin io.Reader, stdout io.Writer, paths svcconfig.Paths) error {
-	flags := commandFlags("create-admin", stdout)
-	username := flags.String("username", "", "administrator username (required)")
-	email := flags.String("email", "", "optional email address")
-	passwordPrompt := flags.Bool("password-prompt", false, "prompt twice without echoing (requires a terminal)")
-	passwordStdin := flags.Bool("password-stdin", false, "read the password from standard input")
+	return ownerCommand("create-admin", args, stdin, stdout, paths)
+}
+func ownerCommand(command string, args []string, stdin io.Reader, stdout io.Writer, paths svcconfig.Paths) error {
+	options := accountFlags(command, stdout)
+	flags, username, email, source := options.flags, options.username, options.email, options.source
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
 		}
 		return err
 	}
-	if flags.NArg() != 0 || strings.TrimSpace(*username) == "" || *passwordPrompt == *passwordStdin {
-		return errors.New("usage: imvault create-admin --username NAME (--password-prompt | --password-stdin) [--email ADDRESS]")
+	if flags.NArg() != 0 || strings.TrimSpace(*username) == "" {
+		return fmt.Errorf("usage: imvault %s --username NAME [--password-prompt | --password-stdin | --password-file PATH] [--data-dir DIRECTORY] [--email ADDRESS]", command)
 	}
-	var password string
-	var err error
-	if *passwordPrompt {
-		password, err = readPromptAdminPassword()
-	} else {
-		password, err = readAdminPassword(stdin)
-	}
+	secret, err := source.Read(stdin, stdout)
 	if err != nil {
 		return err
 	}
 	name, address := strings.TrimSpace(*username), strings.TrimSpace(*email)
-	if err := accounts.ValidateRegistration(name, address, password); err != nil {
+	if err := accounts.ValidateRegistration(name, address, secret); err != nil {
 		return err
 	}
-	dataDir, err := paths.DataDir("IMVAULT_DATA_DIR")
+	dataDir, err := accountDataDirectory(paths, *options.data)
 	if err != nil {
 		return err
 	}
@@ -104,11 +109,15 @@ func createAdminWithConfigPaths(args []string, stdin io.Reader, stdout io.Writer
 	if err != nil {
 		return err
 	}
-	user, err := provisionAdmin(context.Background(), name, address, password, dataDir, settings["IMVAULT_DB"])
+	user, err := provisionAdmin(context.Background(), name, address, secret, dataDir, settings["IMVAULT_DB"])
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(stdout, "Created administrator %q (ID %d).\n", user.Username, user.ID)
+	if command == "create-owner" {
+		_, err = fmt.Fprintf(stdout, "Owner account created: %s.\n", user.Username)
+	} else {
+		_, err = fmt.Fprintf(stdout, "Created administrator %q (ID %d).\n", user.Username, user.ID)
+	}
 	return err
 }
 
@@ -133,7 +142,7 @@ func readAdminPassword(stdin io.Reader) (string, error) {
 }
 
 func provisionAdmin(ctx context.Context, username, email, password, dataDir, dbPath string) (_ *models.User, err error) {
-	cfg, err := config.LoadWithProvisioningPaths(dataDir, dbPath)
+	cfg, err := config.LoadWithDataDirectory(dataDir, dbPath)
 	if err != nil {
 		return nil, err
 	}

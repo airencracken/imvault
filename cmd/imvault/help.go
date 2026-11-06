@@ -17,6 +17,9 @@ Commands:
   version              Print the running build version (also --version).
   sandbox              Start the server confined by Bubblewrap (Linux).
   serve                Start the HTTP server (also the default with no arguments).
+  setup                Show the private key for browser setup.
+  create-owner         Create an owner account (administrator).
+  set-password         Reset a password and revoke earlier sessions.
   create-admin         Provision a new administrator using a hidden prompt or stdin.
   refresh-metadata     Refresh photo details from the stored originals.
   migrate-storage      Copy and verify objects to IMVAULT_DEST_* storage.
@@ -58,6 +61,9 @@ OpenRC packages include /etc/logrotate.d/imvault; a cron job or timer runs rotat
 More settings and deployment examples: docs/deployment.md and docs/reverse-proxies.md.`
 
 var commandDescriptions = map[string]string{
+	"setup":              "Show the private first-owner setup key and browser address.",
+	"create-owner":       "Create a new owner locally. Password entry prompts by default; --password-stdin and --password-file support automation. create-admin remains a compatibility alias.",
+	"set-password":       "Replace a password and revoke the account’s sessions and recovery links.",
 	"version":            "Print this binary's build version without opening a database.",
 	"sandbox":            "Start the server confined by Bubblewrap. Run as the service user.\nThe data directory must already exist; see docs/sandbox.md.",
 	"serve":              "Start the HTTP server using IMVAULT_* environment variables. See imvault --help for defaults.",

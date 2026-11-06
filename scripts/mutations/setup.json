@@ -1,0 +1,26 @@
+[
+  {
+    "name": "browser setup refuses a second owner",
+    "file": "internal/store/setup.go",
+    "before": "if present {",
+    "after": "if false && present {",
+    "package": "./internal/store",
+    "run": "^TestBrowserFirstOwnerContract$"
+  },
+  {
+    "name": "account data directory overrides the default",
+    "file": "cmd/imvault/setup.go",
+    "before": "if selected != \"\" {",
+    "after": "if false && selected != \"\" {",
+    "package": "./cmd/imvault",
+    "run": "^TestAccountDataDirectoryOverrideAndServiceReexecution$"
+  },
+  {
+    "name": "service child follows the explicit account directory",
+    "file": "cmd/imvault/setup.go",
+    "before": "data = selected",
+    "after": "_ = selected",
+    "package": "./cmd/imvault",
+    "run": "^TestAccountDataDirectoryOverrideAndServiceReexecution$"
+  }
+]

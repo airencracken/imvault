@@ -312,3 +312,9 @@ the app stylesheet so controls and responsive spacing stay aligned across the
 Comfyware apps. Comfylib also supplies invitation status calculation and shared
 browser assertions. Templates, palettes, permissions and atomic redemption remain
 in the application.
+
+## Common setup
+
+New source builds share [browser and command-line setup](docs/setup.md) with the
+other Comfyware apps: `imvault setup` authorizes the first-owner browser page,
+and `imvault create-owner --username NAME` prompts privately by default.

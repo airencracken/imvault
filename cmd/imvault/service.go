@@ -25,6 +25,7 @@ func servicePaths() svcconfig.Paths {
 // so must run as the service's account. restore is not among them: it writes a
 // new directory, which the operator then hands to the service.
 var serviceUserCommands = map[string]bool{
+	"setup": true, "create-owner": true, "set-password": true,
 	"create-admin":       true,
 	"backup":             true,
 	"migrate-storage":    true,
@@ -46,7 +47,7 @@ func reexecProvisioningAsService(args []string) (bool, int, error) {
 		Paths:       paths,
 		DefaultUser: "imvault",
 		Settings: func(command, dataDir string) (map[string]string, error) {
-			return childCommandSettings(paths, command, dataDir)
+			return accountChildSettings(paths, command, args[1:], dataDir)
 		},
 	})
 }
@@ -88,6 +89,15 @@ func childCommandSettings(paths svcconfig.Paths, command, dataDir string) (map[s
 		return nil, err
 	}
 	settings := map[string]string{"IMVAULT_DB": dbPath}
+	if command == "setup" || command == "create-owner" || command == "create-admin" {
+		extra, err := paths.Settings("IMVAULT_BASE_URL", "IMVAULT_ADDR", "IMVAULT_DEFAULT_QUOTA_BYTES")
+		if err != nil {
+			return nil, err
+		}
+		for key, value := range extra {
+			settings[key] = value
+		}
+	}
 	if command == "backup" {
 		source, err := paths.Settings(backupServiceSettings...)
 		if err != nil {

@@ -13,14 +13,14 @@ import termios
 import time
 
 
-def check(binary, command, data_env, first_label, second_label, mismatch):
+def check(binary, command, data_env, first_label, second_label, mismatch, explicit=True):
     with tempfile.TemporaryDirectory(prefix="comfyware-terminal-") as directory:
         data = Path(directory) / "data"
         environment = dict(os.environ, **{data_env: str(data)})
         master, slave = pty.openpty()
         original = termios.tcgetattr(slave)
         process = subprocess.Popen(
-            [str(binary), command, "--username", "alex", "--password-prompt"],
+            [str(binary), command, "--username", "alex"] + (["--password-prompt"] if explicit else []),
             env=environment, stdin=slave, stdout=slave, stderr=slave,
         )
         transcript = bytearray()
@@ -76,9 +76,10 @@ def main():
     parser.add_argument("--prompt", required=True)
     parser.add_argument("--confirmation", required=True)
     arguments = parser.parse_args()
-    for mismatch in (False, True):
-        check(arguments.binary.resolve(), arguments.command, arguments.data_env,
-              arguments.prompt, arguments.confirmation, mismatch)
+    for explicit in (False, True):
+        for mismatch in (False, True):
+            check(arguments.binary.resolve(), arguments.command, arguments.data_env,
+                  arguments.prompt, arguments.confirmation, mismatch, explicit)
     print("PASS: hidden terminal prompts, confirmation failure and terminal restoration")
 
 

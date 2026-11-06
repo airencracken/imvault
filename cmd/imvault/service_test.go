@@ -37,7 +37,7 @@ func TestServicePathsDescribeImvault(t *testing.T) {
 // Exactly the commands that write the live instance switch to the service
 // account. restore writes a new directory and must stay with the operator.
 func TestCommandsThatWriteTheInstanceRunAsTheServiceUser(t *testing.T) {
-	want := []string{"backup", "create-admin", "migrate-storage", "rebuild-thumbnails", "refresh-metadata"}
+	want := []string{"backup", "create-admin", "create-owner", "migrate-storage", "rebuild-thumbnails", "refresh-metadata", "set-password", "setup"}
 	if got := slices.Sorted(maps.Keys(serviceUserCommands)); !slices.Equal(got, want) {
 		t.Fatalf("service-user commands = %v, want %v", got, want)
 	}

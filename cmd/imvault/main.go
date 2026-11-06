@@ -137,19 +137,16 @@ func run() (err error) {
 		return err
 	}
 
-	backups, err := automaticBackups(cfg, store.New(database), objects, logger)
+	wizard, backups, err := instanceSetup(cfg, store.New(database), objects, logger)
 	if err != nil {
 		return err
 	}
 	srv.Backups = backups
-	backupCtx, cancelBackups := context.WithCancel(ctx)
-	backupsDone := make(chan struct{})
-	go func() { defer close(backupsDone); backups.Run(backupCtx) }()
-	defer func() { cancelBackups(); <-backupsDone }()
+	defer runSetupBackups(ctx, wizard, backups)()
 
 	httpServer := &http.Server{
 		Addr:    cfg.Addr,
-		Handler: srv.Handler(),
+		Handler: wizard.Wrap(srv.Handler()),
 		// ReadHeaderTimeout guards against slowloris; there is deliberately no
 		// WriteTimeout so large image downloads are not cut short.
 		ReadHeaderTimeout: 10 * time.Second,
