@@ -1,7 +1,7 @@
 # Setting up Imvault
 
-Source builds with Comfylib v0.1.8 share this first-run flow with the other
-Comfyware apps. Older published packages keep their documented setup commands.
+Imvault shares its browser setup and account commands with the other
+Comfyware apps.
 
 Configure your service's public HTTPS origin and listener, then choose either
 browser setup or a terminal prompt. Installed commands find the service's data

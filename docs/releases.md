@@ -1,7 +1,11 @@
 # Binary releases
 
+For first-run accounts, use [browser or command-line setup](setup.md). Run
+`imvault setup` for the browser key, or `imvault create-owner --username NAME`
+for a hidden terminal prompt.
+
 Download Imvault from [GitHub Releases](https://github.com/airencracken/imvault/releases).
-The latest release is [0.20.6](release-notes/0.20.6.md), adding album creation directly to the gallery’s bulk album picker.
+The latest release is [0.21.0](release-notes/0.21.0.md), adding album creation directly to the gallery’s bulk album picker.
 The [0.20.0 notes](release-notes/0.20.0.md) describe Trash, library organization,
 and the migration and API compatibility changes to read before upgrading.
 
@@ -30,7 +34,7 @@ recommends it. HTTPS connections also need your system's CA certificates.
 Select the version and architecture you want. For example:
 
 ```sh
-release_version=0.20.6
+release_version=0.21.0
 release_arch=amd64
 release_url="https://github.com/airencracken/imvault/releases/download/v$release_version"
 curl -fLO "$release_url/imvault_${release_version}_${release_arch}.deb"
@@ -84,8 +88,8 @@ Download the archive and checksum file for your architecture, verify them as
 above, and extract the archive:
 
 ```sh
-tar -xzf imvault_0.20.6_linux_amd64.tar.gz
-cd imvault_0.20.6_linux_amd64
+tar -xzf imvault_0.21.0_linux_amd64.tar.gz
+cd imvault_0.21.0_linux_amd64
 sudo install -m 0755 imvault /usr/local/bin/imvault
 sudo install -d /usr/local/share/doc/imvault
 sudo install -m 0644 LICENSE README.md THIRD_PARTY_NOTICES.txt /usr/local/share/doc/imvault/
