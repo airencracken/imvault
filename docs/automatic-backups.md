@@ -19,10 +19,10 @@ Set these in `/etc/conf.d/imvault` for OpenRC or `/etc/imvault/imvault.env`
 for systemd, then restart the service:
 
 ```sh
-IMVAULT_BACKUP_INTERVAL=24h
-IMVAULT_BACKUP_KEEP=7
-IMVAULT_BACKUP_MAX_BYTES=10737418240
-IMVAULT_BACKUP_COPY_MAX_BYTES=5368709120
+IMVAULT_BACKUP_INTERVAL="24h"
+IMVAULT_BACKUP_KEEP="7"
+IMVAULT_BACKUP_MAX_BYTES="10737418240"
+IMVAULT_BACKUP_COPY_MAX_BYTES="5368709120"
 ```
 
 - Interval: 1 hour through 365 days; `0` disables automatic backups.

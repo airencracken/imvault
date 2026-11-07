@@ -11,8 +11,8 @@ sed -e "s|/usr/local/bin/$app|/usr/bin/$app|g" \
  "contrib/systemd/$app-backup.service" > "$out/$app-backup.service" || exit 1
 # Package defaults bind only to loopback. Existing conffiles remain dpkg-managed.
 {
-	printf '%s\n' '# Debian package defaults.' 'IMVAULT_ADDR=127.0.0.1:8080'
 	cat "contrib/systemd/$app.env" || exit 1
+	printf '\n%s\n' '# Debian package defaults.' 'IMVAULT_ADDR="127.0.0.1:8080"'
 } > "$out/$app.env" || exit 1
 
 # Include notices from the modules actually linked on either supported platform.

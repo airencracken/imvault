@@ -6,7 +6,7 @@ Create a key under **API** in the navigation. It is displayed once and stored
 only as a digest, so it cannot be recovered — revoke and re-create if lost.
 
 ```bash
-export IMVAULT_KEY=imv_lxy8k3m9q0ab_2f8c1d9e4a7b6c0d3e5f8192a4b6c8d0
+export IMVAULT_KEY="imv_lxy8k3m9q0ab_2f8c1d9e4a7b6c0d3e5f8192a4b6c8d0"
 
 # Who am I?
 curl -H "Authorization: Bearer $IMVAULT_KEY" https://img.example.com/api/v1/me

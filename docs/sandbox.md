@@ -16,7 +16,7 @@ get. Do not weaken host policy merely to hide an error.
 Add this to `/etc/conf.d/imvault`, then restart the service:
 
 ```sh
-IMVAULT_SANDBOX=true
+IMVAULT_SANDBOX="true"
 ```
 
 The service continues to use its existing user, data directory and log file.
@@ -131,7 +131,7 @@ graceful shutdown. Setup failures fail the tests rather than skipping them.
 Enable the stricter FFmpeg/FFprobe sandbox independently:
 
 ```sh
-IMVAULT_MEDIA_SANDBOX=true
+IMVAULT_MEDIA_SANDBOX="true"
 ```
 
 Set it in the service's environment file, or export it for maintenance commands

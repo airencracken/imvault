@@ -39,7 +39,7 @@ func TestReleasePreparationPackagesTheUnitAsWritten(t *testing.T) {
 		}
 	}
 	env, err := os.ReadFile(filepath.Join(out, "imvault.env"))
-	if err != nil || strings.Count(string(env), "\nIMVAULT_ADDR=") != 1 || !strings.Contains(string(env), "IMVAULT_ADDR=127.0.0.1:8080\n") {
+	if err != nil || strings.Count(string(env), "\nIMVAULT_ADDR=") != 1 || !strings.Contains(string(env), "IMVAULT_ADDR=\"127.0.0.1:8080\"\n") {
 		t.Fatalf("packaged environment does not bind to loopback once: %v\n%s", err, env)
 	}
 	for _, name := range []string{"THIRD_PARTY_NOTICES.txt", "copyright"} {

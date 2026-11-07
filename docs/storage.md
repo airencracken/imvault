@@ -31,12 +31,12 @@ verification is always enabled.
 Example settings for an existing private S3-compatible bucket:
 
 ```bash
-IMVAULT_STORAGE=s3
-IMVAULT_S3_ENDPOINT=https://objects.example.com
-IMVAULT_S3_REGION=us-east-1
-IMVAULT_S3_BUCKET=photos
-IMVAULT_S3_PREFIX=imvault
-IMVAULT_S3_PATH_STYLE=true
+IMVAULT_STORAGE="s3"
+IMVAULT_S3_ENDPOINT="https://objects.example.com"
+IMVAULT_S3_REGION="us-east-1"
+IMVAULT_S3_BUCKET="photos"
+IMVAULT_S3_PREFIX="imvault"
+IMVAULT_S3_PATH_STYLE="true"
 ```
 
 Supply credentials through your service's protected environment or an AWS
@@ -123,10 +123,10 @@ chain applies. This supports disk to S3, S3 to disk, and S3 to S3.
 With the server stopped and its environment loaded, for example:
 
 ```bash
-export IMVAULT_DEST_STORAGE=s3
-export IMVAULT_DEST_S3_BUCKET=photos
-export IMVAULT_DEST_S3_REGION=us-east-1
-export IMVAULT_DEST_S3_PREFIX=imvault
+export IMVAULT_DEST_STORAGE="s3"
+export IMVAULT_DEST_S3_BUCKET="photos"
+export IMVAULT_DEST_S3_REGION="us-east-1"
+export IMVAULT_DEST_S3_PREFIX="imvault"
 # Configure destination endpoint and protected credentials as needed.
 imvault migrate-storage
 ```

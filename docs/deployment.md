@@ -318,3 +318,21 @@ The running service also makes bounded compressed backups automatically; see
 
 See [Docker installation and operations](containers.md) for multi-platform images,
 Compose setup, version pins, backups, upgrades, and restore instructions.
+
+## Configuration format
+
+Use double quotes for every value, including numbers and booleans. No `export`
+prefix is needed in service configuration files:
+
+```sh
+IMVAULT_BASE_URL="https://imvault.example.org"
+IMVAULT_BACKUP_KEEP="7"
+```
+
+OpenRC reads `/etc/conf.d/imvault`; systemd reads
+`/etc/imvault/imvault.env`. Edit the file for the service manager you run,
+then restart the service. The other manager's file is independent. Existing
+bare or single-quoted values remain valid, and upgrades preserve local settings.
+
+The [shared configuration convention](https://github.com/airencracken/comfylib/blob/master/docs/configuration.md)
+covers quoting, escaping, and how the examples are checked.

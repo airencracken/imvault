@@ -85,10 +85,10 @@ provider publishes it, trailing slash included or not: discovery compares the
 two character for character and refuses a mismatch.
 
 ```bash
-IMVAULT_BASE_URL=https://img.example.com
-IMVAULT_OIDC_ISSUER=https://auth.example.com/application/o/imvault/
-IMVAULT_OIDC_CLIENT_ID=imvault
-IMVAULT_OIDC_CLIENT_SECRET=…
+IMVAULT_BASE_URL="https://img.example.com"
+IMVAULT_OIDC_ISSUER="https://auth.example.com/application/o/imvault/"
+IMVAULT_OIDC_CLIENT_ID="imvault"
+IMVAULT_OIDC_CLIENT_SECRET="…"
 IMVAULT_OIDC_NAME="Example sign-in"
 ```
 
