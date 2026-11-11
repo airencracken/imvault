@@ -43,7 +43,9 @@ jobs:
         env:
           IMAGE_ARCH: ${{ matrix.arch }}
           IMAGE_REVISION: ${{ github.sha }}
-        run: python3 scripts/containers/release.py build --arch "$IMAGE_ARCH" --revision "$IMAGE_REVISION"
+        run: |
+          python3 scripts/containers/release.py build --arch "$IMAGE_ARCH" --revision "$IMAGE_REVISION" || exit 1
+          COMFYWARE_CONTAINER_ENV_TEST=1 python3 scripts/test_suite_deployment.py || exit 1
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: container-${{ matrix.arch }}

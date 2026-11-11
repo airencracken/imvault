@@ -85,3 +85,8 @@ build independently against published Comfylib releases. To update the shared
 sources from a Comfylib checkout, run `python3 tools/sync_suite.py /path/to/imvault`;
 use `--check` to compare against the canonical sources without writing. Review
 the source changes and generated hash manifest together.
+
+Native service templates and Compose forward the four optional suite settings.
+For Compose, put them in the project `.env` file or shell environment; for OpenRC
+or systemd, edit the installed service configuration and restart the service.
+All four default to empty, leaving navigation and community sign-in disabled.

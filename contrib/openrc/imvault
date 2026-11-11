@@ -1,4 +1,5 @@
 #!/sbin/openrc-run
+export IMVAULT_APPS IMVAULT_SHARED_ISSUER IMVAULT_SHARED_CLIENT_ID IMVAULT_SHARED_CLIENT_SECRET
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # openrc-run reads the service variables assigned below.
 # shellcheck shell=sh disable=SC2034

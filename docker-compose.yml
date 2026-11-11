@@ -5,7 +5,7 @@
 # Everything below can be overridden from a .env file or the environment.
 services:
   imvault:
-    image: ${IMVAULT_IMAGE:-ghcr.io/airencracken/imvault:v0.22.0}
+    image: ${IMVAULT_IMAGE:-ghcr.io/airencracken/imvault:v0.22.1}
     restart: unless-stopped
     read_only: true
     cap_drop: [ALL]
@@ -33,6 +33,10 @@ services:
     volumes:
       - imvault-data:/data
     environment:
+      IMVAULT_APPS: "${IMVAULT_APPS:-}"
+      IMVAULT_SHARED_ISSUER: "${IMVAULT_SHARED_ISSUER:-}"
+      IMVAULT_SHARED_CLIENT_ID: "${IMVAULT_SHARED_CLIENT_ID:-}"
+      IMVAULT_SHARED_CLIENT_SECRET: "${IMVAULT_SHARED_CLIENT_SECRET:-}"
       # Set this to the URL you actually browse, so share links are absolute.
       IMVAULT_BASE_URL: "${IMVAULT_BASE_URL:-http://localhost:8080}"
       # HTTPS base URLs always enable secure cookies. Enable explicitly for TLS without a base URL.
