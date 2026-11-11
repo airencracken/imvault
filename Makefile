@@ -257,3 +257,4 @@ test-config:
 test-suite-assets: ## Verify synchronized suite source and assets
 	python3 scripts/verify_suite.py
 	python3 scripts/test_suite_deployment.py
+	python3 scripts/test_release_dispatch.py

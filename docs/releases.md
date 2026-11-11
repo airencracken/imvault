@@ -174,3 +174,12 @@ the publishing job; no separate release token is needed.
 
 See [Docker installation and operations](containers.md) for multi-platform images,
 Compose setup, version pins, backups, upgrades, and restore instructions.
+
+## Rebuild an existing release tag
+
+Maintainers can dispatch the Release workflow on `master` with `release_tag` set
+to an existing version tag. The workflow validates the tag, exact commit, VERSION
+where present, and reachability from master. It uses Go 1.26.11 and runs the full
+native, package and container gates against that tag. Container revision labels
+identify the checked-out source commit. Published releases and image tags remain
+immutable; reruns may finish an unpublished draft.

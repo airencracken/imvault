@@ -2,6 +2,14 @@ name: Container images
 on:
   workflow_call:
     inputs:
+      source_ref:
+        type: string
+        required: false
+        default: ''
+      release_tag:
+        type: string
+        required: false
+        default: ''
       publish:
         type: boolean
         required: true
@@ -26,6 +34,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.source_ref || github.ref }}
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: release-packages
@@ -44,6 +54,7 @@ jobs:
           IMAGE_ARCH: ${{ matrix.arch }}
           IMAGE_REVISION: ${{ github.sha }}
         run: |
+          IMAGE_REVISION=$(git rev-parse HEAD) || exit 1
           python3 scripts/containers/release.py build --arch "$IMAGE_ARCH" --revision "$IMAGE_REVISION" || exit 1
           COMFYWARE_CONTAINER_ENV_TEST=1 python3 scripts/test_suite_deployment.py || exit 1
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -68,6 +79,8 @@ jobs:
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.source_ref || github.ref }}
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           pattern: container-*
@@ -81,9 +94,11 @@ jobs:
       - name: Publish the tested images and verify anonymous access
         env:
           GH_TOKEN: ${{ github.token }}
-          IMAGE_TAG: ${{ github.ref_name }}
+          IMAGE_TAG: ${{ inputs.release_tag || github.ref_name }}
           IMAGE_REVISION: ${{ github.sha }}
-        run: python3 scripts/containers/release.py publish --tag "$IMAGE_TAG" --revision "$IMAGE_REVISION"
+        run: |
+          IMAGE_REVISION=$(git rev-parse HEAD) || exit 1
+          python3 scripts/containers/release.py publish --tag "$IMAGE_TAG" --revision "$IMAGE_REVISION" || exit 1
       - name: Remove registry credentials
         if: always()
         run: docker logout ghcr.io
