@@ -3,7 +3,7 @@ module imvault
 go 1.26.11
 
 require (
-	github.com/airencracken/comfylib v0.1.8
+	github.com/airencracken/comfylib v0.2.0
 	github.com/aws/aws-sdk-go-v2 v1.47.0
 	github.com/aws/aws-sdk-go-v2/config v1.33.5
 	github.com/aws/aws-sdk-go-v2/credentials v1.20.5

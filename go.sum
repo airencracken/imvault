@@ -1,5 +1,5 @@
-github.com/airencracken/comfylib v0.1.8 h1:dN750tmmaSSdQOmtG31TiElWhNrCFU4G1kJVAwDE4vs=
-github.com/airencracken/comfylib v0.1.8/go.mod h1:RMTsw45csQ5c4muSHZ1DQaD+4mu0t5JVplQx9YjucEU=
+github.com/airencracken/comfylib v0.2.0 h1:i9JOEV4ieyj55bFMtsnV4lkbO5tXuJ+3d4XTpHSbeCY=
+github.com/airencracken/comfylib v0.2.0/go.mod h1:ZBTLYYWo0uSvs/qN8vL+bNnFyENAX87VsrwWUj/kovY=
 github.com/aws/aws-sdk-go-v2 v1.47.0 h1:0jsHallhJCeaU0Ko48c/3FK1ctOQ7NpzggxriJOQ8MQ=
 github.com/aws/aws-sdk-go-v2 v1.47.0/go.mod h1:bttEH6JqnUL8LepvDVfdrds/fZ5bCIxzpe3abyUrhDU=
 github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.20 h1:GPRlPwz40I2B2VrBEASOA3Bi77NyeqejNLkifosX0rs=
