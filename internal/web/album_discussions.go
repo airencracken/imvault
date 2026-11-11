@@ -4,6 +4,7 @@ package web
 import (
 	"github.com/airencracken/comfylib/reference"
 	"imvault/internal/models"
+	"imvault/internal/suite"
 	"net/http"
 )
 
@@ -18,6 +19,10 @@ func (s *Server) handleAlbumDiscussion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	raw := r.PostForm.Get("url")
+	if token := r.PostForm.Get("discussion_state"); token != "" && !suite.CheckDiscussion(token, "/a/"+album.Slug, s.discussionSession(r), raw, s.cfg.WitmootURL) {
+		http.Error(w, "This discussion return expired. Prepare a new draft.", 400)
+		return
+	}
 	if _, err := reference.URL(raw); err != nil {
 		http.Error(w, "Use an absolute HTTP(S) discussion link without credentials.", 400)
 		return
@@ -26,6 +31,7 @@ func (s *Server) handleAlbumDiscussion(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Could not save discussion link.", 500)
 		return
 	}
+	suite.FinishDiscussion(r.PostForm.Get("discussion_state"))
 	http.Redirect(w, r, "/a/"+album.Slug, 303)
 }
 
@@ -53,6 +59,13 @@ func (s *Server) handleAlbumShare(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid discussion server configuration.", 500)
 		return
 	}
+	if ownsAlbum(currentUser(r.Context()), album) {
+		link, err = suite.PrepareDiscussion(link, draft.Source, s.discussionSession(r))
+		if err != nil {
+			http.Error(w, "Could not prepare discussion return.", 429)
+			return
+		}
+	}
 	s.renderPage(w, 200, "album_handoff", struct {
 		base
 		Handoff string
@@ -75,4 +88,29 @@ func (s *Server) apiAlbumPreview(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, 200, map[string]any{"title": summary.Title, "slug": summary.Slug, "visibility": "public", "image_count": summary.ImageCount, "page_url": s.absoluteURL(r, "/a/"+summary.Slug)})
+}
+
+func (s *Server) discussionSession(r *http.Request) string {
+	c, err := r.Cookie(s.cookieName(r, sessionCookie))
+	if err != nil {
+		return ""
+	}
+	return c.Value
+}
+func (s *Server) handleAlbumDiscussionReturn(w http.ResponseWriter, r *http.Request) {
+	album, ok := s.loadAlbum(w, r)
+	if !ok {
+		return
+	}
+	if !ownsAlbum(currentUser(r.Context()), album) {
+		s.notFound(w, r, "No album by that name.")
+		return
+	}
+	path := "/a/" + album.Slug
+	q := r.URL.Query()
+	if len(q["state"]) != 1 || len(q["thread"]) != 1 || !suite.CheckDiscussion(q.Get("state"), path, s.discussionSession(r), q.Get("thread"), s.cfg.WitmootURL) {
+		http.Error(w, "This discussion return expired. Prepare a new draft.", 400)
+		return
+	}
+	suite.RenderDiscussion(w, path+"/discussion", path, q.Get("thread"), q.Get("state"), "csrf_token", csrfToken(r.Context()), "/static/css/comfy-components.css")
 }

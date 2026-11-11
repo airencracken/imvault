@@ -1,5 +1,5 @@
 {{define "layout"}}<!doctype html>
-<html lang="en">
+<html lang="en" data-comfy-app="imvault">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -15,40 +15,35 @@
   <!-- app.js registers its alpine:init hooks, so it must be parsed first. -->
   <script src="/static/js/app.js" defer></script>
   {{if .UseAlpine}}<script src="/static/js/alpine.min.js" defer></script>{{end}}
-</head>
+<link rel="stylesheet" href="/static/css/comfy-components.css"><script src="/static/js/comfy-suite.js"></script></head>
 <body hx-headers='{"X-CSRF-Token":"{{.CSRFToken}}"}'>
   <header class="topbar">
     <a class="brand" href="/"><img src="{{.MascotURL}}" alt="" width="32" height="32">{{.SiteName}}</a>
-    <nav class="nav">
+    <nav class="nav" aria-label="Main navigation">{{with suiteApps}}<details class="comfy-menu comfy-apps"><summary>Apps</summary><div class="comfy-menu-panel"><p class="comfy-menu-label">Your Comfyware apps</p>{{range .}}<a href="{{.URL}}" hx-boost="false" rel="noreferrer">{{.Name}}</a>{{end}}</div></details>{{end}}
       {{if .IsAuthed}}
         <a href="/recent">Recent</a>
-        <a href="/gallery">Your gallery</a>
-        <a href="/favorites">Favorites</a>
-        <a href="/albums">Albums</a>
-        <a href="/tags">Tags</a>
-        <a href="/settings/2fa">Settings</a>
-        {{if and .User.CanInvite (not .IsAdmin)}}<a href="/invites">Invitations</a>{{end}}
-        {{if .IsAdmin}}<a href="/admin">Admin</a>
-        {{else if .CanModerate}}<a href="/admin/files">Moderate</a>{{end}}
+        <details class="comfy-menu"><summary>Library</summary><div class="comfy-menu-panel"><a href="/gallery">Your gallery</a><a href="/favorites">Favorites</a><a href="/albums">Albums</a><a href="/tags">Tags</a></div></details>
         <a class="btn small primary" href="/upload">Upload</a>
-        <span class="who" title="Signed in">{{.User.Username}}{{if .IsAdmin}} <span class="badge">admin</span>{{end}}</span>
-        <form class="inline" method="post" action="/logout">
-          <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-          <button class="link" type="submit">Sign out</button>
-        </form>
+<details class="comfy-menu comfy-account"><summary>Account</summary><div class="comfy-menu-panel">{{if sharedSignIn}}<a href="/auth/shared/manage" hx-boost="false">Community sign-in</a>{{end}}<p class="comfy-menu-label">Signed in as {{.User.Username}}</p><a href="/account">Your account</a><a href="/settings/2fa">Security settings</a>{{if and .User.CanInvite (not .IsAdmin)}}<a href="/invites">Invitations</a>{{end}}{{if .IsAdmin}}<a href="/admin">Admin</a>{{else if .CanModerate}}<a href="/admin/files">Moderate</a>{{end}}      <label class="theme-picker" hidden>Theme
+        <select data-theme-select aria-label="Color theme">
+          <option value="system">System</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </label><hr><form method="post" action="/logout"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><button class="link" type="submit">Sign out</button></form></div></details>
       {{else}}
         <a href="/tags">Tags</a>
         {{if .AnonUploads}}<a class="btn small primary" href="/upload">Upload</a>{{end}}
-        <a href="/login">Sign in</a>
-        {{if .SignupOpen}}<a href="/register">Register</a>{{end}}
-      {{end}}
-      <label class="theme-picker" hidden>Theme
+        <a href="/login">Sign in</a>      <label class="theme-picker" hidden>Theme
         <select data-theme-select aria-label="Color theme">
           <option value="system">System</option>
           <option value="light">Light</option>
           <option value="dark">Dark</option>
         </select>
       </label>
+        {{if .SignupOpen}}<a href="/register">Register</a>{{end}}
+      {{end}}
+
     </nav>
   </header>
 

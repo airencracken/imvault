@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"imvault/internal/suite"
 	"io"
 	"io/fs"
 	"net/http"
@@ -31,7 +32,14 @@ type renderer struct {
 }
 
 func newRenderer() (*renderer, error) {
+	suiteFuncs, suiteErr := suite.TemplateFuncs("IMVAULT_")
+	if suiteErr != nil {
+		return nil, suiteErr
+	}
 	funcs := templateFuncs()
+	for key, value := range suiteFuncs {
+		funcs[key] = value
+	}
 
 	pageFiles, err := fs.Glob(templatesFS, "templates/pages/*.html")
 	if err != nil {

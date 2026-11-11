@@ -1004,7 +1004,7 @@ async function signIn(page, base, username, destination = "/admin/users") {
   await page.goto(`${base}${destination}`);
   const signedIn = await page.evaluate(`
     return !document.querySelector('form[action="/login"]')
-      && document.querySelector(".who")?.textContent.includes(${JSON.stringify(username)});
+      && document.querySelector(".comfy-account")?.textContent.includes(${JSON.stringify(username)});
   `);
   if (!signedIn) throw new Error("sign in did not take: still on the login page");
 }

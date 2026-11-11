@@ -141,6 +141,9 @@ func New(cfg *config.Config, st *store.Store, objects storage.Backend, proc *med
 	// The semicolon rewrite runs before the CSRF middleware, which parses the
 	// form to find its token, and therefore before anything else can read a
 	// field and find it missing.
+	if err = s.registerSharedSignIn(mux); err != nil {
+		return nil, err
+	}
 	s.handler = s.recoverMW(securityHeadersMW(s.logMW(s.sessionMW(s.apiAuthMW(s.requestLimitsMW(s.semicolonMW(s.csrfMW(mux))))))))
 	return s, nil
 }
@@ -235,6 +238,7 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /albums", s.requireUser(s.handleAlbumsPage))
 	mux.HandleFunc("POST /albums", s.requireUser(s.handleAlbumCreate))
 	mux.HandleFunc("GET /a/{slug}", s.handleAlbumPage)
+	mux.HandleFunc("GET /a/{slug}/discussion-return", s.requireUser(s.handleAlbumDiscussionReturn))
 	mux.HandleFunc("POST /a/{slug}/discussion", s.requireUser(s.handleAlbumDiscussion))
 	mux.HandleFunc("POST /a/{slug}/share", s.requireUser(s.handleAlbumShare))
 	mux.HandleFunc("GET /api/v1/albums/{ref}/preview", s.requireAPIKey(s.apiAlbumPreview))

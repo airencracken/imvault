@@ -55,7 +55,7 @@ test-proxies: ## Test nginx and Apache TLS proxy examples (needs both servers)
 
 # Release builds and the mutation harness must resolve go.mod alone, never a
 # developer's go.work pointing at local checkouts.
-release-check: test-containers ## Validate the release configuration
+release-check: test-suite-assets test-containers ## Validate the release configuration
 	GOWORK=off $(GORELEASER) check
 
 release-snapshot: release-check ## Build local binary archives and Debian packages without publishing
@@ -252,3 +252,7 @@ test-setup-mutations: ## Check atomic browser owner provisioning
 .PHONY: test-config
 test-config:
 	python3 scripts/test_service_config.py
+
+.PHONY: test-suite-assets
+test-suite-assets: ## Verify synchronized suite source and assets
+	python3 scripts/verify_suite.py

@@ -1,0 +1,17 @@
+{
+  "source": "github.com/airencracken/comfylib",
+  "files": {
+    "internal/web/static/css/comfy-components.css": "afd5d2f5ba696755bca4487e4340984a1c2fb084590374e5e0ac446959d3e98b",
+    "internal/web/static/js/comfy-suite.js": "d8f880956a3623a90f08a8f4dd05f403a30dfb75e1a1fc05badb7028f91b1963",
+    "internal/suite/apps.go": "48cc742a03b30e3e200176fdd65f74c5dfe5067ef75f50fb12f02bd66c73aba0",
+    "internal/suite/apps_test.go": "e585d2fbb6e6bc9978f7d075c16974fb12af51b28829e34cc417a9f4c52be449",
+    "internal/suite/auth.go": "bc12fea6f51d0617fa65d63fb690bc27ffe5a20d0e5fbde9eb6b3bc2bc8dcfc1",
+    "internal/suite/auth_test.go": "e410ceaf2b6209487e9c14191a7b9a06c3d26961dae2c0ef17537679e122ec33",
+    "internal/suite/discussion.go": "185cd6bbeee74fc46f6228b4be218aee5d0275b0111eeb2d916956f7ed334f59",
+    "internal/suite/discussion_page.go": "62cd72b02a61a839b5e38510fb58fc2086fb97827376138241c966ff917d251f",
+    "internal/suite/discussion_test.go": "f50ea89daa4bd5cdbfa24472c73b6d770250eef78105ecace8492fdc72b72636",
+    "internal/sharedoidc/provider.go": "ec480c5ab12f3f676080ad1561e4c84c91a69bafcdb559ca92f3ca0cf2585d5e",
+    "internal/sharedoidc/provider_test.go": "412100f4cb262a06f342756bdc81c35ca4a3edd5e5cb7570e656696a531d68df",
+    "internal/sharedoidc/auth_test.go": "85cec9a263d6db81548b69e4525dea6b906590e03bf543c8fe336fcce19371a1"
+  }
+}

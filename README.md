@@ -321,3 +321,6 @@ in the application.
 New source builds share [browser and command-line setup](docs/setup.md) with the
 other Comfyware apps: `imvault setup` authorizes the first-owner browser page,
 and `imvault create-owner --username NAME` prompts privately by default.
+
+Optional app navigation, shared sign-in and discussion returns are described in
+[Comfyware connections](docs/suite.md).

@@ -1,6 +1,6 @@
 {{define "content"}}
 <section class="narrow account-page">
-  <h1>Sign in</h1>
+  <h1>Sign in</h1>{{if sharedSignIn}}<p><a class="btn primary" href="/auth/shared/start" hx-boost="false">Sign in with your community account</a></p>{{end}}
 
   {{if .OIDCName}}
   <p>

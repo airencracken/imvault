@@ -7,6 +7,7 @@ import (
 	"github.com/airencracken/comfylib/reference"
 	"imvault/internal/models"
 	"imvault/internal/store"
+	"imvault/internal/suite"
 	"net/http/httptest"
 	"net/url"
 	"strings"
@@ -107,5 +108,52 @@ func TestAlbumDiscussionRoutesRequireSessionAndCSRF(t *testing.T) {
 		if strings.Contains(w.Body.String(), "SECRET") {
 			t.Fatal("private metadata")
 		}
+	}
+}
+
+func TestAlbumDiscussionReturnConfirmsBeforeSaving(t *testing.T) {
+	h := newHarness(t)
+	owner := h.seedUser("album-owner")
+	session := h.sessionFor(t, owner.ID)
+	h.srv.cfg.WitmootURL = "https://board.example"
+	album, err := h.store.CreateAlbum(t.Context(), owner.ID, store.AlbumInput{Title: "Private album", Visibility: models.VisibilityPrivate})
+	if err != nil {
+		t.Fatal(err)
+	}
+	origin, _ := url.Parse(h.server.URL)
+	binding := ""
+	for _, cookie := range session.jar.Cookies(origin) {
+		if cookie.Name == sessionCookie {
+			binding = cookie.Value
+		}
+	}
+	if binding == "" {
+		t.Fatal("missing local session")
+	}
+	path := "/a/" + album.Slug
+	link, err := suite.PrepareDiscussion("https://board.example/share", h.server.URL+path, binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handoff, _ := url.Parse(link)
+	callback, _ := url.Parse(handoff.Query().Get("return_to"))
+	query := callback.Query()
+	query.Set("thread", "https://board.example/topics/42")
+	callback.RawQuery = query.Encode()
+	response, body := session.get(callback.RequestURI())
+	if response.StatusCode != 200 || !strings.Contains(body, "Keep this discussion link?") {
+		t.Fatal(response.StatusCode, body)
+	}
+	links, err := h.store.AlbumDiscussions(t.Context(), album.ID)
+	if err != nil || len(links) != 0 {
+		t.Fatal("GET saved link", links, err)
+	}
+	response, _ = session.post(path+"/discussion", url.Values{"url": {"https://board.example/topics/42"}, "discussion_state": {query.Get("state")}})
+	if response.StatusCode != 303 {
+		t.Fatal(response.StatusCode)
+	}
+	response, _ = session.get(callback.RequestURI())
+	if response.StatusCode != 400 {
+		t.Fatal("used album return accepted", response.StatusCode)
 	}
 }

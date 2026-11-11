@@ -129,7 +129,7 @@ label.link { cursor: pointer; }
   color: var(--muted);
   font-size: .72rem; line-height: 1.5;
 }
-.badge.private { color: var(--danger); border-color: light-dark(#d5a4ab, #47282d); }
+.badge.private { color: var(--muted); border-color: var(--border); background: var(--bg-elev-2); }
 .badge.warn { color: var(--warn); border-color: light-dark(#d2bc8e, #4a3b1e); }
 
 .panel {

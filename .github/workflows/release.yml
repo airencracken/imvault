@@ -76,6 +76,10 @@ jobs:
           esac
       - name: Verify release contents
         run: sh scripts/release/check-artifacts.sh
+      - name: Scan release executable vulnerabilities
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0 || exit 1
+          python3 scripts/scan_artifacts.py dist/*_linux_*.tar.gz --scanner "$(go env GOPATH)/bin/govulncheck" || exit 1
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: release-packages
