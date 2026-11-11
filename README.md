@@ -35,6 +35,9 @@ Public for an audience, members-only for your people, private for the
 
 Run a published image with Docker Compose: [container installation, upgrades, and backups](docs/containers.md).
 
+Use a current Go security patch when building: Go 1.26.11 or later on the
+1.26 series, or Go 1.27.4 or later on the 1.27 series.
+
 ## Come on in
 
 Prebuilt Linux amd64/arm64 archives and Debian packages live in
@@ -131,7 +134,7 @@ for password input and service-account examples.
 
 ### From source
 
-Building requires **Go 1.26 or later**. The server has no cgo dependency.
+Building requires **Go 1.26.11 or later**. The server has no cgo dependency.
 
 ```bash
 make run                              # :8080, data in ./data

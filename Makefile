@@ -46,7 +46,7 @@ test-invitation-mutations: ## Check invitation tests against deliberate permissi
 	$(MUTATE) scripts/mutations/invitation.json
 
 test-settings-mutations: ## Check configuration, mail, rate-limit, key and service-account regressions
-	$(MUTATE) scripts/mutations/settings.json
+	$(MUTATE) scripts/mutations/settings.json scripts/mutations/audit.json
 
 test-mutations: test-setup-mutations test-sandbox-mutations test-invitation-mutations test-web-mutations test-settings-mutations test-library-mutations ## Run every mutation table
 
@@ -137,7 +137,7 @@ install-systemd: ## Install the systemd unit and its environment file
 	sed 's|/usr/local/bin/imvault|$(PREFIX)/bin/imvault|' contrib/systemd/imvault-backup.service > "$(DESTDIR)$(UNITDIR)/imvault-backup.service"
 	chmod 644 "$(DESTDIR)$(UNITDIR)/imvault-backup.service"
 	install -m644 contrib/systemd/imvault-backup.timer "$(DESTDIR)$(UNITDIR)/imvault-backup.timer"
-	@if [ -e "$(DESTDIR)$(SYSCONFDIR)/imvault/imvault.env" ]; then \
+	@if [ -e "$(DESTDIR)$(SYSCONFDIR)/imvault/imvault.env" ] || [ -L "$(DESTDIR)$(SYSCONFDIR)/imvault/imvault.env" ]; then \
 		echo "  keeping the existing $(DESTDIR)$(SYSCONFDIR)/imvault/imvault.env"; \
 	else \
 		install -m640 contrib/systemd/imvault.env "$(DESTDIR)$(SYSCONFDIR)/imvault/imvault.env"; \

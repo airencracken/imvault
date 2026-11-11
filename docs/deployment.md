@@ -211,7 +211,7 @@ The Alpine package has been built, installed, and run on Alpine 3.24: `abuild`
 produces `imvault-0.1.0-r0.apk`, the pre-install creates the service account,
 and the packaged binary serves.
 
-Building from source needs **Go 1.26**, which is not the language level of the
+Building from source needs **Go 1.26.11**, which is not the language level of the
 code but the declared requirement of the pinned dependencies: `x/crypto`,
 `x/sys`, `x/image`, and `x/oauth2` all ask for 1.26.0 in their own `go.mod`, and
 a toolchain below that refuses before it compiles anything. A stable Alpine

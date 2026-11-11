@@ -1,0 +1,10 @@
+[
+  {
+    "name": "preserve dangling config symlink $(DESTDIR)$(SYSCONFDIR)/imvault/imvault.env",
+    "file": "Makefile",
+    "before": " || [ -L \"$(DESTDIR)$(SYSCONFDIR)/imvault/imvault.env\" ]",
+    "after": "",
+    "package": "./scripts",
+    "run": "^TestSystemdInstallPreservesConfigurationSymlinks$"
+  }
+]
