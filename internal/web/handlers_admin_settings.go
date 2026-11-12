@@ -5,6 +5,7 @@ package web
 import (
 	"context"
 	"fmt"
+	"github.com/airencracken/comfylib/admin"
 	"github.com/airencracken/comfylib/autobackup"
 	"math"
 	"net/http"
@@ -126,7 +127,8 @@ func (s *Server) settingSources() map[string]bool {
 
 // settingsView backs the instance settings page.
 type settingsView struct {
-	Backups autobackup.Status
+	Overview admin.View
+	Backups  autobackup.Status
 
 	base
 	Branding              models.Branding
@@ -230,6 +232,7 @@ func (s *Server) handleAdminSettings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	view := settingsView{
+		Overview:              admin.WithSuite(admin.Runtime(s.cfg.Version, s.Backups.Status()), "IMVAULT_"),
 		Backups:               s.Backups.Status(),
 		Branding:              s.branding(),
 		BrandingStored:        s.settingBrandingSources(),

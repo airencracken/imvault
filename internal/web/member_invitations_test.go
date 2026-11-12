@@ -131,7 +131,7 @@ func TestMemberInvitationValidationKeepsFieldsWithoutCreatingCode(t *testing.T) 
 		{"label": {"For Sam"}, "max_uses": {"2"}, "expires_days": {"invalid"}},
 	} {
 		resp, body := member.post("/invites", fields)
-		if resp.StatusCode != 200 || !strings.Contains(body, "<!doctype html>") || !strings.Contains(body, `value="For Sam"`) || !strings.Contains(body, `value="`+fields.Get("max_uses")+`"`) || !strings.Contains(body, `value="`+fields.Get("expires_days")+`"`) || strings.Count(body, `class="flash err"`) != 1 {
+		if resp.StatusCode != 200 || !strings.Contains(body, "<!doctype html>") || !strings.Contains(body, `value="For Sam"`) || !strings.Contains(body, `value="`+fields.Get("max_uses")+`"`) || !strings.Contains(body, `value="`+fields.Get("expires_days")+`"`) || len(regexp.MustCompile(`class="[^"]*\bflash\b[^"]*\berr\b[^"]*"`).FindAllString(body, -1)) != 1 {
 			t.Fatalf("validation lost fields or duplicated error: %d, %s", resp.StatusCode, truncate(body))
 		}
 	}

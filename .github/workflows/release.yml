@@ -86,6 +86,8 @@ jobs:
           make test-library-mutations || exit 1
           make test-race || exit 1
           make test-proxies || exit 1
+      - name: Preflight immutable release source and shared workflows
+        run: make release-preflight || exit 1
       - name: Build archives and Debian packages
         env:
           RELEASE_REF: ${{ inputs.release_tag != '' && format('refs/tags/{0}', inputs.release_tag) || github.ref }}
@@ -169,9 +171,14 @@ jobs:
       release_tag: ${{ inputs.release_tag || github.ref_name }}
       publish: ${{ (startsWith(github.ref, 'refs/tags/v') || startsWith(inputs.release_tag, 'v')) && github.repository == 'airencracken/imvault' }}
 
+  browser:
+    uses: ./.github/workflows/browser.yml
+    with:
+      source_ref: ${{ inputs.release_tag || github.ref }}
+
   publish:
     if: (startsWith(github.ref, 'refs/tags/v') || startsWith(inputs.release_tag, 'v')) && github.repository == 'airencracken/imvault'
-    needs: [build, packages, containers]
+    needs: [build, packages, containers, browser]
     runs-on: ubuntu-24.04
     permissions:
       contents: write

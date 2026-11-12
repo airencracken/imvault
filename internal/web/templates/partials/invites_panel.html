@@ -10,7 +10,7 @@
     <input id="invitation-code" aria-label="Invitation code" readonly value="{{.NewCode}}" onclick="this.select()">
   </section>
   {{end}}
-  {{if .Error}}<p class="flash err" role="alert">{{.Error}}</p>{{end}}
+  {{if .Error}}<p class="comfy-notice comfy-notice-error flash err" role="alert">{{.Error}}</p>{{end}}
   <div class="invitation-layout">
     <section class="invitation-create" aria-labelledby="create-invitation">
       <h2 id="create-invitation">Create an invitation</h2>

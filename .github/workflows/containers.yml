@@ -15,114 +15,13 @@ on:
         required: true
 permissions:
   contents: read
-env:
-  GOWORK: "off"
-defaults:
-  run:
-    shell: bash --noprofile --norc {0}
 jobs:
-  images:
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: ubuntu-24.04
-            arch: amd64
-          - runner: ubuntu-24.04-arm
-            arch: arm64
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          ref: ${{ inputs.source_ref || github.ref }}
-      - name: Set up Go for pinned shared tooling
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
-        with:
-          go-version: "1.26.11"
-          cache: false
-      - name: Resolve and verify pinned shared tooling
-        run: |
-          go mod download github.com/airencracken/comfylib || exit 1
-          go mod verify || exit 1
-          GOPROXY=off GOSUMDB=off python3 scripts/comfy.py check || exit 1
-          git diff --exit-code -- go.mod go.sum || exit 1
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          name: release-packages
-          path: dist
-      - name: Container unit, schema, mutation and publication contracts
-        run: make test-containers
-      - name: Exercise real multi-platform publication in an isolated registry
-        if: matrix.arch == 'amd64'
-        run: make test-container-registry
-      - name: Validate Compose configuration
-        run: |
-          docker compose config --quiet || exit 1
-          docker compose -f docker-compose.yml -f docker-compose.build.yml config --quiet || exit 1
-      - name: Build and exercise native image, upgrade and backup restore
-        env:
-          IMAGE_ARCH: ${{ matrix.arch }}
-          IMAGE_REVISION: ${{ github.sha }}
-        run: |
-          IMAGE_REVISION=$(git rev-parse HEAD) || exit 1
-          python3 scripts/comfy.py container-release build --arch "$IMAGE_ARCH" --revision "$IMAGE_REVISION" || exit 1
-          COMFYWARE_CONTAINER_ENV_TEST=1 python3 scripts/comfy.py suite-deployment || exit 1
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: container-${{ matrix.arch }}
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 7
-          path: container-artifacts/*
-
-  publish:
-    if: inputs.publish
-    needs: images
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
+  shared:
     permissions:
       contents: read
       packages: write
-    # Exact release tags are preserved; serialize all registry writers.
-    concurrency:
-      group: container-publication
-      cancel-in-progress: false
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          ref: ${{ inputs.source_ref || github.ref }}
-      - name: Set up Go for pinned shared tooling
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
-        with:
-          go-version: "1.26.11"
-          cache: false
-      - name: Resolve and verify pinned shared tooling
-        run: |
-          go mod download github.com/airencracken/comfylib || exit 1
-          go mod verify || exit 1
-          GOPROXY=off GOSUMDB=off python3 scripts/comfy.py check || exit 1
-          git diff --exit-code -- go.mod go.sum || exit 1
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          pattern: container-*
-          merge-multiple: true
-          path: container-artifacts
-      - name: Authenticate to GHCR using the workflow token
-        env:
-          REGISTRY_TOKEN: ${{ github.token }}
-          REGISTRY_ACTOR: ${{ github.actor }}
-        run: printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io -u "$REGISTRY_ACTOR" --password-stdin
-      - name: Publish the tested images and verify anonymous access
-        env:
-          GH_TOKEN: ${{ github.token }}
-          IMAGE_TAG: ${{ inputs.release_tag || github.ref_name }}
-          IMAGE_REVISION: ${{ github.sha }}
-        run: |
-          IMAGE_REVISION=$(git rev-parse HEAD) || exit 1
-          python3 scripts/comfy.py container-release publish --tag "$IMAGE_TAG" --revision "$IMAGE_REVISION" || exit 1
-      - name: Remove registry credentials
-        if: always()
-        run: docker logout ghcr.io
+    uses: airencracken/comfylib/.github/workflows/containers.yml@2c92df129bfddeeadd27996c6f9c3b9c9df77d9a # v0.4.1
+    with:
+      source_ref: ${{ inputs.source_ref }}
+      release_tag: ${{ inputs.release_tag }}
+      publish: ${{ inputs.publish }}

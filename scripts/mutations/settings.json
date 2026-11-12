@@ -64,38 +64,6 @@
         "run": "^TestAConfiguredRelayIsQueuedAndAnInvalidOneStopsStartup$"
     },
     {
-        "name": "the rate limiter is capped",
-        "file": "internal/ratelimit/ratelimit.go",
-        "before": "\tfor len(l.buckets) >= l.maxKeys {",
-        "after": "\tfor false {",
-        "package": "./internal/ratelimit",
-        "run": "^TestAFloodOfNewKeysCannotFreeAnActiveOne$"
-    },
-    {
-        "name": "the default limiter has a cap",
-        "file": "internal/ratelimit/ratelimit.go",
-        "before": "\t\tmaxKeys: defaultMaxKeys,",
-        "after": "\t\tmaxKeys: 1 << 30,",
-        "package": "./internal/ratelimit",
-        "run": "^TestTheDefaultLimiterIsCapped$"
-    },
-    {
-        "name": "the least recently used key is evicted",
-        "file": "internal/ratelimit/ratelimit.go",
-        "before": "\t\tl.removeLocked(l.order.Back())",
-        "after": "\t\tl.removeLocked(l.order.Front())",
-        "package": "./internal/ratelimit",
-        "run": "^TestTheLeastRecentlyUsedKeyIsTheOneForgotten$"
-    },
-    {
-        "name": "a used key becomes the most recent",
-        "file": "internal/ratelimit/ratelimit.go",
-        "before": "\t\tl.order.MoveToFront(element)\n",
-        "after": "",
-        "package": "./internal/ratelimit",
-        "run": "^TestAFloodOfNewKeysCannotFreeAnActiveOne$"
-    },
-    {
         "name": "existing key files keep their hex form",
         "file": "internal/secrets/secrets.go",
         "before": "keyfile.LoadOrCreate(keyFile, KeySize, keyfile.Hex)",

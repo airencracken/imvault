@@ -1,0 +1,16 @@
+name: Browser contracts
+on:
+  workflow_call:
+    inputs:
+      source_ref:
+        type: string
+        required: false
+        default: ''
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  shared:
+    uses: airencracken/comfylib/.github/workflows/browser.yml@2c92df129bfddeeadd27996c6f9c3b9c9df77d9a # v0.4.1
+    with:
+      source_ref: ${{ inputs.source_ref }}

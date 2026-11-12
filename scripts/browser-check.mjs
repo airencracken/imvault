@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { findBrowser, temporaryDirectory, reservePort, waitForHTTP, stopProcess } from './browser-runtime.mjs';
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 // Drives a real browser against a throwaway instance to check the behaviour
@@ -27,14 +28,7 @@ import { checkAvatars } from "./browser-avatars.mjs";
 import { checkProfiles } from "./browser-profiles.mjs";
 import { checkAccountPages, checkInvitations } from "./browser-invitations.mjs";
 
-const BROWSER_CANDIDATES = [
-  process.env.CHROME,
-  process.env.CHROMIUM,
-  "/usr/bin/chromium",
-  "/usr/bin/chromium-browser",
-  "/usr/bin/google-chrome",
-  "/usr/bin/google-chrome-stable",
-].filter(Boolean);
+const sleep = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 
 const results = [];
 let failures = 0;
@@ -44,40 +38,7 @@ function record(name, ok, detail = "") {
   if (!ok) failures++;
 }
 
-async function exists(path) {
-  try {
-    await access(path);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-export async function findBrowser() {
-  for (const candidate of BROWSER_CANDIDATES) {
-    if (candidate && (await exists(candidate))) return candidate;
-  }
-  return null;
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function waitForHttp(url, timeoutMs = 15000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    try {
-      const res = await fetch(url);
-      if (res.ok) return true;
-    } catch {
-      // not up yet
-    }
-    await sleep(200);
-  }
-  return false;
-}
-
+const waitForHttp = async (url, timeoutMs=15000) => waitForHTTP(url,{timeout:timeoutMs});
 // --- a minimal Chrome DevTools Protocol client ------------------------------
 
 export class Page {
@@ -215,9 +176,9 @@ async function main() {
   }
 
   const root = new URL("..", import.meta.url).pathname;
-  const dataDir = await mkdtemp(join(tmpdir(), "imvault-browser-"));
-  const port = 8123;
-  const debugPort = 9223;
+  const dataDir = await temporaryDirectory('imvault');
+  const port = await reservePort();
+  const debugPort = await reservePort();
   const base = `http://127.0.0.1:${port}`;
 
   const build = spawn("go", ["build", "-ldflags", "-X main.version=browser-version-test", "-o", join(dataDir, "imvault"), "./cmd/imvault"], {
@@ -903,8 +864,8 @@ async function main() {
       page.console.filter((m) => m.level === "error").map((m) => m.text).join(" | "));
   } finally {
     if (page) page.socket.close();
-    browser.kill("SIGKILL");
-    server.kill("SIGTERM");
+    await stopProcess(browser);
+    await stopProcess(server);
     await sleep(300);
     await rm(dataDir, { recursive: true, force: true });
   }
@@ -1076,3 +1037,5 @@ async function checkMemberInvitations(page, base) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   process.exit(await main());
 }
+
+export { findBrowser };

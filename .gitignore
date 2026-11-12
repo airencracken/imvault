@@ -30,3 +30,6 @@ __pycache__/
 /go.work.sum
 
 /container-artifacts/
+
+# Browser contract development dependencies
+node_modules/

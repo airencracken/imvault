@@ -479,7 +479,7 @@ table.keys code { font-size: .82rem; color: var(--muted); overflow-wrap: anywher
 
 /* ---------- admin ---------- */
 
-.subtabs { display: flex; gap: .5rem; align-items: center; }
+.subtabs { display: flex; flex-wrap: wrap; min-width: 0; max-width: 100%; gap: .5rem; align-items: center; }
 
 .stat-row {
   display: grid;

@@ -256,3 +256,10 @@ test-suite-assets: ## Verify shared module integration and deployment contracts
 	python3 scripts/comfy.py check
 	python3 scripts/comfy.py suite-deployment
 	python3 scripts/comfy.py release-dispatch
+
+.PHONY: release-preflight test-metrics-browser
+release-preflight:
+	python3 scripts/comfy.py release-plan --require-clean --cold-cache --output .release/plan.json
+
+test-metrics-browser:
+	python3 scripts/comfy.py metrics-browser

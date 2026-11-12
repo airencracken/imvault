@@ -10,18 +10,18 @@
   </div>
   {{template "admin_nav" .}}
 </header>
-<section class="panel stack" aria-labelledby="backup-heading"><h2 id="backup-heading">Automatic backups</h2>
+<section class="comfy-admin-section panel stack" aria-labelledby="backup-heading"><h2 id="backup-heading">Automatic backups</h2>
 {{if .Backups.Enabled}}<p>A verified backup runs every {{.Backups.Interval}}. At most {{.Backups.Keep}} automatic copies are kept, with a total archive cap of {{.Backups.ArchiveCap}} and an uncompressed copy cap of {{.Backups.CopyCap}} per backup.</p>
 <p>Private destination: <code>{{.Backups.Directory}}</code>.</p>
-{{if .Backups.Running}}<p role="status">A backup is running.</p>{{end}}
+{{if .Backups.Running}}<p role="status" class="comfy-notice">A backup is running.</p>{{end}}
 {{if .Backups.LastSuccess.IsZero}}<p>No automatic backup has succeeded yet. The first attempt starts one minute after service startup.</p>{{else}}<p>Last successful backup: <time>{{.Backups.LastSuccess.UTC.Format "2006-01-02 15:04:05 UTC"}}</time>.</p>{{end}}
-{{if .Backups.LastError}}<p role="alert">Last backup error: {{.Backups.LastError}}</p>{{end}}
+{{if .Backups.LastError}}<p role="alert" class="comfy-notice comfy-notice-error">Last backup error: {{.Backups.LastError}}</p>{{end}}
 {{if not .Backups.NextAttempt.IsZero}}<p>Next attempt: <time>{{.Backups.NextAttempt.UTC.Format "2006-01-02 15:04:05 UTC"}}</time>.</p>{{end}}
 {{else}}<p>Automatic backups are disabled or no service worker is attached.</p>{{end}}
 <p>Copy completed backups to another machine. Local copies cannot recover from a lost disk. Schedule and caps are configured in the service environment and take effect after a restart.</p></section>
 
 
-<section class="panel stack">
+<section class="comfy-admin-section panel stack">
   <h2>What is this instance for?</h2>
   <p class="muted">
     Personal, group, and public hosts are the same program at different
@@ -187,7 +187,7 @@
   <button class="btn primary" type="submit">Save settings</button>
 </form>
 
-<section class="panel stack">
+<section class="comfy-admin-section panel stack">
   <h2>Favicon and mascot</h2>
   <p class="muted">Upload a PNG, JPEG, or GIF image up to 2 MiB. The server converts it to PNG before serving it on this instance.</p>
   <form class="stack" method="post" action="/admin/settings/branding-assets" enctype="multipart/form-data">
@@ -205,7 +205,7 @@
 </section>
 
 {{if or .Stored .BrandingStored}}
-<section class="panel stack">
+<section class="comfy-admin-section panel stack">
   <h2>Stored overrides</h2>
   <p class="muted">
     Settings saved here take precedence over the configuration. Clearing them resets the policy and text branding; uploaded images stay until removed above.

@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/airencracken/comfylib/admin"
 	"github.com/airencracken/comfylib/suite"
 	"html/template"
 	"io"
@@ -37,6 +38,7 @@ func newRenderer() (*renderer, error) {
 		return nil, suiteErr
 	}
 	funcs := templateFuncs()
+	funcs["adminSummary"] = admin.Render
 	for key, value := range suiteFuncs {
 		funcs[key] = value
 	}

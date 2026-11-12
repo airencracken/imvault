@@ -20,10 +20,10 @@ import (
 	"github.com/airencracken/comfylib/smtp"
 	"github.com/airencracken/comfylib/ui"
 
+	"github.com/airencracken/comfylib/ratelimit"
 	"imvault/internal/config"
 	"imvault/internal/media"
 	"imvault/internal/oidc"
-	"imvault/internal/ratelimit"
 	"imvault/internal/secrets"
 	"imvault/internal/storage"
 	"imvault/internal/store"
@@ -281,6 +281,7 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /settings/api-keys/{id}/delete", s.requireUser(s.handleAPIKeyDelete))
 
 	// Admin. Everything here is instance-wide, so it is administrator-only.
+	mux.HandleFunc("GET /admin/metrics", s.requireAdmin(s.handleAdminMetrics))
 	mux.HandleFunc("GET /admin", s.requireAdmin(s.handleAdminDashboard))
 	mux.HandleFunc("GET /admin/users", s.requireAdmin(s.handleAdminUsers))
 	mux.HandleFunc("POST /admin/users/{id}/limits", s.requireAdmin(s.handleAdminSetLimits))
