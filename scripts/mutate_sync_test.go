@@ -36,36 +36,19 @@ func pinnedComfylib(t *testing.T) (version, dir string) {
 	return module.Version, module.Dir
 }
 
-// mutateHeader is the line after the shebang that records where
-// scripts/mutate.py came from.
-func mutateHeader(version string) string {
-	return "# Synced from " + comfylibModule + " " + version + " tools/mutate.py; do not edit here. scripts/mutate_sync_test.go holds it to that copy.\n"
-}
-
-// The harness runs from a copy of the tree with the module proxy off, so it
-// cannot run comfylib's engine in place. The copy here must be comfylib's own,
-// from the release go.mod pins, apart from the line that says so.
-func TestMutationEngineMatchesThePinnedComfylib(t *testing.T) {
-	version, dir := pinnedComfylib(t)
-	upstream, err := os.ReadFile(filepath.Join(dir, "tools", "mutate.py"))
+// The launcher resolves tools from the exact module used to build this app.
+func TestMaintenanceLauncherUsesPinnedComfylib(t *testing.T) {
+	_, dir := pinnedComfylib(t)
+	want, err := os.ReadFile(filepath.Join(dir, "tools", "app_bootstrap.py"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	local, err := os.ReadFile("mutate.py")
+	got, err := os.ReadFile("comfy.py")
 	if err != nil {
 		t.Fatal(err)
 	}
-	shebang, rest, ok := bytes.Cut(local, []byte("\n"))
-	if !ok {
-		t.Fatal("scripts/mutate.py is a single line")
-	}
-	header := mutateHeader(version)
-	if !bytes.HasPrefix(rest, []byte(header)) {
-		t.Fatalf("scripts/mutate.py does not record %s %s on its second line; copy tools/mutate.py from that release and add:\n%s", comfylibModule, version, header)
-	}
-	body := append(append(shebang, '\n'), rest[len(header):]...)
-	if !bytes.Equal(body, upstream) {
-		t.Fatalf("scripts/mutate.py differs from tools/mutate.py in %s %s; copy it again rather than editing it here", comfylibModule, version)
+	if !bytes.Equal(got, want) {
+		t.Fatal("maintenance launcher differs from pinned Comfylib")
 	}
 }
 

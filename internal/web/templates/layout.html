@@ -15,7 +15,7 @@
   <!-- app.js registers its alpine:init hooks, so it must be parsed first. -->
   <script src="/static/js/app.js" defer></script>
   {{if .UseAlpine}}<script src="/static/js/alpine.min.js" defer></script>{{end}}
-<link rel="stylesheet" href="/static/css/comfy-components.css"><script src="/static/js/comfy-suite.js"></script></head>
+<link rel="stylesheet" href="/static/comfyware/components.css"><script src="/static/comfyware/suite.js"></script></head>
 <body hx-headers='{"X-CSRF-Token":"{{.CSRFToken}}"}'>
   <header class="topbar">
     <a class="brand" href="/"><img src="{{.MascotURL}}" alt="" width="32" height="32">{{.SiteName}}</a>

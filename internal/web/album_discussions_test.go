@@ -5,9 +5,9 @@ package web
 import (
 	"encoding/json"
 	"github.com/airencracken/comfylib/reference"
+	"github.com/airencracken/comfylib/suite"
 	"imvault/internal/models"
 	"imvault/internal/store"
-	"imvault/internal/suite"
 	"net/http/httptest"
 	"net/url"
 	"strings"

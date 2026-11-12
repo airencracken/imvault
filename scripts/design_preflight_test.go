@@ -32,7 +32,7 @@ func TestDesignMutationGatePrimesColdCacheBeforeOfflineTests(t *testing.T) {
 			fakePython := `#!/bin/sh
 [ "$GOWORK" = off ] || exit 11
 [ -f "$PREFLIGHT_MARKER" ] || exit 12
-[ "$*" = 'scripts/mutate.py scripts/mutations/design.json' ] || exit 13
+[ "$*" = 'scripts/comfy.py mutate scripts/mutations/design.json' ] || exit 13
 : > "$MUTATIONS_MARKER" || exit 14
 `
 			for name, contents := range map[string]string{"go": fakeGo, "python3": fakePython} {

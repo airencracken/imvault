@@ -3,8 +3,8 @@ package web
 
 import (
 	"github.com/airencracken/comfylib/reference"
+	"github.com/airencracken/comfylib/suite"
 	"imvault/internal/models"
-	"imvault/internal/suite"
 	"net/http"
 )
 
@@ -112,5 +112,5 @@ func (s *Server) handleAlbumDiscussionReturn(w http.ResponseWriter, r *http.Requ
 		http.Error(w, "This discussion return expired. Prepare a new draft.", 400)
 		return
 	}
-	suite.RenderDiscussion(w, path+"/discussion", path, q.Get("thread"), q.Get("state"), "csrf_token", csrfToken(r.Context()), "/static/css/comfy-components.css")
+	suite.RenderDiscussion(w, path+"/discussion", path, q.Get("thread"), q.Get("state"), "csrf_token", csrfToken(r.Context()), "/static/comfyware/components.css")
 }

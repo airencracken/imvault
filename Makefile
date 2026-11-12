@@ -31,10 +31,8 @@ DIST_FILES := cmd internal docs go.mod go.sum Makefile README.md LICENSE \
 .PHONY: test-invitation-mutations test-web-mutations test-settings-mutations test-mutations
 .PHONY: test-library-mutations
 
-# The mutation engine is comfylib's tools/mutate.py, copied to scripts/ because
-# it runs from a copy of the tree with the module proxy off. Each table lists
-# deliberate defects the named test must catch.
-MUTATE := GOWORK=off python3 scripts/mutate.py
+# Resolve the mutation engine from the pinned Comfylib module.
+MUTATE := GOWORK=off python3 scripts/comfy.py mutate
 
 test-web-mutations: ## Check the web regression tests against deliberate security regressions
 	$(MUTATE) scripts/mutations/web.json
@@ -231,19 +229,19 @@ test-cli: build ## Check hidden password prompts through an actual terminal
 
 .PHONY: test-containers test-container-lifecycle
 test-containers: ## Check container release, schema, mutation and publication contracts
-	python3 -m unittest discover -s scripts/containers -p 'test_*.py' -v
+	python3 scripts/comfy.py test-containers
 
 test-container-lifecycle: ## Exercise a local image (build it first; needs Docker)
-	python3 scripts/containers/lifecycle.py --image imvault:local --version "$(VERSION)" --upgrade
+	python3 scripts/comfy.py container-lifecycle --image imvault:local --version "$(VERSION)" --upgrade
 
 .PHONY: test-container-registry
 test-container-registry: ## Exercise real multi-platform publication in an isolated local registry
-	python3 scripts/containers/check_registry.py
+	python3 scripts/comfy.py container-registry
 
 .PHONY: test-design-mutations
 test-design-mutations: ## Verify invitation design regressions reject deliberate defects
 	GOWORK=off go mod download
-	GOWORK=off python3 scripts/mutate.py scripts/mutations/design.json
+	GOWORK=off python3 scripts/comfy.py mutate scripts/mutations/design.json
 
 .PHONY: test-setup-mutations
 test-setup-mutations: ## Check atomic browser owner provisioning
@@ -251,10 +249,10 @@ test-setup-mutations: ## Check atomic browser owner provisioning
 
 .PHONY: test-config
 test-config:
-	python3 scripts/test_service_config.py
+	python3 scripts/comfy.py service-config
 
 .PHONY: test-suite-assets
-test-suite-assets: ## Verify synchronized suite source and assets
-	python3 scripts/verify_suite.py
-	python3 scripts/test_suite_deployment.py
-	python3 scripts/test_release_dispatch.py
+test-suite-assets: ## Verify shared module integration and deployment contracts
+	python3 scripts/comfy.py check
+	python3 scripts/comfy.py suite-deployment
+	python3 scripts/comfy.py release-dispatch

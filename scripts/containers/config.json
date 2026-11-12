@@ -3,5 +3,6 @@
   "previous": "0.21.1",
   "port": 8080,
   "tmp_mb": 512,
-  "owner_command": "create-admin"
+  "owner_command": "create-admin",
+  "lifecycle": "snapshot"
 }

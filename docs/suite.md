@@ -78,13 +78,17 @@ audience.
 
 ## Shared source maintenance
 
-`internal/suite`, `internal/sharedoidc`, `comfy-components.css` and
-`comfy-suite.js` are synchronized from Comfylib. They are checked by
-`python3 scripts/verify_suite.py` and the normal `make check`. Applications still
-build independently against published Comfylib releases. To update the shared
-sources from a Comfylib checkout, run `python3 tools/sync_suite.py /path/to/imvault`;
-use `--check` to compare against the canonical sources without writing. Review
-the source changes and generated hash manifest together.
+Suite helpers are imported from `github.com/airencracken/comfylib/suite`.
+The separately versioned `github.com/airencracken/comfylib/oidc` module supplies
+the OIDC protocol adapter; the core library still uses only the standard library.
+Shared browser assets are served from `ui.Assets()` at `/static/comfyware/`.
+
+`python3 scripts/comfy.py check` verifies the integration. The same small launcher
+runs configuration, release and container checks from the exact Comfylib version
+in `go.mod`, with `GOWORK=off`. Application settings and lifecycle profiles stay
+in `scripts/containers/config.json`; application sessions and permissions remain
+local. Upgrade the published module pins to update shared behavior and tooling.
+There are no synchronized source copies or generated asset manifests.
 
 Native service templates and Compose forward the four optional suite settings.
 For Compose, put them in the project `.env` file or shell environment; for OpenRC

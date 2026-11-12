@@ -4,8 +4,8 @@ package web
 import (
 	"fmt"
 	"github.com/airencracken/comfylib/clientip"
-	"imvault/internal/sharedoidc"
-	"imvault/internal/suite"
+	sharedoidc "github.com/airencracken/comfylib/oidc"
+	"github.com/airencracken/comfylib/suite"
 	"net/http"
 )
 

@@ -55,8 +55,8 @@ jobs:
           IMAGE_REVISION: ${{ github.sha }}
         run: |
           IMAGE_REVISION=$(git rev-parse HEAD) || exit 1
-          python3 scripts/containers/release.py build --arch "$IMAGE_ARCH" --revision "$IMAGE_REVISION" || exit 1
-          COMFYWARE_CONTAINER_ENV_TEST=1 python3 scripts/test_suite_deployment.py || exit 1
+          python3 scripts/comfy.py container-release build --arch "$IMAGE_ARCH" --revision "$IMAGE_REVISION" || exit 1
+          COMFYWARE_CONTAINER_ENV_TEST=1 python3 scripts/comfy.py suite-deployment || exit 1
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: container-${{ matrix.arch }}
@@ -98,7 +98,7 @@ jobs:
           IMAGE_REVISION: ${{ github.sha }}
         run: |
           IMAGE_REVISION=$(git rev-parse HEAD) || exit 1
-          python3 scripts/containers/release.py publish --tag "$IMAGE_TAG" --revision "$IMAGE_REVISION" || exit 1
+          python3 scripts/comfy.py container-release publish --tag "$IMAGE_TAG" --revision "$IMAGE_REVISION" || exit 1
       - name: Remove registry credentials
         if: always()
         run: docker logout ghcr.io
