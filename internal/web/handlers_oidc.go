@@ -341,7 +341,7 @@ func (s *Server) finishOIDCSignIn(w http.ResponseWriter, r *http.Request, user *
 		return
 	}
 
-	if err := s.startSession(r.Context(), w, r, user.ID); err != nil {
+	if err := s.startLoginSession(r.Context(), w, r, user.ID); err != nil {
 		s.log.Error("oidc: start session", "error", err)
 		s.oidcFailed(w, r, "Signed in, but the session could not be created.")
 		return

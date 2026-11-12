@@ -9,6 +9,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"github.com/airencracken/comfylib/analytics"
 	"github.com/airencracken/comfylib/autobackup"
 	"log/slog"
 	"net/http"
@@ -144,7 +145,7 @@ func New(cfg *config.Config, st *store.Store, objects storage.Backend, proc *med
 	if err = s.registerSharedSignIn(mux); err != nil {
 		return nil, err
 	}
-	s.handler = s.recoverMW(securityHeadersMW(s.logMW(s.sessionMW(s.apiAuthMW(s.requestLimitsMW(s.semicolonMW(s.csrfMW(mux))))))))
+	s.handler = s.recoverMW(securityHeadersMW(s.logMW(s.sessionMW(s.apiAuthMW(s.requestLimitsMW(s.semicolonMW(s.csrfMW(analytics.Maintenance(s.store.AnalyticsDB(), mux)))))))))
 	return s, nil
 }
 
@@ -213,7 +214,7 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /upload", s.rateLimitUploads(s.handleUpload))
 
 	// Individual files
-	mux.HandleFunc("GET /f/{id}", s.handleFilePage)
+	mux.HandleFunc("GET /f/{id}", s.trackFile(s.handleFilePage))
 	mux.HandleFunc("GET /f/{id}/raw", s.handleFileRaw)
 	mux.HandleFunc("GET /f/{id}/thumb", s.handleFileThumb)
 	mux.HandleFunc("GET /f/{id}/preview", s.handleFilePreview)

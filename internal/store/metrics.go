@@ -4,6 +4,7 @@ package store
 import (
 	"context"
 	"github.com/airencracken/comfylib/admin"
+	"github.com/airencracken/comfylib/analytics"
 	"time"
 )
 
@@ -16,7 +17,7 @@ func (s *Store) Metrics(ctx context.Context, now time.Time) ([]admin.Metric, err
 		{Label: "Trash files", SQL: "SELECT count(*) FROM files WHERE trashed_at IS NOT NULL", Detail: "", Bytes: false},
 		{Label: "Unique originals", SQL: "SELECT count(*) FROM blobs WHERE refcount>0", Detail: "", Bytes: false},
 		{Label: "Original storage", SQL: "SELECT coalesce(sum(size),0) FROM blobs WHERE refcount>0", Detail: "Deduplicated originals; previews and backups excluded.", Bytes: true},
-		{Label: "New uploads", SQL: "SELECT count(*) FROM files WHERE created_at>=? AND created_at<=?", Detail: "Last 7 days, including files retained in Trash.", Bytes: false, Args: []any{now.Add(-7 * 24 * time.Hour).Unix(), now.Unix()}},
+		{Label: "New uploads", SQL: "SELECT count(*) FROM files WHERE created_at>=? AND created_at<=?", Detail: "Past 7 UTC days, including files retained in Trash.", Bytes: false, Args: []any{analytics.WindowStart(now).Unix(), now.Unix()}},
 		{Label: "Database size", SQL: "SELECT (SELECT page_count FROM pragma_page_count)*(SELECT page_size FROM pragma_page_size)", Bytes: true, Detail: "Main database allocation; temporary logs, cached media and backups are separate."},
 	})
 }

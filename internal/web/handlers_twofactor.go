@@ -581,7 +581,7 @@ func (s *Server) handleLoginTwoFactor(w http.ResponseWriter, r *http.Request) {
 	}
 	s.clearPendingCookie(w, r)
 
-	if err := s.startSession(r.Context(), w, r, user.ID); err != nil {
+	if err := s.startLoginSession(r.Context(), w, r, user.ID); err != nil {
 		s.log.Error("second factor: start session", "user", user.ID, "error", err)
 		renderErr(http.StatusInternalServerError, "Could not start a session.")
 		return

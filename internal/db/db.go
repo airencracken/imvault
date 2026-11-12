@@ -9,6 +9,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"github.com/airencracken/comfylib/analytics"
 	"io/fs"
 	"net/url"
 	"sort"
@@ -33,6 +34,9 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 	}
 	if err := migrate(ctx, sqlDB); err != nil {
 		return nil, errors.Join(withPath(err, path), sqlDB.Close())
+	}
+	if err := analytics.Initialize(ctx, sqlDB, time.Now()); err != nil {
+		return nil, errors.Join(err, sqlDB.Close())
 	}
 	return sqlDB, nil
 }

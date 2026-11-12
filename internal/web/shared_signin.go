@@ -46,7 +46,7 @@ func (s *Server) sharedSignIn(w http.ResponseWriter, r *http.Request, id int64) 
 		}
 		return "/login/2fa", nil
 	}
-	if err = s.startSession(r.Context(), w, r, id); err != nil {
+	if err = s.startLoginSession(r.Context(), w, r, id); err != nil {
 		return "", err
 	}
 	return "/", nil

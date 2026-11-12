@@ -111,7 +111,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.startSession(r.Context(), w, r, user.ID); err != nil {
+	if err := s.startLoginSession(r.Context(), w, r, user.ID); err != nil {
 		s.log.Error("login: start session", "error", err)
 		http.Error(w, "could not start session", http.StatusInternalServerError)
 		return
@@ -285,7 +285,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) finishRegistration(w http.ResponseWriter, r *http.Request, user *models.User) {
-	if err := s.startSession(r.Context(), w, r, user.ID); err != nil {
+	if err := s.startLoginSession(r.Context(), w, r, user.ID); err != nil {
 		s.log.Error("register: start session", "error", err)
 		http.Error(w, "account created, but sign-in failed", http.StatusInternalServerError)
 		return
@@ -323,13 +323,18 @@ func (s *Server) startSession(ctx context.Context, w http.ResponseWriter, r *htt
 	return err
 }
 
+func (s *Server) startLoginSession(ctx context.Context, w http.ResponseWriter, r *http.Request, userID int64) error {
+	_, err := s.newSession(ctx, w, r, userID, true)
+	return err
+}
+
 // newSession creates a session row, sets its cookie and the CSRF token bound
 // to it, and returns the session token.
-func (s *Server) newSession(ctx context.Context, w http.ResponseWriter, r *http.Request, userID int64) (string, error) {
+func (s *Server) newSession(ctx context.Context, w http.ResponseWriter, r *http.Request, userID int64, authenticated ...bool) (string, error) {
 	token := ids.Token(32)
 	expires := time.Now().Add(s.cfg.SessionTTL)
 
-	if err := s.store.CreateSession(ctx, hashToken(token), userID, expires); err != nil {
+	if err := s.store.CreateSession(ctx, hashToken(token), userID, expires, authenticated...); err != nil {
 		return "", err
 	}
 	s.setCSRFCookie(w, r, sessionCSRFToken(token))
