@@ -250,7 +250,7 @@ func (s *Server) handleModeration(w http.ResponseWriter, r *http.Request) {
 		Closed:     all - open,
 		Pagination: pg,
 	}
-	s.renderPage(w, http.StatusOK, "moderation", view)
+	s.renderPage(w, r, http.StatusOK, "moderation", view)
 }
 
 // countReports counts reports with a status, or all of them when status is
@@ -284,7 +284,7 @@ func (s *Server) handleModerationLog(w http.ResponseWriter, r *http.Request) {
 		Entries:    entries,
 		Pagination: pg,
 	}
-	s.renderPage(w, http.StatusOK, "moderation_log", view)
+	s.renderPage(w, r, http.StatusOK, "moderation_log", view)
 }
 
 // handleResolveReport works one report: remove the content, or dismiss it.

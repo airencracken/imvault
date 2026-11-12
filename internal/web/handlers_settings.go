@@ -28,7 +28,7 @@ func (s *Server) handleAPIKeysPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.renderPage(w, http.StatusOK, "api_keys", apiKeysView{
+	s.renderPage(w, r, http.StatusOK, "api_keys", apiKeysView{
 		base:    s.base(r, "API keys"),
 		Keys:    keys,
 		BaseURL: s.absoluteURL(r, ""),
@@ -103,7 +103,7 @@ func (s *Server) renderAPIKeysPanel(w http.ResponseWriter, r *http.Request, newK
 		return
 	}
 
-	s.renderPartial(w, "api_keys_panel", apiKeysView{
+	s.renderPartial(w, r, "api_keys_panel", apiKeysView{
 		base:    s.base(r, "API keys"),
 		Keys:    keys,
 		NewKey:  newKey,

@@ -141,6 +141,11 @@ func (s *Server) sessionMW(next http.Handler) http.Handler {
 			return
 		}
 
+		user.Timezone, err = s.store.Timezone(r.Context(), user.ID)
+		if err != nil {
+			http.Error(w, "Could not load account preferences", http.StatusInternalServerError)
+			return
+		}
 		next.ServeHTTP(w, r.WithContext(withUser(r.Context(), user)))
 	})
 }
@@ -474,7 +479,7 @@ func (s *Server) rateLimitUploads(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		s.renderPage(w, http.StatusTooManyRequests, "notfound", errorView{
+		s.renderPage(w, r, http.StatusTooManyRequests, "notfound", errorView{
 			base:    s.base(r, "Slow down"),
 			Code:    "429",
 			Message: "Too many uploads. Try again in " + strconv.Itoa(seconds) + " seconds.",

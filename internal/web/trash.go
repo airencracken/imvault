@@ -30,7 +30,7 @@ func (s *Server) handleTrash(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	noStore(w)
-	s.renderPage(w, 200, "trash", trashView{base: s.base(r, "Trash"), Files: files, Pagination: pg})
+	s.renderPage(w, r, 200, "trash", trashView{base: s.base(r, "Trash"), Files: files, Pagination: pg})
 }
 
 func (s *Server) handleTrashThumb(w http.ResponseWriter, r *http.Request) {

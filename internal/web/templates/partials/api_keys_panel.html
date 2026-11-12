@@ -32,7 +32,7 @@
         <td>{{.Name}}</td>
         <td><code>{{.Masked}}</code></td>
         <td>{{.HumanLastUsed}}</td>
-        <td>{{.HumanExpiry}}</td>
+        <td>{{if .ExpiresAt}}{{date .ExpiresAt}}{{else}}Never{{end}}</td>
         <td>
           <form method="post" action="/settings/api-keys/{{.ID}}/delete"
                 hx-post="/settings/api-keys/{{.ID}}/delete"

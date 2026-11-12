@@ -114,7 +114,7 @@ func (a oidcAttempt) Expired(now time.Time) bool {
 	return now.Sub(a.CreatedAt) > oidcAttemptWindow
 }
 func (s *Server) oidcFailed(w http.ResponseWriter, r *http.Request, message string) {
-	s.renderPage(w, http.StatusBadRequest, "notfound", errorView{
+	s.renderPage(w, r, http.StatusBadRequest, "notfound", errorView{
 		base:    s.base(r, "Sign-in failed"),
 		Code:    "Sign-in failed",
 		Message: message,
@@ -144,7 +144,7 @@ func (s *Server) sendToProvider(w http.ResponseWriter, r *http.Request, attempt 
 	provider, err := s.oidc.Get(r.Context())
 	if err != nil {
 		s.log.Error("oidc: discovery failed", "error", err)
-		s.renderPage(w, http.StatusBadGateway, "notfound", errorView{
+		s.renderPage(w, r, http.StatusBadGateway, "notfound", errorView{
 			base: s.base(r, "Sign-in unavailable"),
 			Code: "Sign-in unavailable",
 			Message: "The identity provider could not be reached. Try again, " +
@@ -424,7 +424,7 @@ func (s *Server) handleOIDCComplete(w http.ResponseWriter, r *http.Request) {
 		Invite:         attempt.Invite,
 		InviteRequired: !s.admitsWithoutInvite(),
 	}
-	s.renderPage(w, http.StatusOK, "oidc_complete", view)
+	s.renderPage(w, r, http.StatusOK, "oidc_complete", view)
 }
 
 // handleOIDCCompleteSubmit creates the account and links the identity.
@@ -458,7 +458,7 @@ func (s *Server) handleOIDCCompleteSubmit(w http.ResponseWriter, r *http.Request
 	}
 	renderErr := func(status int, message string) {
 		view.Error = message
-		s.renderPage(w, status, "oidc_complete", view)
+		s.renderPage(w, r, status, "oidc_complete", view)
 	}
 
 	if !accounts.ValidUsername(username) {

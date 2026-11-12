@@ -30,7 +30,7 @@ func (s *Server) handleFavorites(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "database error", http.StatusInternalServerError)
 		return
 	}
-	s.renderPage(w, http.StatusOK, "favorites", galleryView{
+	s.renderPage(w, r, http.StatusOK, "favorites", galleryView{
 		base:       s.base(r, "Your favorites"),
 		Grid:       s.feedGrid(r, files, "No favorites here yet. Open a photo and choose Favorite to save it here."),
 		Query:      query,
@@ -60,7 +60,7 @@ func (s *Server) handleFavorite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if isHTMX(r) {
-		s.renderPartial(w, "favorite_button", fileView{
+		s.renderPartial(w, r, "favorite_button", fileView{
 			base: s.base(r, file.OriginalName), File: file, Favorited: favorite,
 		})
 		return

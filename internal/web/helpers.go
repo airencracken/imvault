@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"github.com/airencracken/comfylib/displaytime"
 	"io"
 	"io/fs"
 	"net/http"
@@ -168,6 +169,7 @@ func (s *Server) base(r *http.Request, title string) base {
 	}
 
 	b := base{
+		TimezoneControl:   displaytime.Preference{Action: "/settings/account/timezone", CSRF: csrfToken(r.Context()), CSRFField: "csrf_token", Name: preferredTimezone(r)},
 		Version:           s.cfg.Version,
 		ShowVersion:       branding.ShowVersion,
 		Title:             title,

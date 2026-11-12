@@ -109,18 +109,18 @@ func (s *Server) renderAdminUsersPage(w http.ResponseWriter, r *http.Request, st
 	view.base = s.base(r, "Users")
 	view.UseAlpine = true
 
-	s.renderPage(w, status, "admin_users", view)
+	s.renderPage(w, r, status, "admin_users", view)
 }
 
 // renderAdminRow writes a row fragment followed by an out-of-band notice.
 //
 // A nil row means "this row is gone": the empty body removes it, because the
 // caller targets the row with an outerHTML swap.
-func (s *Server) renderAdminRow(w http.ResponseWriter, rowTemplate string, row any, notice adminNotice) {
+func (s *Server) renderAdminRow(w http.ResponseWriter, r *http.Request, rowTemplate string, row any, notice adminNotice) {
 	var buf bytes.Buffer
 
 	if row != nil {
-		if err := s.render.partial(&buf, rowTemplate, row); err != nil {
+		if err := s.render.partial(&buf, rowTemplate, row, preferredTimezone(r)); err != nil {
 			s.log.Error("render admin row", "template", rowTemplate, "error", err)
 			http.Error(w, "template error", http.StatusInternalServerError)
 			return
@@ -128,7 +128,7 @@ func (s *Server) renderAdminRow(w http.ResponseWriter, rowTemplate string, row a
 	}
 
 	if notice.Text != "" {
-		if err := s.render.partial(&buf, "admin_notice", notice); err != nil {
+		if err := s.render.partial(&buf, "admin_notice", notice, preferredTimezone(r)); err != nil {
 			s.log.Error("render admin notice", "error", err)
 			http.Error(w, "template error", http.StatusInternalServerError)
 			return
@@ -161,7 +161,7 @@ func (s *Server) adminRespond(w http.ResponseWriter, r *http.Request, user *mode
 	if user != nil {
 		row = s.adminUserRowFor(r, user, errMsg)
 	}
-	s.renderAdminRow(w, "admin_user_row", row, notice)
+	s.renderAdminRow(w, r, "admin_user_row", row, notice)
 }
 
 // reloadAdminUser fetches an account for the row response, tolerating its

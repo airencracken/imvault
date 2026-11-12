@@ -40,7 +40,7 @@ func (s *Server) handleUploadPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.renderPage(w, http.StatusOK, "upload", s.uploadPageView(r, user))
+	s.renderPage(w, r, http.StatusOK, "upload", s.uploadPageView(r, user))
 }
 
 // uploadPageView assembles the uploader page for an account, or for an
@@ -183,12 +183,12 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 // whole page back, with the results where the fragment would have gone.
 func (s *Server) renderUploadResult(w http.ResponseWriter, r *http.Request, status int, result uploadResultView) {
 	if isHTMX(r) {
-		s.renderPartialStatus(w, status, "upload_result", result)
+		s.renderPartialStatus(w, r, status, "upload_result", result)
 		return
 	}
 	view := s.uploadPageView(r, currentUser(r.Context()))
 	view.Result = &result
-	s.renderPage(w, status, "upload", view)
+	s.renderPage(w, r, status, "upload", view)
 }
 
 // applyUploadTags attaches the tags supplied with an upload.

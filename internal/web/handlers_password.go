@@ -32,7 +32,7 @@ func (s *Server) handleForgotPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.renderPage(w, http.StatusOK, "forgot", forgotView{
+	s.renderPage(w, r, http.StatusOK, "forgot", forgotView{
 		base:        s.base(r, "Reset your password"),
 		MailEnabled: s.mail.Enabled(),
 	})
@@ -67,7 +67,7 @@ func (s *Server) handleForgot(w http.ResponseWriter, r *http.Request) {
 		s.log.Info("forgot: no such account", "identifier", identifier, "remote", r.RemoteAddr)
 	}
 
-	s.renderPage(w, http.StatusOK, "forgot", forgotView{
+	s.renderPage(w, r, http.StatusOK, "forgot", forgotView{
 		base:        s.base(r, "Check your email"),
 		MailEnabled: true,
 		Submitted:   true,
@@ -166,7 +166,7 @@ func (s *Server) handleResetPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.renderPage(w, http.StatusOK, "reset", resetView{
+	s.renderPage(w, r, http.StatusOK, "reset", resetView{
 		base:     s.base(r, "Choose a new password"),
 		Token:    r.PathValue("token"),
 		Username: user.Username,
@@ -185,7 +185,7 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 	confirm := r.FormValue("password_confirm")
 
 	renderErr := func(status int, message string) {
-		s.renderPage(w, status, "reset", resetView{
+		s.renderPage(w, r, status, "reset", resetView{
 			base:  s.base(r, "Choose a new password"),
 			Token: tokenValue,
 			Error: message,
@@ -260,7 +260,7 @@ func (s *Server) handleChangeEmail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	renderErr := func(status int, message string) {
-		s.renderPage(w, status, "password", s.passwordPage(r, user, message))
+		s.renderPage(w, r, status, "password", s.passwordPage(r, user, message))
 	}
 
 	// Changing where password resets are sent is sensitive enough to warrant
@@ -327,7 +327,7 @@ func (s *Server) handleVerifyEmail(w http.ResponseWriter, r *http.Request) {
 // handleChangePasswordPage shows the change-password form for a signed-in user.
 func (s *Server) handleChangePasswordPage(w http.ResponseWriter, r *http.Request) {
 	user := currentUser(r.Context())
-	s.renderPage(w, http.StatusOK, "password", s.passwordPage(r, user, ""))
+	s.renderPage(w, r, http.StatusOK, "password", s.passwordPage(r, user, ""))
 }
 
 // handleChangePassword changes the password of the signed-in account, or sets
@@ -344,7 +344,7 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	confirm := r.FormValue("password_confirm")
 
 	renderErr := func(status int, message string) {
-		s.renderPage(w, status, "password", s.passwordPage(r, user, message))
+		s.renderPage(w, r, status, "password", s.passwordPage(r, user, message))
 	}
 
 	if err := s.checkCurrentPassword(r, user, r.FormValue("current_password")); err != nil {
@@ -392,7 +392,7 @@ func (s *Server) resetTokenUser(w http.ResponseWriter, r *http.Request) (*models
 		store.TokenPasswordReset, time.Now())
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			s.renderPage(w, http.StatusBadRequest, "reset", resetView{
+			s.renderPage(w, r, http.StatusBadRequest, "reset", resetView{
 				base:  s.base(r, "Reset link"),
 				Error: "That reset link is invalid or has expired. Request a new one.",
 			})

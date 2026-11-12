@@ -65,7 +65,7 @@ func (s *Server) requireInviter(next http.HandlerFunc) http.HandlerFunc {
 // status because a signed-in person who followed a link deserves to be told
 // what happened and shown the way back.
 func (s *Server) notPermitted(w http.ResponseWriter, r *http.Request, message string) {
-	s.renderPage(w, http.StatusForbidden, "notfound", errorView{
+	s.renderPage(w, r, http.StatusForbidden, "notfound", errorView{
 		base:    s.base(r, "Not permitted"),
 		Code:    "403",
 		Message: message,
@@ -130,7 +130,7 @@ func (s *Server) handleAdminDashboard(w http.ResponseWriter, r *http.Request) {
 	view.FailedMail = failedMail
 	view.UseAlpine = true
 
-	s.renderPage(w, http.StatusOK, "admin", view)
+	s.renderPage(w, r, http.StatusOK, "admin", view)
 }
 
 // handleAdminUsers lists every account with its usage and controls.
@@ -163,7 +163,7 @@ func (s *Server) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 	view.base = s.base(r, "Users")
 	view.UseAlpine = true
 
-	s.renderPage(w, http.StatusOK, "admin_users", view)
+	s.renderPage(w, r, http.StatusOK, "admin_users", view)
 }
 
 // handleAdminSetLimits changes an account's storage cap and its single-file
@@ -176,7 +176,7 @@ func (s *Server) handleAdminSetLimits(w http.ResponseWriter, r *http.Request) {
 
 	user, err := s.store.UserByID(r.Context(), userID)
 	if err != nil {
-		s.renderAdminRow(w, "admin_user_row", nil, adminNotice{Text: "No such account.", Error: true})
+		s.renderAdminRow(w, r, "admin_user_row", nil, adminNotice{Text: "No such account.", Error: true})
 		return
 	}
 
@@ -263,7 +263,7 @@ func (s *Server) handleAdminSetDisabled(w http.ResponseWriter, r *http.Request) 
 
 	user, err := s.store.UserByID(r.Context(), userID)
 	if err != nil {
-		s.renderAdminRow(w, "admin_user_row", nil, adminNotice{Text: "No such account.", Error: true})
+		s.renderAdminRow(w, r, "admin_user_row", nil, adminNotice{Text: "No such account.", Error: true})
 		return
 	}
 
@@ -309,7 +309,7 @@ func (s *Server) handleAdminSetRole(w http.ResponseWriter, r *http.Request) {
 
 	user, err := s.store.UserByID(r.Context(), userID)
 	if err != nil {
-		s.renderAdminRow(w, "admin_user_row", nil, adminNotice{Text: "No such account.", Error: true})
+		s.renderAdminRow(w, r, "admin_user_row", nil, adminNotice{Text: "No such account.", Error: true})
 		return
 	}
 
@@ -408,7 +408,7 @@ func (s *Server) handleAdminDeleteUser(w http.ResponseWriter, r *http.Request) {
 
 	target, err := s.store.UserByID(r.Context(), userID)
 	if err != nil {
-		s.renderAdminRow(w, "admin_user_row", nil, adminNotice{Text: "No such account.", Error: true})
+		s.renderAdminRow(w, r, "admin_user_row", nil, adminNotice{Text: "No such account.", Error: true})
 		return
 	}
 
@@ -444,7 +444,7 @@ func (s *Server) handleAdminIssueReset(w http.ResponseWriter, r *http.Request) {
 
 	target, err := s.store.UserByID(r.Context(), userID)
 	if err != nil {
-		s.renderAdminRow(w, "admin_user_row", nil, adminNotice{Text: "No such account.", Error: true})
+		s.renderAdminRow(w, r, "admin_user_row", nil, adminNotice{Text: "No such account.", Error: true})
 		return
 	}
 
@@ -513,7 +513,7 @@ func (s *Server) handleAdminFiles(w http.ResponseWriter, r *http.Request) {
 	view.base = s.base(r, "Content")
 	view.UseAlpine = true
 
-	s.renderPage(w, http.StatusOK, "admin_files", view)
+	s.renderPage(w, r, http.StatusOK, "admin_files", view)
 }
 
 // handleAdminDeleteFile removes any account's upload, adjusting its owner's
@@ -600,5 +600,5 @@ func (s *Server) adminMaintenance(w http.ResponseWriter, r *http.Request, notice
 		s.redirectFlash(w, r, "/admin", kind, notice.Text)
 		return
 	}
-	s.renderAdminRow(w, "", nil, notice)
+	s.renderAdminRow(w, r, "", nil, notice)
 }

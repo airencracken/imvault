@@ -80,7 +80,7 @@ func (s *Server) handleTwoFactorPage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	s.renderPage(w, http.StatusOK, "two_factor", view)
+	s.renderPage(w, r, http.StatusOK, "two_factor", view)
 }
 
 // pendingEnrolment decrypts the half-finished secret.
@@ -321,7 +321,7 @@ func (s *Server) renderTwoFactorPage(w http.ResponseWriter, r *http.Request, cod
 	}
 	view.base = s.base(r, "Two-factor authentication")
 
-	s.renderPage(w, http.StatusOK, "two_factor", view)
+	s.renderPage(w, r, http.StatusOK, "two_factor", view)
 }
 
 // issueRecoveryCodes generates, stores and returns a fresh set. The plaintext
@@ -530,7 +530,7 @@ func (s *Server) handleLoginTwoFactorPage(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	s.renderPage(w, http.StatusOK, "login_two_factor", twoFactorPromptView{
+	s.renderPage(w, r, http.StatusOK, "login_two_factor", twoFactorPromptView{
 		base:     s.base(r, "Two-factor authentication"),
 		Username: user.Username,
 		Next:     safeNext(r.URL.Query().Get("next")),
@@ -551,7 +551,7 @@ func (s *Server) handleLoginTwoFactor(w http.ResponseWriter, r *http.Request) {
 	next := safeNext(r.PostFormValue("next"))
 
 	renderErr := func(status int, message string) {
-		s.renderPage(w, status, "login_two_factor", twoFactorPromptView{
+		s.renderPage(w, r, status, "login_two_factor", twoFactorPromptView{
 			base:     s.base(r, "Two-factor authentication"),
 			Username: user.Username,
 			Error:    message,
@@ -609,7 +609,7 @@ func (s *Server) handleAdminClearTwoFactor(w http.ResponseWriter, r *http.Reques
 
 	target, err := s.store.UserByID(r.Context(), userID)
 	if err != nil {
-		s.renderAdminRow(w, "admin_user_row", nil, adminNotice{Text: "No such account.", Error: true})
+		s.renderAdminRow(w, r, "admin_user_row", nil, adminNotice{Text: "No such account.", Error: true})
 		return
 	}
 

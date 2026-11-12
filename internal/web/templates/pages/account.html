@@ -12,6 +12,7 @@
     <a class="btn small" href="/settings/api-keys">API keys</a>
   </nav>
 </header>
+{{timezonePreference .TimezoneControl}}
 
 {{if .Error}}<p class="flash err">{{.Error}}</p>{{end}}
 {{if .Notice}}<p class="flash ok">{{.Notice}}</p>{{end}}

@@ -37,7 +37,7 @@ func (s *Server) handleAlbumsPage(w http.ResponseWriter, r *http.Request) {
 		s.log.Error("albums page: visible to viewer", "error", err)
 	}
 
-	s.renderPage(w, http.StatusOK, "albums", albumsView{
+	s.renderPage(w, r, http.StatusOK, "albums", albumsView{
 		base:   s.base(r, "Albums"),
 		Albums: albums,
 		Shared: shared,
@@ -245,7 +245,7 @@ func (s *Server) handleAlbumPage(w http.ResponseWriter, r *http.Request) {
 			"Everything in your gallery is already in this album.")
 	}
 
-	s.renderPage(w, http.StatusOK, "album", view)
+	s.renderPage(w, r, http.StatusOK, "album", view)
 }
 
 // albumCandidates lists the owner's files that are not yet in the album.

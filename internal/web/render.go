@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/airencracken/comfylib/admin"
+	"github.com/airencracken/comfylib/displaytime"
 	"github.com/airencracken/comfylib/suite"
 	"html/template"
 	"io"
@@ -28,8 +29,8 @@ import (
 // Partials are parsed into every page set so pages can embed the same
 // fragments that HTMX swaps in, keeping markup in exactly one place.
 type renderer struct {
-	pages    map[string]*template.Template
-	partials *template.Template
+	pages    map[string]*displaytime.Templates
+	partials *displaytime.Templates
 }
 
 func newRenderer() (*renderer, error) {
@@ -38,6 +39,9 @@ func newRenderer() (*renderer, error) {
 		return nil, suiteErr
 	}
 	funcs := templateFuncs()
+	for k, v := range displaytime.New("UTC").Funcs() {
+		funcs[k] = v
+	}
 	funcs["adminSummary"] = admin.Render
 	for key, value := range suiteFuncs {
 		funcs[key] = value
@@ -51,15 +55,19 @@ func newRenderer() (*renderer, error) {
 		return nil, errors.New("web: no page templates found")
 	}
 
-	r := &renderer{pages: make(map[string]*template.Template, len(pageFiles))}
+	r := &renderer{pages: make(map[string]*displaytime.Templates, len(pageFiles))}
 
 	// Build the standalone partial set used for HTMX responses.
-	r.partials, err = template.New("partials").Funcs(funcs).
+	parsedPartials, err := template.New("partials").Funcs(funcs).
 		ParseFS(templatesFS, "templates/partials/*.html")
 	if err != nil {
 		return nil, fmt.Errorf("web: parse partials: %w", err)
 	}
 
+	r.partials, err = displaytime.NewTemplates(parsedPartials, displayFuncs)
+	if err != nil {
+		return nil, err
+	}
 	for _, file := range pageFiles {
 		name := strings.TrimSuffix(path.Base(file), ".html")
 		t, err := template.New(name).Funcs(funcs).
@@ -67,33 +75,36 @@ func newRenderer() (*renderer, error) {
 		if err != nil {
 			return nil, fmt.Errorf("web: parse page %s: %w", name, err)
 		}
-		r.pages[name] = t
+		r.pages[name], err = displaytime.NewTemplates(t, displayFuncs)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return r, nil
 }
 
 // page renders a full document (layout + page content).
-func (r *renderer) page(w io.Writer, name string, data any) error {
+func (r *renderer) page(w io.Writer, name string, data any, zone ...string) error {
 	t, ok := r.pages[name]
 	if !ok {
 		return fmt.Errorf("web: unknown page template %q", name)
 	}
-	return t.ExecuteTemplate(w, "layout", data)
+	return t.ExecuteTemplate(w, timezoneArg(zone), "layout", data)
 }
 
 // partial renders a named fragment for an HTMX swap.
-func (r *renderer) partial(w io.Writer, name string, data any) error {
-	if r.partials.Lookup(name) == nil {
+func (r *renderer) partial(w io.Writer, name string, data any, zone ...string) error {
+	if !r.partials.Has(name) {
 		return fmt.Errorf("web: unknown partial template %q", name)
 	}
-	return r.partials.ExecuteTemplate(w, name, data)
+	return r.partials.ExecuteTemplate(w, timezoneArg(zone), name, data)
 }
 
 // renderPartial writes a fragment, buffering first so a template error cannot
 // emit a half-written 200 response.
-func (s *Server) renderPartial(w http.ResponseWriter, name string, data any) {
-	s.renderPartialStatus(w, http.StatusOK, name, data)
+func (s *Server) renderPartial(w http.ResponseWriter, r *http.Request, name string, data any) {
+	s.renderPartialStatus(w, r, http.StatusOK, name, data)
 }
 
 // renderPartialStatus writes a fragment under a chosen status.
@@ -101,9 +112,9 @@ func (s *Server) renderPartial(w http.ResponseWriter, name string, data any) {
 // A fragment is not always an answer to something that worked: a busy server
 // returns a 503 that still carries something worth showing. Sending 200 to mean
 // "no" would hide overload from anything watching status codes.
-func (s *Server) renderPartialStatus(w http.ResponseWriter, status int, name string, data any) {
+func (s *Server) renderPartialStatus(w http.ResponseWriter, r *http.Request, status int, name string, data any) {
 	var buf bytes.Buffer
-	if err := s.render.partial(&buf, name, data); err != nil {
+	if err := s.render.partial(&buf, name, data, preferredTimezone(r)); err != nil {
 		s.log.Error("render partial", "template", name, "error", err)
 		http.Error(w, "template error", http.StatusInternalServerError)
 		return
@@ -114,9 +125,9 @@ func (s *Server) renderPartialStatus(w http.ResponseWriter, status int, name str
 }
 
 // renderPage writes a full page, buffering first for the same reason.
-func (s *Server) renderPage(w http.ResponseWriter, status int, name string, data any) {
+func (s *Server) renderPage(w http.ResponseWriter, r *http.Request, status int, name string, data any) {
 	var buf bytes.Buffer
-	if err := s.render.page(&buf, name, data); err != nil {
+	if err := s.render.page(&buf, name, data, preferredTimezone(r)); err != nil {
 		s.log.Error("render page", "template", name, "error", err)
 		http.Error(w, "template error", http.StatusInternalServerError)
 		return
@@ -128,7 +139,7 @@ func (s *Server) renderPage(w http.ResponseWriter, status int, name string, data
 
 // templateFuncs returns the helpers exposed to templates.
 func templateFuncs() template.FuncMap {
-	return template.FuncMap{"linkNumber": func(i int) int { return i + 1 },
+	return template.FuncMap{"timezonePreference": displaytime.RenderPreference, "linkNumber": func(i int) int { return i + 1 },
 		"months": func() []struct{ Value, Label string } {
 			out := make([]struct{ Value, Label string }, 12)
 			for i := range out {
@@ -139,19 +150,14 @@ func templateFuncs() template.FuncMap {
 		},
 		"humanSize": models.HumanSize,
 		"humanTime": models.HumanTime,
-		"date": func(t time.Time) string {
-			if t.IsZero() {
-				return ""
-			}
-			return t.Format("2 Jan 2006, 15:04")
-		},
-		"slug":   ids.Slug,
-		"add":    func(a, b int) int { return a + b },
-		"sub":    func(a, b int) int { return a - b },
-		"div":    func(a, b int64) int64 { return a / b },
-		"hasTag": hasTag,
-		"join":   strings.Join,
-		"lower":  strings.ToLower,
+		"date":      displaytime.New("UTC").Stamp,
+		"slug":      ids.Slug,
+		"add":       func(a, b int) int { return a + b },
+		"sub":       func(a, b int) int { return a - b },
+		"div":       func(a, b int64) int64 { return a / b },
+		"hasTag":    hasTag,
+		"join":      strings.Join,
+		"lower":     strings.ToLower,
 		"card": func(view fileCardsView, f *models.File) fileCard {
 			// A tile is removable if the whole grid is, or if this particular
 			// file belongs to the account being allowed to take its own back.
@@ -196,4 +202,34 @@ func hasTag(tags []models.Tag, slug string) bool {
 		}
 	}
 	return false
+}
+
+func timezoneArg(zones []string) string {
+	if len(zones) > 0 {
+		return zones[0]
+	}
+	return "UTC"
+}
+func displayFuncs(f displaytime.Formatter) template.FuncMap {
+	m := f.Funcs()
+	m["humanTime"] = func(t time.Time) string {
+		d := time.Since(t)
+		if d < 0 {
+			d = -d
+		}
+		if d >= 30*24*time.Hour {
+			return f.Date(t)
+		}
+		return models.HumanTime(t)
+	}
+	return m
+}
+func preferredTimezone(r *http.Request) string {
+	if r == nil {
+		return "UTC"
+	}
+	if u := currentUser(r.Context()); u != nil {
+		return displaytime.New(u.Timezone).Name()
+	}
+	return "UTC"
 }

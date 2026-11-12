@@ -260,7 +260,7 @@ func (s *Server) handleAdminSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	view.base = s.base(r, "Instance settings")
 
-	s.renderPage(w, http.StatusOK, "admin_settings", view)
+	s.renderPage(w, r, http.StatusOK, "admin_settings", view)
 }
 
 // handleAdminSaveSettings applies new policy.

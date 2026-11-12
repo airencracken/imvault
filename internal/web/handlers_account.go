@@ -5,6 +5,7 @@ package web
 import (
 	"context"
 	"errors"
+	"github.com/airencracken/comfylib/displaytime"
 	"net/http"
 	"strconv"
 
@@ -31,6 +32,9 @@ type accountView struct {
 
 // handleAccountPage shows the account's own settings, including the way out.
 func (s *Server) handleAccountPage(w http.ResponseWriter, r *http.Request) {
+	s.accountPage(w, r, 200, nil, "")
+}
+func (s *Server) accountPage(w http.ResponseWriter, r *http.Request, statusCode int, draft *string, problem string) {
 	user := currentUser(r.Context())
 
 	status, err := s.store.StatusFor(r.Context(), user.ID)
@@ -63,8 +67,15 @@ func (s *Server) handleAccountPage(w http.ResponseWriter, r *http.Request) {
 	view.base = s.base(r, "Account")
 	// The confirmation field uses Alpine, so the page has to load it.
 	view.UseAlpine = true
+	if draft != nil {
+		view.TimezoneControl.Name = *draft
+	}
+	view.TimezoneControl.Error = problem
+	if r.URL.Query().Get("saved") == "timezone" {
+		view.TimezoneControl.Notice = "Your display timezone has been saved."
+	}
 
-	s.renderPage(w, http.StatusOK, "account", view)
+	s.renderPage(w, r, statusCode, "account", view)
 }
 
 // handleAccountDelete removes the signed-in account and everything it holds.
@@ -183,4 +194,24 @@ func (s *Server) unlinkRefusal(r *http.Request, user *models.User) string {
 		return "This is the only way into this account. Set a password first, then disconnect it."
 	}
 	return ""
+}
+
+func (s *Server) handleTimezone(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Could not read timezone form", 400)
+		return
+	}
+	name, err := displaytime.ParseForm(r.PostForm)
+	if err == nil {
+		err = s.store.SetTimezone(r.Context(), currentUser(r.Context()).ID, name)
+	}
+	if errors.Is(err, displaytime.ErrTimezone) {
+		s.accountPage(w, r, 422, &name, err.Error())
+		return
+	}
+	if err != nil {
+		http.Error(w, "Could not save timezone", 500)
+		return
+	}
+	http.Redirect(w, r, "/settings/account?saved=timezone#display-timezone", 303)
 }

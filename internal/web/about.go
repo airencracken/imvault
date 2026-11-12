@@ -33,7 +33,7 @@ func (s *Server) handleAbout(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Could not read the site information.", 500)
 		return
 	}
-	s.renderPage(w, 200, "about", struct {
+	s.renderPage(w, r, 200, "about", struct {
 		base
 		HouseRules, OwnerContact string
 		Staff                    []siteStaff

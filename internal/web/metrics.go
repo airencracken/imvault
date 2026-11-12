@@ -26,8 +26,9 @@ func (s *Server) handleAdminMetrics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	overview := admin.WithSuite(admin.Runtime(s.cfg.Version, s.Backups.Status()), "IMVAULT_")
+	overview.Timezone = preferredTimezone(r)
 	overview.Metrics = metrics
 	overview.Activity = &activity
 	overview.BackURL = "/admin"
-	s.renderPage(w, 200, "metrics", metricsView{base: s.base(r, "Instance metrics"), Overview: overview})
+	s.renderPage(w, r, 200, "metrics", metricsView{base: s.base(r, "Instance metrics"), Overview: overview})
 }

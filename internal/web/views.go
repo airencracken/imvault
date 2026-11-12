@@ -3,6 +3,7 @@
 package web
 
 import (
+	"github.com/airencracken/comfylib/displaytime"
 	"imvault/internal/models"
 	"imvault/internal/store"
 )
@@ -10,21 +11,22 @@ import (
 // base is embedded in every page/view struct so the layout always has what it
 // needs to render navigation, the CSRF token and flash messages.
 type base struct {
-	Version      string
-	ShowVersion  bool
-	Title        string
-	SiteName     string
-	WelcomeTitle string
-	WelcomeText  string
-	MascotURL    string
-	FaviconURL   string
-	User         *models.User
-	CSRFToken    string
-	AnonUploads  bool
-	SignupOpen   bool
-	Notice       string
-	Error        string
-	CurrentPath  string
+	TimezoneControl displaytime.Preference
+	Version         string
+	ShowVersion     bool
+	Title           string
+	SiteName        string
+	WelcomeTitle    string
+	WelcomeText     string
+	MascotURL       string
+	FaviconURL      string
+	User            *models.User
+	CSRFToken       string
+	AnonUploads     bool
+	SignupOpen      bool
+	Notice          string
+	Error           string
+	CurrentPath     string
 	// SourceURL is the upstream repository, offered in the footer.
 	SourceURL string
 	// VisibilityLevels is every level, for the forms that offer the choice.

@@ -264,6 +264,7 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /settings/profile", s.requireUser(s.handleProfileSettings))
 	mux.HandleFunc("POST /settings/profile", s.requireUser(s.handleProfileSave))
 	mux.HandleFunc("GET /settings/account", s.requireUser(s.handleAccountPage))
+	mux.HandleFunc("POST /settings/account/timezone", s.requireUser(s.handleTimezone))
 	mux.HandleFunc("GET /settings/account/export", s.requireUser(s.handleAccountExport))
 	mux.HandleFunc("POST /settings/account/delete", s.requireUser(s.rateLimitLogins(s.handleAccountDelete)))
 	mux.HandleFunc("POST /settings/account/identities/{id}/delete", s.requireUser(s.handleUnlinkIdentity))

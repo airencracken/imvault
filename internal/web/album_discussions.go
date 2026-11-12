@@ -66,7 +66,7 @@ func (s *Server) handleAlbumShare(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	s.renderPage(w, 200, "album_handoff", struct {
+	s.renderPage(w, r, 200, "album_handoff", struct {
 		base
 		Handoff string
 	}{s.base(r, "An album discussion"), link})

@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/airencracken/comfylib/analytics"
+	"github.com/airencracken/comfylib/displaytime"
 	"strings"
 
 	"imvault/internal/closer"
@@ -366,6 +367,9 @@ func (s *Store) CountAdmins(ctx context.Context) (int, error) {
 func (s *Store) DeleteUser(ctx context.Context, userID int64) error {
 	return s.withTx(ctx, func(tx *sql.Tx) error {
 		if err := protectEnabledAdmin(ctx, tx, userID); err != nil {
+			return err
+		}
+		if err := displaytime.ForgetMember(ctx, tx, userID); err != nil {
 			return err
 		}
 		if err := analytics.ForgetMember(ctx, tx, analytics.MemberID(userID)); err != nil {

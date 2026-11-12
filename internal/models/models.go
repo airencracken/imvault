@@ -175,6 +175,7 @@ func RoleLevels() []Role {
 
 // User is a registered account.
 type User struct {
+	Timezone     string `json:"-"`
 	ID           int64
 	Username     string
 	Email        string

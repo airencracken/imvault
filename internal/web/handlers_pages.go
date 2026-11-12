@@ -17,7 +17,7 @@ func (s *Server) notFound(w http.ResponseWriter, r *http.Request, message string
 	if message == "" {
 		message = "That page could not be found."
 	}
-	s.renderPage(w, http.StatusNotFound, "notfound", errorView{
+	s.renderPage(w, r, http.StatusNotFound, "notfound", errorView{
 		base:    s.base(r, "Not found"),
 		Code:    "404",
 		Message: message,
@@ -70,7 +70,7 @@ func (s *Server) handleGallery(w http.ResponseWriter, r *http.Request) {
 		slices.Sort(years)
 		slices.Reverse(years)
 	}
-	s.renderPage(w, http.StatusOK, "gallery", galleryView{
+	s.renderPage(w, r, http.StatusOK, "gallery", galleryView{
 		base:       s.base(r, "Your gallery"),
 		Grid:       grid,
 		Query:      query,
@@ -111,7 +111,7 @@ func (s *Server) handleRecent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.renderPage(w, http.StatusOK, "recent", recentView{
+	s.renderPage(w, r, http.StatusOK, "recent", recentView{
 		base:       s.base(r, "Recent"),
 		Grid:       s.feedGrid(r, files, "Nothing has been shared yet."),
 		Pagination: pg,
@@ -183,7 +183,7 @@ func (s *Server) handleFilePage(w http.ResponseWriter, r *http.Request) {
 		view.Albums = albums
 	}
 
-	s.renderPage(w, http.StatusOK, "file", view)
+	s.renderPage(w, r, http.StatusOK, "file", view)
 }
 
 // handleShortLink redirects the short share URL to the canonical page.
@@ -214,7 +214,7 @@ func (s *Server) handleTagsPage(w http.ResponseWriter, r *http.Request) {
 		view.ViewerID = user.ID
 	}
 
-	s.renderPage(w, http.StatusOK, "tags", view)
+	s.renderPage(w, r, http.StatusOK, "tags", view)
 }
 
 // handleTagPage lists the files carrying one account's tag.
@@ -289,7 +289,7 @@ func (s *Server) handleTagPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.renderPage(w, http.StatusOK, "tag", tagPageView{
+	s.renderPage(w, r, http.StatusOK, "tag", tagPageView{
 		base:       s.base(r, "#"+tag.Name),
 		Tag:        tag,
 		Grid:       s.grid(r, files, false, false, "", "Nothing carries this tag yet."),
@@ -316,7 +316,7 @@ func (s *Server) lookupVisibleFile(w http.ResponseWriter, r *http.Request) (file
 
 	// An expired upload is gone even if the reaper has not run yet.
 	if f.Expired(time.Now()) {
-		s.renderPage(w, http.StatusGone, "notfound", errorView{
+		s.renderPage(w, r, http.StatusGone, "notfound", errorView{
 			base:    s.base(r, "Expired"),
 			Code:    "410",
 			Message: "This upload has expired and been removed.",

@@ -37,7 +37,7 @@ func (s *Server) handleMemberProfile(w http.ResponseWriter, r *http.Request) {
 	}
 	view := memberProfileView{base: s.base(r, p.Username+"'s profile"), Member: p}
 	view.Notice, view.Error = s.flash(r)
-	s.renderPage(w, 200, "member_profile", view)
+	s.renderPage(w, r, 200, "member_profile", view)
 }
 
 func (s *Server) handleProfileSettings(w http.ResponseWriter, r *http.Request) {
@@ -55,7 +55,7 @@ func (s *Server) handleProfileSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice, view.Error = s.flash(r)
-	s.renderPage(w, 200, "profile_settings", view)
+	s.renderPage(w, r, 200, "profile_settings", view)
 }
 
 func (s *Server) handleProfileSave(w http.ResponseWriter, r *http.Request) {
@@ -74,7 +74,7 @@ func (s *Server) handleProfileSave(w http.ResponseWriter, r *http.Request) {
 		}
 		view := memberProfileView{base: s.base(r, "Your profile"), Biography: p, Member: member, AnimateAvatars: animate}
 		view.Error = err.Error()
-		s.renderPage(w, 422, "profile_settings", view)
+		s.renderPage(w, r, 422, "profile_settings", view)
 		return
 	}
 	if err = s.store.SetMemberProfile(r.Context(), currentUser(r.Context()).ID, p); err != nil {

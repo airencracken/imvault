@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/airencracken/comfylib/displaytime"
 	"github.com/airencracken/comfylib/invitation"
 
 	"imvault/internal/invites"
@@ -72,7 +73,8 @@ func inviteStatus(inv *models.Invite, now time.Time) string {
 	return string((invitation.State{Revoked: inv.Revoked(), ExpiresAt: inv.ExpiresAt, Uses: inv.Uses, MaxUses: inv.MaxUses}).Status(now))
 }
 
-func inviteRows(list []*models.Invite) []inviteRow {
+func inviteRows(list []*models.Invite, zones ...string) []inviteRow {
+	f := displaytime.New(timezoneArg(zones))
 	now := time.Now()
 	rows := make([]inviteRow, 0, len(list))
 	for _, inv := range list {
@@ -82,7 +84,7 @@ func inviteRows(list []*models.Invite) []inviteRow {
 		}
 		expiry := "never"
 		if inv.ExpiresAt != nil {
-			expiry = models.HumanTime(*inv.ExpiresAt)
+			expiry = f.Stamp(inv.ExpiresAt)
 		}
 		rows = append(rows, inviteRow{
 			Invite:  inv,
@@ -142,7 +144,7 @@ func (s *Server) renderInvitesPanel(w http.ResponseWriter, r *http.Request, form
 
 	view := invitesView{
 		base:       s.base(r, "Invitations"),
-		Rows:       inviteRows(list),
+		Rows:       inviteRows(list, preferredTimezone(r)),
 		NewCode:    newCode,
 		Error:      message,
 		InviteOn:   s.policy().InviteOnly,
@@ -168,9 +170,9 @@ func (s *Server) renderInvitesPanel(w http.ResponseWriter, r *http.Request, form
 		view.ExpiresDays = strconv.Itoa(memberMaxInviteDays)
 	}
 	if isHTMX(r) {
-		s.renderPartial(w, "invites_panel", view)
+		s.renderPartial(w, r, "invites_panel", view)
 	} else {
-		s.renderPage(w, http.StatusOK, "admin_invites", view)
+		s.renderPage(w, r, http.StatusOK, "admin_invites", view)
 	}
 }
 

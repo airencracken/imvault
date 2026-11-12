@@ -34,7 +34,7 @@ func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 		s.log.Error("home: list recent", "error", err)
 	}
 
-	s.renderPage(w, http.StatusOK, "home", homeView{
+	s.renderPage(w, r, http.StatusOK, "home", homeView{
 		base: s.base(r, ""),
 		Grid: s.grid(r, recent, false, false, "", "Nothing public has been shared yet."),
 	})
@@ -45,7 +45,7 @@ func (s *Server) handleLoginPage(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/gallery", http.StatusSeeOther)
 		return
 	}
-	s.renderPage(w, http.StatusOK, "login", authView{
+	s.renderPage(w, r, http.StatusOK, "login", authView{
 		base: s.base(r, "Sign in"),
 		Next: safeNext(r.URL.Query().Get("next")),
 	})
@@ -70,7 +70,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// Deliberately vague error to avoid confirming which usernames exist.
 	fail := func() {
 		view.Error = "Incorrect username or password."
-		s.renderPage(w, http.StatusUnauthorized, "login", view)
+		s.renderPage(w, r, http.StatusUnauthorized, "login", view)
 	}
 
 	user, err := s.store.UserByUsername(r.Context(), username)
@@ -90,7 +90,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if user.Disabled {
 		s.log.Warn("login: disabled account", "username", user.Username, "remote", r.RemoteAddr)
 		view.Error = "This account has been disabled."
-		s.renderPage(w, http.StatusForbidden, "login", view)
+		s.renderPage(w, r, http.StatusForbidden, "login", view)
 		return
 	}
 
@@ -200,7 +200,7 @@ func (s *Server) handleRegisterPage(w http.ResponseWriter, r *http.Request) {
 		InviteOnly:     policy.InviteOnly,
 		RegisterClosed: !policy.AllowSignup,
 	}
-	s.renderPage(w, http.StatusOK, "register", view)
+	s.renderPage(w, r, http.StatusOK, "register", view)
 }
 
 func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
@@ -223,7 +223,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 	renderErr := func(status int, message string) {
 		view.Error = message
-		s.renderPage(w, status, "register", view)
+		s.renderPage(w, r, status, "register", view)
 	}
 
 	// Whether this attempt may proceed at all, and against which invitation.

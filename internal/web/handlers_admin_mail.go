@@ -47,7 +47,7 @@ func (s *Server) handleAdminMail(w http.ResponseWriter, r *http.Request) {
 	view.base = s.base(r, "Outbound mail")
 	view.UseAlpine = true
 
-	s.renderPage(w, http.StatusOK, "admin_mail", view)
+	s.renderPage(w, r, http.StatusOK, "admin_mail", view)
 }
 
 // handleAdminRetryMail puts a failed message back in the queue.
@@ -108,7 +108,7 @@ func (s *Server) mailRespond(w http.ResponseWriter, r *http.Request, id int64, m
 	if message != nil {
 		row = s.adminMailRowFor(r, message)
 	}
-	s.renderAdminRow(w, "admin_mail_row", row, adminNotice{Text: text})
+	s.renderAdminRow(w, r, "admin_mail_row", row, adminNotice{Text: text})
 }
 
 // reloadMail fetches one queued message, tolerating its absence.

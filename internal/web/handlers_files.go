@@ -110,7 +110,7 @@ func (s *Server) metadataUnavailable(w http.ResponseWriter, r *http.Request, fil
 			" It is not being served. Set both EXIF and location to \"Shown\" to accept the exposure."
 	}
 
-	s.renderPage(w, http.StatusBadGateway, "notfound", errorView{
+	s.renderPage(w, r, http.StatusBadGateway, "notfound", errorView{
 		base:    s.base(r, "Metadata could not be removed"),
 		Code:    "Not served",
 		Message: message,
@@ -198,7 +198,7 @@ func (s *Server) handleFileVisibility(w http.ResponseWriter, r *http.Request) {
 	file.Visibility = visibility
 
 	if isHTMX(r) {
-		s.renderPartial(w, "visibility_button", fileView{
+		s.renderPartial(w, r, "visibility_button", fileView{
 			base: s.base(r, file.OriginalName),
 			File: file,
 		})
@@ -223,7 +223,7 @@ func (s *Server) handleFileMetadata(w http.ResponseWriter, r *http.Request) {
 	file.Metadata = policy
 
 	if isHTMX(r) {
-		s.renderPartial(w, "metadata_button", fileView{
+		s.renderPartial(w, r, "metadata_button", fileView{
 			base: s.base(r, file.OriginalName),
 			File: file,
 		})
@@ -327,7 +327,7 @@ func (s *Server) renderTagsFragment(w http.ResponseWriter, r *http.Request, file
 		http.Error(w, "database error", http.StatusInternalServerError)
 		return
 	}
-	s.renderPartial(w, "tag_chips", tagsFragmentView{
+	s.renderPartial(w, r, "tag_chips", tagsFragmentView{
 		base:    s.base(r, file.OriginalName),
 		File:    file,
 		Tags:    tags,
