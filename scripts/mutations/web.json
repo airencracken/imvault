@@ -518,5 +518,21 @@
     "after": "s.handleAdminMetrics",
     "package": "./internal/web",
     "run": "^TestOwnerMetricsTotalsPermissionsAndFailure$"
+  },
+  {
+    "name": "verified sign-ins differ from session rotations",
+    "file": "internal/web/handlers_auth.go",
+    "before": "s.newSession(ctx, w, r, userID, true)",
+    "after": "s.newSession(ctx, w, r, userID, false)",
+    "package": "./internal/web",
+    "run": "^TestActivityCountsAuthorizedOpensAndSuccessfulLogins$"
+  },
+  {
+    "name": "file opens reach the shared collector",
+    "file": "internal/web/server.go",
+    "before": "s.trackFile(s.handleFilePage)",
+    "after": "s.handleFilePage",
+    "package": "./internal/web",
+    "run": "^TestActivityCountsAuthorizedOpensAndSuccessfulLogins$"
   }
 ]
