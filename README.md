@@ -38,6 +38,28 @@ Run a published image with Docker Compose: [container installation, upgrades, an
 Use a current Go security patch when building: Go 1.26.11 or later on the
 1.26 series, or Go 1.27.4 or later on the 1.27 series.
 
+## Imvault 0.25.0
+
+Account settings now offer the same **Times and dates** control used across the
+five Comfyware applications. Open `/settings/account`, choose an IANA timezone such as
+`America/Los_Angeles`, and select **Save timezone**. UTC is the default. Your
+choice is saved for your account across sessions and devices. **Use this device's
+timezone** fills the field when JavaScript is available; saving remains explicit.
+Manual selection and local date rendering also work without JavaScript.
+
+Comfylib 0.6.0 owns validation, formatting, the account control, browser detection
+and bounded template caching. Dates handle daylight saving and calendar boundaries.
+Admin dashboard sign-in and backup instants follow your preference; reporting
+days remain UTC. Stored timestamps, API responses and machine-readable timestamps
+retain their existing UTC contract. Account isolation, native permissions and CSRF
+checks apply to every preference change.
+
+Startup adds a separately versioned display preference namespace. Application
+migration and export format versions are unchanged. Back up the stopped data
+directory before upgrading and retain that snapshot for a downgrade.
+
+Camera EXIF dates without a recorded offset remain as captured.
+
 ## Imvault 0.24.0
 
 Native admin metrics now use one shared dashboard with identical typography, spacing, cards, tables and reporting definitions across the apps. Successful local and community sign-ins and authorized content opens are recorded by Comfylib 0.5.0. Views count once per account, item and UTC day; thumbnails, background assets, failed requests and signed-out visits do not count.
