@@ -15,6 +15,8 @@ on:
         required: true
 permissions:
   contents: read
+env:
+  GOWORK: "off"
 defaults:
   run:
     shell: bash --noprofile --norc {0}
@@ -36,6 +38,17 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.source_ref || github.ref }}
+      - name: Set up Go for pinned shared tooling
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: "1.26.11"
+          cache: false
+      - name: Resolve and verify pinned shared tooling
+        run: |
+          go mod download github.com/airencracken/comfylib || exit 1
+          go mod verify || exit 1
+          GOPROXY=off GOSUMDB=off python3 scripts/comfy.py check || exit 1
+          git diff --exit-code -- go.mod go.sum || exit 1
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: release-packages
@@ -81,6 +94,17 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.source_ref || github.ref }}
+      - name: Set up Go for pinned shared tooling
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: "1.26.11"
+          cache: false
+      - name: Resolve and verify pinned shared tooling
+        run: |
+          go mod download github.com/airencracken/comfylib || exit 1
+          go mod verify || exit 1
+          GOPROXY=off GOSUMDB=off python3 scripts/comfy.py check || exit 1
+          git diff --exit-code -- go.mod go.sum || exit 1
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           pattern: container-*
