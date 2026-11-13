@@ -19,7 +19,7 @@ const SOURCE = fs.readFileSync(path.join(__dirname, "app.js"), "utf8");
 
 function loadBulkSelection() {
   const elements = {};
-  for (const id of ["bulk-tags", "bulk-count", "bulk-submit", "bulk-album", "bulk-visibility", "bulk-selection", "bulk-select-all", "bulk-clear", "bulk-album-select", "bulk-album-create", "bulk-album-title", "bulk-album-error"]) {
+  for (const id of ["bulk-tags", "bulk-count", "bulk-submit", "bulk-album", "bulk-visibility", "bulk-selection", "bulk-select-all", "bulk-clear", "bulk-album-select", "bulk-album-create", "bulk-album-title", "bulk-album-error", "bulk-panel"]) {
     elements[id] = { listeners: {}, addEventListener(name, fn) { this.listeners[name] = fn; } };
   }
   elements["bulk-album-select"].value = "";
@@ -49,9 +49,17 @@ test("bulk selection counts individual picks, selects the page and clears it", (
   assert.equal(elements["bulk-album"].disabled, true);
   assert.equal(elements["bulk-visibility"].disabled, true);
   assert.equal(elements["bulk-count"].textContent, "0 selected");
+  assert.equal(elements["bulk-panel"].hidden, true, "the organise panel waits for a selection");
   picks[0].checked = true;
   listeners.change();
   assert.equal(elements["bulk-count"].textContent, "1 selected");
+  assert.equal(elements["bulk-panel"].hidden, false);
+  assert.equal(elements["bulk-panel"].open, true, "the first pick opens the panel");
+  elements["bulk-panel"].open = false;
+  picks[1].checked = true;
+  listeners.change();
+  assert.equal(elements["bulk-panel"].open, false, "a panel closed by hand stays closed");
+  picks[1].checked = false;
   assert.equal(elements["bulk-submit"].disabled, false);
   assert.equal(elements["bulk-album"].disabled, false);
   assert.equal(elements["bulk-visibility"].disabled, false);

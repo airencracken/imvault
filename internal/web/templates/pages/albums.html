@@ -3,35 +3,8 @@
   <h1>Albums</h1>
 </header>
 
-<form class="panel stack" method="post" action="/albums">
-  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-  <h2>New album</h2>
-  <label>Title
-    <input name="title" maxlength="120" required autocomplete="off">
-  </label>
-  <label>Description <span class="muted">(optional)</span>
-    <input name="description" maxlength="500" autocomplete="off">
-  </label>
-  <label>Visible to
-    <select name="visibility">
-      {{$default := .DefaultVisibility}}
-      {{range .Levels}}
-      <option value="{{.}}" {{if eq . $default}}selected{{end}}>{{.Label}} — {{.Explain}}</option>
-      {{end}}
-    </select>
-  </label>
-  <label>Who can add files
-    <select name="access">
-      {{range .Access}}
-      <option value="{{.}}">{{.Label}} — {{.Explain}}</option>
-      {{end}}
-    </select>
-  </label>
-  <button class="btn primary" type="submit">Create album</button>
-</form>
-
-{{if .Albums}}
 <h2>Your albums</h2>
+{{if .Albums}}
 <div class="album-list">
   {{range .Albums}}
   <a class="album-card" href="/a/{{.Slug}}">
@@ -43,8 +16,37 @@
   {{end}}
 </div>
 {{else}}
-<p class="empty">No albums yet. Create one above.</p>
+<p class="empty">No albums yet. Start one below.</p>
 {{end}}
+
+<details class="panel stack new-album"{{if not .Albums}} open{{end}}>
+  <summary>New album</summary>
+  <form class="stack" method="post" action="/albums">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <label>Title
+      <input name="title" maxlength="120" required autocomplete="off">
+    </label>
+    <label>Description <span class="muted">(optional)</span>
+      <input name="description" maxlength="500" autocomplete="off">
+    </label>
+    <label>Visible to
+      <select name="visibility">
+        {{$default := .DefaultVisibility}}
+        {{range .Levels}}
+        <option value="{{.}}" {{if eq . $default}}selected{{end}}>{{.Label}} — {{.Explain}}</option>
+        {{end}}
+      </select>
+    </label>
+    <label>Who can add files
+      <select name="access">
+        {{range .Access}}
+        <option value="{{.}}">{{.Label}} — {{.Explain}}</option>
+        {{end}}
+      </select>
+    </label>
+    <button class="btn primary" type="submit">Create album</button>
+  </form>
+</details>
 
 {{if .Shared}}
 <h2>Shared with everyone here</h2>

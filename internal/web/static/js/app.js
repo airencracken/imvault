@@ -16,12 +16,21 @@
     var albumCreate = document.getElementById("bulk-album-create");
     var albumTitle = document.getElementById("bulk-album-title");
     var albumError = document.getElementById("bulk-album-error");
+    // The organise panel stays out of the way until something is ticked.
+    // Without this script it renders collapsed and still works.
+    var bulkPanel = document.getElementById("bulk-panel");
+    var lastSelected = 0;
     function picks() {
       return Array.prototype.slice.call(document.querySelectorAll('input[name="files"][form="bulk-tags"]'));
     }
     function updateSelection() {
       var selected = picks().filter(function (pick) { return pick.checked; }).length;
       bulkCount.textContent = selected + " selected";
+      if (bulkPanel) {
+        bulkPanel.hidden = selected === 0;
+        if (selected > 0 && lastSelected === 0) bulkPanel.open = true;
+      }
+      lastSelected = selected;
       bulkSubmit.disabled = selected === 0;
       ["bulk-album", "bulk-visibility"].forEach(function (id) {
         var button = document.getElementById(id);
