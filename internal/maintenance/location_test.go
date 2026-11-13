@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"imvault/internal/db"
-	"imvault/internal/models"
 	"imvault/internal/storage"
 	"imvault/internal/store"
 	"imvault/internal/testutil"
@@ -17,8 +16,8 @@ import (
 
 func TestBackupRestoreKeepsLocationPolicyAndFilteredObjects(t *testing.T) {
 	f := newFixture(t)
-	shown := models.MetadataShown
-	if err := f.store.UpdateFile(t.Context(), f.file.ID, store.FileUpdate{Location: &shown}); err != nil {
+	shown, hidden := true, false
+	if err := f.store.UpdateFile(t.Context(), f.file.ID, store.FileUpdate{ShowCamera: &hidden, ShowLocation: &shown}); err != nil {
 		t.Fatal(err)
 	}
 	for _, camera := range []bool{false, true} {
@@ -48,7 +47,7 @@ func TestBackupRestoreKeepsLocationPolicyAndFilteredObjects(t *testing.T) {
 	defer testutil.Close(t, database)
 	st := store.New(database)
 	file, err := st.FileByID(t.Context(), f.file.ID)
-	if err != nil || file.Location != shown || file.Metadata != models.MetadataHidden {
+	if err != nil || !file.ShowLocation || file.ShowCamera {
 		t.Fatalf("restored sharing: %+v %v", file, err)
 	}
 	blob, err := st.BlobBySHA(t.Context(), file.SHA256)

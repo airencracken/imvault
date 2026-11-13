@@ -309,17 +309,17 @@ type File struct {
 	ThumbKey     string
 	PreviewKey   string
 	Visibility   Visibility
-	// Metadata controls EXIF fields other than GPS; Location controls GPS.
-	Location   MetadataPolicy
-	Metadata   MetadataPolicy
-	Kind       Kind
-	DurationMS int64
-	FrameCount int
-	Views      int64
-	CreatedAt  time.Time
-	ExpiresAt  *time.Time
-	TrashedAt  *time.Time
-	TakenAt    string
+	// ShowCamera shares EXIF fields other than GPS; ShowLocation shares GPS.
+	ShowCamera   bool
+	ShowLocation bool
+	Kind         Kind
+	DurationMS   int64
+	FrameCount   int
+	Views        int64
+	CreatedAt    time.Time
+	ExpiresAt    *time.Time
+	TrashedAt    *time.Time
+	TakenAt      string
 
 	// Populated by list queries that join for display.
 	Username string
@@ -496,10 +496,6 @@ type Album struct {
 	Slug        string
 	Description string
 	Visibility  Visibility
-	// Metadata is what happens to the metadata of the files in this album. It
-	// can only tighten a file's own setting, never loosen it.
-	Metadata MetadataPolicy
-	Location MetadataPolicy
 	// Access is who may add their own files. It is what makes an album shared.
 	Access    AlbumAccess
 	CreatedAt time.Time
@@ -801,115 +797,30 @@ type Identity struct {
 	LastLogin *time.Time
 }
 
-// MetadataPolicy is what happens to a file's metadata when it is served and
-// displayed.
-type MetadataPolicy string
+// DefaultShown is the camera details and location choice a file gets when
+// nobody made one: hidden on public files, shown to the people a closed file is
+// shared with.
+func DefaultShown(visibility Visibility) bool { return !visibility.IsPublic() }
 
-const (
-	// MetadataInherit follows the file's visibility, which is the default and
-	// what a file with no opinion means.
-	MetadataInherit MetadataPolicy = "inherit"
-	// MetadataShown keeps the metadata however the file is shared.
-	MetadataShown MetadataPolicy = "shown"
-	// MetadataHidden never serves or displays the metadata.
-	MetadataHidden MetadataPolicy = "hidden"
-)
-
-// ParseMetadataPolicy reads a stored or submitted value, defaulting to
-// inherit for anything unrecognised. Inheriting is the safe direction: it
-// defers to visibility rather than pinning a choice nobody made.
-func ParseMetadataPolicy(raw string) MetadataPolicy {
-	switch MetadataPolicy(strings.ToLower(strings.TrimSpace(raw))) {
-	case MetadataShown:
-		return MetadataShown
-	case MetadataHidden:
-		return MetadataHidden
-	default:
-		return MetadataInherit
+// ParseShown reads a submitted sharing choice. It accepts "shown" and "hidden"
+// along with the usual boolean spellings, and reports whether raw was one of
+// them so that a typo is refused instead of guessed.
+func ParseShown(raw string) (shown, ok bool) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "shown", "show", "true", "1", "on", "yes":
+		return true, true
+	case "hidden", "hide", "false", "0", "off", "no":
+		return false, true
 	}
+	return false, false
 }
 
-// Valid reports whether p is one of the three settings.
-func (p MetadataPolicy) Valid() bool {
-	return p == MetadataInherit || p == MetadataShown || p == MetadataHidden
-}
-
-// Label is the name shown in the interface.
-func (p MetadataPolicy) Label() string {
-	switch p {
-	case MetadataShown:
-		return "Shown"
-	case MetadataHidden:
-		return "Hidden"
+// ShownWord names a sharing choice the way the API spells it.
+func ShownWord(shown bool) string {
+	if shown {
+		return "shown"
 	}
-	return "Follow visibility"
-}
-
-// Explain describes the setting in one sentence.
-func (p MetadataPolicy) Explain() string {
-	switch p {
-	case MetadataShown:
-		return "Share camera details, date, and other EXIF fields"
-	case MetadataHidden:
-		return "Hide camera details, date, and other EXIF fields"
-	}
-	return "Include them only where the file is not public"
-}
-
-// MetadataLevels lists the settings, least restrictive first.
-func MetadataLevels() []MetadataPolicy {
-	return []MetadataPolicy{MetadataShown, MetadataInherit, MetadataHidden}
-}
-
-// restrictiveness ranks the settings so that the most restrictive of several
-// can be taken. It is unexported because nothing outside this file should be
-// reasoning about the order rather than about Strictest.
-func (p MetadataPolicy) restrictiveness() int {
-	switch p {
-	case MetadataShown:
-		return 0
-	case MetadataHidden:
-		return 2
-	default:
-		return 1
-	}
-}
-
-// Strictest returns whichever policy discloses least.
-//
-// This is what makes an album unable to loosen anything: combining never yields
-// something more open than any input.
-//
-// Inherit is skipped rather than ranked. It means "defer to the file", which is
-// not an opinion about which way to go, so letting it outrank an explicit
-// choice would turn the absence of a decision into a decision.
-func Strictest(policies ...MetadataPolicy) MetadataPolicy {
-	strictest := MetadataInherit
-	decided := false
-
-	for _, policy := range policies {
-		if policy == MetadataInherit {
-			continue
-		}
-		if !decided || policy.restrictiveness() > strictest.restrictiveness() {
-			strictest = policy
-			decided = true
-		}
-	}
-	return strictest
-}
-
-// Resolve applies a file's visibility to a policy, which is what "inherit"
-// means: public is the whole internet, so it gets no metadata, while members
-// and the owner are the people the file was shared with in the first place.
-func (p MetadataPolicy) Resolve(visibility Visibility) MetadataPolicy {
-	if p != MetadataInherit {
-		return p
-	}
-	if visibility.IsPublic() {
-		return MetadataHidden
-	}
-	return MetadataShown
+	return "hidden"
 }
 
 // AnonymousTagOwner is the path segment standing for the shared namespace that

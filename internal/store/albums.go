@@ -12,7 +12,7 @@ import (
 	"imvault/internal/models"
 )
 
-const albumColumns = `a.id, a.user_id, a.title, a.slug, a.description, a.visibility, a.access, a.metadata, a.location, a.created_at,
+const albumColumns = `a.id, a.user_id, a.title, a.slug, a.description, a.visibility, a.access, a.created_at,
 	COALESCE(u.username, ''), (SELECT COUNT(*) FROM album_files af JOIN files f ON f.id = af.file_id WHERE af.album_id = a.id AND f.trashed_at IS NULL)`
 
 func scanAlbum(sc rowScanner) (*models.Album, error) {
@@ -20,18 +20,14 @@ func scanAlbum(sc rowScanner) (*models.Album, error) {
 		a          models.Album
 		visibility string
 		access     string
-		metadata   string
-		location   string
 		created    int64
 	)
 	if err := sc.Scan(&a.ID, &a.UserID, &a.Title, &a.Slug, &a.Description,
-		&visibility, &access, &metadata, &location, &created, &a.Username, &a.FileCount); err != nil {
+		&visibility, &access, &created, &a.Username, &a.FileCount); err != nil {
 		return nil, err
 	}
 	a.Visibility = models.ParseVisibility(visibility)
 	a.Access = models.ParseAlbumAccess(access)
-	a.Metadata = models.ParseMetadataPolicy(metadata)
-	a.Location = models.ParseMetadataPolicy(location)
 	a.CreatedAt = toTime(created)
 	return &a, nil
 }
@@ -47,8 +43,6 @@ type AlbumInput struct {
 	Description string
 	Visibility  models.Visibility
 	Access      models.AlbumAccess
-	Metadata    models.MetadataPolicy
-	Location    models.MetadataPolicy
 }
 
 // normalised fills in anything the caller left out with the closed, cautious
@@ -60,12 +54,6 @@ func (in AlbumInput) normalised() AlbumInput {
 	}
 	if !in.Access.Valid() {
 		in.Access = models.AlbumAccessOwner
-	}
-	if !in.Metadata.Valid() {
-		in.Metadata = models.MetadataInherit
-	}
-	if !in.Location.Valid() {
-		in.Location = models.MetadataInherit
 	}
 	return in
 }
@@ -87,7 +75,6 @@ func createAlbum(ctx context.Context, writer execer, userID int64, in AlbumInput
 	description := in.Description
 	visibility := in.Visibility
 	access := in.Access
-	metadata := in.Metadata
 
 	base := ids.Slug(title)
 	created := nowUnix()
@@ -100,9 +87,9 @@ func createAlbum(ctx context.Context, writer execer, userID int64, in AlbumInput
 		}
 
 		res, err := writer.ExecContext(ctx, `
-			INSERT INTO albums (user_id, title, slug, description, visibility, access, metadata, location, created_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			userID, title, slug, description, string(visibility), string(access), string(metadata), string(in.Location), created,
+			INSERT INTO albums (user_id, title, slug, description, visibility, access, created_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			userID, title, slug, description, string(visibility), string(access), created,
 		)
 		if err != nil {
 			if ok, col := isUniqueViolation(err); ok && strings.Contains(col, "slug") {
@@ -123,8 +110,6 @@ func createAlbum(ctx context.Context, writer execer, userID int64, in AlbumInput
 			Description: description,
 			Visibility:  visibility,
 			Access:      access,
-			Metadata:    metadata,
-			Location:    in.Location,
 			CreatedAt:   toTime(created),
 		}
 		return &album, nil
@@ -186,10 +171,9 @@ func (s *Store) UpdateAlbum(ctx context.Context, id int64, in AlbumInput) error 
 	}
 
 	if _, err := s.db.ExecContext(ctx, `
-		UPDATE albums SET title = ?, description = ?, visibility = ?, access = ?, metadata = ?, location = ?
+		UPDATE albums SET title = ?, description = ?, visibility = ?, access = ?
 		WHERE id = ?`,
-		in.Title, in.Description, string(in.Visibility), string(in.Access),
-		string(in.Metadata), string(in.Location), id); err != nil {
+		in.Title, in.Description, string(in.Visibility), string(in.Access), id); err != nil {
 		return fmt.Errorf("update album: %w", err)
 	}
 	return nil
@@ -298,53 +282,4 @@ func (s *Store) AlbumsVisibleTo(ctx context.Context, viewerID int64) ([]*models.
 		albums = append(albums, a)
 	}
 	return albums, rows.Err()
-}
-
-// EffectiveMetadataPolicy answers what actually happens to a file's metadata.
-//
-// It is the most restrictive of the file's own setting resolved against its
-// visibility, and the explicit opinion of every album the file is in. An
-// album set to "inherit" has no opinion and is skipped, because inheriting
-// means deferring to the file, and an album is not where that decision lives.
-//
-// The arithmetic is deliberately one-directional. Combining never yields
-// something more open than any input, so belonging to an album can add caution
-// to a file but never remove it. That matters because a shared album's owner
-// and a file's owner need not be the same person.
-func (s *Store) EffectiveMetadataPolicy(ctx context.Context, file *models.File) (models.MetadataPolicy, error) {
-	policies, err := s.EffectiveMetadataPolicies(ctx, file)
-	return policies.Metadata, err
-}
-
-type MetadataPolicies struct{ Metadata, Location models.MetadataPolicy }
-
-// EffectiveMetadataPolicies resolves the two independent ceilings together.
-func (s *Store) EffectiveMetadataPolicies(ctx context.Context, file *models.File) (MetadataPolicies, error) {
-	// The file's own answer, with inherit settled by its visibility.
-	opinions := []models.MetadataPolicy{file.Metadata.Resolve(file.Visibility)}
-	locations := []models.MetadataPolicy{file.Location.WithFallback(opinions[0])}
-
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT a.metadata, a.location FROM albums a
-		JOIN album_files af ON af.album_id = a.id
-		WHERE af.file_id = ?`, file.ID)
-	if err != nil {
-		return MetadataPolicies{}, fmt.Errorf("album metadata policies: %w", err)
-	}
-	defer closer.Discard(rows)
-
-	for rows.Next() {
-		var raw, location string
-		if err := rows.Scan(&raw, &location); err != nil {
-			return MetadataPolicies{}, fmt.Errorf("scan album metadata: %w", err)
-		}
-		policy := models.ParseMetadataPolicy(raw)
-		opinions = append(opinions, policy)
-		locations = append(locations, models.ParseMetadataPolicy(location).WithFallback(policy))
-	}
-	if err := rows.Err(); err != nil {
-		return MetadataPolicies{}, fmt.Errorf("album metadata policies: %w", err)
-	}
-
-	return MetadataPolicies{Metadata: models.Strictest(opinions...), Location: models.Strictest(locations...)}, nil
 }

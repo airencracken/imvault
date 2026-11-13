@@ -96,18 +96,17 @@ func (s *Server) objectFor(w http.ResponseWriter, r *http.Request, file *models.
 // It refuses rather than serving the original, because serving it would be
 // indistinguishable from success — the file would look clean and the
 // coordinates would be in it. Refusing is also not a dead end: the owner can
-// set the file's metadata to Shown, which is an explicit decision to accept the
-// exposure, and until they do the interface says what is wrong.
+// show camera details and location, which is an explicit decision to accept
+// the exposure, and until they do the interface says what is wrong.
 func (s *Server) metadataUnavailable(w http.ResponseWriter, r *http.Request, file *models.File, err error) {
 	s.log.Warn("metadata could not be removed, so the file is not being served",
 		"id", file.ID, "ext", file.Ext, "error", err)
 
-	message := "This file is set to hide its metadata, but it could not be removed. " +
-		"It is not being served. Set both EXIF and location to \"Shown\" to accept the exposure, " +
-		"or upload it as JPEG, PNG, WebP, GIF, or BMP."
+	message := "This file hides camera details or location, but they couldn't be removed, so it is not being served. " +
+		"Show both on the file's page to share it as it is, or upload it as JPEG, PNG, WebP, GIF or BMP."
 	if gap := s.MetadataGap(file); gap != "" {
-		message = "This file is set to hide its metadata, but it could not be removed. " + gap +
-			" It is not being served. Set both EXIF and location to \"Shown\" to accept the exposure."
+		message = "This file hides camera details or location, but they couldn't be removed. " + gap +
+			" It is not being served. Show both on the file's page to share it as it is."
 	}
 
 	s.renderPage(w, r, http.StatusBadGateway, "notfound", errorView{
@@ -195,8 +194,15 @@ func (s *Server) handleFileVisibility(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not update visibility", http.StatusInternalServerError)
 		return
 	}
+	becamePublic := visibility.IsPublic() && !file.Visibility.IsPublic()
 	file.Visibility = visibility
 
+	// Making a file public also hides its camera details and location, so
+	// the whole page has to be redrawn.
+	if isHTMX(r) && becamePublic {
+		hxRedirect(w, "/f/"+file.ID)
+		return
+	}
 	if isHTMX(r) {
 		s.renderPartial(w, r, "visibility_button", fileView{
 			base: s.base(r, file.OriginalName),
@@ -205,31 +211,6 @@ func (s *Server) handleFileVisibility(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.redirectFlash(w, r, "/f/"+file.ID, flashNotice, "Visibility updated.")
-}
-
-// handleFileMetadata changes what happens to a file's metadata.
-func (s *Server) handleFileMetadata(w http.ResponseWriter, r *http.Request) {
-	file, ok := s.loadChangeableFile(w, r)
-	if !ok {
-		return
-	}
-
-	policy := models.ParseMetadataPolicy(r.FormValue("metadata"))
-	if err := s.store.SetFileMetadata(r.Context(), file.ID, policy); err != nil {
-		s.log.Error("set metadata policy", "id", file.ID, "error", err)
-		http.Error(w, "could not update the metadata setting", http.StatusInternalServerError)
-		return
-	}
-	file.Metadata = policy
-
-	if isHTMX(r) {
-		s.renderPartial(w, r, "metadata_button", fileView{
-			base: s.base(r, file.OriginalName),
-			File: file,
-		})
-		return
-	}
-	s.redirectFlash(w, r, "/f/"+file.ID, flashNotice, "Metadata setting updated.")
 }
 
 // handleFileDelete trashes an owned file or permanently removes moderated content.

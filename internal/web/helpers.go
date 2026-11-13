@@ -188,7 +188,6 @@ func (s *Server) base(r *http.Request, title string) base {
 		Notice:            notice,
 		Error:             problem,
 		CurrentPath:       r.URL.Path,
-		MetadataLevels:    models.MetadataLevels(),
 		OIDCName:          s.oidc.Name(),
 	}
 

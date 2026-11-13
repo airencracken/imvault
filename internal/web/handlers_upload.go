@@ -141,7 +141,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !validLocationForm(w, r) {
+	if !s.validSharingForm(w, r) {
 		return
 	}
 	options := s.uploadOptions(r, user)
@@ -404,8 +404,8 @@ func (s *Server) storeStill(
 		Kind:         result.Kind,
 		FrameCount:   result.FrameCount,
 		Visibility:   options.Visibility,
-		Metadata:     options.Metadata,
-		Location:     options.Location,
+		ShowCamera:   options.ShowCamera,
+		ShowLocation: options.ShowLocation,
 		Details:      details,
 		CreatedAt:    now,
 		ExpiresAt:    expires,
@@ -519,8 +519,8 @@ func (s *Server) storeVideo(
 		Kind:         result.Kind,
 		DurationMS:   result.DurationMS,
 		Visibility:   options.Visibility,
-		Metadata:     options.Metadata,
-		Location:     options.Location,
+		ShowCamera:   options.ShowCamera,
+		ShowLocation: options.ShowLocation,
 		Details:      details,
 		CreatedAt:    now,
 		ExpiresAt:    expires,
@@ -655,20 +655,9 @@ func (s *Server) extractDetails(src io.ReadSeeker) string {
 // both, and two parallel parameters of different types is how a caller ends up
 // passing one where the other belongs.
 type uploadOptions struct {
-	Visibility models.Visibility
-	Metadata   models.MetadataPolicy
-	Location   models.MetadataPolicy
-}
-
-// metadataFor resolves the metadata setting for an upload. An anonymous
-// uploader has no account to hang a preference on, and their upload is public
-// whatever else is true, so the default follows visibility and resolves to
-// hidden.
-func (s *Server) metadataFor(r *http.Request, owner *models.User) models.MetadataPolicy {
-	if owner == nil {
-		return models.MetadataInherit
-	}
-	return models.ParseMetadataPolicy(r.FormValue("metadata"))
+	Visibility   models.Visibility
+	ShowCamera   bool
+	ShowLocation bool
 }
 
 // uploadVisibility resolves the level an upload should be stored at.
@@ -699,11 +688,9 @@ func (s *Server) uploadVisibility(r *http.Request, owner *models.User) models.Vi
 
 // uploadOptions resolves both settings an upload needs.
 func (s *Server) uploadOptions(r *http.Request, owner *models.User) uploadOptions {
-	return uploadOptions{
-		Visibility: s.uploadVisibility(r, owner),
-		Metadata:   s.metadataFor(r, owner),
-		Location:   locationFor(r, owner),
-	}
+	visibility := s.uploadVisibility(r, owner)
+	camera, location := uploadSharing(r, owner, visibility)
+	return uploadOptions{Visibility: visibility, ShowCamera: camera, ShowLocation: location}
 }
 
 // uploadFailure reports a whole-request upload error.

@@ -56,7 +56,7 @@ func TestFileDescriptionsArePlainTextAndBelongToEachUpload(t *testing.T) {
 		t.Fatal("could not clear the description")
 	}
 	_, page = owner.get(path)
-	if strings.Contains(page, `<p class="file-description">`) || !strings.Contains(page, "Add description") {
+	if strings.Contains(page, `<p class="file-description">`) || !strings.Contains(page, "Save description") {
 		t.Fatal("cleared description still appears")
 	}
 }

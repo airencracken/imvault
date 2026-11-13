@@ -37,7 +37,7 @@ func (s *Store) SetFilesVisibility(ctx context.Context, owner int64, ids []strin
 	}
 	return s.withOwnedFiles(ctx, owner, ids, func(tx *sql.Tx, files []string) error {
 		for _, id := range files {
-			if _, err := tx.ExecContext(ctx, `UPDATE files SET visibility = ? WHERE id = ?`, string(visibility), id); err != nil {
+			if _, err := tx.ExecContext(ctx, `UPDATE files SET `+hideSharingWhenPublic+`, visibility = ? WHERE id = ?`, string(visibility), string(visibility), string(visibility), id); err != nil {
 				return err
 			}
 		}

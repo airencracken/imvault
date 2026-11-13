@@ -355,80 +355,39 @@ func TestReportReasonKeepsTheReport(t *testing.T) {
 	}
 }
 
-func TestMetadataPolicyResolution(t *testing.T) {
-	// Anything unrecognised, and the empty value every existing row has, means
-	// "follow visibility": deferring is safer than pinning a choice nobody made.
-	for _, raw := range []string{"", "  ", "public", "true", "hide"} {
-		if got := ParseMetadataPolicy(raw); got != MetadataInherit {
-			t.Errorf("ParseMetadataPolicy(%q) = %q, want inherit", raw, got)
-		}
-	}
-
-	for raw, want := range map[string]MetadataPolicy{
-		"hidden":  MetadataHidden,
-		"HIDDEN":  MetadataHidden,
-		" shown ": MetadataShown,
+func TestParseShown(t *testing.T) {
+	for raw, want := range map[string]bool{
+		"shown": true, " SHOWN ": true, "show": true, "true": true, "1": true, "on": true, "yes": true,
+		"hidden": false, "Hidden": false, "hide": false, "false": false, "0": false, "off": false, "no": false,
 	} {
-		if got := ParseMetadataPolicy(raw); got != want {
-			t.Errorf("ParseMetadataPolicy(%q) = %q, want %q", raw, got, want)
+		got, ok := ParseShown(raw)
+		if !ok || got != want {
+			t.Errorf("ParseShown(%q) = %v, %v; want %v, true", raw, got, ok, want)
 		}
 	}
-
-	// Inherit is the whole point of the visibility rule: public is the whole
-	// internet, everything else is the audience the file was shared with.
-	for _, tc := range []struct {
-		visibility Visibility
-		want       MetadataPolicy
-	}{
-		{VisibilityPublic, MetadataHidden},
-		{VisibilityMembers, MetadataShown},
-		{VisibilityPrivate, MetadataShown},
-	} {
-		if got := MetadataInherit.Resolve(tc.visibility); got != tc.want {
-			t.Errorf("inherit on %s resolved to %q, want %q", tc.visibility, got, tc.want)
-		}
-		// An explicit setting ignores visibility altogether, in both
-		// directions. That is what makes it an override.
-		if got := MetadataHidden.Resolve(tc.visibility); got != MetadataHidden {
-			t.Errorf("hidden on %s resolved to %q", tc.visibility, got)
-		}
-		if got := MetadataShown.Resolve(tc.visibility); got != MetadataShown {
-			t.Errorf("shown on %s resolved to %q", tc.visibility, got)
-		}
-	}
-
-	for _, policy := range MetadataLevels() {
-		if !policy.Valid() {
-			t.Errorf("%q is offered but not valid", policy)
-		}
-		if got := ParseMetadataPolicy(string(policy)); got != policy {
-			t.Errorf("%q round-tripped to %q", policy, got)
-		}
-		if policy.Label() == "" || policy.Explain() == "" {
-			t.Errorf("%q has nothing to show", policy)
+	// The old third choice and anything else is refused, never guessed.
+	for _, raw := range []string{"", "  ", "inherit", "public", "shownx", "2", "\x00shown", "<script>"} {
+		if got, ok := ParseShown(raw); ok || got {
+			t.Errorf("ParseShown(%q) = %v, %v; want refusal", raw, got, ok)
 		}
 	}
 }
 
-func TestStrictestOnlyEverTightens(t *testing.T) {
-	// Combining never yields something more open than any input, which is what
-	// lets an album add caution without being able to remove it.
-	cases := map[string]struct {
-		in   []MetadataPolicy
-		want MetadataPolicy
-	}{
-		"nothing":                 {nil, MetadataInherit},
-		"one opinion":             {[]MetadataPolicy{MetadataShown}, MetadataShown},
-		"a later hidden wins":     {[]MetadataPolicy{MetadataShown, MetadataHidden}, MetadataHidden},
-		"order does not matter":   {[]MetadataPolicy{MetadataHidden, MetadataShown}, MetadataHidden},
-		"inherit does not loosen": {[]MetadataPolicy{MetadataHidden, MetadataInherit}, MetadataHidden},
-		"inherit does not hide":   {[]MetadataPolicy{MetadataShown, MetadataInherit}, MetadataShown},
-		"shown cannot lift":       {[]MetadataPolicy{MetadataHidden, MetadataShown, MetadataShown}, MetadataHidden},
+func TestShownWordRoundTrips(t *testing.T) {
+	for _, shown := range []bool{true, false} {
+		got, ok := ParseShown(ShownWord(shown))
+		if !ok || got != shown {
+			t.Fatalf("ShownWord(%v) does not round-trip", shown)
+		}
 	}
+}
 
-	for name, tc := range cases {
-		if got := Strictest(tc.in...); got != tc.want {
-			t.Errorf("%s: Strictest = %q, want %q", name, got, tc.want)
+func TestSharingIsHiddenByDefaultOnlyOnPublicFiles(t *testing.T) {
+	for visibility, want := range map[Visibility]bool{
+		VisibilityPublic: false, VisibilityMembers: true, VisibilityPrivate: true,
+	} {
+		if got := DefaultShown(visibility); got != want {
+			t.Errorf("DefaultShown(%s) = %v, want %v", visibility, got, want)
 		}
 	}
 }

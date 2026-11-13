@@ -1001,11 +1001,12 @@ func TestMetadataPolicyMigrationDefaultsToInherit(t *testing.T) {
 	testutil.Close(t, raw)
 
 	ctx := context.Background()
-	database, err := Open(ctx, path)
+	database, err := connect(ctx, path)
 	if err != nil {
 		t.Fatalf("upgrade database: %v", err)
 	}
 	defer testutil.Close(t, database)
+	migrateBefore(t, ctx, database, simpleSharingMigration)
 
 	// Existing files and albums change meaning in no way at all. Inherit is
 	// what they already did, and a migration that started hiding metadata

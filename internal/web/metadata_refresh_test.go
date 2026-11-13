@@ -120,7 +120,7 @@ func TestLegacyDetailsRefreshOncePerOriginal(t *testing.T) {
 			t.Fatalf("refresh missing GPS or erased existing fields: %s", raw)
 		}
 		fresh, err := h.store.FileByID(t.Context(), id)
-		if err != nil || fresh.DetailsVersion != metadata.Version || fresh.Metadata != file.Metadata || fresh.Visibility != file.Visibility {
+		if err != nil || fresh.DetailsVersion != metadata.Version || fresh.ShowCamera != file.ShowCamera || fresh.ShowLocation != file.ShowLocation || fresh.Visibility != file.Visibility {
 			t.Fatalf("refresh changed policy or version: %+v (%v)", fresh, err)
 		}
 	}

@@ -32,25 +32,19 @@ func cleanKeyFor(objectKey string) string {
 
 // scopedObjectKey picks which stored object a request should be served from.
 //
-// The rule is the file's effective metadata policy: the most restrictive of its
-// own setting, its visibility, and every album it is in. When that says hidden
-// the original is not what goes out — a metadata-free copy is, built on demand
-// so that a file made public later is covered without anything having to be
-// reprocessed.
+// The rule is the file's two sharing choices. When either says hidden the
+// original is not what goes out: a copy without that metadata is, built on
+// demand so that a later change is covered without reprocessing anything.
 //
 // A copy that cannot be built is reported rather than papered over. Serving the
 // original would be the one failure that matters here: it would look exactly
 // like success while shipping the coordinates anyway.
 func (s *Server) scopedObjectKey(ctx context.Context, file *models.File, original string) (string, error) {
-	policies, err := s.store.EffectiveMetadataPolicies(ctx, file)
-	if err != nil {
-		return "", err
-	}
-	if policies.Metadata == models.MetadataShown && policies.Location == models.MetadataShown {
+	if file.ShowCamera && file.ShowLocation {
 		return original, nil
 	}
-	if policies.Metadata != policies.Location && !file.IsVideo() {
-		return s.filteredObject(ctx, file, policies.Metadata == models.MetadataShown)
+	if file.ShowCamera != file.ShowLocation && !file.IsVideo() {
+		return s.filteredObject(ctx, file, file.ShowCamera)
 	}
 	return s.cleanObject(ctx, file)
 }
@@ -241,7 +235,7 @@ func (s *Server) detailsFor(ctx context.Context, file *models.File, viewer *mode
 		return nil
 	}
 
-	exifShown, locationShown := s.detailsVisibility(ctx, file, viewer)
+	exifShown, locationShown := detailsVisibility(file, viewer)
 
 	view := &detailsView{NoLocation: locationShown && details.Location() == "", RefreshFailed: file.DetailsVersion < metadata.Version}
 	view.LocationWithheld = !locationShown && details.Location() != ""
@@ -267,16 +261,11 @@ func (s *Server) detailsFor(ctx context.Context, file *models.File, viewer *mode
 	return view
 }
 
-func (s *Server) detailsVisibility(ctx context.Context, file *models.File, viewer *models.User) (bool, bool) {
+func detailsVisibility(file *models.File, viewer *models.User) (bool, bool) {
 	if canChangeFile(viewer, file) {
 		return true, true
 	}
-	policies, err := s.store.EffectiveMetadataPolicies(ctx, file)
-	if err != nil {
-		s.log.Error("metadata policies", "id", file.ID, "error", err)
-		return false, false
-	}
-	return policies.Metadata == models.MetadataShown, policies.Location == models.MetadataShown
+	return file.ShowCamera, file.ShowLocation
 }
 
 // withholdDetails returns the part of a file's details a viewer may be told.

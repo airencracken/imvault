@@ -43,9 +43,7 @@ func TestLocationMigrationPreservesExistingSharing(t *testing.T) {
 		}
 	}
 	for i := 0; i < 2; i++ {
-		if err := migrate(t.Context(), database); err != nil {
-			t.Fatal(err)
-		}
+		migrateBefore(t, t.Context(), database, simpleSharingMigration)
 		for _, table := range []string{"files", "albums"} {
 			var count int
 			if err := database.QueryRow(`SELECT count(*) FROM ` + table + ` WHERE location = 'inherit' AND metadata IN ('inherit','shown','hidden')`).Scan(&count); err != nil || count != 3 {

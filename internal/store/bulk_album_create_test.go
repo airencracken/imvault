@@ -33,7 +33,7 @@ func TestCreateAlbumWithFilesSubsetAndPrivacy(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if album.Title != title || album.UserID != owner.ID || album.Visibility != models.VisibilityPrivate || album.Access != models.AlbumAccessOwner || album.Metadata != models.MetadataInherit || album.Location != models.MetadataInherit || album.FileCount != len(selection) {
+		if album.Title != title || album.UserID != owner.ID || album.Visibility != models.VisibilityPrivate || album.Access != models.AlbumAccessOwner || album.FileCount != len(selection) {
 			t.Fatalf("new album defaults or membership changed: %+v", album)
 		}
 		members, err := s.AlbumMembership(ctx, album.ID)

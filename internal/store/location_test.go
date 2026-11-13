@@ -8,64 +8,117 @@ import (
 	"imvault/internal/models"
 )
 
-func TestLocationPolicyIsIndependentAndAlbumsOnlyRestrict(t *testing.T) {
+func TestSharingChoicesRoundTripAndDefaultHidden(t *testing.T) {
 	s, ctx := newTestStore(t)
 	u := mustUser(t, s, ctx, "alice")
-	f := mustFile(t, s, ctx, "photo", &u.ID, models.VisibilityPublic, nil)
-	a, err := s.CreateAlbum(ctx, u.ID, AlbumInput{Title: "Album", Visibility: models.VisibilityMembers})
-	if err != nil {
-		t.Fatal(err)
+	// A caller that sets nothing gets the cautious answer.
+	f := mustFile(t, s, ctx, "zero", &u.ID, models.VisibilityMembers, nil)
+	got, err := s.FileByID(ctx, f.ID)
+	if err != nil || got.ShowCamera || got.ShowLocation {
+		t.Fatalf("unset choices are not hidden: %+v %v", got, err)
 	}
-	if err := s.AddFileToAlbum(ctx, a.ID, f.ID); err != nil {
-		t.Fatal(err)
-	}
-	for _, fileEXIF := range models.MetadataLevels() {
-		for _, fileGPS := range models.MetadataLevels() {
-			f.Metadata, f.Location = fileEXIF, fileGPS
-			for _, albumEXIF := range models.MetadataLevels() {
-				for _, albumGPS := range models.MetadataLevels() {
-					if err := s.UpdateAlbum(ctx, a.ID, AlbumInput{Title: "Album", Metadata: albumEXIF, Location: albumGPS}); err != nil {
-						t.Fatal(err)
-					}
-					got, err := s.EffectiveMetadataPolicies(ctx, f)
-					if err != nil {
-						t.Fatal(err)
-					}
-					if fileEXIF.Resolve(f.Visibility) == models.MetadataHidden && got.Metadata != models.MetadataHidden {
-						t.Fatal("album revealed EXIF")
-					}
-					if fileGPS == models.MetadataHidden && got.Location != models.MetadataHidden {
-						t.Fatal("album revealed GPS")
-					}
-					if albumGPS == models.MetadataHidden && got.Location != models.MetadataHidden {
-						t.Fatal("album GPS restriction ignored")
-					}
-					if fileGPS == models.MetadataShown && albumGPS == models.MetadataShown && got.Location != models.MetadataShown {
-						t.Fatal("EXIF setting overrode explicit GPS sharing")
-					}
-					if fileGPS == models.MetadataInherit && albumGPS == models.MetadataInherit && got.Location != got.Metadata {
-						t.Fatal("legacy behavior changed")
-					}
-				}
+	for _, camera := range []bool{true, false} {
+		for _, location := range []bool{true, false} {
+			if err := s.UpdateFile(ctx, f.ID, FileUpdate{ShowCamera: &camera, ShowLocation: &location}); err != nil {
+				t.Fatal(err)
+			}
+			got, err := s.FileByID(ctx, f.ID)
+			if err != nil || got.ShowCamera != camera || got.ShowLocation != location {
+				t.Fatalf("camera=%v location=%v stored as %+v %v", camera, location, got, err)
 			}
 		}
 	}
+}
+
+func TestMakingAFilePublicHidesCameraDetailsAndLocation(t *testing.T) {
+	s, ctx := newTestStore(t)
+	u := mustUser(t, s, ctx, "alice")
+	shown := true
+	public, members := models.VisibilityPublic, models.VisibilityMembers
+
+	setup := func(id string, visibility models.Visibility) *models.File {
+		f := mustFile(t, s, ctx, id, &u.ID, visibility, nil)
+		if err := s.UpdateFile(ctx, f.ID, FileUpdate{ShowCamera: &shown, ShowLocation: &shown}); err != nil {
+			t.Fatal(err)
+		}
+		return f
+	}
+	check := func(id string, want bool) {
+		t.Helper()
+		got, err := s.FileByID(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.ShowLocation != want || got.ShowCamera != want {
+			t.Fatalf("%s: location=%v camera=%v, want both %v", id, got.ShowLocation, got.ShowCamera, want)
+		}
+	}
+
+	f := setup("single", models.VisibilityPrivate)
+	if err := s.SetFileVisibility(ctx, f.ID, public); err != nil {
+		t.Fatal(err)
+	}
+	check(f.ID, false)
+
+	f = setup("update", models.VisibilityPrivate)
+	if err := s.UpdateFile(ctx, f.ID, FileUpdate{Visibility: &public}); err != nil {
+		t.Fatal(err)
+	}
+	check(f.ID, false)
+
+	// An explicit choice in the same request wins.
+	f = setup("explicit", models.VisibilityPrivate)
+	if err := s.UpdateFile(ctx, f.ID, FileUpdate{Visibility: &public, ShowCamera: &shown, ShowLocation: &shown}); err != nil {
+		t.Fatal(err)
+	}
+	check(f.ID, true)
+	f = setup("mixed", models.VisibilityMembers)
+	if err := s.UpdateFile(ctx, f.ID, FileUpdate{Visibility: &public, ShowCamera: &shown}); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.FileByID(ctx, f.ID); err != nil || !got.ShowCamera || got.ShowLocation {
+		t.Fatalf("explicit camera with implicit location: %+v %v", got, err)
+	}
+
+	// A file that is already public keeps what its owner chose.
+	f = setup("already", models.VisibilityPublic)
+	if err := s.SetFileVisibility(ctx, f.ID, public); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UpdateFile(ctx, f.ID, FileUpdate{Visibility: &public}); err != nil {
+		t.Fatal(err)
+	}
+	check(f.ID, true)
+
+	// Closed levels never touch location.
+	f = setup("closed", models.VisibilityPrivate)
+	if err := s.SetFileVisibility(ctx, f.ID, members); err != nil {
+		t.Fatal(err)
+	}
+	check(f.ID, true)
+
+	a, b := setup("bulk-a", models.VisibilityMembers), setup("bulk-b", models.VisibilityPublic)
+	if _, err := s.SetFilesVisibility(ctx, u.ID, []string{a.ID, b.ID}, public); err != nil {
+		t.Fatal(err)
+	}
+	check(a.ID, false)
+	check(b.ID, true)
 }
 
 func TestLocationUpdateAtomicityAndBlobKeys(t *testing.T) {
 	s, ctx := newTestStore(t)
 	u := mustUser(t, s, ctx, "alice")
 	f := mustFile(t, s, ctx, "photo", &u.ID, models.VisibilityPrivate, nil)
-	shown, hidden := models.MetadataShown, models.MetadataHidden
-	if err := s.UpdateFile(ctx, f.ID, FileUpdate{Metadata: &shown, Location: &hidden}); err != nil {
+	shown, hidden := true, false
+	if err := s.UpdateFile(ctx, f.ID, FileUpdate{ShowCamera: &shown, ShowLocation: &hidden}); err != nil {
 		t.Fatal(err)
 	}
-	bad := models.MetadataPolicy("invalid")
-	if err := s.UpdateFile(ctx, f.ID, FileUpdate{Metadata: &hidden, Location: &bad}); err == nil {
-		t.Fatal("invalid location accepted")
+	bad := models.Visibility("invalid")
+	if err := s.UpdateFile(ctx, f.ID, FileUpdate{Visibility: &bad, ShowCamera: &hidden, ShowLocation: &shown}); err == nil {
+		t.Fatal("invalid visibility accepted")
 	}
 	f, err := s.FileByID(ctx, f.ID)
-	if err != nil || f.Metadata != shown || f.Location != hidden {
+	if err != nil || !f.ShowCamera || f.ShowLocation {
 		t.Fatal("invalid update partially committed")
 	}
 	for _, camera := range []bool{true, false} {

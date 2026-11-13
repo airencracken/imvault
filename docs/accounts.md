@@ -99,8 +99,8 @@ of plain text. Line breaks are kept; HTML and Markdown show as text. Choose
 **Edit description** to change it, or save it empty to remove it. Owners and
 administrators can edit descriptions.
 
-Anyone who can view the file can read its description, whatever its camera
-metadata setting. Descriptions are included in the API and account exports.
+Anyone who can view the file can read its description, even when camera details
+are hidden. Descriptions are included in the API and account exports.
 
 ## Favorites
 

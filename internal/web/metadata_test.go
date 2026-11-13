@@ -14,8 +14,6 @@ import (
 	"testing"
 
 	"imvault/internal/config"
-	"imvault/internal/models"
-	"imvault/internal/store"
 )
 
 // gpsMarker is the string the fixture hides in its Exif. It stands in for a
@@ -170,64 +168,11 @@ func TestAnExplicitSettingOverridesVisibilityBothWays(t *testing.T) {
 	shown := uploadWith(t, h, map[string]string{
 		"visibility": "public",
 		"metadata":   "shown",
+		"location":   "shown",
 	}, jpegWithLocation(t))
 
 	if _, served := fetchRaw(t, h, shown); !bytes.Contains(served, []byte(gpsMarker)) {
 		t.Error("an explicit shown setting was ignored")
-	}
-}
-
-func TestAnAlbumCanHideMetadataButNeverRevealIt(t *testing.T) {
-	h := newHarness(t)
-	h.provisionAdmin("boss")
-
-	// A members-only file, which on its own would keep its metadata.
-	hidden := uploadWith(t, h, map[string]string{"visibility": "members"}, jpegWithLocation(t))
-	// A file that says to hide it, for the other direction.
-	alreadyHidden := uploadWith(t, h, map[string]string{
-		"visibility": "members",
-		"metadata":   "hidden",
-	}, jpegWithLocation(t))
-
-	h.sharedAlbum(t, "Trip", models.VisibilityMembers, models.AlbumAccessOwner)
-	trip, err := h.store.AlbumBySlug(t.Context(), "trip")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// The album asks for metadata to be hidden.
-	if err := h.store.UpdateAlbum(t.Context(), trip.ID, store.AlbumInput{
-		Title:      "Trip",
-		Visibility: models.VisibilityMembers,
-		Access:     models.AlbumAccessOwner,
-		Metadata:   models.MetadataHidden,
-	}); err != nil {
-		t.Fatal(err)
-	}
-	for _, id := range []string{hidden, alreadyHidden} {
-		if err := h.store.AddFileToAlbum(t.Context(), trip.ID, id); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	if _, served := fetchRaw(t, h, hidden); bytes.Contains(served, []byte(gpsMarker)) {
-		t.Error("an album did not tighten a file's metadata")
-	}
-
-	// Now the album says to show it. That must not loosen the file that
-	// explicitly hid its own, because the album's owner and the file's owner
-	// are not always the same person.
-	if err := h.store.UpdateAlbum(t.Context(), trip.ID, store.AlbumInput{
-		Title:      "Trip",
-		Visibility: models.VisibilityMembers,
-		Access:     models.AlbumAccessOwner,
-		Metadata:   models.MetadataShown,
-	}); err != nil {
-		t.Fatal(err)
-	}
-
-	if _, served := fetchRaw(t, h, alreadyHidden); bytes.Contains(served, []byte(gpsMarker)) {
-		t.Error("an album revealed metadata a file had hidden")
 	}
 }
 
@@ -260,7 +205,7 @@ func TestMetadataThatCannotBeRemovedIsRefusedRatherThanServed(t *testing.T) {
 		t.Errorf("the refusal does not explain itself: %s", truncate(string(served)))
 	}
 	// The escape hatch has to be named, or a person is stuck.
-	if !bytes.Contains(served, []byte("Shown")) {
+	if !bytes.Contains(served, []byte("Show both")) {
 		t.Errorf("the refusal does not say how to proceed: %s", truncate(string(served)))
 	}
 
@@ -272,6 +217,13 @@ func TestMetadataThatCannotBeRemovedIsRefusedRatherThanServed(t *testing.T) {
 	})
 	if resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("setting metadata = %d", resp.StatusCode)
+	}
+	resp, _ = h.postForm("/f/"+id+"/location", url.Values{
+		"csrf_token": {h.csrf()},
+		"location":   {"shown"},
+	})
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("setting location = %d", resp.StatusCode)
 	}
 	if status, _ := fetchRaw(t, h, id); status != http.StatusOK {
 		t.Errorf("after choosing to show the metadata, raw = %d, want 200", status)

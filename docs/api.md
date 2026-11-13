@@ -34,8 +34,8 @@ Write endpoints accept JSON or ordinary form encoding.
 | --- | --- |
 | `files` | One or more files. `file`, `image`, and `uploads` are accepted as aliases |
 | `visibility` | `public`, `members`, or `private`. Defaults to the instance default |
-| `metadata` | `shown`, `inherit`, or `hidden`. Defaults to `inherit`, which follows visibility |
-| `location` | `shown`, `inherit`, or `hidden`. Defaults to `inherit`, which follows EXIF independently of an explicit location choice |
+| `metadata` | Camera details: `shown` or `hidden`. Defaults to hidden on public uploads and shown otherwise |
+| `location` | GPS location: `shown` or `hidden`. Defaults to hidden on public uploads and shown otherwise |
 | `public` | The older boolean. `1` means `visibility=public`, `0` means `private` |
 | `album` | Album slug or id to add the uploads to |
 | `tags` | Comma-separated tag names to apply to the uploads |
@@ -90,19 +90,20 @@ You can send `description`, `visibility`, `metadata`, and `location` together. A
 fields are validated and saved together; an invalid value leaves the file
 unchanged.
 
-## Location sharing
+## Camera details and location
 
-File and album JSON include `metadata` and `location` policy strings.
-Set `location` on upload, album creation, or a file/album PATCH. Accepted values
-are `shown`, `hidden`, and `inherit` (**Follow EXIF**, the upgrade default).
-Omitting it on PATCH keeps the existing choice. Empty strings, `null`, and
-non-string values are rejected before any changes are saved.
+File JSON includes `metadata` (camera details) and `location` (GPS), each
+`shown` or `hidden`. Set either on upload or with a file PATCH. Both accept
+`shown`, `hidden`, `true` or `false`. Omitting a field keeps the current
+choice. `inherit`, empty strings, `null` and other values are rejected before
+anything is saved.
+
+Changing `visibility` to `public` hides both unless the same request sets them.
 
 For example, `{"metadata":"shown","location":"hidden"}` shares camera details
-without GPS. `{"metadata":"hidden","location":"shown"}` shares GPS without
-camera details. Albums may restrict either category, but cannot reveal details
-hidden by a file or another album. See [media handling](media.md#metadata) for
-page, download, and format behavior.
+without GPS. Albums have no metadata settings; sending `metadata` or `location`
+to an album endpoint is an error. See [media handling](media.md#metadata) for
+pages, downloads and formats.
 
 ## Albums and tags
 

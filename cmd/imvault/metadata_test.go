@@ -53,7 +53,7 @@ func TestRefreshMetadataRepairsExistingUploads(t *testing.T) {
 	}
 	sha := fmt.Sprintf("%064d", 0)
 	for _, id := range []string{"first", "duplicate"} {
-		if err := st.CreateFile(t.Context(), &models.File{ID: id, SHA256: sha, OriginalName: "photo.jpg", Visibility: models.VisibilityPublic, Metadata: models.MetadataHidden}); err != nil {
+		if err := st.CreateFile(t.Context(), &models.File{ID: id, SHA256: sha, OriginalName: "photo.jpg", Visibility: models.VisibilityPublic, ShowLocation: true}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -69,7 +69,7 @@ func TestRefreshMetadataRepairsExistingUploads(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if metadata.DecodeDetails(file.Details).Location() != "51.50740, -0.12730 (35m)" || file.Metadata != models.MetadataHidden || file.Visibility != models.VisibilityPublic {
+		if metadata.DecodeDetails(file.Details).Location() != "51.50740, -0.12730 (35m)" || !file.ShowLocation || file.ShowCamera || file.Visibility != models.VisibilityPublic {
 			t.Fatalf("refresh lost coordinates or changed privacy: %+v", file)
 		}
 	}

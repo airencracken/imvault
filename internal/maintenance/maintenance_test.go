@@ -83,7 +83,7 @@ func newFixture(t *testing.T) fixture {
 	if err := st.EnsureBlob(t.Context(), sha, int64(encoded.Len()), key, "thumb/old.png", "", ""); err != nil {
 		t.Fatal(err)
 	}
-	file := &models.File{ID: "photo", UserID: &user.ID, OriginalName: "family.png", Description: "A day out.", Ext: "png", Mime: "image/png", Kind: models.KindImage, Size: int64(encoded.Len()), SHA256: sha, Visibility: models.VisibilityPrivate, Metadata: models.MetadataHidden, CreatedAt: time.Now()}
+	file := &models.File{ID: "photo", UserID: &user.ID, OriginalName: "family.png", Description: "A day out.", Ext: "png", Mime: "image/png", Kind: models.KindImage, Size: int64(encoded.Len()), SHA256: sha, Visibility: models.VisibilityPrivate, CreatedAt: time.Now()}
 	if err := st.CreateFile(t.Context(), file); err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func TestBackupRestorePreservesMediaAccountsAndSecrets(t *testing.T) {
 	}
 	defer testutil.Close(t, database)
 	restored, err := store.New(database).FileByID(t.Context(), f.file.ID)
-	if err != nil || restored.Description != f.file.Description || restored.Visibility != models.VisibilityPrivate || restored.Metadata != models.MetadataHidden {
+	if err != nil || restored.Description != f.file.Description || restored.Visibility != models.VisibilityPrivate || restored.ShowCamera || restored.ShowLocation {
 		t.Fatalf("file changed after restore: %#v %v", restored, err)
 	}
 	objects, err := storage.NewDisk(filepath.Join(destination, "objects"))
@@ -275,7 +275,7 @@ func TestRegenerationPreservesOriginalsAndChangesCachedURLs(t *testing.T) {
 	if before.ThumbURL() == after.ThumbURL() || after.PreviewKey == "" {
 		t.Fatal("regenerated renditions kept stale browser URLs")
 	}
-	if after.OriginalName != before.OriginalName || after.Description != before.Description || after.Visibility != before.Visibility || after.Metadata != before.Metadata || after.SHA256 != before.SHA256 {
+	if after.OriginalName != before.OriginalName || after.Description != before.Description || after.Visibility != before.Visibility || after.ShowCamera != before.ShowCamera || after.ShowLocation != before.ShowLocation || after.SHA256 != before.SHA256 {
 		t.Fatal("regeneration changed file settings")
 	}
 	if err := verify(t.Context(), f.objects, Object{Key: after.ObjectKey, Size: after.Size, SHA256: after.SHA256}); err != nil {

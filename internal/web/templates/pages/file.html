@@ -18,47 +18,10 @@
     <h1 class="filename">{{.File.OriginalName}}</h1>
     {{with .File.Description}}<p class="file-description">{{.}}</p>{{end}}
 
-    {{if .IsOwner}}
-    {{if .File.CanRotate}}
-    <section class="panel stack" aria-label="Photo rotation">
-      <h2>Rotate photo</h2>
-      <form method="post" action="/f/{{.File.ID}}/rotate" class="row-actions">
-        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-        <button class="btn small" name="direction" value="left" type="submit">Rotate left</button>
-        <button class="btn small" name="direction" value="right" type="submit">Rotate right</button>
-        {{if .File.Rotation}}<button class="btn small" name="direction" value="reset" type="submit">Reset rotation</button>{{end}}
-      </form>
-      <p class="muted">Changes the gallery and previews. Your original stays untouched.</p>
-    </section>
-    {{end}}
-    <details class="panel stack">
-      <summary>Rename</summary>
-      <form class="stack" method="post" action="/f/{{.File.ID}}/rename">
-        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-        <label>Filename
-          <input name="name" value="{{.File.OriginalName}}" maxlength="200" required>
-        </label>
-        <p class="muted">Used in your gallery and downloads. Links stay the same.</p>
-        <button class="btn small" type="submit">Save name</button>
-      </form>
-    </details>
-    <details class="panel stack">
-      <summary>{{if .File.Description}}Edit description{{else}}Add description{{end}}</summary>
-      <form class="stack" method="post" action="/f/{{.File.ID}}/description">
-        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-        <label>Description <span class="muted">(optional)</span>
-          <textarea name="description" rows="4" maxlength="1000" aria-describedby="description-help">{{.File.Description}}</textarea>
-        </label>
-        <p id="description-help" class="muted">Plain text, up to 1,000 characters. Visible to anyone who can view this file. Leave empty to remove.</p>
-        <button class="btn small" type="submit">Save description</button>
-      </form>
-    </details>
-    {{end}}
-
+    {{if .IsAuthed}}{{template "favorite_button" .}}{{end}}
     {{if .File.Rotation}}
     <p><a href="/f/{{.File.ID}}/rotated" hx-boost="false">Download rotated photo</a> <span class="muted">(PNG)</span></p>
     {{end}}
-    {{if .IsAuthed}}{{template "favorite_button" .}}{{end}}
 
     <dl class="facts">
       <dt>Uploaded</dt>
@@ -85,7 +48,7 @@
       {{if .MapImage}}<a href="{{.OSMLink}}" target="_blank" rel="noopener" hx-boost="false"><img class="map" src="{{.MapImage}}" alt="Map showing where this photograph was taken" loading="lazy"></a>
       {{else}}<p><a href="{{.OSMLink}}" target="_blank" rel="noopener" hx-boost="false">View on OpenStreetMap</a></p>{{end}}
       {{else if .LocationWithheld}}
-      <p class="muted">Location is hidden by this photo's location sharing settings.</p>
+      <p class="muted">Location is hidden for this photo.</p>
       {{else if .RefreshFailed}}
       <p class="muted">Location details could not be refreshed. Try opening this photo again later.</p>
       {{else}}
@@ -100,41 +63,10 @@
         {{range .Fields}}<dt>{{.Label}}</dt><dd>{{.Value}}</dd>{{end}}
       </dl>
       {{if .Withheld}}
-      <p class="muted">
-        EXIF details are hidden by this photo's EXIF sharing settings.
-      </p>
+      <p class="muted">Camera details are hidden for this photo.</p>
       {{end}}
     </details>
     {{end}}
-    {{end}}
-
-    <section class="block">
-      <h2>Links</h2>
-      <label class="copy">{{if .File.Rotation}}Original{{else}}Direct{{end}}
-        <input readonly value="{{.RawURL}}" onclick="this.select()">
-      </label>
-      <label class="copy">Page
-        <input readonly value="{{.ShareURL}}" onclick="this.select()">
-      </label>
-    </section>
-
-    {{if .IsOwner}}
-    <section class="block">
-      <h2>Sharing</h2>
-      {{template "visibility_button" .}}
-    </section>
-
-    <section class="block">
-      <h2>Metadata</h2>
-      {{template "metadata_button" .}}
-      {{template "location_button" .}}
-      <p class="muted">
-        EXIF and GPS location have separate sharing settings. Follow EXIF keeps
-        location with the EXIF choice; Shown and Hidden override it. Albums can
-        hide either category, but cannot reveal what you hide. You always see
-        your own photo details here.
-      </p>
-    </section>
     {{end}}
 
     <section class="block">
@@ -160,13 +92,75 @@
     </section>
     {{end}}
 
+    <section class="block">
+      <h2>Links</h2>
+      <label class="copy">{{if .File.Rotation}}Original{{else}}Direct{{end}}
+        <input readonly value="{{.RawURL}}" data-select-on-focus>
+      </label>
+      <label class="copy">Page
+        <input readonly value="{{.ShareURL}}" data-select-on-focus>
+      </label>
+    </section>
+
+    {{if .IsOwner}}
+    <details class="panel stack file-edit">
+      <summary>Edit</summary>
+
+      <section class="stack" aria-labelledby="edit-sharing">
+        <h2 id="edit-sharing">Sharing</h2>
+        {{template "visibility_button" .}}
+        {{template "metadata_button" .}}
+        {{template "location_button" .}}
+        <p class="muted">Making a file public hides both until you show them again. You always see them here.</p>
+      </section>
+
+      {{if .File.CanRotate}}
+      <section class="stack" aria-labelledby="edit-rotate">
+        <h2 id="edit-rotate">Rotate</h2>
+        <form method="post" action="/f/{{.File.ID}}/rotate" class="row-actions">
+          <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+          <button class="btn small" name="direction" value="left" type="submit">Rotate left</button>
+          <button class="btn small" name="direction" value="right" type="submit">Rotate right</button>
+          {{if .File.Rotation}}<button class="btn small" name="direction" value="reset" type="submit">Reset rotation</button>{{end}}
+        </form>
+        <p class="muted">Changes the gallery and previews. Your original stays untouched.</p>
+      </section>
+      {{end}}
+
+      <form class="stack" method="post" action="/f/{{.File.ID}}/rename" aria-labelledby="edit-rename">
+        <h2 id="edit-rename">Rename</h2>
+        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+        <label>Filename
+          <input name="name" value="{{.File.OriginalName}}" maxlength="200" required>
+        </label>
+        <p class="muted">Used in your gallery and downloads. Links stay the same.</p>
+        <button class="btn small" type="submit">Save name</button>
+      </form>
+
+      <form class="stack" method="post" action="/f/{{.File.ID}}/description" aria-labelledby="edit-description">
+        <h2 id="edit-description">Description</h2>
+        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+        <label>Description <span class="muted">(optional)</span>
+          <textarea name="description" rows="4" maxlength="1000" aria-describedby="description-help">{{.File.Description}}</textarea>
+        </label>
+        <p id="description-help" class="muted">Plain text, up to 1,000 characters. Anyone who can see this file can read it. Leave it empty to remove it.</p>
+        <button class="btn small" type="submit">Save description</button>
+      </form>
+    </details>
+    {{end}}
+
     {{with .ReportForm}}{{template "report_form" .}}{{end}}
 
     {{if .CanDelete}}
     <section class="block">
-      <h2>Danger zone</h2>
-      {{if .File.OwnedBy .User.ID}}<p class="muted">Move this file to Trash for 30 days. It stops being shared immediately and still counts toward your storage until permanently deleted.</p>{{end}}
-      <form method="post" action="/f/{{.File.ID}}/delete">
+      {{if .File.OwnedBy .User.ID}}
+      <h2>Move to Trash</h2>
+      <p class="muted">Trash keeps this file for 30 days, and you can restore it until then. It stops being shared straight away and still counts toward your storage.</p>
+      {{else}}
+      <h2>Delete file</h2>
+      <p class="muted">This permanently deletes someone else's file. It can't be undone.</p>
+      {{end}}
+      <form method="post" action="/f/{{.File.ID}}/delete"{{if not (.File.OwnedBy .User.ID)}} data-confirm="Permanently delete this file?" data-confirm-detail="It can't be undone." data-confirm-action="Delete"{{end}}>
         <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
         <input type="hidden" name="next" value="/gallery">
         <button class="btn danger" type="submit">{{if .File.OwnedBy .User.ID}}Move to Trash{{else}}Permanently delete{{end}}</button>

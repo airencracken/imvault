@@ -44,22 +44,15 @@ run `imvault rebuild-thumbnails --videos-only`; see
 Photos often carry the camera, the date and the coordinates where they were
 taken. On a phone photo, that is often a home address.
 
-Every upload and album has two sharing settings. **EXIF** covers camera, date,
-exposure, attribution and other non-location fields. **Location** covers GPS
-coordinates, altitude, the map and its link.
+Every file has two choices, on its page under **Edit**:
 
-| Setting | EXIF | Location |
-| --- | --- | --- |
-| Default | **Follow visibility**: hidden on public files, shown on members-only and private files | **Follow EXIF**: same as the EXIF choice |
-| **Shown** | Share non-location EXIF | Share GPS |
-| **Hidden** | Hide non-location EXIF | Hide GPS |
+- **Camera details**: camera, date, exposure, attribution and other non-location
+  fields.
+- **Location**: GPS coordinates, altitude, the map and its link.
 
-To share camera settings without coordinates, choose EXIF **Shown** and Location
-**Hidden**. Swap them to show where a photo was taken without the camera details.
-
-**Albums can only hide more.** Each setting is checked against the file and
-every album it is in. An album set to **Shown** cannot reveal what the file or
-another album hides.
+Both start hidden on public uploads and shown on members-only and private ones.
+Making a file public hides both again; show them afterwards if you want to.
+Albums do not change either choice.
 
 ### What is removed
 
@@ -86,8 +79,8 @@ Clips lose all container metadata when either setting is hidden.
 
 On an instance without ffmpeg, clips cannot be cleaned, and neither can formats
 missing from the table. Imvault then **withholds the file** from anyone who should
-not see its metadata, and the page explains why. To serve it anyway, set both the
-file's EXIF and Location to **Shown**.
+not see its metadata, and the page explains why. To serve it anyway, show both
+camera details and location on the file's page.
 
 ### What the page shows
 
@@ -97,11 +90,11 @@ opened after an upgrade.
 
 Coordinates and the map link sit in a **Location** section. Camera settings sit
 in a collapsed **Photo details** section. If a photo has no readable GPS, the
-owner sees why. If settings hide the location, viewers are told it is hidden.
+owner sees why. If the location is hidden, viewers are told so.
 
 The owner and administrators always see every detail on the page. Other viewers
-see each category only when its setting allows. Hidden EXIF also hides the
-camera and date on the page.
+see each one only when it is shown. Hidden camera details also hide the camera
+and date on the page.
 
 The owner's API returns every detail. Downloads follow the sharing settings,
 even for the owner. Account exports contain the untouched originals.

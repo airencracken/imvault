@@ -26,7 +26,8 @@ Tick the checkboxes on gallery cards, then use **Organize selected photos**:
 - **Add to album** keeps other album memberships. You can pick your own albums
   and shared albums you contribute to. Adding never changes a file's visibility.
 - **Change sharing** sets every selected file to public, members-only or private.
-  Existing links follow the new setting. EXIF and location settings still apply.
+  Existing links follow the new setting. Making files public hides their camera
+  details and location.
 
 Selection covers the current page. With JavaScript you also get **Select all on
 this page**, **Clear selection** and a count. Everything else works without it.

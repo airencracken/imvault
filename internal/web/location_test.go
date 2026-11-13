@@ -31,15 +31,22 @@ func TestIndependentLocationPagesDownloadsAndDedup(t *testing.T) {
 		camera, gps    bool
 	}{
 		{"shown", "hidden", true, false}, {"hidden", "shown", false, true},
-		{"hidden", "inherit", false, false}, {"shown", "inherit", true, true},
+		{"", "", false, false}, {"shown", "", true, false}, {"true", "1", true, true},
 	} {
 		t.Run(choice.exif+"/"+choice.location, func(t *testing.T) {
-			resp, raw := h.apiUpload(key, map[string]string{"visibility": "public", "metadata": choice.exif, "location": choice.location}, map[string][]byte{"photo.jpg": original})
+			fields := map[string]string{"visibility": "public"}
+			if choice.exif != "" {
+				fields["metadata"] = choice.exif
+			}
+			if choice.location != "" {
+				fields["location"] = choice.location
+			}
+			resp, raw := h.apiUpload(key, fields, map[string][]byte{"photo.jpg": original})
 			if resp.StatusCode != http.StatusCreated {
 				t.Fatalf("upload: %d %s", resp.StatusCode, raw)
 			}
 			file := decodeUpload(t, raw).Files[0]
-			if file.Location != choice.location || file.Details.Location() == "" {
+			if file.Location != models.ShownWord(choice.gps) || file.Metadata != models.ShownWord(choice.camera) || file.Details.Location() == "" {
 				t.Fatalf("upload contract: %+v", file)
 			}
 			for _, viewer := range []*session{guest, member, owner} {
@@ -72,24 +79,37 @@ func TestLocationAPIValidationAndAtomicity(t *testing.T) {
 	key := h.seedKey(u.ID, "test", nil)
 	id := h.uploadOne(key, "photo.png", 20, 20)
 	path := "/api/v1/files/" + id
-	for _, invalid := range []any{"", "public", nil, true, 42, []string{"hidden"}, map[string]string{"policy": "hidden"}, "shown\x00", "<script>"} {
-		resp, raw := h.apiJSON(http.MethodPatch, path, key, map[string]any{"location": invalid, "description": "must not save"})
-		if resp.StatusCode != http.StatusBadRequest {
-			t.Fatalf("invalid %v: %d %s", invalid, resp.StatusCode, raw)
-		}
-		f, err := h.store.FileByID(t.Context(), id)
-		if err != nil || f.Description != "" || f.Location != models.MetadataInherit {
-			t.Fatal("invalid update partly saved")
+	before, err := h.store.FileByID(t.Context(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range []string{"location", "metadata"} {
+		for _, invalid := range []any{"", "public", "inherit", nil, 42, []string{"hidden"}, map[string]string{"policy": "hidden"}, "shown\x00", "<script>", strings.Repeat("shown", 1000)} {
+			resp, raw := h.apiJSON(http.MethodPatch, path, key, map[string]any{field: invalid, "description": "must not save", "visibility": "public"})
+			if resp.StatusCode != http.StatusBadRequest {
+				t.Fatalf("invalid %s %v: %d %s", field, invalid, resp.StatusCode, raw)
+			}
+			f, err := h.store.FileByID(t.Context(), id)
+			if err != nil || f.Description != "" || f.ShowLocation != before.ShowLocation || f.ShowCamera != before.ShowCamera || f.Visibility != before.Visibility {
+				t.Fatal("invalid update partly saved")
+			}
 		}
 	}
-	resp, raw := h.apiJSON(http.MethodPatch, path, key, map[string]any{"location": "shown"})
+	resp, raw := h.apiJSON(http.MethodPatch, path, key, map[string]any{"metadata": false, "location": true})
+	if err := json.Unmarshal(raw, new(apiFileJSON)); err != nil || resp.StatusCode != 200 {
+		t.Fatalf("JSON booleans: %d %s", resp.StatusCode, raw)
+	}
+	if f, _ := h.store.FileByID(t.Context(), id); f.ShowCamera || !f.ShowLocation {
+		t.Fatal("JSON booleans not applied")
+	}
+	resp, raw = h.apiJSON(http.MethodPatch, path, key, map[string]any{"location": "shown"})
 	var updated apiFileJSON
 	if err := json.Unmarshal(raw, &updated); err != nil || resp.StatusCode != 200 || updated.Location != "shown" {
 		t.Fatalf("patch location: %d %s", resp.StatusCode, raw)
 	}
 	h.apiJSON(http.MethodPatch, path, key, map[string]any{"description": "retained"})
 	f, _ := h.store.FileByID(t.Context(), id)
-	if f.Location != models.MetadataShown {
+	if !f.ShowLocation {
 		t.Fatal("omitted location reset")
 	}
 	resp, _ = h.apiJSON(http.MethodPatch, path, h.seedKey(h.seedUser("bob").ID, "test", nil), map[string]any{"location": "hidden"})
@@ -100,19 +120,23 @@ func TestLocationAPIValidationAndAtomicity(t *testing.T) {
 	if resp.StatusCode != 400 {
 		t.Fatal("upload accepted invalid location")
 	}
-	resp, raw = h.apiJSON(http.MethodPost, "/api/v1/albums", key, map[string]any{"title": "Trip", "metadata": "hidden", "location": "shown"})
-	album := decodeAlbum(t, raw)
-	if resp.StatusCode != 201 || album.Location != "shown" {
-		t.Fatalf("album contract: %d %s", resp.StatusCode, raw)
+	// Albums no longer carry sharing settings, and say so instead of
+	// silently ignoring a request to hide something.
+	for _, field := range []string{"metadata", "location"} {
+		resp, raw = h.apiJSON(http.MethodPost, "/api/v1/albums", key, map[string]any{"title": "Refused", field: "hidden"})
+		if resp.StatusCode != 400 || !strings.Contains(string(raw), "set them on each file") {
+			t.Fatalf("album %s accepted: %d %s", field, resp.StatusCode, raw)
+		}
 	}
-	resp, raw = h.apiJSON(http.MethodPatch, "/api/v1/albums/"+album.Slug, key, map[string]any{"description": "new"})
-	if resp.StatusCode != 200 || decodeAlbum(t, raw).Location != "shown" {
-		t.Fatal("album omitted location reset")
+	resp, raw = h.apiJSON(http.MethodPost, "/api/v1/albums", key, map[string]any{"title": "Trip"})
+	album := decodeAlbum(t, raw)
+	if resp.StatusCode != 201 || strings.Contains(string(raw), `"location"`) || strings.Contains(string(raw), `"metadata"`) {
+		t.Fatalf("album contract: %d %s", resp.StatusCode, raw)
 	}
 	resp, _ = h.apiJSON(http.MethodPatch, "/api/v1/albums/"+album.Slug, key, map[string]any{"title": "must not save", "location": false})
 	persisted, _ := h.store.AlbumBySlug(t.Context(), album.Slug)
-	if resp.StatusCode != 400 || persisted.Title != "Trip" || persisted.Location != models.MetadataShown {
-		t.Fatal("invalid album partially saved")
+	if resp.StatusCode != 400 || persisted.Title != "Trip" {
+		t.Fatal("album update with a sharing field partially saved")
 	}
 }
 
@@ -148,20 +172,20 @@ func TestLocationRouteRequiresOwnerAndCSRF(t *testing.T) {
 		t.Fatalf("CSRF: %d", resp.StatusCode)
 	}
 	file, _ := h.store.FileByID(t.Context(), id)
-	if file.Location != models.MetadataShown {
+	if !file.ShowLocation {
 		t.Fatal("rejected request changed policy")
 	}
 }
 
-func TestLocationMapUsesLocationAndAlbumCeiling(t *testing.T) {
+func TestLocationMapUsesLocationAndPublicDefault(t *testing.T) {
 	var requested []string
-	h, boss, id := mapHarness(t, &requested, 200)
-	shown, hidden := models.MetadataShown, models.MetadataHidden
+	h, _, id := mapHarness(t, &requested, 200)
+	shown, hidden := true, false
 	for _, choice := range []struct {
-		exif, location models.MetadataPolicy
+		exif, location bool
 		status         int
 	}{{hidden, shown, 200}, {shown, hidden, 404}} {
-		if err := h.store.UpdateFile(t.Context(), id, store.FileUpdate{Metadata: &choice.exif, Location: &choice.location}); err != nil {
+		if err := h.store.UpdateFile(t.Context(), id, store.FileUpdate{ShowCamera: &choice.exif, ShowLocation: &choice.location}); err != nil {
 			t.Fatal(err)
 		}
 		status, _, _ := getWith(t, guestClient(), h.server.URL+"/f/"+id+"/map")
@@ -169,19 +193,17 @@ func TestLocationMapUsesLocationAndAlbumCeiling(t *testing.T) {
 			t.Fatalf("map = %d want %d", status, choice.status)
 		}
 	}
-	if err := h.store.UpdateFile(t.Context(), id, store.FileUpdate{Location: &shown}); err != nil {
+	// Making a closed file public hides its location again.
+	members, public := models.VisibilityMembers, models.VisibilityPublic
+	if err := h.store.UpdateFile(t.Context(), id, store.FileUpdate{Visibility: &members, ShowLocation: &shown}); err != nil {
 		t.Fatal(err)
 	}
-	a, err := h.store.CreateAlbum(t.Context(), boss.ID, store.AlbumInput{Title: "Trip", Metadata: shown, Location: hidden})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := h.store.AddFileToAlbum(t.Context(), a.ID, id); err != nil {
+	if err := h.store.SetFileVisibility(t.Context(), id, public); err != nil {
 		t.Fatal(err)
 	}
 	status, _, _ := getWith(t, guestClient(), h.server.URL+"/f/"+id+"/map")
 	if status != 404 {
-		t.Fatal("album restriction failed")
+		t.Fatal("making the file public left its location visible")
 	}
 	if len(requested) != 1 {
 		t.Fatalf("hidden location contacted provider: %v", requested)

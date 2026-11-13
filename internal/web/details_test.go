@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"imvault/internal/models"
-	"imvault/internal/store"
 )
 
 // storedDetails is what the upload path would have written, set directly here.
@@ -102,7 +101,7 @@ func TestAPublicPhotoHidesEXIFAndLocationByDefault(t *testing.T) {
 	}
 
 	// And the page says so, rather than looking like a file that never had any.
-	if !strings.Contains(page, "EXIF details are hidden") {
+	if !strings.Contains(page, "Camera details are hidden") {
 		t.Error("the page does not say that something is being withheld")
 	}
 }
@@ -115,6 +114,7 @@ func TestShowingMetadataShowsItToEverybodyWhoCanSeeTheFile(t *testing.T) {
 	id := uploadPlain(t, h, map[string]string{
 		"visibility": "public",
 		"metadata":   "shown",
+		"location":   "shown",
 	})
 	seedDetails(t, h, id, storedDetails)
 
@@ -123,44 +123,35 @@ func TestShowingMetadataShowsItToEverybodyWhoCanSeeTheFile(t *testing.T) {
 	if !strings.Contains(page, "51.50740, -0.12730") {
 		t.Error("a file set to show its metadata hid the location")
 	}
-	if strings.Contains(page, "EXIF details are hidden") {
+	if strings.Contains(page, "Camera details are hidden") {
 		t.Error("the page claims to be withholding something")
 	}
 }
 
-func TestAnAlbumCanHideWhatAFileWouldShow(t *testing.T) {
+func TestAnAlbumDoesNotChangeWhatAFileShares(t *testing.T) {
 	h := newHarness(t)
 	h.provisionAdmin("boss")
 	other := h.seedUser("other")
 
-	// A members-only file, which on its own would show everything to a member.
-	id := uploadPlain(t, h, map[string]string{"visibility": "members"})
+	id := uploadPlain(t, h, map[string]string{"visibility": "members", "location": "hidden"})
 	seedDetails(t, h, id, storedDetails)
-
-	viewer := h.sessionFor(t, other.ID)
-	if _, page := viewer.get("/f/" + id); !strings.Contains(page, "51.50740") {
-		t.Fatal("a members-only file did not show its location to a member")
-	}
-
 	h.sharedAlbum(t, "Trip", models.VisibilityMembers, models.AlbumAccessOwner)
 	trip, err := h.store.AlbumBySlug(t.Context(), "trip")
 	if err != nil {
-		t.Fatal(err)
-	}
-	if err := h.store.UpdateAlbum(t.Context(), trip.ID, store.AlbumInput{
-		Title:      "Trip",
-		Visibility: models.VisibilityMembers,
-		Access:     models.AlbumAccessOwner,
-		Metadata:   models.MetadataHidden,
-	}); err != nil {
 		t.Fatal(err)
 	}
 	if err := h.store.AddFileToAlbum(t.Context(), trip.ID, id); err != nil {
 		t.Fatal(err)
 	}
 
-	if _, page := viewer.get("/f/" + id); strings.Contains(page, "51.50740") {
-		t.Error("an album did not hide the location of a file in it")
+	viewer := h.sessionFor(t, other.ID)
+	_, page := viewer.get("/f/" + id)
+	if strings.Contains(page, "51.50740") || !strings.Contains(page, "TestCam One") {
+		t.Error("the file's own choices were not applied inside an album")
+	}
+	_, albumPage := viewer.get("/a/trip")
+	if strings.Contains(albumPage, "51.50740") {
+		t.Error("the album page disclosed a hidden location")
 	}
 }
 
@@ -242,7 +233,7 @@ func TestTheFamilySeesWhereThePhotographWasTaken(t *testing.T) {
 	if !strings.Contains(page, "51.50740, -0.12730") {
 		t.Error("the group was not shown where the photograph was taken")
 	}
-	if strings.Contains(page, "EXIF details are hidden") {
+	if strings.Contains(page, "Camera details are hidden") {
 		t.Error("the group is told something is withheld, and nothing is")
 	}
 

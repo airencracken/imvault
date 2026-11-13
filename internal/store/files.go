@@ -20,7 +20,7 @@ const fileColumns = `f.id, f.user_id, f.original_name, f.description, f.ext, f.m
 	f.width, f.height, f.rotation, f.sha256,
 	COALESCE(b.object_key, ''), COALESCE(b.thumb_key, ''), COALESCE(b.preview_key, ''),
 	COALESCE(b.details_json, ''), COALESCE(b.details_version, 0),
-	f.visibility, f.metadata, f.location, f.kind, f.duration_ms, f.frame_count, f.views, f.created_at, f.expires_at,
+	f.visibility, f.show_camera, f.show_location, f.kind, f.duration_ms, f.frame_count, f.views, f.created_at, f.expires_at,
 	COALESCE(u.username, ''), f.trashed_at, COALESCE(b.taken_at, '')`
 
 const fileFrom = `FROM files f
@@ -34,15 +34,13 @@ func scanFile(sc rowScanner) (*models.File, error) {
 		expires    sql.NullInt64
 		trashed    sql.NullInt64
 		visibility string
-		metadata   string
-		location   string
 		kind       string
 		created    int64
 	)
 	if err := sc.Scan(
 		&f.ID, &userID, &f.OriginalName, &f.Description, &f.Ext, &f.Mime, &f.Size,
 		&f.Width, &f.Height, &f.Rotation, &f.SHA256, &f.ObjectKey, &f.ThumbKey, &f.PreviewKey, &f.Details, &f.DetailsVersion,
-		&visibility, &metadata, &location, &kind, &f.DurationMS, &f.FrameCount, &f.Views, &created, &expires, &f.Username, &trashed, &f.TakenAt,
+		&visibility, &f.ShowCamera, &f.ShowLocation, &kind, &f.DurationMS, &f.FrameCount, &f.Views, &created, &expires, &f.Username, &trashed, &f.TakenAt,
 	); err != nil {
 		return nil, err
 	}
@@ -51,8 +49,6 @@ func scanFile(sc rowScanner) (*models.File, error) {
 		f.UserID = &id
 	}
 	f.Visibility = models.ParseVisibility(visibility)
-	f.Metadata = models.ParseMetadataPolicy(metadata)
-	f.Location = models.ParseMetadataPolicy(location)
 	f.Kind = models.ParseKind(kind)
 	f.CreatedAt = toTime(created)
 	f.ExpiresAt = timePtr(expires)
@@ -83,25 +79,17 @@ func (s *Store) CreateFileWithLimit(ctx context.Context, f *models.File, totalLi
 	if !f.Visibility.Valid() {
 		f.Visibility = models.VisibilityPrivate
 	}
-	if !f.Metadata.Valid() {
-		f.Metadata = models.MetadataInherit
-	}
-
-	if !f.Location.Valid() {
-		f.Location = models.MetadataInherit
-	}
-
 	// The blob has to exist first: the trigger that counts references fires on
 	// this insert and has nothing to update otherwise.
 	query := `
 		INSERT INTO files (
 			id, user_id, original_name, description, ext, mime, size, width, height, sha256,
-			visibility, metadata, location, kind, duration_ms, frame_count, views, created_at, expires_at
+			visibility, show_camera, show_location, kind, duration_ms, frame_count, views, created_at, expires_at
 		) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?`
 	args := []any{
 		f.ID, nullableInt64(f.UserID), f.OriginalName, f.Description, f.Ext, f.Mime, f.Size,
 		f.Width, f.Height, f.SHA256,
-		string(f.Visibility), string(f.Metadata), string(f.Location), kind, f.DurationMS, f.FrameCount, f.Views,
+		string(f.Visibility), f.ShowCamera, f.ShowLocation, kind, f.DurationMS, f.FrameCount, f.Views,
 		ts(f.CreatedAt), nullableTime(f.ExpiresAt),
 	}
 	if totalLimit > 0 {
@@ -381,25 +369,22 @@ func (s *Store) RenameFile(ctx context.Context, id, name string) error {
 	return nil
 }
 
-// SetFileMetadata changes what happens to a file's metadata.
-func (s *Store) SetFileMetadata(ctx context.Context, id string, policy models.MetadataPolicy) error {
-	if !policy.Valid() {
-		return fmt.Errorf("set file metadata: %q is not a setting", policy)
-	}
-	if _, err := s.db.ExecContext(ctx,
-		`UPDATE files SET metadata = ? WHERE id = ?`, string(policy), id); err != nil {
-		return fmt.Errorf("set file metadata: %w", err)
-	}
-	return nil
-}
+// hideSharingWhenPublic turns camera details and location off when an update
+// makes a closed file public. Both parameters are the new visibility. SQLite
+// evaluates it against the row as it was, so a file that was already public
+// keeps whatever its owner chose.
+const hideSharingWhenPublic = `show_camera = CASE WHEN ? = 'public' AND visibility <> 'public' THEN 0 ELSE show_camera END,
+	show_location = CASE WHEN ? = 'public' AND visibility <> 'public' THEN 0 ELSE show_location END`
 
-// SetFileVisibility changes which level a file is visible at.
+// SetFileVisibility changes which level a file is visible at. Making a file
+// public hides its camera details and location.
 func (s *Store) SetFileVisibility(ctx context.Context, id string, visibility models.Visibility) error {
 	if !visibility.Valid() {
 		return fmt.Errorf("set file visibility: %q is not a level", visibility)
 	}
 	if _, err := s.db.ExecContext(ctx,
-		`UPDATE files SET visibility = ? WHERE id = ?`, string(visibility), id); err != nil {
+		`UPDATE files SET `+hideSharingWhenPublic+`, visibility = ? WHERE id = ?`,
+		string(visibility), string(visibility), string(visibility), id); err != nil {
 		return fmt.Errorf("set file visibility: %w", err)
 	}
 	return nil

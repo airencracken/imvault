@@ -41,26 +41,21 @@
       <p class="muted">You can change this later on each file.</p>
     </fieldset>
 
-    <details class="comfy-disclosure"><summary>Camera details and location</summary>
-    <label>Camera details (EXIF)
-      <select name="metadata">
-        {{range .MetadataLevels}}
-        <option value="{{.}}" {{if eq . "inherit"}}selected{{end}}>{{.Label}} — {{.Explain}}</option>
-        {{end}}
-      </select>
-    </label>
-    <label>Location
-      <select name="location">
-        {{range .MetadataLevels}}
-        <option value="{{.}}" {{if eq . "inherit"}}selected{{end}}>{{.LocationLabel}} — {{.LocationExplain}}</option>
-        {{end}}
-      </select>
-    </label>
-    <p class="muted">
-      Share camera details and GPS location independently. Albums can hide
-      either category, but cannot reveal what you hide.
-    </p>
-    </details>
+    {{$shareByDefault := not .DefaultVisibility.IsPublic}}
+    <fieldset class="choices sharing-choices">
+      <legend>Camera details and location</legend>
+      <input type="hidden" name="metadata" value="hidden">
+      <label class="row">
+        <input type="checkbox" name="metadata" value="shown" data-off-when-public {{if $shareByDefault}}checked{{end}}>
+        <span>Show camera details, such as the camera and when the photo was taken</span>
+      </label>
+      <input type="hidden" name="location" value="hidden">
+      <label class="row">
+        <input type="checkbox" name="location" value="shown" data-off-when-public {{if $shareByDefault}}checked{{end}}>
+        <span>Show where the photo was taken</span>
+      </label>
+      <p class="muted">Both start off for public uploads. You always see them on your own files.</p>
+    </fieldset>
     {{else}}
     <p class="muted">
       Anonymous uploads are public, and are deleted when their window ends.

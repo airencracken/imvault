@@ -11,6 +11,7 @@ import (
 
 	"imvault/internal/config"
 	"imvault/internal/models"
+	"imvault/internal/store"
 )
 
 // getWith performs a request as a particular client and returns the status and
@@ -98,8 +99,9 @@ func TestTheLocationMapFollowsTheMetadataPolicy(t *testing.T) {
 		}
 	}
 
-	// Showing the metadata makes the location visible, and the map with it.
-	if err := h.store.SetFileMetadata(t.Context(), id, models.MetadataShown); err != nil {
+	// Showing the location makes the map visible.
+	shown := true
+	if err := h.store.UpdateFile(t.Context(), id, store.FileUpdate{ShowLocation: &shown}); err != nil {
 		t.Fatal(err)
 	}
 	status, _, _ = getWith(t, guestClient(), path)

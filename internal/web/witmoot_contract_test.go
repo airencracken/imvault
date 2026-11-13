@@ -227,8 +227,8 @@ func TestWitmootContractRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(stored.Metadata) != "hidden" {
-		t.Fatalf("metadata=hidden was not applied: %q", stored.Metadata)
+	if stored.ShowCamera {
+		t.Fatal("metadata=hidden was not applied")
 	}
 	requireLink(t, h.server.URL+stored.PreviewURL(), id, "preview", true)
 

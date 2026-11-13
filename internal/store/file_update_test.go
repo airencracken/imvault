@@ -18,14 +18,14 @@ func TestFileUpdateFailureDoesNotPartiallyChangeVisibility(t *testing.T) {
 		BEGIN SELECT RAISE(ABORT, 'simulated write failure'); END`); err != nil {
 		t.Fatal(err)
 	}
-	visibility, metadata, description := models.VisibilityPublic, models.MetadataHidden, "rejected"
+	visibility, camera, description := models.VisibilityPublic, true, "rejected"
 	if err := s.UpdateFile(ctx, file.ID, FileUpdate{
-		Visibility: &visibility, Metadata: &metadata, Description: &description,
+		Visibility: &visibility, ShowCamera: &camera, Description: &description,
 	}); err == nil {
 		t.Fatal("write failure was not reported")
 	}
 	got, err := s.FileByID(ctx, file.ID)
-	if err != nil || got.Visibility != file.Visibility || got.Metadata != file.Metadata || got.Description != "" {
+	if err != nil || got.Visibility != file.Visibility || got.ShowCamera != file.ShowCamera || got.Description != "" {
 		t.Fatalf("failed update changed the file: %#v (%v)", got, err)
 	}
 	if _, err := s.db.ExecContext(ctx, `DROP TRIGGER reject_description`); err != nil {
@@ -35,7 +35,7 @@ func TestFileUpdateFailureDoesNotPartiallyChangeVisibility(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err = s.FileByID(ctx, file.ID)
-	if err != nil || got.Description != description || got.Visibility != file.Visibility || got.Metadata != file.Metadata {
+	if err != nil || got.Description != description || got.Visibility != file.Visibility || got.ShowCamera != file.ShowCamera {
 		t.Fatalf("description edit changed unrelated fields: %#v (%v)", got, err)
 	}
 }

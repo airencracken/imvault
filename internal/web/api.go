@@ -37,7 +37,8 @@ type apiFileJSON struct {
 	Public bool `json:"public"`
 	// Visibility is the level itself: public, members, or private.
 	Visibility string `json:"visibility"`
-	// Metadata controls non-location EXIF. Location controls GPS independently.
+	// Metadata is "shown" or "hidden" for camera details; Location is the same
+	// for GPS coordinates.
 	Metadata string `json:"metadata"`
 	Location string `json:"location"`
 	// Details is what the file says about itself. The API returns an account's
@@ -86,8 +87,8 @@ func newAPIFile(r *http.Request, s *Server, f *models.File) apiFileJSON {
 		Views:       f.Views,
 		Public:      f.Visibility.IsPublic(),
 		Visibility:  string(f.Visibility),
-		Metadata:    string(f.Metadata),
-		Location:    string(f.Location),
+		Metadata:    models.ShownWord(f.ShowCamera),
+		Location:    models.ShownWord(f.ShowLocation),
 		Details:     metadata.DecodeDetails(f.Details),
 		DurationMS:  f.DurationMS,
 		FrameCount:  f.FrameCount,
@@ -216,7 +217,7 @@ func (s *Server) apiUpload(w http.ResponseWriter, r *http.Request) {
 	// boolean, then the instance default. The default matters more than it
 	// looks: on an instance configured for members, a script that says nothing
 	// uploads for members rather than for the world.
-	if !validLocationForm(w, r) {
+	if !s.validSharingForm(w, r) {
 		return
 	}
 	options := s.uploadOptions(r, user)
@@ -332,14 +333,7 @@ func parseFileUpdate(params *params) (store.FileUpdate, error) {
 	if hasVisibility {
 		update.Visibility = &visibility
 	}
-	if raw := params.str("metadata"); raw != "" {
-		metadata := models.MetadataPolicy(strings.ToLower(strings.TrimSpace(raw)))
-		if !metadata.Valid() {
-			return update, fmt.Errorf("%q is not a metadata setting (use shown, inherit, or hidden)", raw)
-		}
-		update.Metadata = &metadata
-	}
-	update.Location, err = params.locationPolicy()
+	update.ShowCamera, update.ShowLocation, err = params.sharingChoices()
 	if err != nil {
 		return update, err
 	}
@@ -347,7 +341,7 @@ func parseFileUpdate(params *params) (store.FileUpdate, error) {
 	if err != nil {
 		return update, err
 	}
-	if update.Visibility == nil && update.Metadata == nil && update.Location == nil && update.Description == nil {
+	if update.Visibility == nil && update.ShowCamera == nil && update.ShowLocation == nil && update.Description == nil {
 		return update, errors.New("no supported fields were provided (supported: visibility, public, metadata, location, description)")
 	}
 	return update, nil

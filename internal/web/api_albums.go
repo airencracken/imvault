@@ -27,8 +27,6 @@ type apiAlbumJSON struct {
 	Access string `json:"access"`
 	// Metadata is the album's ceiling on metadata visibility: "shown",
 	// "inherit", or "hidden".
-	Metadata  string `json:"metadata"`
-	Location  string `json:"location"`
 	FileCount int    `json:"file_count"`
 	CreatedAt string `json:"created_at"`
 	PageURL   string `json:"page_url"`
@@ -49,8 +47,6 @@ func newAPIAlbum(r *http.Request, s *Server, a *models.Album) apiAlbumJSON {
 		Public:      a.Visibility.IsPublic(),
 		Visibility:  string(a.Visibility),
 		Access:      string(a.Access),
-		Metadata:    string(a.Metadata),
-		Location:    string(a.Location),
 		FileCount:   a.FileCount,
 		CreatedAt:   a.CreatedAt.UTC().Format(time.RFC3339),
 		PageURL:     s.absoluteURL(r, "/a/"+a.Slug),
@@ -118,8 +114,7 @@ func (s *Server) apiCreateAlbum(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	location, err := params.locationOr(models.MetadataInherit)
-	if err != nil {
+	if err := params.refuseAlbumSharing(); err != nil {
 		writeAPIError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -128,8 +123,6 @@ func (s *Server) apiCreateAlbum(w http.ResponseWriter, r *http.Request) {
 		Description: params.str("description"),
 		Visibility:  visibility,
 		Access:      access,
-		Metadata:    models.ParseMetadataPolicy(params.str("metadata")),
-		Location:    location,
 	})
 	if err != nil {
 		s.log.Error("api: create album", "error", err)
@@ -183,7 +176,7 @@ func (s *Server) apiGetAlbum(w http.ResponseWriter, r *http.Request) {
 		if !canChangeFile(user, f) {
 			// What a file says about itself follows the same policy as the
 			// page and the bytes when it is somebody else's.
-			exifShown, locationShown := s.detailsVisibility(r.Context(), f, user)
+			exifShown, locationShown := detailsVisibility(f, user)
 			entry.Details = withholdDetails(entry.Details, exifShown, locationShown)
 		}
 		out = append(out, entry)
@@ -243,18 +236,7 @@ func (s *Server) apiPatchAlbum(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	metadata := album.Metadata
-	if raw := params.str("metadata"); raw != "" {
-		metadata = models.MetadataPolicy(strings.ToLower(strings.TrimSpace(raw)))
-		if !metadata.Valid() {
-			writeAPIError(w, http.StatusBadRequest,
-				fmt.Sprintf("%q is not a metadata setting (use shown, inherit, or hidden)", raw))
-			return
-		}
-	}
-
-	location, err := params.locationOr(album.Location)
-	if err != nil {
+	if err := params.refuseAlbumSharing(); err != nil {
 		writeAPIError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -263,8 +245,6 @@ func (s *Server) apiPatchAlbum(w http.ResponseWriter, r *http.Request) {
 		Description: description,
 		Visibility:  visibility,
 		Access:      access,
-		Metadata:    metadata,
-		Location:    location,
 	}); err != nil {
 		s.log.Error("api: update album", "album", album.ID, "error", err)
 		writeAPIError(w, http.StatusInternalServerError, "could not update the album")
