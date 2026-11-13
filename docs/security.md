@@ -1,301 +1,191 @@
 # Security
 
-What Imvault does to protect an instance, and what it does not. The second list
-is the more useful one.
+What Imvault protects, and what it leaves to you. Read
+[What is not defended against](#what-is-not-defended-against) first.
 
 ## Credentials are stored as digests
 
-Nothing that can be presented as a credential is stored in a form that would be
-usable if the database leaked.
-
-| Thing | Stored as |
+| Credential | Stored as |
 | --- | --- |
 | Passwords | bcrypt |
 | Session tokens | SHA-256 digest of a 256-bit random token |
-| API keys | SHA-256 digest, looked up by an indexed public prefix |
+| API keys | SHA-256 digest, found by a public prefix |
 | Password reset and email confirmation tokens | SHA-256 digest |
 | Recovery codes | SHA-256 digest |
-| **TOTP secrets** | **Encrypted, not hashed** |
+| **TOTP secrets** | **AES-GCM encrypted** |
 
-The account export is built from purpose-written types rather than the model
-structs, so a field added to a model cannot silently become a downloadable
-credential. A test checks the archive for the password hash, the TOTP secret,
-and API key internals.
+Imvault must read a TOTP secret back to check a code, so it encrypts the secret
+with a key in `secret.key` beside the database. A stolen database alone yields
+no usable second factors. Back up the key with the database; without it, every
+account with two-factor needs a recovery code or an administrator. Set
+`IMVAULT_SECRET_KEY` to supply the key from your own secret store. See
+[Operations](operations.md).
 
-The last one is the exception, and it has to be: a TOTP secret must be readable
-again in order to check a code, so it cannot be a one-way digest. It is
-encrypted with AES-GCM under a key kept in `secret.key` beside the database, so
-a leak of the database alone does not yield usable second factors. Back up that
-key with the database, or see [Operations](operations.md) for what happens if
-you do not.
-
-A fast hash is right for the tokens and recovery codes and wrong for passwords.
-The tokens are long and random, so there is nothing to guess and lookup has to
-stay cheap; passwords are neither, so they get bcrypt.
+Account exports never include password hashes, TOTP secrets or API keys.
 
 ## Two-factor authentication
 
-Any TOTP app works. Ten single-use recovery codes are issued at enrolment and
-shown once.
+- **Codes cannot be replayed.** A code seen over a shoulder is useless for the
+  rest of its window.
+- **Removing two-factor takes both factors.** Turning it off, or reissuing
+  recovery codes, asks for the password and a current code.
+- **The code prompt lasts five minutes.** A correct password starts it, and a
+  mistyped code can be retried within that time.
+- **Every way in asks for the code.** Password resets and provider sign-ins
+  reach the same prompt before a session starts.
+- **Turning two-factor on signs out other sessions.**
+- **Only administrators can clear a second factor**, from `/admin/users`.
 
-- **Codes cannot be replayed.** The last accepted time step is recorded, so a
-  code seen over a shoulder is not usable for the rest of its window.
-- **Removing the second factor needs both factors.** Disabling it, or reissuing
-  recovery codes, asks for the password *and* a current code. Otherwise a
-  borrowed session would be enough to strip the protection off an account.
-- **The sign-in second step is authorised by a token, not by state alone.** A
-  correct password mints a five-minute token that the code prompt presents. It
-  is spent only on success, so a mistyped code can be retried without starting
-  over.
-- **An administrator can clear a second factor** from `/admin/users`. This is
-  the way back in for somebody who has lost both their app and their recovery
-  codes, and it is why it is administrator-only.
-- **Recovery and provider sign-in still need the factor.** Resetting a password
-  or authenticating through OpenID Connect starts the same code prompt before a
-  session is granted. Password changes revoke older sessions, reset links, and
-  pending sign-ins atomically.
+A password change revokes older sessions, reset links and pending sign-ins.
 
 ## Cross-site request forgery
 
-Every mutating request that is authenticated by a cookie must present a
-token, either as the `X-CSRF-Token` header (which htmx sends automatically) or
-as a form field. For a signed-in browser the token is derived from its session,
-so a cookie planted by a neighbouring subdomain, or a token from before signing
-in, is refused. A signed-out browser uses a double-submit cookie, which is what
-keeps another site from submitting the sign-in form. A multipart form must put
-its token first: only the first part is read to find it, so a request with no
-token never has its upload read.
+Every request that changes something and uses a cookie must carry a CSRF token,
+in the `X-CSRF-Token` header (htmx sends it) or a `csrf_token` form field. In a
+multipart form, the token must be the first field; Imvault reads no upload
+without it. Signed-in tokens are tied to the session. Signed-out forms, such as
+sign-in, use a double-submit cookie.
 
-Turning on two-factor authentication ends every other session and continues in
-a fresh one, since none of the earlier sessions was ever asked for a code.
+`/api/v1/...` endpoints are exempt. They accept only bearer keys, which a
+browser never attaches on its own.
 
-Messages shown after a redirect ("Album saved.") travel in the address and are
-signed; an unsigned or altered one is not shown, so a link cannot make a page
-of this site announce something it did not say.
+Status messages after a redirect ("Album saved.") are signed, so a crafted link
+cannot put words in the site's mouth.
 
-The `/api/v1/...` endpoints are exempt, and that is deliberate: they are never
-authenticated by a cookie. A bearer token is not ambient authority, so a
-cross-site request cannot make a browser attach one.
+## Cookies and headers
 
-Cookies are `HttpOnly` and `SameSite=Lax`, and `Secure` when
+Cookies are `HttpOnly` and `SameSite=Lax`. They are `Secure` when
 `IMVAULT_SECURE_COOKIES` is set, or when a proxy listed in
-`IMVAULT_TRUSTED_PROXIES` reports `X-Forwarded-Proto: https`. **That
-matters behind TLS**: without it a cookie can be read off a plaintext
-connection.
+`IMVAULT_TRUSTED_PROXIES` reports `X-Forwarded-Proto: https`. Turn this on
+behind TLS.
 
-A `Secure` session or CSRF cookie is named with the `__Host-` prefix
-(`__Host-imvault_session`, `__Host-imvault_csrf`), and has `Path=/` and no
-`Domain`. Browsers then refuse to let a sibling subdomain, or a page on the
-same host served over plain HTTP, set or overwrite it, which closes the usual
-way of planting a session or token. Over plain HTTP, as in local development,
-the cookies keep their bare names, since a browser will not store a `__Host-`
-cookie without `Secure`. The server reads only the name for the request's own
-mode: a bare cookie on an HTTPS request is ignored.
+Secure session and CSRF cookies use the `__Host-` prefix
+(`__Host-imvault_session`, `__Host-imvault_csrf`), so a sibling subdomain or a
+plain-HTTP page cannot set them. Over plain HTTP, as in local development, they
+use bare names, and HTTPS requests ignore bare names.
 
-Every response carries `X-Content-Type-Options: nosniff`,
-`X-Frame-Options: DENY`, `Content-Security-Policy: frame-ancestors 'none'` and
-`Referrer-Policy: same-origin`, so uploads are served as the type they were
-checked to be and no page can be framed by another site.
+Every response sends `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+`Content-Security-Policy: frame-ancestors 'none'` and
+`Referrer-Policy: same-origin`. Uploads are served as the type Imvault checked,
+and no other site can frame a page.
 
-Links that leave the server by email (password resets, address confirmations)
-are always built from `IMVAULT_BASE_URL`, never from the request's `Host`
-header, which the sender of a request controls.
+Links in email use `IMVAULT_BASE_URL`, never the request's `Host` header.
 
 ## Who can see what
 
-Visibility has three levels, and they are applied by a single predicate in the
-store so that a listing can never disagree with the route that serves the bytes:
-
 | Level | Who can see it |
 | --- | --- |
-| **Public** | Anybody, signed in or not, with the link or browsing |
-| **Members** | Any signed-in account, plus anybody the public level allows |
-| **Private** | Its owner, administrators and moderators |
+| **Public** | Anybody, signed in or not |
+| **Members** | Any signed-in account |
+| **Private** | The owner, administrators and moderators |
 
-Anonymous uploads are always public. With no owner and no session there is
-nobody a closed level could be scoped to, and the share link handed back to the
-uploader would not open for them otherwise. They keep their retention window,
-which is the thing that limits them instead.
+Listings and file downloads use the same check. Anonymous uploads are always
+public and expire after the retention window. Non-public files are sent with
+`Cache-Control: private`, so shared caches do not keep them.
 
-A members-level file is marked `Cache-Control: private`, so a shared cache
-cannot hold it and hand it to a stranger.
+An album's `access` setting decides who can add files to it. Contributors can
+add and remove only their own uploads. Only the album owner or an administrator
+can remove someone else's file from an album.
 
-Albums have their own visibility, and separately an `access` level saying who may
-add files: the owner, or anybody on the instance. That widens who may add, never
-whose files may be added — a contributor can only ever add their own uploads,
-which they can already see, and can only take their own back. Removing somebody
-else's file from an album is the owner's, and an administrator's, alone.
+Missing files, other people's private files and unknown IDs all return the same
+`404`, in the web pages and the API. Tags appear only for files you can see.
 
-Unknown ids, other people's private files, and files that never existed all
-produce the same `404`. The API does the same for other accounts' resources, so
-it cannot be used to discover what exists.
+## Roles
 
-Tags follow the file they label. The tag index and its counts are computed over
-the files you can see, so a tag that only labels somebody else's private upload
-never appears, and resolving it looks exactly like a tag that does not exist.
-
-## Roles, and what they may change
-
-Three roles exist, and the difference between the middle two is a deliberate
-boundary rather than a matter of degree:
-
-| Role | Sees | May remove | May change visibility or sharing |
+| Role | Sees | Can remove | Can change visibility or sharing |
 | --- | --- | --- | --- |
-| Member | Its own, plus everything public or shared with members | Its own | Its own |
+| Member | Their own, plus public and members-only content | Their own | Their own |
 | Moderator | Everything | Anybody's | Nobody's |
 | Administrator | Everything | Anybody's | Anybody's |
 
-A moderator can see private content because judging something you are not
-allowed to look at is not possible, and can remove it because that is the point
-of the role. What a moderator cannot do is *republish* it: changing a file's
-visibility, or an album's visibility and sharing, is the owner's and the
-administrator's. A moderator who could make a private upload public would be an
-escalation rather than a safeguard.
-
-That is also why moderation and administration are separate roles. A moderator
-cannot reach the account list, instance settings, or the mail queue, and cannot
-change anybody's role. Otherwise "come and help me deal with this spam" would
-be a way to take the instance.
+Moderators cannot reach accounts, instance settings, the mail queue or roles, so
+a moderator cannot promote themselves. See [Accounts](accounts.md#roles).
 
 ## Reports and the audit trail
 
-A signed-in member can report a file or an album that is not theirs. The report
-carries the reason they chose and a free-text note, and it is visible only to
-moderators and administrators.
-
-Two things are worth knowing about the record:
-
-- **A report is evidence, and it outlives the account that raised it.** Deleting
-  the reporter's account clears the reference to it and keeps the name, so the
-  queue does not turn into a list of numbers.
-- **Removals are attributed the same way.** Every removal of somebody else's
-  content writes an entry naming the actor, the action, the target, and the
-  reason, with the actor's and the target's names snapshotted at the time.
-  Deleting the moderator's account or the content itself does not erase the
-  entry.
-
-An owner removing their own upload is not recorded. That is housekeeping, not
-moderation, and logging it would bury the entries that matter.
+Only moderators and administrators see reports. A report keeps the reporter's
+name after their account is deleted. Every removal of someone else's content is
+logged with the actor, action, target and reason, using the names as they were
+at the time. See [Accounts](accounts.md#reports-and-the-moderation-log).
 
 ## Signing in through a provider
 
-An identity provider is trusted for exactly one thing: that whoever is at the
-other end controls a given account there. Everything else about the sign-in is
-decided here.
+Imvault trusts an OpenID Connect provider for one thing: that the person
+controls an account there. The provider's subject identifies the link. An email
+address links an existing account only once, on first sign-in, and only when
+the provider reports it verified and exactly one local account has confirmed it.
+A first sign-in still follows the registration policy, including invitation
+codes.
 
-The subject a provider returns is what identifies somebody, and it is what the
-link is keyed on. An email address is used once, when a first sign-in has to
-find an existing account — and only when the provider says `email_verified`, and
-only when exactly one account here uses it. A provider that does not check
-addresses therefore cannot be used to claim an account, and an ambiguous address
-is refused rather than guessed at.
-
-A provider is not a way around the instance's registration policy either: a
-first sign-in by an unknown person still has to satisfy whatever the instance
-requires, including an invitation code on an invitation-only instance.
-
-Accounts created this way are given a random password rather than an empty one,
-so there is no "no password" state for a later code path to misread as "any
-password".
+Accounts created through a provider get a random password, never an empty one.
 
 ## Photograph metadata
 
-Coordinates are the most commonly leaked personal data in a photo, and they are
-not in the picture: they are in the file, next to it. Every upload carries a
-separate EXIF and location settings, and so does every album. EXIF defaults to
-following visibility; location defaults to following EXIF. Albums can restrict
-each category independently.
+Photos can carry camera details and GPS coordinates. Owners choose what other
+people see; [Media handling](media.md#metadata) explains the settings.
 
-It is described in full under [Media handling](media.md#metadata). The part that
-belongs here is the failure mode. When metadata cannot be removed — a clip on an
-instance without ffmpeg, or a format whose metadata is intrinsic to it — the file
-is **not served** to an audience that asked for it to be hidden. It is never
-served quietly while claiming otherwise, because a page that looks clean while
-the bytes are not is worse than an error.
+When Imvault cannot strip metadata from a file, such as a clip on a server
+without ffmpeg, it withholds the file from anyone who should not see that
+metadata. It never serves the original while the page claims it is clean.
 
-The account export is the exception, and deliberately so: it is the owner's own
-data going to the owner, so it contains the original. So is the API, which only
-ever returns an account's own files to that account, and so is the file page for
-the owner and for administrators — a setting decides what *other people* are
-told, and the person who made the choice should still be able to see what is
-theirs.
-
-What the page shows is described under [Media
-handling](media.md#what-the-page-shows).
+The owner and administrators always get the original: on the file page, in the
+account export, and through the owner's API key.
 
 ## Rate limiting
 
-Two budgets, both in memory, both keyed so that one client cannot exhaust
-another's:
+Two in-memory budgets:
 
-- **Sign-in**, by client address. This covers the password step and the code
-  prompt together, which matters because a six-digit code is small enough that
-  unlimited guesses would eventually find one. Registration, password reset
-  requests and redemptions, provider registration, and the current-password
-  checks in the settings pages share the same budget. A reset request answers
-  before any mail is sent, so its timing does not reveal whether the account
-  exists.
-- **Uploads**, by account when signed in and by client address for anonymous
-  uploads.
+- **Sign-in**, per client address. It covers the password step, the two-factor
+  prompt, registration, password resets, provider registration and the
+  current-password checks in settings. A reset request answers before any mail
+  is sent, so timing does not reveal whether the account exists.
+- **Uploads**, per account, or per client address for anonymous uploads.
 
-Behind a reverse proxy, every request arrives from the proxy's address, so
-anonymous uploads would share one bucket. `IMVAULT_TRUSTED_PROXIES` names the
-proxies whose `X-Forwarded-For` is believed. Only a connection from one of them
-is looked at, and Imvault walks the header from the right, past further trusted
-proxies, to the first address that is not one: everything to its left came
-from the client. A hop that is not a plain IP address ends the walk at the
-peer. **List only proxies you control**, because those headers are otherwise
-client-supplied, and trusting them would let a caller sidestep the limit
-entirely. `X-Real-IP` is not read, and IPv6 clients are limited per /64.
+Behind a reverse proxy, list the proxy in `IMVAULT_TRUSTED_PROXIES` so Imvault
+reads the real client address from `X-Forwarded-For`. Imvault reads the header
+only on connections from listed proxies, walking from the right past other
+trusted proxies to the first untrusted address. **List only proxies you
+control**; anyone else can forge the header. `X-Real-IP` is ignored. IPv6
+clients share one budget per /64.
 
-Both limiters are per process. Several instances behind a load balancer each get
-their own budget.
+Each server process has its own budgets.
 
-## What the deployment does
+## Service hardening
 
-The systemd unit and the OpenRC script both run the service as an unprivileged
-account with no shell. The systemd unit additionally keeps everything but the
-data directory read-only, gives the service a private `/tmp` for the temporary
-copies ffmpeg makes, and drops the privileges that would let it load kernel
-modules, create device nodes, or change the clock.
+The systemd unit and OpenRC script run Imvault as an unprivileged account with no
+shell. The systemd unit also makes everything except the data directory
+read-only, gives the service a private `/tmp`, and blocks kernel module loading,
+device access and clock changes.
 
-`SystemCallFilter` is deliberately not set. Imvault shells out to ffmpeg for
-clip posters, and a filter that turned out to be too tight would break video
-silently rather than loudly. It is a reasonable addition once you have checked
-the journal for `EPERM` after an upload.
+The unit does not set `SystemCallFilter`, because Imvault runs ffmpeg for clip
+posters and a tight filter breaks video without a clear error. Add one after
+checking the journal for `EPERM` following an upload.
+
+For further confinement, see [Bubblewrap](sandbox.md).
 
 ## Uploaded content
 
-Every upload is validated by decoding it, not by trusting its extension or its
+Imvault decodes every upload to check it, ignoring the extension and
 `Content-Type`. Anything that is not a recognised image or clip is rejected.
-
-Decoding happens with limits: an image above 24 megapixels is refused before a
-pixel buffer is allocated, which is what stops a decompression bomb from
-exhausting memory. Animated GIFs are counted by walking the block structure
-rather than decoding every frame.
-
-Clips are probed with ffprobe, which is also how the duration limit is enforced.
-Without ffprobe the duration cannot be measured, and the size limit is the only
-one that applies.
+Images over 24 megapixels are refused before decoding, which stops
+decompression bombs. ffprobe measures clip duration; without it, only the size
+limit applies.
 
 ## What is not defended against
 
-Worth being explicit about:
-
-- **No WebAuthn or hardware keys.** TOTP only, so a phishing site that relays a
-  code within its window is not stopped by anything here.
-- **No encryption at rest for uploads.** The database and the objects are
-  readable by anyone with filesystem access. Use full-disk encryption if that
-  matters.
-- **No malware scanning.** Uploads are validated as images, which limits what
-  they can be, but nothing inspects their content.
-- **No per-account isolation of the process.** One instance is one trust
-  domain; every account shares the same binary and database.
-- **No audit log beyond the request log.** Administrative actions are logged
-  with an actor id, but there is no immutable trail.
+- **No WebAuthn or hardware keys.** A phishing site that relays a TOTP code in
+  time gets in.
+- **No encryption at rest.** Anyone with filesystem access can read the
+  database and uploads. Use full-disk encryption if that matters.
+- **No malware scanning.** Uploads must decode as images or clips, but nothing
+  inspects their content.
+- **No isolation between accounts.** One instance is one trust domain, sharing
+  one process and one database.
+- **No tamper-proof audit trail.** The moderation log and request log record
+  actions with the actor, but nothing makes them immutable.
 
 ## Reporting a problem
 
-Open an issue at <https://github.com/airencracken/imvault/issues>. If it is
-something you would rather not put in public, say so in the issue without the
-details and a private channel can be arranged.
+Open an issue at <https://github.com/airencracken/imvault/issues>. If the
+details should stay private, say so in the issue without them, and we will
+arrange a private channel.

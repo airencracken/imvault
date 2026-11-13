@@ -1,34 +1,32 @@
 # Album discussions in Witmoot
 
-Set `IMVAULT_WITMOOT_URL=https://board.example.org` and
-`IMVAULT_BASE_URL=https://photos.example.org`, then restart. Both applications
-remain independent; there is no shared database, sign-in or automatic thread.
-The optional destination is validated without contacting it during startup.
+Operators: set `IMVAULT_WITMOOT_URL=https://board.example.org` and
+`IMVAULT_BASE_URL=https://photos.example.org`, then restart. Imvault does not
+contact Witmoot at startup. The two apps share no database or sign-in, and
+Imvault never creates a thread on its own.
 
-On an album page, signed-in readers can explicitly prepare a Witmoot draft.
-The handoff carries only the album link, without its title, cover, count,
-description or contents. Witmoot asks for a board or existing topic, shows that
-conversation's audience, and requires the ordinary explicit posting action.
-Sign in to Witmoot first or reopen the handoff after signing in.
-The album's own visibility and each file's access rules remain authoritative.
+## Starting a discussion
 
-An album owner can save or remove an existing discussion link. Only readers
-allowed to see the album see those links. Album deletion deletes its discussion
-references but leaves Witmoot threads and album files untouched. No references
-are resolved server-side, and a Witmoot outage never affects album viewing.
+When signed in, choose **Prepare a Witmoot discussion** on an album page.
+Imvault sends only the album link: no title, cover, count, description or files.
+In Witmoot, pick a board or an existing topic, check who can read it, and post
+as usual. Sign in to Witmoot first, or reopen the draft after signing in.
 
-Witmoot's optional imvault connection can request a current public album preview
-using `GET /api/v1/albums/{ref}/preview`. This endpoint always requires bearer
-authentication and the existing owned-album check. It returns 404 for a private
-or members-only album, without title, counts, cover or descriptions. A public
-response contains title, slug, visibility, public image count and destination
-URL. Counts exclude private/member files, expired files and videos. There is
-no unauthenticated metadata endpoint and no copied album contents. Witmoot checks
-local post access before requesting it and discards nonpublic responses.
+People still need permission to see the album and each file in it.
 
-Schema migration `030_album_discussions.sql` adds the link table only. Stop the
-service and back up the complete data directory before running the existing
-`imvault migrate` workflow. Restoring an old backup permits downgrading; opening
-a migrated database with an old binary does not. Existing album APIs are unchanged.
-Publish Comfylib v0.1.1 (including `reference`), resolve verified module checksums,
-and run clean release checks with GOWORK disabled before publishing this version.
+## Discussion links
+
+Album owners can paste an existing discussion address under **Album
+discussions** and choose **Link discussion**, or choose **Remove link**. Only
+people who can see the album see the links. Deleting an album deletes its links
+but leaves the Witmoot threads and the files alone. A Witmoot outage never
+affects the album.
+
+## Album previews for Witmoot
+
+Witmoot can fetch a preview of an album with
+`GET /api/v1/albums/{ref}/preview`, using the album owner's API key. A public
+album returns its title, slug, visibility, public image count and address. The
+count leaves out private, members-only and expired files, and videos. Private
+and members-only albums return 404 with no details. Witmoot checks who can read
+the post before fetching, and discards anything that is not public.

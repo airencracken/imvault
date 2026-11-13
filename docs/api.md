@@ -1,9 +1,10 @@
 # API
 
-The programmatic API, for scripts and upload tools.
+Use the API to upload and organise your own files from scripts and tools such
+as ShareX.
 
-Create a key under **API** in the navigation. It is displayed once and stored
-only as a digest, so it cannot be recovered — revoke and re-create if lost.
+Create a key under **API keys** in your account settings. It is shown once; if
+you lose it, revoke it and create another.
 
 ```bash
 export IMVAULT_KEY="imv_lxy8k3m9q0ab_2f8c1d9e4a7b6c0d3e5f8192a4b6c8d0"
@@ -14,16 +15,18 @@ curl -H "Authorization: Bearer $IMVAULT_KEY" https://img.example.com/api/v1/me
 # Upload
 curl -H "Authorization: Bearer $IMVAULT_KEY" \
      -F "files=@photo.jpg" \
-     -F "public=1" \
+     -F "visibility=public" \
      https://img.example.com/api/v1/upload
 ```
 
 `X-API-Key: <key>` works anywhere `Authorization: Bearer` does.
 
-Keys authenticate `/api/v1/...` and media downloads (`GET`/`HEAD` on
-`/f/{id}/raw`, `/thumb`, and `/preview`). Account settings and administration
-require a browser session. Non-upload request bodies are limited to 1 MiB;
-multipart uploads use the configured upload limits.
+A key acts as its account. It works for `/api/v1/...` and for media downloads
+(`GET` and `HEAD` on `/f/{id}/raw`, `/thumb` and `/preview`). Account settings
+and administration need a browser session. Request bodies other than uploads
+are limited to 1 MiB; uploads use the instance's upload limits.
+
+Write endpoints accept JSON or ordinary form encoding.
 
 **Upload options** (multipart form fields)
 
@@ -43,28 +46,19 @@ itself — `taken`, `camera`, `lens`, `exposure`, `aperture`, `iso`, `focal`,
 `longitude`, and `altitude`. It is omitted when there is nothing to report. The
 API is not masked: it returns an account's own files to that account.
 
-**Visibility has three levels**, not two: `public` is anyone with the link,
-`members` is any signed-in account, and `private` is the uploader. An upload
-that names no level gets the instance default, which is what the upload form
-also preselects. Anonymous uploads are always public — there is no account to
-scope a closed level to, and the link handed back to the uploader would not open
-for them otherwise.
-
-The `public` field is kept as a synonym so existing clients, including the
-ShareX configuration below, keep working. Prefer `visibility`.
-
-An anonymous upload is the only chance to tag it, so the uploader form and this
-API both take tags at upload time. A signed-in account can tag its own uploads
-later; so can an administrator, including anonymous ones.
+Visibility is `public` (anyone with the link), `members` (any signed-in
+account) or `private` (you, plus administrators and moderators). An upload
+without a level gets the instance default. Anonymous uploads are always public.
+Prefer `visibility` over the older `public` field.
 
 **Response formats**
 
-- Default: JSON with `files[]` (id, name, description, mime, kind, dimensions, tags, `page_url`,
-  `raw_url`, `thumb_url`, `url`) and any per-file `errors[]`.
-- `?format=text`, or `Accept: text/plain`: one bare URL per line, which is what
-  ShareX-style custom uploaders expect.
+- Default: JSON with `files[]` (id, name, description, mime, kind, dimensions,
+  tags, `page_url`, `raw_url`, `thumb_url`, `url`) and any per-file `errors[]`.
+- `?format=text` or `Accept: text/plain`: one URL per line, for ShareX-style
+  uploaders.
 
-A ready-to-paste ShareX custom uploader configuration:
+A ShareX custom uploader:
 
 | Setting | Value |
 | --- | --- |
@@ -76,8 +70,8 @@ A ready-to-paste ShareX custom uploader configuration:
 
 ## File descriptions
 
-File JSON includes `description`, an empty string until one is added. After
-uploading, use `PATCH /api/v1/files/{id}` to set or clear it:
+File JSON includes `description`, empty until set. Set or clear it with
+`PATCH /api/v1/files/{id}`:
 
 ```bash
 curl -X PATCH -H "Authorization: Bearer $IMVAULT_KEY" \
@@ -112,26 +106,17 @@ page, download, and format behavior.
 
 ## Albums and tags
 
-Anonymous uploads' tags live in a shared namespace rather than an account's, and
-are addressed as `/tags/~/<slug>` in the web UI. Tag JSON reports an empty
-`username` for them.
+Address albums by slug or numeric ID. An album's `access` decides who can add
+their own files to it:
 
-Write endpoints accept **either JSON or ordinary form encoding**, so scripts and
-`curl` can both be comfortable. Albums can be addressed by **slug or numeric id**
-interchangeably.
-
-An album also has an `access` level, which is who may add their own files to it:
-
-| `access` | Who may add |
+| `access` | Who can add |
 | --- | --- |
-| `owner` | The creator, and administrators. The default |
+| `owner` | The creator and administrators (default) |
 | `members` | Any signed-in account that can see the album |
 
-Contributing only ever means adding **your own** files. An album decides who may
-add, never whose files may be added, so sharing an album is not a way to shuffle
-somebody else's uploads around. A contributor may also take back their own file;
-removing anybody else's stays with the album's owner. A shared album has to be
-visible to members, since one only its owner can see is not shared with anybody.
+Contributors add only their own files and can take them back out. Only the
+owner can remove someone else's file. A shared album must be visible to
+members.
 
 ```bash
 # Create an album
@@ -144,17 +129,17 @@ curl -H "Authorization: Bearer $IMVAULT_KEY" -H 'Content-Type: application/json'
      -d '{"title":"Raid Night","visibility":"members","access":"members"}' \
      https://img.example.com/api/v1/albums
 
-# Add uploads to it (and seed it at creation time with a "files" array)
+# Add uploads to it (or seed it at creation time with a "files" array)
 curl -H "Authorization: Bearer $IMVAULT_KEY" -H 'Content-Type: application/json' \
      -d '{"files":["abc123","def456"]}' \
      https://img.example.com/api/v1/albums/summer-2026/files
 
-# PATCH only touches the fields you send
+# PATCH changes only the fields you send
 curl -X PATCH -H "Authorization: Bearer $IMVAULT_KEY" \
      -H 'Content-Type: application/json' -d '{"visibility":"private"}' \
      https://img.example.com/api/v1/albums/summer-2026
 
-# Tag a file; the response is the file's resulting tag list
+# Tag a file; the response is the file's tag list
 curl -H "Authorization: Bearer $IMVAULT_KEY" -H 'Content-Type: application/json' \
      -d '{"name":"beach"}' \
      https://img.example.com/api/v1/files/abc123/tags
@@ -163,124 +148,125 @@ curl -H "Authorization: Bearer $IMVAULT_KEY" -H 'Content-Type: application/json'
 curl -X DELETE -H "Authorization: Bearer $IMVAULT_KEY" \
      https://img.example.com/api/v1/files/abc123/tags/beach
 
-# Add several tags to several files, preserving existing tags
+# Add several tags to several files, keeping existing tags
 curl -H "Authorization: Bearer $IMVAULT_KEY" -H 'Content-Type: application/json' \
      -d '{"files":["abc123","def456"],"tags":["Holiday","Family"]}' \
      https://img.example.com/api/v1/files/tags
 
 # Find things
 curl -H "Authorization: Bearer $IMVAULT_KEY" \
-     'https://img.example.com/api/v1/files?tag=beach&kind=image&public=1'
+     'https://img.example.com/api/v1/files?tag=beach&kind=image&visibility=public'
 ```
 
-`GET /api/v1/files` accepts `q`, `tag`, `album`, `visibility`, `public`, `kind`,
-`limit`, and `offset`. `kind` is one of `image`, `animated` or `video`.
-`visibility` takes an exact level; `public=0` means anything that is not public,
-which is what callers written against two levels meant by it.
+Bulk tagging takes 1 to 500 file IDs and 1 to 50 tag names of up to 48
+characters, as JSON arrays or repeated `files` and `tags` form fields. It
+returns `{"tagged":2}`, counting each selected file once, and is safe to
+repeat. Every file must be yours, even for administrators. Invalid input
+returns 400; a missing, expired or unowned file returns 404 and nothing
+changes.
 
-**Endpoints**
+Tags on anonymous uploads have an empty `username` in tag JSON, and live at
+`/tags/~/<slug>` in the web pages.
 
-Bulk tagging accepts 1–500 file IDs and 1–50 tag names (up to 48 characters
-each). Use JSON arrays or repeated `files` and `tags` form fields. Success returns
-`{"tagged":2}` with the number of distinct selected files, including files that
-already carried the tags. Repeating a request is safe. Every selected file must
-belong to the caller, including administrators. Invalid input returns 400;
-missing, expired, or unowned files return 404. Any failure leaves the entire
-batch unchanged.
+## Listing files
+
+`GET /api/v1/files` lists your uploads. It returns `files`, `total`, `limit` and
+`offset`, and accepts:
+
+| Parameter | Values |
+| --- | --- |
+| `q` | Search text |
+| `tag`, `album` | Filter by tag or album |
+| `visibility` | `public`, `members` or `private` |
+| `public` | Older filter: `1` for public, `0` for anything not public |
+| `kind` | `image`, `animated` or `video` |
+| `sort` | `uploaded` (default) or `taken`; newest first, undated files last for `taken` |
+| `year` | Camera year, `0001` to `9999`, or `unknown` |
+| `month` | `01` to `12`; needs a numeric `year` |
+| `limit`, `offset` | Paging; `limit` defaults to 50 |
+
+Invalid combinations return 400. Camera dates are wall-clock times with no
+assumed timezone, and missing dates are never filled with the upload time.
+
+## Library actions
+
+`POST /api/v1/library/album` adds `files` (an array of file IDs) to `album` (an
+album ID). To create an album and add the files in one step, send
+`"album":"new"` and an `album_title` of 1 to 120 characters. New albums are
+private. If anything fails, no album is created.
+
+`POST /api/v1/library/visibility` sets `visibility` (`public`, `members` or
+`private`) on `files`.
+
+Both return `{"updated": N}`, counting repeated IDs once. Every file must be
+yours, even for administrators, with at most 500 per request, and you must be
+allowed to add to the album. Adding to an album keeps each file's visibility
+and other albums. Invalid values return 400; an unavailable file or album
+returns 404. A failed request changes nothing.
+
+## Photo rotation
+
+File responses include `rotation` (clockwise degrees: 0, 90, 180 or 270) and
+`preview_url`. Thumbnails and previews show the rotation; `raw_url` always
+serves the original. When rotation is not 0, `/f/{id}/rotated` serves a
+full-resolution rotated PNG without metadata, under the file's usual access
+rules. Account exports keep the original and record its rotation.
+
+## Trash
+
+`DELETE /api/v1/files/{id}` moves your upload to Trash and returns
+`{"status":"trashed","id":"..."}`. The file and its media URLs then return 404.
+When staff delete someone else's upload, it is deleted permanently and the
+status is `"deleted"`.
+
+| Method | Path | Result |
+| --- | --- | --- |
+| `GET` | `/api/v1/trash` | Your trashed files; `limit` (1 to 200, default 50) and `offset` |
+| `POST` | `/api/v1/trash/{id}/restore` | `{"status":"restored","id":"..."}` |
+| `DELETE` | `/api/v1/trash/{id}` | Permanent deletion: `{"status":"deleted","id":"..."}` |
+
+The list returns `files`, `total`, `limit` and `offset`. Each file has `id`,
+`name`, `size`, `trashed_at` and `purge_after`, as UTC RFC 3339 strings. Only
+the owner's key works here; administrators cannot restore someone else's files.
+
+You can restore a file for 30 days. After that, restoring returns 404, but
+permanent deletion still works until cleanup removes the file. A missing,
+foreign or untrashed file returns 404. Restoring brings back the file's sharing
+settings and any albums that still exist. Trashed files count toward your quota
+until purged, and account exports include them with `trashed_at`. Backups may
+still hold files after permanent deletion.
+
+## Album previews
+
+`GET /api/v1/albums/{ref}/preview` summarises one of your public albums for
+Witmoot. See [Album discussions](discussions.md).
+
+## Endpoints
 
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/v1/me` | Identify the calling key |
 | `POST` | `/api/v1/upload` | Upload one or more files |
 | `GET` | `/api/v1/files` | List and filter your uploads |
-| `GET` | `/api/v1/files/{id}` | Metadata for one file |
+| `GET` | `/api/v1/files/{id}` | One file |
 | `PATCH` | `/api/v1/files/{id}` | Change `description`, `visibility`, `metadata`, `location`, or the older `public` |
-| `DELETE` | `/api/v1/files/{id}` | Delete a file and its bytes |
+| `DELETE` | `/api/v1/files/{id}` | Move a file to Trash |
 | `POST` | `/api/v1/files/{id}/tags` | Attach a tag |
-| `POST` | `/api/v1/files/tags` | Add tags to multiple own files atomically |
+| `POST` | `/api/v1/files/tags` | Add tags to several of your files at once |
 | `DELETE` | `/api/v1/files/{id}/tags/{ref}` | Detach a tag by id, slug or name |
+| `POST` | `/api/v1/library/album` | Add files to an album, or to a new one |
+| `POST` | `/api/v1/library/visibility` | Change visibility of several files |
+| `GET` | `/api/v1/trash` | List your Trash |
+| `POST` | `/api/v1/trash/{id}/restore` | Restore a file from Trash |
+| `DELETE` | `/api/v1/trash/{id}` | Delete a trashed file permanently |
 | `GET` | `/api/v1/tags` | List tags |
 | `GET` | `/api/v1/albums` | List your albums |
-| `POST` | `/api/v1/albums` | Create an album (optionally seeding `files`) |
-| `GET` | `/api/v1/albums/{ref}/preview` | Authenticated owned-album summary; only public albums, with public image count |
-| `GET` | `/api/v1/albums/{ref}` | Album with its files |
+| `POST` | `/api/v1/albums` | Create an album, optionally with `files` |
+| `GET` | `/api/v1/albums/{ref}/preview` | Summary of one of your public albums |
+| `GET` | `/api/v1/albums/{ref}` | An album with its files |
 | `PATCH` | `/api/v1/albums/{ref}` | Update title, description, visibility, `access`, `metadata`, or `location` |
 | `DELETE` | `/api/v1/albums/{ref}` | Delete an album, keeping its files |
 | `POST` | `/api/v1/albums/{ref}/files` | Add files to an album |
 | `DELETE` | `/api/v1/albums/{ref}/files/{id}` | Remove a file from an album |
 
-Keys act as the account that owns them, so a key can only ever see its owner's
-uploads and albums. Referring to another account's resource returns `404`, not
-`403`, so the API cannot be used to probe for what exists.
-
----
-
-### Photo rotation
-
-File responses include `rotation` (clockwise degrees: 0, 90, 180, or 270) and
-`preview_url`. Thumbnails and previews include the saved correction; `raw_url`
-always serves the original under its metadata sharing policy. A corrected
-full-resolution PNG without metadata is available at `/f/{id}/rotated` when
-rotation is nonzero, subject to the file's usual access rules. The account
-export retains the original and records its rotation in the manifest.
-
-Album previews and discussion links follow [the discussion access rules](discussions.md).
-
-
-## Library actions and capture dates
-
-`GET /api/v1/files` accepts these filters together with its existing search,
-visibility, tag, album and media-kind filters:
-
-| Parameter | Values |
-| --- | --- |
-| `sort` | `uploaded` (default) or `taken`; newest first, undated files last for `taken` |
-| `year` | Four-digit camera year, `0001` through `9999`, or `unknown` |
-| `month` | `01` through `12`, requires a numeric `year` |
-
-Invalid combinations return `400`. These filters apply to the caller's own
-library; other people's hidden camera dates cannot be inferred through them.
-Camera dates are wall times with no assumed timezone. Missing dates are not
-replaced by upload time. The normal `files`, `total`, `limit`, `offset` response
-shape is unchanged.
-
-`POST /api/v1/library/album` accepts `files` (an array of file ids) and `album`
-(an album id, string or number). To create an album and attach the selection in
-one transaction, send `album: "new"` and `album_title` (1–120 characters, without
-control characters). New albums are private and managed by their creator; this
-operation does not change file visibility. Invalid selections or failed writes
-leave no new album. The gallery's album picker offers the same creation option.
-`POST /api/v1/library/visibility` accepts `files`
-and `visibility` (`public`, `members` or `private`). Both accept JSON or ordinary
-form encoding and return `{"updated": N}`. Repeated file ids count once. Every
-file must belong to the caller, including for administrators, and the selection
-is limited to 500 entries. The album must currently accept contributions from
-the caller. An invalid value returns `400`; an unavailable file or album returns
-`404`. A failed batch writes nothing. Adding to an album preserves file visibility
-and other memberships.
-
-## Trash
-
-`DELETE /api/v1/files/{id}` moves the caller's own upload to Trash and returns
-`{"status":"trashed","id":"..."}`. This replaces immediate permanent deletion.
-Normal file and media routes then return `404`. Staff removal of somebody else's
-upload remains permanent and returns `status: "deleted"`.
-
-| Method | Path | Result |
-| --- | --- | --- |
-| `GET` | `/api/v1/trash` | Owner-only list; `limit` (1–200, default 50) and `offset` |
-| `POST` | `/api/v1/trash/{id}/restore` | `{"status":"restored","id":"..."}` |
-| `DELETE` | `/api/v1/trash/{id}` | Permanent deletion: `{"status":"deleted","id":"..."}` |
-
-The list contains `files`, `total`, `limit` and `offset`. Each file has `id`,
-`name`, `size`, `trashed_at` and `purge_after`; both dates are UTC RFC3339 strings.
-It includes files awaiting cleanup after their restore deadline. No original
-media URLs are supplied. These routes accept only the owner's bearer key;
-administrators cannot restore another account's files. A missing, foreign or
-non-trashed file returns `404`, as does restoration at or after the 30-day
-deadline. Permanent deletion remains available after that deadline until cleanup.
-
-Restoration preserves the old sharing settings and surviving album memberships.
-Trashed files still count toward quota until purged. Account exports include
-their original bytes and `trashed_at`; backups can retain earlier copies after
-permanent deletion from the running instance.
+Another account's file or album returns 404, never 403.

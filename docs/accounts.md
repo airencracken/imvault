@@ -1,36 +1,28 @@
 # Accounts
 
-Registration, signing in, second factors, and the way out.
+How people join, sign in, and leave, and what each role can do.
 
 ## Provisioning an administrator
 
-Administrators are created locally, using the installed binary and the same
-data directory and database settings as the service. In a terminal, run:
+Create administrators on the server with the installed binary. Use the same
+data directory and database settings as the service:
 
 ```bash
 imvault create-admin --username marcus --password-prompt --email you@example.com
 ```
 
-The hidden prompt asks for the password twice. Passwords follow the web form's
-rules: at least eight characters and at most 72 bytes. The command never
-accepts a password as an argument, starts no HTTP listener, and exits nonzero
-on failure. Email is optional. On a native service install, run it as root; it
-reads the service configuration and creates the database as the configured
-service user.
-
-For scripts, pass a single password line on stdin. The line may have a trailing
-newline:
+The hidden prompt asks for the password twice. Passwords need at least eight
+characters and at most 72 bytes. Email is optional. For scripts, pass one
+password line on stdin:
 
 ```bash
 imvault create-admin --username marcus --password-stdin --email you@example.com \
 	< /path/to/admin-password
 ```
 
-On a native OpenRC or systemd install, the command reads `IMVAULT_DATA_DIR` and
-`IMVAULT_DB` from the active service configuration when the process environment
-does not set them. A root invocation repeats the database operation as the
-configured service user, so the database keeps the right ownership. Use root
-for package installs where the service configuration is private:
+On a native OpenRC or systemd install, run the command as root. It reads
+`IMVAULT_DATA_DIR` and `IMVAULT_DB` from the service configuration when the
+environment does not set them, and writes the database as the service user:
 
 ```bash
 sudo /usr/local/bin/imvault create-admin \
@@ -38,102 +30,116 @@ sudo /usr/local/bin/imvault create-admin \
 ```
 
 Use `/usr/bin/imvault` for an ebuild or `make install PREFIX=/usr`. If the
-service uses a custom database path, set `IMVAULT_DB` explicitly for this
-command too. The service account must already exist and be able to write the
-data directory. For a new native installation, prepare it with:
+service uses a custom database path, set `IMVAULT_DB` for this command too. The
+service account must exist and own the data directory. For a new install:
 
 ```bash
 sudo install -d -o imvault -g imvault -m 0700 /var/lib/imvault
 ```
 
-For Docker, use `docker exec -it imvault /usr/local/bin/imvault create-admin
---username marcus --password-prompt` for the interactive prompt, or pass one
-password line to `docker exec -i imvault /usr/local/bin/imvault create-admin
---username marcus --password-stdin` for a script. Both use the container's
-configured environment and data volume.
+In Docker, run `docker exec -it imvault /usr/local/bin/imvault create-admin
+--username marcus --password-prompt`, or use `docker exec -i` with
+`--password-stdin` from a script.
 
-The command works before first startup or while the service is running. It
-creates a new administrator even if other accounts exist; an existing username
-is an error, including a different capitalization. It never resets a password
-or promotes an existing account. Existing administrators and their passwords
-are unchanged by this update. Sign in at `/login` after provisioning.
+The command works before first start or while the service runs. It always
+creates a new account: an existing username, in any capitalization, is an
+error, and it never resets a password or promotes anyone. Sign in at `/login`
+afterwards.
 
-Public registration always creates ordinary members. Closed and invitation-only
-registration apply even when the database has no accounts; there is no first
-signup exception. Valid invitations continue to admit ordinary members.
+Web registration always creates ordinary members, even on an empty instance.
+For browser-based first setup, see [Setup](setup.md).
+
+## Profiles and avatars
+
+Open **Account → Profile** (`/settings/profile`) to add a name, a plain-text
+bio, and up to five labeled HTTP or HTTPS links. Every field is optional. Your
+username stays the same.
+
+Profiles are visible to signed-in members only. File and album author names link
+to them, even on public pages. Private uploads, your email address and your
+credentials never appear on a profile.
+
+On the same page you can upload or remove an avatar: PNG, JPEG or GIF, up to
+2 MiB and 512 by 512 pixels, with at most 64 GIF frames. Imvault re-encodes it
+and removes embedded metadata. Avatars appear on member profiles and on file
+contributor rows, and only signed-in members can load them. Administrators can
+remove an avatar from the member's profile.
+
+Untick **Show animated avatars** to see still pictures instead. Your device's
+reduced-motion setting does the same.
+
+## Times and dates
+
+Times show in UTC until you choose a timezone. On `/settings/account`, find
+**Times and dates**, enter a timezone such as `America/Los_Angeles`, and choose
+**Save timezone**. The choice follows your account to every device. With
+JavaScript on, **Use this device's timezone** fills in the field for you; it
+still waits for you to save.
+
+Admin dashboard sign-ins and backup times use your timezone. Reporting days stay
+in UTC. Camera dates without a recorded offset show exactly as the camera wrote
+them.
+
+## Theme
+
+Choose **System**, **Light** or **Dark** from **Theme** in the Account menu, or
+in the header when signed out. System follows your device. An explicit choice
+is remembered in this browser, before and after you sign in.
 
 ## Renaming uploads
 
-Open a photo, animation, or clip and expand **Rename** beneath its name. The
-new filename appears in galleries, search results, downloads, and the API.
-Its links, tags, albums, and stored content stay the same, and identical uploads
-owned by other people keep their own names. Owners and administrators can
-rename; other members and moderators cannot rename somebody else's files.
+Open a photo, animation or clip and expand **Rename** beneath its name. The new
+name appears in galleries, search, downloads and the API. Links, tags, albums
+and stored content stay the same. Owners and administrators can rename a file.
 
 ## Descriptions
 
-Open a photo, animation, or clip and choose **Add description** beneath its name.
-Owners and administrators can save up to 1,000 characters of plain text, with
-line breaks preserved. HTML and Markdown appear as text. Choose **Edit
-description** to change it, or leave it empty to remove it.
+Choose **Add description** beneath a file's name to save up to 1,000 characters
+of plain text. Line breaks are kept; HTML and Markdown show as text. Choose
+**Edit description** to change it, or save it empty to remove it. Owners and
+administrators can edit descriptions.
 
-Descriptions are visible to anyone who can view the file, independently of its
-camera metadata setting. Identical uploads keep their own descriptions, and
-descriptions are included in the API and account exports.
+Anyone who can view the file can read its description, whatever its camera
+metadata setting. Descriptions are included in the API and account exports.
 
 ## Favorites
 
-Signed-in users can choose **Favorite** on a photo, animation, or clip to save
-it to their **Favorites** page at `/favorites`. Choose **Favorited** again to
-remove it. The page supports search and pagination, with the most recently
-saved items first. Both controls work with or without JavaScript.
+When signed in, choose **Favorite** on a file to save it to `/favorites`. Choose
+**Favorited** to remove it. The page lists the newest favorites first and
+supports search.
 
-Gallery and Favorites search matches filenames, file IDs, and attached tag
-names or slugs. Matching several tags lists a file only once. Clicking a tag
-still opens that tag's collection.
+Favorites are private to you. They point at the file, so they never change its
+visibility or expiry. A file you can no longer see drops off the list. Removing
+a favorite never deletes the upload.
 
-Favorites are private to the account. They store a reference, not a copy, and
-do not change the file's visibility or expiry. If a file becomes inaccessible
-or expires, it disappears from the list. Deleting a file or an account also
-removes its favorite records. Removing a favorite never deletes the upload.
+Gallery and Favorites search match file names, file IDs, and tag names or
+slugs.
 
 ## Exporting an account
 
-`/settings/account` downloads a zip of everything the account has uploaded,
-plus a `manifest.json` describing it: names, descriptions, sizes, dimensions, content hashes,
-each file's visibility, tags, albums, and the dates. Each original sits at
-`files/<id>/<name>`, so two uploads called `photo.jpg` do not collide.
-The manifest carries both `visibility` and the older `public` boolean, so a
-reader written against two levels keeps working.
+Choose **Download export** on `/settings/account` to get a zip of everything you
+have uploaded. Each original sits at `files/<id>/<name>`. A `manifest.json`
+lists names, descriptions, sizes, dimensions, content hashes, visibility, tags,
+albums and dates. The manifest carries both `visibility` and the older `public`
+boolean for existing readers. Your profile, avatar and avatar preference are
+included even if you have no uploads.
 
-The archive is prepared in a private temporary file before the download starts.
-A missing original or storage failure returns an error instead of a successful
-response with an incomplete ZIP. Only one export is prepared or downloaded at
-a time. The host needs enough free space in `TMPDIR` (the system temporary
-directory by default) for the archive; temporary files are removed afterward.
+The zip is built in the system temporary directory (`TMPDIR`) before the
+download starts, so the server needs enough free space there. If an original is
+missing or storage fails, you get an error instead of a partial zip. Only one
+export runs at a time.
 
-What is deliberately **not** in it: passwords, sessions, API keys, recovery
-codes, and the two-factor secret. Neither is anything belonging to another
-account. The manifest is built from purpose-written types rather than from the
-model structs, precisely so that adding a field to a model cannot quietly add a
-credential to a download; there is a test that checks the archive for each of
-them.
-
-Renditions are not included either. They are deterministic from the originals
-and the settings, so shipping them would double the size to save a few seconds
-of processing.
+Exports never contain passwords, sessions, API keys, recovery codes, the
+two-factor secret, or anything from another account. Thumbnails and previews
+are left out; Imvault rebuilds them from the originals.
 
 ## Invitations
 
-An instance can be open to anybody who finds it, closed to everybody, or
-somewhere in between. Invitations are the in-between: a code an administrator
-issues at `/admin/invites`, with an optional label, a use limit, and an expiry,
-that admits one account each time it is used.
+Administrators issue invitation codes at `/admin/invites`, with an optional
+label, use limit and expiry. Each use admits one account. A blank use limit
+means one use; `0` means unlimited. A blank expiry means the code never expires.
 
-An invitation **always** admits, even when registration is switched off
-altogether. It is a deliberate grant rather than a public door, and without that
-the only way to add somebody to a closed instance would be to edit the database
-by hand. The two switches compose:
+A valid invitation admits people even when registration is closed:
 
 | `IMVAULT_ALLOW_SIGNUP` | `IMVAULT_INVITE_ONLY` | Who can register |
 | --- | --- | --- |
@@ -141,218 +147,140 @@ by hand. The two switches compose:
 | `true` | `true` | Only with an invitation |
 | `false` | either | Only with an invitation |
 
-A code is shown once, when it is created, and only a digest is stored — the same
-trade API keys make. If one is lost, revoke it and issue another; the list shows
-each code's prefix so it is clear which row is which. Revoking takes effect
-immediately.
+A code is shown once, when you create it. If it is lost, revoke it and issue
+another; the list shows each code's prefix. Revoking takes effect at once. A
+registration that fails, for example on a taken username, does not use up the
+code.
 
-Under **Admin → Users**, choose **Allow invites** for a member. The account
-shows a **can invite** badge, and **Invitations** appears in that member's
-navigation on their next request; signing out and back in is unnecessary.
-This permission is separate from the member, moderator and administrator roles.
-Those members can create, list, and revoke only their own codes at
-`/invites`. Accounts created with a code retain the issuer, invitation, and a
-snapshot of the issuer's username, so the administrator can follow who invited
-whom even if an account is later renamed or removed. New accounts are still
-ordinary members and do not inherit invitation permission.
+To let a member invite people, choose **Allow invites** for them under
+**Admin → Users**. They get a **can invite** badge and an **Invitations** link
+on their next page load. They can create, list and revoke their own codes at
+`/invites`. Each of their codes admits 1 to 25 accounts and lasts at most 30
+days, which is also the default. People they invite join as ordinary members
+without invitation access.
 
-A member's codes are limited: each admits between 1 and 25 accounts and lasts
-at most 30 days, which is also how long one lasts when no expiry is chosen.
-Administrators' codes have no such limits.
+**Remove invite access** stops the member issuing codes and revokes their open
+codes; granting access again does not restore them. Disabling the member
+suspends their codes until they are enabled again. Deleting any account revokes
+its open codes.
 
-**Remove invite access** immediately stops the member from creating or managing
-codes, and revokes every code of theirs that is still open. Granting the access
-again does not bring those codes back. Disabling an issuer suspends their codes
-until the issuer is enabled again; deleting any account, administrator or not,
-revokes its open codes. Password and provider signups both retain the
-invitation's issuer.
-
-Issuing a code with several uses is for a group you trust together, and `0`
-means no limit at all. A code's uses are consumed in the same transaction that
-creates the account, so a registration that fails — a username that is already
-taken, say — does not cost the code a use.
+Each account records who invited it, with a snapshot of the inviter's username,
+so administrators can trace invitations after renames or deletions.
 
 ## Signing in with a provider
 
-An instance can trust one OpenID Connect provider — Keycloak, Authentik,
-Google, Discord, or anything else that speaks it — configured with
-`IMVAULT_OIDC_ISSUER` and friends. See
+An instance can trust one OpenID Connect provider, such as Keycloak, Authentik,
+Google or Discord. See
 [Configuration](configuration.md#signing-in-with-a-provider) for the settings.
+For community sign-in shared across Comfyware apps, see the
+[suite guide](suite.md).
 
-Sign-in is **supplementary** for an account that has a password: passwords
-keep working, and connecting a provider never removes the ability to sign in
-without it. A provider being down is an inconvenience rather than a lockout.
+If your account has a password, a provider is an extra way in. Your password
+keeps working, so a provider outage never locks you out.
 
-An account **made** through a provider has no password anybody knows. Settings
-that would ask for "your current password" (changing the address, turning off
-two-factor, deleting the account) ask the provider instead: **Confirm with the
-provider** on the settings page sends you there and back, and for ten minutes,
-in that browser session only, those settings work without a password. Use that
-confirmation to **set a password** from `/settings/password`. Until one is set,
-the last connected provider cannot be disconnected, because it is the only way
-in.
+An account created through a provider has no known password. Where settings ask
+for your current password, choose **Confirm with** your provider instead. For
+ten minutes in that browser session, those settings work without a password.
+Use the window to set one at `/settings/password`. Until you do, you cannot
+disconnect your last provider.
 
-Three decisions are worth knowing about, because each is a place where trusting
-a provider too readily would hand over an account:
+How a provider sign-in finds an account:
 
-- **An address only links when both sides have verified it.** Most providers
-  let an account set any address it likes; `email_verified` is the claim that
-  separates "this is their address" from "this is a string they typed". The
-  local account must have confirmed the address as well: anybody can register
-  here with somebody else's address, and linking on it would sign the real
-  owner into that account the first time they used the provider. An address
-  confirmed on neither side, or only on one, leads to registration instead.
-- **An ambiguous address links nothing.** Addresses are not unique here, so if
-  two accounts share one, signing in with the provider is refused with an
-  explanation rather than guessing which was meant.
-- **A first sign-in still passes through the instance's own policy.** If
-  registration is closed or invitation-only, the provider does not open a second
-  front door: after the provider verifies the identity, the person is asked for
-  a username and an invitation code, exactly as an ordinary registration would
-  be.
+- **A linked provider account signs straight in.**
+- **An email address links only when both sides have verified it.** The
+  provider must send `email_verified`, and the local account must have
+  confirmed the same address. Otherwise the person registers a new account.
+- **A shared address links nothing.** If two local accounts use the address,
+  sign-in is refused with an explanation.
+- **A first sign-in follows the registration policy.** On a closed or
+  invitation-only instance, the person still chooses a username and enters an
+  invitation code.
 
-Signing in with a provider whose subject is already linked goes straight
-through, since that is what the link is for. Connecting a provider while signed
-in attaches it to **the account you are signed in as**, never to whoever the
-provider happens to name, so the account page is the safe way to add one.
+To connect a provider to your account, sign in first and use **Connect** on
+`/settings/account`. The provider attaches to the account you are signed in as.
 
 ## Roles
 
-Provision an administrator with the local command above. Web registrations
-create members; an administrator can change roles from `/admin/users`:
+Web registrations create members. Administrators change roles at `/admin/users`:
 
 | Role | What it adds |
 | --- | --- |
-| **Member** | Manages its own uploads, and contributes to shared albums |
-| **Moderator** | Can see and remove anybody's content, and work the report queue |
-| **Administrator** | Can also manage accounts, roles, mail, and instance settings |
+| **Member** | Manages their own uploads and contributes to shared albums |
+| **Moderator** | Sees and removes anybody's content, and works the report queue |
+| **Administrator** | Also manages accounts, roles, mail and instance settings |
 
-The split is deliberate. Moderation has to scale with the group, so it is a role
-somebody else can hold; account administration does not, and a moderator who
-could edit accounts could promote themselves and take the instance. A moderator
-therefore reaches `/admin/files` and the report queue, and nothing else in the
-admin area.
+Before you appoint a moderator:
 
-Two things are worth knowing before granting it:
+- **Moderators see everything**, including private files and albums. On a
+  family instance, one administrator and no moderators is common.
+- **Moderators cannot change sharing.** Only the owner or an administrator can
+  change a file's visibility or an album's visibility and access.
+- **Moderators stay out of administration.** They reach `/admin/files` and the
+  report queue, nothing else.
 
-- **A moderator can see everything.** Judging content you are not allowed to
-  look at is not possible, so the role includes visibility of private files and
-  albums. On an instance where that is not acceptable, do not have moderators —
-  a family instance with one administrator is the normal shape.
-- **A moderator cannot republish.** Changing a file's visibility or an album's
-  visibility and sharing is the owner's and the administrator's. Removing a bad
-  upload is a moderation action; making a private upload public is not, and a
-  moderator who could do it would be an escalation rather than a safeguard.
+Imvault refuses to demote or delete the last administrator.
 
-Two operations are refused to avoid locking everybody out: demoting the last
-administrator, and deleting the last administrator.
+## Reports and the moderation log
 
-## Reporting, and the moderation log
+Members can report a file or album that belongs to someone else, choosing a
+reason and adding an optional note. Moderators and administrators work the queue
+at `/moderation`, oldest first: remove the content or dismiss the report, with a
+note either way.
 
-A signed-in member can report a file or an album that is not theirs, with a
-reason and an optional note. Reports land in a queue at `/moderation`, oldest
-first, which moderators and administrators can work: remove the content, or
-dismiss the report, with a note either way.
+Each person can have one open report per item. Once a report is closed, a new
+one is allowed. If two moderators act on the same report, the second is told
+someone got there first. Moderators remove content directly and have no report
+button.
 
-A few decisions worth knowing about:
-
-- **Reporting is for members, not moderators.** A moderator looking at a bad
-  upload can remove it, so offering them a report button would be busywork. The
-  control is not shown to them, and the route refuses them.
-- **Reporting is for other people's content.** Your own upload has a Delete
-  button, and the route says so rather than accepting a report against yourself.
-- **One open report per person per target.** Reporting something twice is not
-  more persuasive, and a queue that fills with duplicates is a queue nobody
-  works. A second person's complaint is a separate report, and a new report is
-  allowed once an earlier one has been closed either way.
-- **Closing a report happens once.** The status condition is part of the
-  statement, so two moderators working the same queue cannot both act on the
-  same report; the second is told somebody got there first.
-
-Every removal of somebody else's content is recorded in the log at
-`/moderation/log`, along with the report decisions. Each entry names the person
-who acted, what they did, the thing they acted on, and why. The names are
-snapshots rather than references: deleting the account or the content does not
-erase the record, because a log that turns into a list of numbers once somebody
-leaves is not an audit trail.
-
-An owner clearing out their own gallery is **not** logged. That is housekeeping
-rather than moderation, and filling the log with it would bury the entries that
-matter.
+`/moderation/log` records every removal of someone else's content and every
+report decision: who acted, what they did, to what, and why. Names are stored as
+they were at the time, so entries survive account and content deletion. Owners
+deleting their own uploads are not logged.
 
 ## Two-factor authentication
 
-Any TOTP app works: the setup page shows a QR code and the key for typing in by
-hand. Ten single-use recovery codes are issued when it is switched on, and they
-are shown once — only digests of them are stored.
+Turn it on at `/settings/2fa` with any TOTP app: scan the QR code or type the
+key. You get ten single-use recovery codes, shown once. Keep them somewhere
+safe.
 
-A few decisions worth knowing about:
+Turning off two-factor, or issuing new recovery codes, asks for your password
+and a current code. If you lose both your app and your recovery codes, an
+administrator can clear your second factor from `/admin/users`.
 
-- **The secret is encrypted, not hashed.** Sessions, API keys, and reset tokens
-  are all stored as digests because the server never needs them back. A TOTP
-  secret does have to be read to check a code, so it is encrypted with a key
-  kept in its own file (`secret.key`) beside the database. A leak of the
-  database alone therefore does not yield usable second factors.
-- **Codes cannot be replayed.** The last accepted time step is recorded, so a
-  code seen over a shoulder is not reusable for the rest of its window.
-- **Removing the second factor needs both factors.** Disabling it, or
-  reissuing recovery codes, asks for the password *and* a current code. Losing
-  the app is what recovery codes are for.
-- **An administrator can clear it** from `/admin/users`, which is the way back
-  in for somebody who has lost both the app and the recovery codes.
-
-> **Back up `secret.key` with the database.** They are two halves of the same
-> thing: restoring the database without the key leaves every TOTP secret
-> unreadable, and affected accounts need recovery codes or an administrator to
-> clear their second factor. Set `IMVAULT_SECRET_KEY` instead if you would
-> rather supply the key from your own secret store.
+Operators: TOTP secrets are encrypted with `secret.key`. Back it up with the
+database; see [Security](security.md#credentials-are-stored-as-digests) and
+[Operations](operations.md).
 
 ## Password reset
 
-Two paths, chosen by whether `IMVAULT_SMTP_HOST` is set.
+With `IMVAULT_SMTP_HOST` and `IMVAULT_BASE_URL` set, `/forgot` takes a username
+or address and emails a single-use link. The page answers the same way whether
+or not the account exists.
 
-With a relay configured — which also requires `IMVAULT_BASE_URL`, so a mailed
-link always points at this instance — `/forgot` takes a username or address,
-mints a single-use token and emails the link. The response is identical whether or not
-the account exists, so the endpoint cannot be used to enumerate accounts.
+Without mail, `/forgot` says so, and an administrator issues a link from
+`/admin/users`. The link appears once on the page and is not stored.
 
-Without a relay, `/forgot` says so plainly and an administrator issues the link
-from `/admin/users`. That link is rendered straight into the response rather than
-redirected to, so it never lands in a URL, a browser history entry or a server
-log, and it is not stored anywhere.
+Each link works once, and issuing a new one cancels the old one.
 
-Either way the token is stored as a SHA-256 digest, works exactly once, is
-scoped to its purpose — a confirmation token cannot open the reset form — and
-issuing a new one invalidates the previous.
+Imvault queues mail in the database before sending, so a relay outage or a
+restart delays messages without losing them. Failed sends retry after about 1
+minute, 4 minutes, 16 minutes, 1 hour and 4 hours. After
+`IMVAULT_MAIL_MAX_ATTEMPTS` tries (default 5), the message appears as failed at
+`/admin/mail`, where an administrator can retry or discard it. Imvault clears a
+message's body once the relay accepts it, and deletes delivered and failed
+messages after a week.
 
-Mail is written to an `outbound_mail` table *before* delivery is attempted, so a
-relay that is down, restarting or misconfigured delays a message rather than
-losing it. A worker retries with a growing backoff (roughly 1m, 4m, 16m, 1h,
-4h), and after `IMVAULT_MAIL_MAX_ATTEMPTS` the message is parked as failed and
-surfaced at `/admin/mail`, where it can be requeued or discarded by hand. This
-also means a message survives a restart: the queue is in the database, not in
-memory. A delivered message's body, which holds the link, is cleared as soon as
-the relay accepts it; delivered and failed messages are removed after a week.
-Changing a password signs out every
-other device; API keys are deliberately left alone, since revoking a script's
-credentials on an ordinary password change would be surprising.
+Changing your password signs out your other devices. Your API keys keep working.
 
-Email confirmation is available but never gates anything: an unverified address
-works exactly like a verified one. The flag exists so an operator can see who
-has proved their address.
+Email confirmation is optional and gates nothing. It shows administrators who
+has confirmed an address.
 
-Disabling an account revokes its live sessions and every API key it holds, so it
-loses access immediately rather than at the next login. Deleting an account
-collects its storage keys *before* the database rows cascade away, so the bytes
-are removed too rather than being orphaned on disk.
+## Disabling and deleting accounts
 
-## Deleting an account
+Disabling an account ends its sessions and revokes its API keys at once.
 
-Any account can delete itself from `/settings/account`. It asks for the
-password, a second factor when one is set, and the username typed out, because
-it is irreversible and takes every upload with it. Storage keys are collected
-before the database rows cascade away, so the bytes are removed rather than
-orphaned on disk.
-
-The last administrator cannot delete itself: that would leave the instance with
-nobody able to administer it.
+You can delete your own account from `/settings/account`. Enter your password,
+your second factor if you have one, and your username. Deletion removes every
+upload and its stored files, your avatar and your preferences. Administrators
+can delete accounts from `/admin/users`. The last administrator cannot be
+deleted.
