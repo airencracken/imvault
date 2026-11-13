@@ -14,26 +14,20 @@
 {{if .Backups.Enabled}}<p>A verified backup runs every {{.Backups.Interval}}. At most {{.Backups.Keep}} automatic copies are kept, with a total archive cap of {{.Backups.ArchiveCap}} and an uncompressed copy cap of {{.Backups.CopyCap}} per backup.</p>
 <p>Private destination: <code>{{.Backups.Directory}}</code>.</p>
 {{if .Backups.Running}}<p role="status" class="comfy-notice">A backup is running.</p>{{end}}
-{{if .Backups.LastSuccess.IsZero}}<p>No automatic backup has succeeded yet. The first attempt starts one minute after service startup.</p>{{else}}<p>Last successful backup: <time>{{.Backups.LastSuccess.UTC.Format "2006-01-02 15:04:05 UTC"}}</time>.</p>{{end}}
+{{if .Backups.LastSuccess.IsZero}}<p>No automatic backup has succeeded yet. The first attempt starts one minute after service startup.</p>{{else}}<p>Last successful backup: <time datetime="{{datetime .Backups.LastSuccess}}">{{date .Backups.LastSuccess}}</time>.</p>{{end}}
 {{if .Backups.LastError}}<p role="alert" class="comfy-notice comfy-notice-error">Last backup error: {{.Backups.LastError}}</p>{{end}}
-{{if not .Backups.NextAttempt.IsZero}}<p>Next attempt: <time>{{.Backups.NextAttempt.UTC.Format "2006-01-02 15:04:05 UTC"}}</time>.</p>{{end}}
+{{if not .Backups.NextAttempt.IsZero}}<p>Next attempt: <time datetime="{{datetime .Backups.NextAttempt}}">{{date .Backups.NextAttempt}}</time>.</p>{{end}}
 {{else}}<p>Automatic backups are disabled or no service worker is attached.</p>{{end}}
 <p>Copy completed backups to another machine. Local copies cannot recover from a lost disk. Schedule and caps are configured in the service environment and take effect after a restart.</p></section>
 
 
 <section class="comfy-admin-section panel stack">
   <h2>What is this instance for?</h2>
-  <p class="muted">
-    Personal, group, and public hosts are the same program at different
-    settings rather than three programs, so these are starting points. Each one
-    sets who may join, whether anonymous uploads are allowed, and what a new
-    upload is visible to. None of them changes the retention window, which
-    reaches backwards over uploads already stored.
-  </p>
+  <p class="muted">Pick a starting point, then adjust the settings below.</p>
   <div class="profiles">
     {{range .Profiles}}
     <form class="profile" method="post" action="/admin/settings"
-          {{if eq .Key "public"}}onsubmit="return confirm('Open this instance to the world? Anyone will be able to register and upload.')"{{end}}>
+          {{if eq .Key "public"}}data-confirm="Open this instance to the world?" data-confirm-detail="Anyone will be able to register and upload." data-confirm-action="Open it up"{{end}}>
       <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
       <input type="hidden" name="profile" value="{{.Key}}">
       <strong>{{.Name}}</strong>
@@ -80,7 +74,7 @@
     <span>Allow new accounts to register</span>
   </label>
   <p class="muted">
-    New registrations create ordinary member accounts.
+    New accounts are ordinary members.
     {{if index .Stored "allow_signup"}}
       Currently set here. Clearing the settings restores {{if .ConfigSignup}}open{{else}}closed{{end}}.
     {{else}}
@@ -93,9 +87,7 @@
     <span>Require an invitation to register</span>
   </label>
   <p class="muted">
-    Invitations are issued at <a href="/admin/invites">Invitations</a>. An
-    invitation <strong>always</strong> admits, even when registration is closed
-    above, because it is a deliberate grant rather than a public door.
+    An <a href="/admin/invites">invitation</a> admits someone even when registration is closed.
     {{if index .Stored "invite_only"}}
       Currently set here. Clearing the settings restores
       {{if .ConfigInviteOnly}}invitation-only{{else}}open{{end}}.
@@ -110,11 +102,7 @@
     <span>Allow uploads without an account</span>
   </label>
   <p class="muted">
-    Anonymous uploads are public and are deleted
-    {{if .AnonymousPending}}along with the {{.AnonymousPending}} already stored{{else}}automatically{{end}}
-    when their window ends. They are always public: there is no account to
-    scope a closed level to, and the link the uploader is given would not open
-    for them otherwise.
+    Anonymous uploads are always public and are deleted when the retention window ends{{if .AnonymousPending}} ({{.AnonymousPending}} stored now){{end}}.
     {{if index .Stored "allow_anonymous_uploads"}}
       Currently set here. Clearing the settings restores
       {{if .ConfigAnon}}open{{else}}closed{{end}}.
@@ -128,19 +116,12 @@
            placeholder="24h">
   </label>
   <p class="muted">
-    How long an anonymous upload survives. <code>24</code> means 24 hours; a
-    number with a unit also works, such as <code>90m</code> or <code>7d</code>.
+    How long an anonymous upload is kept, counted from when it arrived. <code>24</code> means 24 hours; <code>90m</code> and <code>7d</code> also work.
     {{if index .Stored "anonymous_ttl_seconds"}}
       Currently set here. Clearing the settings restores {{.ConfigRetention}}.
     {{else}}
       Currently from the configuration: {{.ConfigRetention}}.
     {{end}}
-  </p>
-  <p class="muted">
-    Changing this rewrites the deadline on anonymous uploads already stored, so
-    shortening it takes effect immediately rather than whenever the old
-    deadlines pass. Each deadline stays measured from when that upload arrived,
-    so anything older than a shortened window becomes collectable at once.
   </p>
 
   <h2>Storage</h2>
@@ -149,10 +130,7 @@
            value="{{if .MaxTotalMB}}{{.MaxTotalMB}}{{end}}" placeholder="unlimited">
   </label>
   <p class="muted">
-    The most this instance will store in total, across every account and
-    anonymous uploads alike. It is the "this box has a fixed amount of disk"
-    control, as opposed to a per-account quota, which is set at
-    <a href="/admin/users">Users</a>. Once it is reached, uploads are refused.
+    The most this site stores in total; uploads are refused once it is reached. Per-account limits are under <a href="/admin/users">Users</a>.
     {{if index .Stored "max_total_bytes"}}
       Currently set here. Clearing the settings restores
       {{if .ConfigMaxTotalMB}}{{.ConfigMaxTotalMB}} MiB{{else}}no ceiling{{end}}.
@@ -173,10 +151,7 @@
     {{end}}
   </fieldset>
   <p class="muted">
-    This is the setting that most changes what the instance feels like:
-    <strong>private</strong> is a personal host, <strong>members</strong> is a
-    group, and <strong>public</strong> is a public one. It applies to new
-    uploads only; existing ones keep the level they were stored at.
+    Applies to new uploads only.
     {{if index .Stored "default_visibility"}}
       Currently set here. Clearing the settings restores {{.ConfigVisibility.Label}}.
     {{else}}
@@ -211,7 +186,7 @@
     Settings saved here take precedence over the configuration. Clearing them resets the policy and text branding; uploaded images stay until removed above.
   </p>
   <form method="post" action="/admin/settings/clear"
-        onsubmit="return confirm('Clear the stored settings and go back to the configuration file?');">
+        data-confirm="Clear the stored settings?" data-confirm-detail="The site goes back to the configuration file. Uploaded images stay." data-confirm-action="Clear settings">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
     <button class="btn danger" type="submit">Clear stored settings</button>
   </form>

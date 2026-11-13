@@ -144,6 +144,16 @@ It must be positive; to stop anonymous uploads, turn them off. Changing it
 each upload's arrival, so a shorter window removes older files on the reaper's
 next pass.
 
+Anonymous uploads are always public. There is no account to limit them to, and
+the link the uploader gets would not open for them otherwise.
+
+The default visibility shapes the site most: **private** suits a personal host,
+**members** a group and **public** a public one. Existing uploads keep their
+level when you change it.
+
+The storage ceiling covers every account and anonymous uploads together. Use it
+when the disk is the limit; per-account quotas are under `/admin/users`.
+
 ## Storage ceilings
 
 The **instance ceiling** (`IMVAULT_MAX_TOTAL_BYTES`, or the field in instance
