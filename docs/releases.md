@@ -1,38 +1,25 @@
 # Binary releases
 
-For first-run accounts, use [browser or command-line setup](setup.md). Run
-`imvault setup` for the browser key, or `imvault create-owner --username NAME`
-for a hidden terminal prompt.
-
 Download Imvault from [GitHub Releases](https://github.com/airencracken/imvault/releases).
-The latest release is [0.25.0](release-notes/0.25.0.md), with consistent account timezone controls and local dates throughout the application.
-See the [suite guide](suite.md) for configuration and the release notes for upgrade guidance.
-The [0.20.0 notes](release-notes/0.20.0.md) describe Trash, library organization,
-and the migration and API compatibility changes to read before upgrading.
+The latest release is [0.25.0](release-notes/0.25.0.md). Every version's
+changes and upgrade steps are in [release notes](release-notes/); read the
+notes for each version you skip.
 
-The [0.19.0 release notes](release-notes/0.19.0.md) describe automatic compressed backups and bounded retention.
-The [0.18.0 release notes](release-notes/0.18.0.md) describe optional avatars,
-viewer animation preferences and migration 032.
 Each version has Linux **amd64** (x86-64) and **arm64** (AArch64) builds:
 
-- `imvault_VERSION_linux_ARCH.tar.gz`: a static binary, documentation,
-  license notices, and service/configuration examples.
-- `imvault_VERSION_ARCH.deb`: a Debian/Ubuntu package with a systemd unit.
-- `imvault_VERSION_source.tar.gz`: the corresponding source.
-- `imvault_VERSION_checksums.txt`: SHA-256 checksums for all five artifacts.
+- `imvault_VERSION_linux_ARCH.tar.gz`: a static binary, documentation, license
+  notices, and service and configuration examples.
+- `imvault_VERSION_ARCH.deb`: a Debian and Ubuntu package with a systemd unit.
+- `imvault_VERSION_source.tar.gz`: the matching source.
+- `imvault_VERSION_checksums.txt`: SHA-256 checksums for all five files.
 
-See [the 0.14.0 release notes](release-notes/0.14.0.md) for photo rotation and
-its database migration. See [the 0.13.1 release notes](release-notes/0.13.1.md)
-for family defaults and scheduled backups. See [the 0.12.0 release notes](release-notes/0.12.0.md) before upgrading: it
-changes proxy, mail and OIDC settings and the database schema.
-
-The Go compiler is only needed when building from source.
-Install ffmpeg for video thumbnails and duration checks; the Debian package
-recommends it. HTTPS connections also need your system's CA certificates.
+You need Go only to build from source. Install ffmpeg for video posters and
+duration checks; the Debian package recommends it. HTTPS connections need the
+system's CA certificates.
 
 ## Debian and Ubuntu
 
-Select the version and architecture you want. For example:
+Pick a version and architecture, then download, verify and install:
 
 ```sh
 release_version=0.25.0
@@ -44,18 +31,20 @@ sha256sum --ignore-missing -c "imvault_${release_version}_checksums.txt"
 sudo apt install "./imvault_${release_version}_${release_arch}.deb"
 ```
 
-Use `arm64` for an AArch64 machine. Check that the checksum command succeeds
-before installing. The package creates a dedicated `imvault` account and
-`/var/lib/imvault` with mode 0700. It installs the binary in `/usr/bin` and
-keeps settings in `/etc/imvault/imvault.env`, readable only by root.
+Use `arm64` on an AArch64 machine. Install only if the checksum command
+succeeds.
 
-**The first install leaves the service stopped and disabled.** Edit that
-configuration, provision the administrator, then enable the service. Native package
-defaults bind to `127.0.0.1:8080`; configure your HTTPS reverse proxy and
-a public HTTPS base URL before exposing the site; it enables secure cookies.
+The package creates an `imvault` account and `/var/lib/imvault` with mode 0700.
+It installs the binary as `/usr/bin/imvault` and keeps settings in
+`/etc/imvault/imvault.env`, readable only by root.
 
-In a terminal, provision the account using the same data directory. The hidden
-prompt asks for the password twice:
+**The first install leaves the service stopped and disabled.** Edit the
+settings file, create the first owner, then start the service. The package
+listens on `127.0.0.1:8080`. Set up your HTTPS reverse proxy and a public HTTPS
+base URL before you open the site to others; the HTTPS URL turns on secure
+cookies.
+
+Create the owner with a hidden password prompt, then start the service:
 
 ```bash
 sudo /usr/bin/imvault create-admin \
@@ -63,30 +52,25 @@ sudo /usr/bin/imvault create-admin \
 systemctl enable --now imvault
 ```
 
-The command reads `IMVAULT_DATA_DIR` and `IMVAULT_DB` from the systemd unit and
-environment file or OpenRC configuration when they are unset in the process
-environment. When run as root, it repeats the database operation as the
-configured service account. For scripts, pass one password line on stdin with
-`--password-stdin`. See
-[deployment](deployment.md) for reverse proxy and service settings. Logs go to
+The command finds the data directory in the service configuration and runs as
+the service account. For scripts, pass one password line on stdin with
+`--password-stdin`. [Setup](setup.md) covers the browser alternative, and
+[deployment](deployment.md) covers proxy and service settings. Read logs with
 `journalctl -u imvault`.
 
-An upgrade restarts a running service and leaves an inactive service inactive.
-Back up before upgrading: startup can migrate the database. Debian manages
-the environment file as a conffile, preserving local edits or asking how to
-handle a changed upstream default.
-
-Removal stops and disables the service. Purge also removes package
-configuration. **Neither removes application data or the service account.**
-Delete those separately only when you intend to discard the installation.
-An older binary refuses to start against a database a newer one has migrated;
-restore the matching pre-upgrade backup to go back. See
+An upgrade restarts a running service and leaves a stopped one stopped. Back up
+first: startup can migrate the database, and an older binary refuses a migrated
+database. See
 [going back to an older binary](operations.md#going-back-to-an-older-binary).
+Debian keeps your edits to the settings file and asks before replacing it.
+
+Removing the package stops and disables the service; purging also removes its
+configuration. **Neither deletes your data or the service account.** Delete
+those yourself only when you mean to discard the installation.
 
 ## Portable binary archive
 
-Download the archive and checksum file for your architecture, verify them as
-above, and extract the archive:
+Download the archive and checksum file, verify them as above, and extract:
 
 ```sh
 tar -xzf imvault_0.25.0_linux_amd64.tar.gz
@@ -96,11 +80,10 @@ sudo install -d /usr/local/share/doc/imvault
 sudo install -m 0644 LICENSE README.md THIRD_PARTY_NOTICES.txt /usr/local/share/doc/imvault/
 ```
 
-For an existing service, install the binary at the path its service definition
-uses, then restart it. For a new installation, create its dedicated service
-account and data directory as described in [deployment](deployment.md).
-
-To install the systemd files directly from the archive on a new installation:
+To upgrade an existing service, install the binary at the path its service
+uses and restart it. For a new installation, create the service account and
+data directory as described in [deployment](deployment.md), then install the
+systemd files from the archive:
 
 ```sh
 sudo install -m 0644 contrib/systemd/imvault.service /etc/systemd/system/imvault.service
@@ -109,30 +92,23 @@ sudo install -m 0600 contrib/systemd/imvault.env /etc/imvault/imvault.env
 sudo systemctl daemon-reload
 ```
 
-Edit the environment file (including `IMVAULT_ADDR=127.0.0.1:8080`),
-provision the local account, and enable the service. These first-install
-commands copy configuration; keep your existing configuration during upgrades.
-For OpenRC, the archive includes `contrib/openrc` and `contrib/logrotate`.
-Set `IMVAULT_BIN` to the installed binary path in `/etc/conf.d/imvault`.
+Edit the settings file (including `IMVAULT_ADDR=127.0.0.1:8080`), create the
+owner, and enable the service. Skip these copies on upgrades so your settings
+stay put.
 
-## Logging in packages
+For OpenRC, the archive includes `contrib/openrc` and `contrib/logrotate`. Set
+`IMVAULT_BIN` to the installed binary in `/etc/conf.d/imvault`. Log rotation is
+covered in [operations](operations.md#log-rotation).
 
-Gentoo's ebuilds install `/etc/logrotate.d/imvault` and depend on
-`app-admin/logrotate`. The OpenRC service writes `/var/log/imvault.log`;
-the rule keeps 14 archives and rotates daily or above 10 MiB when the system's
-logrotate job runs. Gentoo's default logrotate installation provides its cron
-job and depends on a cron implementation. If you disable that integration,
-arrange the system logrotate timer or another scheduler.
+## Containers
 
-Debian packages and the supplied systemd unit explicitly send stdout and stderr
-to journald, which handles rotation and retention. They do not create a separate
-application log file. Use `journalctl -u imvault` to read these logs.
-Journal limits are managed by the host's journald configuration.
+See [containers](containers.md) for published images, Compose, version pins,
+backups, upgrades and restores.
 
 ## Building and publishing
 
-GoReleaser **2.18.2** builds the same artifact set for both projects. With Go
-and GoReleaser installed:
+For maintainers. With Go installed (Make runs GoReleaser 2.18.2 if you have no
+local copy):
 
 ```sh
 make release-check
@@ -140,46 +116,20 @@ make release-snapshot
 sh scripts/release/check-artifacts.sh
 ```
 
-Snapshot builds stay in `dist/` and never publish. Artifact checks also need
-`dpkg-deb`, `readelf`, and standard shell tools; Debian/Ubuntu provide these in
-`dpkg` and `binutils`. Source archives come from Git, so commit changes before
-checking that an archive matches the working tree. Generated dependency notices
-and package files live in the ignored `.release/` directory.
+Snapshots stay in `dist/` and never publish. The artifact check also needs
+`dpkg-deb` and `readelf` (from `dpkg` and `binutils`). Source archives come
+from Git, so commit before comparing an archive with your working tree.
 
-The GitHub Actions workflow runs repository checks, builds both architectures,
-validates archive/package contents and checksums, and tests package lifecycles
-on native amd64 and arm64 Ubuntu runners plus Debian containers. It checks
-owner provisioning, HTTP health, service startup and upgrade restart on systemd,
-conffile preservation, removal, purge, and reinstallation with existing data.
-The lifecycle script intentionally refuses an existing installation and requires
-`RELEASE_PACKAGE_TEST=1` in a disposable system.
-
-After the change is on `master`, publish by creating and pushing a version tag:
+To publish, push a version tag from a commit on `master`:
 
 ```sh
 git tag -a vX.Y.Z -m "imvault X.Y.Z"
 git push origin vX.Y.Z
 ```
 
-The tagged commit must be reachable from `master`. The workflow publishes
-the exact tested artifacts to GitHub Releases only after every check passes.
-Uploads happen in a draft before it becomes public. Tags with a prerelease
-suffix produce a prerelease. A rerun can finish a draft but will not replace
-an already published release.
+The Release workflow tests both architectures and publishes the tested files
+only after every check passes. A tag with a prerelease suffix makes a
+prerelease. A rerun can finish a draft but never replaces a published release.
 
-The workflow uses GitHub's repository token with write access confined to
-the publishing job; no separate release token is needed.
-
-## Published container images
-
-See [Docker installation and operations](containers.md) for multi-platform images,
-Compose setup, version pins, backups, upgrades, and restore instructions.
-
-## Rebuild an existing release tag
-
-Maintainers can dispatch the Release workflow on `master` with `release_tag` set
-to an existing version tag. The workflow validates the tag, exact commit, VERSION
-where present, and reachability from master. It uses Go 1.26.11 and runs the full
-native, package and container gates against that tag. Container revision labels
-identify the checked-out source commit. Published releases and image tags remain
-immutable; reruns may finish an unpublished draft.
+To rebuild an existing tag, dispatch the Release workflow on `master` with
+`release_tag` set to that tag. Published releases and image tags do not change.

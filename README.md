@@ -4,25 +4,20 @@
 
 **A little vault for your big collection of “I should save that.”**
 
-Photographs, screenshots, GIFs, and short clips deserve a home that you run.
+Photographs, screenshots, GIFs and short clips deserve a home that you run.
 Imvault is a small, self-hosted image host in the spirit of MLKSHK, Picsur,
-[Chibisafe](https://github.com/chibisafe/chibisafe), and
+[Chibisafe](https://github.com/chibisafe/chibisafe) and
 [Imgur](https://imgur.com): part personal library, part clubhouse noticeboard.
 
 **Familyware, cozyware, friendware, software for your tribe.**
 
-Built for dozens or hundreds of people who know why they're there, not millions
-of strangers who don't.
-A cozy place to swap family photos, save the group chat's finest screenshots,
-and keep the little things your friends would appreciate.
+Built for dozens or hundreds of people who know why they're there. A cozy place
+to swap family photos, save the group chat's finest screenshots, and keep the
+little things your friends would appreciate.
 
 One Go binary. Local storage by default, with optional S3-compatible buckets.
-A small blue keeper with no opinions about
-how many pictures of your cat you upload.
-
-Keep the lights low or let the daylight in: choose **System**, **Light**, or
-**Dark** in the header. System follows your device; an explicit choice stays in
-this browser, including before you sign in.
+A small blue keeper with no opinions about how many pictures of your cat you
+upload.
 
 Public for an audience, members-only for your people, private for the
 “I'll organise these later” collection. You decide who gets in.
@@ -31,265 +26,146 @@ Public for an audience, members-only for your people, private for the
 
 ![The Imvault recent feed with the keeper, images, an animation, a clip, and visibility labels](docs/images/recent.png)
 
-*The actual local demo, stocked with sample media.*
+*The local demo, stocked with sample media.*
 
-Run a published image with Docker Compose: [container installation, upgrades, and backups](docs/containers.md).
-
-Use a current Go security patch when building: Go 1.26.11 or later on the
-1.26 series, or Go 1.27.4 or later on the 1.27 series.
-
-## Imvault 0.25.0
-
-Account settings now offer the same **Times and dates** control used across the
-five Comfyware applications. Open `/settings/account`, choose an IANA timezone such as
-`America/Los_Angeles`, and select **Save timezone**. UTC is the default. Your
-choice is saved for your account across sessions and devices. **Use this device's
-timezone** fills the field when JavaScript is available; saving remains explicit.
-Manual selection and local date rendering also work without JavaScript.
-
-Comfylib 0.6.0 owns validation, formatting, the account control, browser detection
-and bounded template caching. Dates handle daylight saving and calendar boundaries.
-Admin dashboard sign-in and backup instants follow your preference; reporting
-days remain UTC. Stored timestamps, API responses and machine-readable timestamps
-retain their existing UTC contract. Account isolation, native permissions and CSRF
-checks apply to every preference change.
-
-Startup adds a separately versioned display preference namespace. Application
-migration and export format versions are unchanged. Back up the stopped data
-directory before upgrading and retain that snapshot for a downgrade.
-
-Camera EXIF dates without a recorded offset remain as captured.
-
-## Imvault 0.24.0
-
-Native admin metrics now use one shared dashboard with identical typography, spacing, cards, tables and reporting definitions across the apps. Successful local and community sign-ins and authorized content opens are recorded by Comfylib 0.5.0. Views count once per account, item and UTC day; thumbnails, background assets, failed requests and signed-out visits do not count.
-
-Only active administrators (called owners in this app where applicable) can read the dashboard or its account sign-in summaries. Ordinary members, guests and moderators cannot read analytics. The dashboard shows the past seven UTC days, when collection began, daily totals, recent sign-ins by account, and most-viewed content. Recording begins after upgrade; no earlier history is inferred. No IP addresses or browser identifiers are recorded. Activity is retained for ninety UTC days, pruned at startup and daily while serving, and removed when its account is deleted.
-
-The analytics tables are additive and separately versioned by Comfylib; existing application data and application migration versions are unchanged. Back up before upgrading. Existing archives remain supported. Shared browser contracts now check exact dashboard styling, widths and access boundaries in both themes and with JavaScript disabled.
-
-## Imvault 0.23.0
-
-Native owner/admin metrics now show aggregate membership, content, storage and recent activity, with owner-only operational summaries for backups and configured suite connections. The pages work without JavaScript and follow the application's existing permissions.
-
-Rate limiting uses the bounded shared implementations while retaining the app's own budgets. Release preparation, artifact verification, browser fixtures and immutable CI workflows use the published Comfylib pin directly. A release preflight verifies version metadata, cold module caches and the exact shared workflow revision before publication.
-
-No application database migration is added. Existing service configuration and account permissions remain supported.
+**What's new:** see the [release notes](docs/release-notes/) and the
+[latest release](docs/releases.md).
 
 ## Come on in
 
-Prebuilt Linux amd64/arm64 archives and Debian packages live in
-[GitHub Releases](https://github.com/airencracken/imvault/releases).
-See the [binary installation guide](docs/releases.md) for checksums and setup.
-
-The binary has its own toolbox, including ready-to-edit HTTPS proxy configs:
-
-```sh
-imvault --help
-imvault help create-admin
-imvault proxy-config caddy --domain img.example.com > imvault.Caddyfile
-```
-
-Use `nginx` or `apache` in place of `caddy` for those servers. The
-[proxy guide](docs/reverse-proxies.md#generate-a-site-configuration) covers
-custom ports, certificates, and installation.
+Try it locally first:
 
 ```bash
 make demo
 ```
 
-Open <http://localhost:8080>. The demo stocks a throwaway `./demo-data` directory
-with three accounts, sample media, a shared album, tags, an invitation, and a
-moderation queue. It prints the sign-ins and a small tour; Ctrl-C closes up shop.
-`make clean-demo` removes the demo data.
+Open <http://localhost:8080>. The demo fills a throwaway `./demo-data`
+directory with three accounts, sample media, a shared album, tags, an
+invitation and a moderation queue, then prints the sign-ins and a short tour.
+Ctrl-C closes up shop; `make clean-demo` sweeps up. Use `PORT=9000 make demo`
+if somebody already parked on 8080, and `make help` for the rest of the
+toolbox.
 
-```bash
-PORT=9000 make demo   # somebody already parked on 8080?
-make help            # the rest of the toolbox
+## Install
+
+- **Packages and binaries.** Linux amd64 and arm64 archives and Debian packages
+  are on [GitHub Releases](https://github.com/airencracken/imvault/releases).
+  See [binary releases](docs/releases.md).
+- **Containers.** Run the published image with Docker Compose. See
+  [containers](docs/containers.md).
+- **Gentoo, Alpine and other native installs.** `contrib/` has a live ebuild,
+  an APKBUILD, and OpenRC and systemd services. See
+  [deployment](docs/deployment.md).
+- **From source.** You need Go 1.26.11 or later (1.27.4 or later on the 1.27
+  series). There is no cgo.
+
+  ```bash
+  make run                              # :8080, data in ./data
+  make run PORT=9000 DATA_DIR=/tmp/imv   # a different doorstep
+  sudo make install PREFIX=/usr          # then make install-openrc or install-systemd
+  ```
+
+Then create the first owner, in a browser with `imvault setup` or at a terminal
+with `imvault create-owner --username NAME`. See [setup](docs/setup.md).
+
+Put Imvault behind HTTPS. The binary writes a starting proxy config for you:
+
+```sh
+imvault proxy-config caddy --domain img.example.com > imvault.Caddyfile
 ```
 
-The keeper gets an admin account through the local provisioning command.
-Members and sample content come through the same HTTP routes people use.
+Use `nginx` or `apache` in place of `caddy`. See
+[reverse proxies](docs/reverse-proxies.md). `imvault --help` lists every
+command.
 
 ## What's in the vault?
 
 | | |
 | --- | --- |
-| **Pictures that stay pictures** | JPEG, PNG, WebP, BMP, TIFF, animated GIFs and WebPs. Thumbnails and previews are made once, with orientation and transparency handled. |
-| **A home for little movies** | WebM, MP4, and MOV clips, served with range requests. Optional ffmpeg supplies posters and duration checks; originals are never transcoded. |
-| **A library, not a pile** | Galleries, albums, tags, private favorites, and a recent feed. Add a little description to a photo or clip. Shared albums let members contribute their own uploads. Identical uploads share stored bytes. |
-| **Your audience, your call** | Public, members-only, and private visibility. Separate EXIF and location sharing controls on photos and albums. |
-| **Keys for people and scripts** | Invitations, member/moderator/admin roles, TOTP two-factor authentication, OpenID Connect, password resets, and a bearer-token API. |
-| **A broom cupboard** | Reports, a moderation log, account exports and deletion, storage quotas, upload limits, rate limiting, anonymous-upload expiry, and queued mail with retries. |
-| **Room to grow** | Local disk or a private S3-compatible bucket. Verified storage migration, backup and restore commands, and a way to rebuild missing video posters. |
+| **Pictures that stay pictures** | JPEG, PNG, WebP, BMP, TIFF, and animated GIF and WebP. Thumbnails and previews are made once, with orientation and transparency handled. |
+| **A home for little movies** | WebM, MP4 and MOV clips, served with range requests. Optional ffmpeg adds posters and duration checks; originals are never transcoded. |
+| **A library, not a pile** | Galleries, albums, tags, private favorites, camera-date browsing, a recent feed and a 30-day Trash. Shared albums take contributions from members. Identical uploads share stored bytes. |
+| **Your audience, your call** | Public, members-only and private visibility, with separate EXIF and location sharing on photos and albums. |
+| **Keys for people and scripts** | Invitations, member, moderator and admin roles, TOTP two-factor sign-in, OpenID Connect, password resets and a bearer-token API. |
+| **A broom cupboard** | Reports, a moderation log, account export and deletion, quotas, upload limits, rate limits, expiring anonymous uploads and queued mail. |
+| **Room to grow** | Local disk or a private S3-compatible bucket, verified storage migration, and automatic and manual backups. |
 
-The front end is server-rendered Go templates with htmx. No JavaScript build
-step, no framework bundle to assemble, no external service required to get
-started. [How it fits together](docs/architecture.md).
+Pages are server-rendered Go templates with htmx. There is no JavaScript build
+step and no external service to set up. See [architecture](docs/architecture.md).
 
-Your gallery supports camera-date browsing, bulk organization, and a private
-30-day Trash with restoration. See [organizing your library](docs/library.md).
+### A short tour
+
+- **Favorite** a photo to keep it on your private **Favorites** page.
+- **Rotate left** or **Rotate right** to fix a sideways photo. The original stays
+  intact.
+- Select photos in **Your gallery** to tag them, add them to an album, change
+  their visibility.
+- Add a name, bio, links and an avatar to your profile, choose a display
+  timezone, and pick a **System**, **Light** or **Dark** theme.
+
+See [organizing your library](docs/library.md), [media](docs/media.md) and
+[accounts](docs/accounts.md).
 
 ## Your place, your house rules
 
-Fresh installations require invitations and reject anonymous uploads. The
-public **About & house rules** page names the administrators and moderators,
-who can see private uploads too. Add your contact details and rules in settings.
+Fresh installations require invitations and refuse anonymous uploads. The
+public **About & house rules** page names your administrators and moderators,
+who can see private uploads too. Add contact details and rules in settings.
 
-Start with a **Personal**, **Group**, or **Public** profile in **Admin → Settings**,
-then adjust it to taste. These are settings, not separate editions.
+Start from a **Personal**, **Group** or **Public** profile in **Admin →
+Settings**, then adjust to taste. [Configuration](docs/configuration.md) covers
+every setting.
 
-Anonymous uploads have a plain on/off control:
-**Admin → Settings → Anonymous uploads → Allow uploads without an account**.
-Check or uncheck it and save. It takes effect immediately and survives restarts.
-Anonymous files are public and expire after the configured retention window.
-
-Found a keeper? Open a photo and choose **Favorite**. Your **Favorites** page
-keeps those little discoveries together, just for you.
-
-Run `imvault --version` to identify your binary. The site settings page also
-shows the running version. **Show version in the footer** makes it visible to
-visitors; it is off by default.
-
-To correct a sideways photo, open it and choose **Rotate left** or **Rotate
-right**. The correction appears in the gallery and previews; **Reset rotation**
-restores the uploaded orientation. The original is kept intact, and **Download
-rotated photo** saves a full-resolution PNG without metadata. Videos and
-animations cannot be rotated.
-
-To tag several photos, open **Your gallery**, select their checkboxes (or choose
-**Select all on this page**), enter comma-separated tags, and choose **Add tags**.
-Existing tags are kept. A photo's **Location** section shows its coordinates and
-map link, or explains when GPS is missing or hidden.
-
-Create your administrator locally with `imvault create-admin --username NAME
---password-prompt`; use `--password-stdin` for scripts. Public registration
-always creates members and respects the signup policy, even on an empty
-instance. See [provisioning an administrator](docs/accounts.md#provisioning-an-administrator)
-for password input and service-account examples.
-
-## Make it yours
-
-### From source
-
-Building requires **Go 1.26.11 or later**. The server has no cgo dependency.
-
-```bash
-make run                              # :8080, data in ./data
-make run PORT=9000 DATA_DIR=/tmp/imv   # a different doorstep
-```
-
-Or build the single binary directly:
-
-```bash
-go build -o bin/imvault ./cmd/imvault
-IMVAULT_DATA_DIR=./data ./bin/imvault
-```
-
-### Gentoo and other native installs
-
-```bash
-sudo make install PREFIX=/usr
-sudo make install-openrc
-```
-
-Create the service account and configure `/etc/conf.d/imvault` before starting
-it. `contrib/gentoo/` contains a live ebuild and its account packages for an
-overlay. A systemd unit and Alpine APKBUILD are included too.
-The OpenRC installer includes a logrotate rule; install logrotate and enable
-its regular cron or timer job. See [log rotation](docs/operations.md#log-rotation).
-[Deployment](docs/deployment.md) covers the full setup, service paths, and TLS.
-
-For a source install with systemd:
-
-```bash
-sudo make install              # /usr/local/bin/imvault
-sudo make install-systemd
-```
-
-### Docker
-
-```bash
-docker build -t imvault .
-docker run -d --name imvault \
-  -p 8080:8080 \
-  -v imvault-data:/data \
-  -e IMVAULT_ALLOW_SIGNUP=false \
-  imvault
-```
-
-The image includes ffmpeg and runs as uid 10001. A named volume, as above and in
-the Compose file, takes that ownership and mode 0700 automatically; to
-bind-mount a host directory instead, `chown 10001:10001` and `chmod 0700` it
-first. The image's `HEALTHCHECK` probes `/healthz`, so `docker ps` shows when
-the server is up and its database answers. The local Compose stack is one
-command away:
-
-```bash
-make compose-up
-make compose-down
-```
-
-For a TLS-facing stack, `contrib/caddy/` includes Caddy configurations and a
-Compose file that keeps the application's port behind the proxy.
-Caddy is the recommended proxy; [nginx and Apache are supported too](docs/reverse-proxies.md),
-with complete HTTPS examples and integration checks.
-
-## Keep the keys somewhere sensible
+## Running it
 
 The keeper is cute. Backups are still your job.
 
-- **Back up `secret.key` alongside the database and objects.** The key is needed
-  to decrypt TOTP secrets. See [Operations](docs/operations.md).
-- **Use TLS and secure cookies.** Set `IMVAULT_SECURE_COOKIES=true`, bind a native
-  install to loopback, and configure the reverse proxy as described in
-  [Deployment](docs/deployment.md).
-- **Set your house rules before opening the doors.** Decide on signup,
-  anonymous uploads, retention, and a storage ceiling. Defaults favour trying
-  the app locally; [Configuration](docs/configuration.md) lists every knob.
+- **Back up `secret.key` with the database and objects.** Without it, TOTP
+  secrets cannot be decrypted. Imvault makes daily
+  [automatic backups](docs/automatic-backups.md); [operations](docs/operations.md)
+  covers manual backups, restores, upgrades and logs.
+- **Use TLS and secure cookies.** Bind a native install to loopback and follow
+  [deployment](docs/deployment.md).
+- **Decide your house rules before opening the doors:** signup, anonymous
+  uploads, retention and a storage ceiling.
 
-[Security](docs/security.md) explains credential storage, access controls,
-metadata handling, and the limits of those protections.
+| Guide | What's there |
+| --- | --- |
+| [Setup](docs/setup.md) | Creating the first owner |
+| [Configuration](docs/configuration.md) | Settings, instance profiles, quotas and rate limits |
+| [Accounts](docs/accounts.md) | Invitations, sign-in, two-factor, roles, profiles and moderation |
+| [Library](docs/library.md) | Albums, tags, camera dates, bulk actions and Trash |
+| [Media](docs/media.md) | Formats, previews, clips and photo metadata |
+| [API](docs/api.md) | Managing your collection from scripts |
+| [Routes](docs/routes.md) | Every URL the server answers |
+| [Deployment](docs/deployment.md) | Native installs, services and TLS |
+| [Containers](docs/containers.md) | Images, Compose, upgrades and backups |
+| [Reverse proxies](docs/reverse-proxies.md) | Caddy, nginx and Apache |
+| [Operations](docs/operations.md) | Backups, maintenance, upgrades and troubleshooting |
+| [Storage](docs/storage.md) | S3, storage migration and backup and restore |
+| [Sandbox](docs/sandbox.md) | Optional Bubblewrap confinement |
+| [Comfyware connections](docs/suite.md) | App navigation, shared sign-in and discussions |
+| [Album discussions](docs/discussions.md) | Talking about albums in Witmoot |
+| [Security](docs/security.md) | The security model and its limits |
+| [Architecture](docs/architecture.md) | Internals, checks and contributing |
 
 ## The honest rough edges
 
 - Clips keep their original codecs. If a browser cannot play one, Imvault does
-  not transcode it into something it can. There is no HLS or adaptive streaming.
-- Without ffmpeg, clips get placeholder posters and their duration cannot be
-  checked. Animated WebP posters also depend on the decoder's first-frame support.
-- Metadata hiding fails closed when a format cannot be scrubbed: the original
-  is withheld from the affected audience. Account exports retain originals.
-- API keys manage files, albums, and tags, and download media. Account settings,
-  key management, and admin operations require a browser session.
-- Email resets require an SMTP relay; administrators can issue reset links
-  without one. Queued mail retries run on a timer.
-- Rate limits are in-memory and per process. Multiple server processes have
-  separate budgets. Storage accounting can drift after a killed upload; the
-  admin dashboard can recalculate it.
-- Two-factor authentication is TOTP with recovery codes; there is no WebAuthn
-  or hardware-key support yet.
-- The optional location map is the one outbound request Imvault makes on its own.
-  It is off unless `IMVAULT_MAP_URL` is set, and the provider then sees the
-  coordinates and your server's address.
-
-## The map
-
-| Guide | What's there |
-| --- | --- |
-| [Configuration](docs/configuration.md) | Environment settings, instance profiles, quotas, and rate limits |
-| [Accounts](docs/accounts.md) | Invitations, sign-in, two-factor, roles, and moderation |
-| [Media](docs/media.md) | Formats, renditions, clips, and photograph metadata |
-| [API](docs/api.md) | Upload and manage your collection from scripts |
-| [Routes](docs/routes.md) | Every URL the server answers |
-| [Deployment](docs/deployment.md) | Gentoo, Alpine, init scripts, containers, and TLS |
-| [Operations](docs/operations.md) | Backups, maintenance, upgrades, and troubleshooting |
-| [Storage](docs/storage.md) | S3 setup, migration, thumbnail repair, and verified backup/restore |
-| [Security](docs/security.md) | The security model and its edges |
-| [Architecture](docs/architecture.md) | Internals, tests, and contributing changes |
-
-Working on the code? `make check` runs formatting checks, vet, Go and JavaScript
-tests, and a cyclomatic-complexity ceiling of 15 for production Go functions.
-`make test-race` and `make test-browser` cover concurrency and browser behaviour.
+  not convert it. There is no adaptive streaming.
+- Without ffmpeg, clips get placeholder posters and unchecked durations.
+- When a format cannot be scrubbed of metadata, Imvault withholds the original
+  from viewers who should not see it. Account exports keep originals.
+- API keys manage files, albums and tags. Account settings, keys and admin work
+  need a browser session.
+- Email resets need an SMTP relay. Without one, administrators can issue reset
+  links.
+- Rate limits live in memory, per process.
+- Two-factor sign-in is TOTP with recovery codes. There is no WebAuthn or
+  hardware-key support yet.
+- The optional location map is the only outbound request Imvault makes on its
+  own. It is off unless `IMVAULT_MAP_URL` is set, and the map provider then sees
+  the coordinates and your server's address.
 
 ## Support
 
@@ -303,70 +179,4 @@ GNU Affero General Public License, version 3 or later. See [LICENSE](LICENSE).
 This program comes without any warranty.
 
 The footer links to the source. If you run a modified version, point
-`IMVAULT_SOURCE_URL` at the corresponding source for your instance.
-
-Optional Linux service confinement: [Bubblewrap setup and boundaries](docs/sandbox.md).
-
-For the coordinated Comfylib CSRF update on this branch, see
-[shared CSRF release coordination](docs/shared-csrf.md).
-
-Explicit album discussion handoffs and private preview rules: [docs/discussions.md](docs/discussions.md).
-
-[Shared administration helpers](docs/shared-administration.md) use Comfylib v0.1.7 across the Comfyware apps.
-
-## Member profiles
-
-Open Settings → Account → Profile to optionally add a name, a plain-text bio
-and up to five labeled HTTP/HTTPS links. Profile pages require sign-in and are
-linked from file and album authors, including public content. Private uploads,
-email and credentials stay off profiles; your username stays unchanged. Your
-account export includes your own profile even if you have no uploads. See the
-[0.17.0 release notes](docs/release-notes/0.17.0.md) before the migration 031 upgrade.
-
-## Avatars
-
-In Imvault 0.18.0, open Settings → Account → Profile to upload or remove an
-optional avatar. PNG, JPEG and GIF inputs are re-encoded through Comfylib's
-shared profile-image normalizer, stripping embedded metadata. Pictures must
-be no larger than 2 MiB and 512 by 512 pixels, with at most 64 GIF frames.
-
-Avatars appear on signed-in member profiles and file contributor rows. Guests
-cannot fetch them, including from public file pages. Administrators can remove
-an avatar from its member profile. **Show animated avatars** is your viewing
-preference; turn it off for still pictures. Device reduced-motion preferences
-also select still PNGs. Account exports include your own renditions and viewing
-preference, and deleting an account removes both. See the
-[0.18.0 release notes](docs/release-notes/0.18.0.md) before migration 032.
-
-## Automatic backups
-
-Imvault 0.19.0 backs itself up daily while running, using zstd when
-available and gzip otherwise. It keeps at most seven copies within a 10 GiB
-archive cap and bounds each uncompressed copy to 5 GiB. Owners can check status
-in instance settings. See [automatic backups](docs/automatic-backups.md) for
-configuration, retention, off-host copies and recovery.
-
-## Shared forms
-
-Invitation and account layouts use Comfylib's embedded `ui` styles, loaded after
-the app stylesheet so controls and responsive spacing stay aligned across the
-Comfyware apps. Comfylib also supplies invitation status calculation and shared
-browser assertions. Templates, palettes, permissions and atomic redemption remain
-in the application.
-
-## Common setup
-
-New source builds share [browser and command-line setup](docs/setup.md) with the
-other Comfyware apps: `imvault setup` authorizes the first-owner browser page,
-and `imvault create-owner --username NAME` prompts privately by default.
-
-Optional app navigation, shared sign-in and discussion returns are described in
-[Comfyware connections](docs/suite.md).
-
-## Display timezone
-
-In your account settings (`/settings/account`), choose **Times and dates**, enter a city
-timezone, and select **Save timezone**. The saved choice follows your account
-across devices. UTC is the default. Device detection fills the field when
-JavaScript is available; manual selection and saving work without it.
-Admin reporting days remain UTC.
+`IMVAULT_SOURCE_URL` at its source.
