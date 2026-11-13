@@ -6,7 +6,35 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestReleaseRaceTimeout(t *testing.T) {
+	raw, err := os.ReadFile("../.github/workflows/release.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := regexp.MustCompile(`(?m)^\s+(go test [^\n]*-race[^\n]*) \|\| exit 1$`).FindStringSubmatch(string(raw))
+	if len(command) != 2 {
+		t.Fatal("release must run the race suite with an explicit test budget")
+	}
+	flags := strings.Fields(command[1])
+	var timeout time.Duration
+	race, allPackages := false, false
+	for _, flag := range flags {
+		if strings.HasPrefix(flag, "-timeout=") {
+			timeout, err = time.ParseDuration(strings.TrimPrefix(flag, "-timeout="))
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		race = race || flag == "-race"
+		allPackages = allPackages || flag == "./..."
+	}
+	if timeout < 20*time.Minute || !race || !allPackages {
+		t.Fatalf("release must run every race test with at least 20 minutes: %s", command[1])
+	}
+}
 
 // Keep the Debian gate on a pinned Docker Official Image available without
 // Docker Hub pulls, while exercising the complete package on both architectures.

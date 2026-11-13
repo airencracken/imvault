@@ -84,7 +84,8 @@ jobs:
           make test-web-mutations || exit 1
           make test-settings-mutations || exit 1
           make test-library-mutations || exit 1
-          make test-race || exit 1
+          # The full race suite includes hundreds of database migrations.
+          go test -race -timeout=20m ./... || exit 1
           make test-proxies || exit 1
       - name: Preflight immutable release source and shared workflows
         run: make release-preflight || exit 1
