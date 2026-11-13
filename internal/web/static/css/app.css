@@ -1,23 +1,73 @@
-/* imvault — light and dark palettes for a little vault. */
+/* Imvault: the slate palette, light and dark.
+ *
+ * Every colour in this file comes from the tokens in this block, so the block
+ * can later be swapped for Comfylib's shared --comfy-* palette tokens. */
 
 :root {
   color-scheme: light dark;
+
+  /* Surfaces */
   --bg: light-dark(#f3f5f9, #101216);
   --bg-elev: light-dark(#ffffff, #171a21);
   --bg-elev-2: light-dark(#e9eef5, #1e222b);
+  --bg-hover: light-dark(#dce4ef, #262b36);
+  --bg-media: light-dark(#e4e9f1, #0b0d11);
+  --bg-icon: light-dark(rgba(255, 255, 255, .95), rgba(12, 14, 18, .85));
+
+  /* Lines */
   --border: light-dark(#ccd4e0, #2a2f3a);
+  --border-strong: light-dark(#8c9db5, #3d4553);
+
+  /* Text */
   --text: light-dark(#202b3d, #e6e9ef);
   --muted: light-dark(#596579, #8b93a3);
+
+  /* Accent: Imvault blue */
   --accent: light-dark(#245eb6, #6ea8fe);
   --accent-strong: light-dark(#184a96, #4d8ef7);
   --accent-fg: light-dark(#ffffff, #0b1220);
+  --accent-soft: light-dark(#e8f0ff, #141a26);
+
+  /* Status */
   --danger: light-dark(#a82c3b, #f2707a);
+  --danger-line: light-dark(#d5a4ab, #47282d);
+  --danger-line-strong: light-dark(#d5a4ab, #5a2b30);
+  --danger-soft: light-dark(#fff0f2, #241a1d);
+  --danger-hover: light-dark(#f8dfe4, #33222a);
+  --danger-hover-strong: light-dark(#f8dfe4, #47282d);
   --ok: light-dark(#216b45, #6ee7a8);
+  --ok-line: light-dark(#90bca3, #23503a);
   --warn: light-dark(#80580c, #f5c168);
+  --warn-line: light-dark(#d2bc8e, #4a3b1e);
+
+  /* Fixed colours that do not change with the theme */
+  --overlay: rgba(10, 12, 16, .68);
+  --overlay-line: rgba(255, 255, 255, .18);
+  --overlay-text: #fff;
+  --scrim: rgba(8, 10, 14, .72);
+  --player-bg: #000;
+  --qr-bg: #fff;
+  --shadow-near: light-dark(rgba(30, 45, 65, .07), rgba(0, 0, 0, .4));
+  --shadow-far: light-dark(rgba(30, 45, 65, .06), rgba(0, 0, 0, .25));
+
   --radius: 10px;
-  --shadow: 0 1px 2px light-dark(rgba(30, 45, 65, .07), rgba(0, 0, 0, .4)), 0 8px 24px light-dark(rgba(30, 45, 65, .06), rgba(0, 0, 0, .25));
+  --shadow: 0 1px 2px var(--shadow-near), 0 8px 24px var(--shadow-far);
   --maxw: 1180px;
 }
+
+/* The shared Comfylib pages (administration, invitations, metrics) read these.
+ * The attribute selector outranks the :root defaults in components.css, which
+ * loads after this file. */
+html[data-comfy-app="imvault"],
+html[data-comfy-app="imvault"] .comfy-admin-dashboard {
+  --comfy-ink: var(--text);
+  --comfy-panel: var(--bg-elev);
+  --comfy-line: var(--border);
+  --comfy-accent: var(--accent);
+  --comfy-admin-muted: var(--muted);
+  --comfy-radius: var(--radius);
+}
+html[data-comfy-app="imvault"] .comfy-admin-dashboard { font: inherit; }
 
 * { box-sizing: border-box; }
 
@@ -69,7 +119,7 @@ h2 { font-size: 1.05rem; margin: 0 0 .75rem; color: var(--text); }
 .nav a { color: var(--muted); font-size: .92rem; }
 .nav a:hover { color: var(--text); text-decoration: none; }
 .nav a.btn { color: var(--text); }
-.nav a.btn.primary { color: light-dark(#ffffff, #0b1220); }
+.nav a.btn.primary { color: var(--accent-fg); }
 
 .theme-picker { display: flex; align-items: center; gap: .4rem; font-size: .82rem; }
 .theme-picker[hidden] { display: none; }
@@ -106,12 +156,12 @@ h2 { font-size: 1.05rem; margin: 0 0 .75rem; color: var(--text); }
   cursor: pointer;
   transition: background .12s ease, border-color .12s ease;
 }
-.btn:hover { background: light-dark(#dce4ef, #262b36); text-decoration: none; }
+.btn:hover { background: var(--bg-hover); text-decoration: none; }
 .btn.small { padding: .3rem .6rem; font-size: .82rem; }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: light-dark(#ffffff, #0b1220); font-weight: 600; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 600; }
 .btn.primary:hover { background: var(--accent-strong); }
-.btn.danger { color: var(--danger); border-color: light-dark(#d5a4ab, #47282d); background: light-dark(#fff0f2, #241a1d); }
-.btn.danger:hover { background: light-dark(#f8dfe4, #33222a); }
+.btn.danger { color: var(--danger); border-color: var(--danger-line); background: var(--danger-soft); }
+.btn.danger:hover { background: var(--danger-hover); }
 
 .link {
   background: none; border: 0; padding: 0;
@@ -130,7 +180,7 @@ label.link { cursor: pointer; }
   font-size: .72rem; line-height: 1.5;
 }
 .badge.private { color: var(--muted); border-color: var(--border); background: var(--bg-elev-2); }
-.badge.warn { color: var(--warn); border-color: light-dark(#d2bc8e, #4a3b1e); }
+.badge.warn { color: var(--warn); border-color: var(--warn-line); }
 
 .panel {
   background: var(--bg-elev);
@@ -150,8 +200,8 @@ label.link { cursor: pointer; }
   border-radius: 8px; padding: .65rem .9rem; margin: 0 0 1.1rem;
   border: 1px solid var(--border); background: var(--bg-elev);
 }
-.flash.ok { border-color: light-dark(#90bca3, #23503a); color: var(--ok); }
-.flash.err { border-color: light-dark(#d5a4ab, #5a2b30); color: var(--danger); }
+.flash.ok { border-color: var(--ok-line); color: var(--ok); }
+.flash.err { border-color: var(--danger-line-strong); color: var(--danger); }
 .flash ul { margin: .4rem 0 0; padding-left: 1.1rem; }
 
 .empty {
@@ -245,13 +295,13 @@ fieldset.choices p.muted { margin: .4rem 0 0; font-size: .8rem; }
   overflow: hidden;
   transition: border-color .12s ease, transform .12s ease;
 }
-.card:hover { border-color: light-dark(#8c9db5, #3d4553); transform: translateY(-1px); }
+.card:hover { border-color: var(--border-strong); transform: translateY(-1px); }
 
 .card .thumb {
   display: block;
   position: relative;
   aspect-ratio: 1 / 1;
-  background: light-dark(#e4e9f1, #0b0d11);
+  background: var(--bg-media);
   overflow: hidden;
 }
 .card .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -265,9 +315,9 @@ fieldset.choices p.muted { margin: .4rem 0 0; font-size: .8rem; }
   width: 2.6rem; height: 2.6rem;
   display: grid; place-items: center;
   border-radius: 999px;
-  background: rgba(10, 12, 16, .68);
-  border: 1px solid rgba(255, 255, 255, .18);
-  color: #fff;
+  background: var(--overlay);
+  border: 1px solid var(--overlay-line);
+  color: var(--overlay-text);
   font-size: .95rem;
   padding-left: .2rem;
   pointer-events: none;
@@ -296,10 +346,10 @@ fieldset.choices p.muted { margin: .4rem 0 0; font-size: .8rem; }
   display: grid; place-items: center;
   border-radius: 999px;
   border: 1px solid var(--border);
-  background: light-dark(rgba(255, 255, 255, .95), rgba(12, 14, 18, .85));
+  background: var(--bg-icon);
   color: var(--text); cursor: pointer; font-size: .8rem; line-height: 1;
 }
-.icon.danger:hover { background: light-dark(#f8dfe4, #47282d); color: var(--danger); }
+.icon.danger:hover { background: var(--danger-hover-strong); color: var(--danger); }
 
 /* HTMX removal animation */
 .htmx-swapping { opacity: 0; transform: scale(.96); transition: opacity .15s ease, transform .15s ease; }
@@ -313,7 +363,7 @@ fieldset.choices p.muted { margin: .4rem 0 0; font-size: .8rem; }
   color: var(--muted); font-size: .85rem;
 }
 .page-link:hover { color: var(--text); text-decoration: none; }
-.page-link.current { background: var(--accent); border-color: var(--accent); color: light-dark(#ffffff, #0b1220); font-weight: 600; }
+.page-link.current { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 600; }
 
 /* ---------- chips ---------- */
 
@@ -348,7 +398,7 @@ fieldset.choices p.muted { margin: .4rem 0 0; font-size: .8rem; }
   cursor: pointer;
   transition: border-color .12s ease, background .12s ease;
 }
-.dropzone.over { border-color: var(--accent); background: light-dark(#e8f0ff, #141a26); }
+.dropzone.over { border-color: var(--accent); background: var(--accent-soft); }
 .drop-title { margin: 0; font-size: 1.05rem; font-weight: 600; }
 .dropzone .muted { margin: .35rem 0 0; font-size: .88rem; }
 
@@ -381,7 +431,7 @@ fieldset.choices p.muted { margin: .4rem 0 0; font-size: .8rem; }
   max-height: 78vh;
   display: block;
   border-radius: 6px;
-  background: #000;
+  background: var(--player-bg);
 }
 
 .side { display: flex; flex-direction: column; gap: 1.1rem; }
@@ -408,18 +458,38 @@ fieldset.choices p.muted { margin: .4rem 0 0; font-size: .8rem; }
   border-radius: var(--radius);
   color: var(--text);
 }
-.album-card:hover { border-color: light-dark(#8c9db5, #3d4553); text-decoration: none; }
+.album-card:hover { border-color: var(--border-strong); text-decoration: none; }
 
 /* The owner's settings live behind a disclosure, so an album page opens on its
    images rather than on a form. */
 details.album-settings { margin-top: 2rem; }
-details.album-settings > summary {
+details.album-settings > summary,
+details.file-edit > summary,
+details.bulk-panel > summary,
+details.new-album > summary,
+details.library-more > summary {
   cursor: pointer;
   color: var(--muted);
   font-size: .9rem;
   padding: .2rem 0;
 }
-details.album-settings[open] > summary { margin-bottom: .6rem; }
+details.album-settings[open] > summary,
+details.file-edit[open] > summary,
+details.bulk-panel[open] > summary,
+details.new-album[open] > summary,
+details.library-more[open] > summary { margin-bottom: .6rem; }
+details.file-edit > summary, details.bulk-panel > summary, details.new-album > summary { color: var(--text); font-weight: 600; }
+details.file-edit h2 { font-size: .95rem; margin: 0; }
+details.file-edit > * + * { margin-top: 1rem; }
+details.new-album { margin-top: 1.5rem; }
+
+/* One visible search row; sorting and dates wait behind a disclosure. */
+.library-filters { margin-bottom: 1.25rem; }
+.search-row { display: flex; gap: .5rem; }
+.search-row input { flex: 1; min-width: 0; margin: 0; }
+.bulk-toolbar { margin-bottom: .75rem; }
+.bulk-panel { margin-bottom: 1.25rem; }
+.sharing-control { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
 
 .file-description { white-space: pre-wrap; overflow-wrap: anywhere; }
 
@@ -540,7 +610,7 @@ dialog.modal {
   box-shadow: var(--shadow);
 }
 dialog.modal::backdrop {
-  background: rgba(8, 10, 14, .72);
+  background: var(--scrim);
 }
 .modal p { margin: 0 0 .5rem; }
 .modal-actions {
@@ -566,7 +636,7 @@ dialog.modal::backdrop {
 .filter-row .muted { font-size: .82rem; }
 
 .enrol { display: flex; gap: 1.25rem; flex-wrap: wrap; align-items: flex-start; }
-.enrol .qr { background: #fff; padding: .5rem; border-radius: 8px; }
+.enrol .qr { background: var(--qr-bg); padding: .5rem; border-radius: 8px; }
 .enrol > .stack { flex: 1; min-width: 16rem; }
 
 .recovery-codes {
@@ -584,7 +654,7 @@ dialog.modal::backdrop {
   font-size: .85rem;
 }
 
-.danger-zone { border-color: light-dark(#d5a4ab, #47282d); }
+.danger-zone { border-color: var(--danger-line); }
 .danger-zone h2 { color: var(--danger); }
 
 .notice-link { display: flex; gap: .5rem; align-items: center; margin-top: .6rem; }
