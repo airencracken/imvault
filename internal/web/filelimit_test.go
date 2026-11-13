@@ -111,7 +111,7 @@ func TestUploadPageReportsTheAccountsOwnLimit(t *testing.T) {
 
 	// The instance default from the harness config is 8 MiB.
 	_, page := me.get("/upload")
-	if !strings.Contains(page, "8 MiB") {
+	if !strings.Contains(page, "8.4 MB") {
 		t.Errorf("the uploader does not state the instance limit: %s", truncate(page))
 	}
 
@@ -120,7 +120,7 @@ func TestUploadPageReportsTheAccountsOwnLimit(t *testing.T) {
 	}
 
 	_, page = me.get("/upload")
-	if !strings.Contains(page, "3 MiB") {
+	if !strings.Contains(page, "3.1 MB") {
 		t.Errorf("the uploader still reports the instance limit: %s", truncate(page))
 	}
 }

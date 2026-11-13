@@ -223,7 +223,7 @@ func TestCreateAdminRejectsInvalidInputBeforeCreatingDatabase(t *testing.T) {
 }
 
 func TestReadAdminPasswordBoundaries(t *testing.T) {
-	for _, password := range []string{"12345678", strings.Repeat("x", 72), strings.Repeat("é", 36), "  leading and trailing  "} {
+	for _, password := range []string{"123456789012", strings.Repeat("x", 72), strings.Repeat("é", 36), "  leading and trailing  "} {
 		for _, ending := range []string{"", "\n", "\r\n"} {
 			got, err := readAdminPassword(strings.NewReader(password + ending))
 			if err != nil || got != password {

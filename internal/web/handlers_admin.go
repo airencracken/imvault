@@ -5,6 +5,7 @@ package web
 import (
 	"errors"
 	"fmt"
+	"github.com/airencracken/comfylib/ui"
 	"math"
 	"net/http"
 	"strconv"
@@ -241,12 +242,12 @@ const maxAdminMegabytes = math.MaxInt64 >> 20
 func limitsMessage(username string, quotaBytes, fileBytes int64) string {
 	quota := "unlimited"
 	if quotaBytes > 0 {
-		quota = models.HumanSize(quotaBytes)
+		quota = ui.Size(quotaBytes)
 	}
 
 	file := "the instance default"
 	if fileBytes > 0 {
-		file = models.HumanSize(fileBytes)
+		file = ui.Size(fileBytes)
 	}
 
 	return fmt.Sprintf("%s: total storage %s, largest single file %s.", username, quota, file)

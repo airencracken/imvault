@@ -2,9 +2,9 @@
 <header class="page-head">
   <h1>Upload</h1>
   <p class="muted">
-    Photos and animations up to {{.MaxUploadMB}} MiB.
+    Photos and animations up to {{.MaxUpload}}.
     {{if .VideoEnabled}}
-      Clips up to {{.MaxVideoMB}} MiB and {{.MaxVideoSeconds}} seconds
+      Clips up to {{.MaxVideo}} and {{.MaxVideoSeconds}} seconds
       (WebM, MP4, MOV). GIFs keep their animation.
     {{else}}
       GIFs keep their animation. Clip playback needs ffmpeg on the server.

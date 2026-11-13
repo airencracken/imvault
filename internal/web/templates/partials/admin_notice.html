@@ -9,9 +9,8 @@
   {{.Text}}
   {{if .Link}}
   <div class="notice-link">
-    <input class="key-reveal" id="admin-notice-link" readonly value="{{.Link}}" data-select-on-focus
+    <input class="key-reveal" id="admin-notice-link" readonly value="{{.Link}}" data-select-on-focus data-comfy-copy
            aria-label="{{default "One-time link" .LinkLabel}}">
-    <button class="btn small" type="button" data-copy="#admin-notice-link">Copy</button>
   </div>
   {{end}}
 </div>

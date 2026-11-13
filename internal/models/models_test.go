@@ -3,7 +3,6 @@
 package models
 
 import (
-	"fmt"
 	"testing"
 	"time"
 	"unicode/utf8"
@@ -36,25 +35,6 @@ func TestTruncateIsRuneSafe(t *testing.T) {
 				t.Errorf("Truncate(%q, %d) produced invalid UTF-8", tc.in, tc.max)
 			}
 		})
-	}
-}
-
-func TestHumanSize(t *testing.T) {
-	tests := []struct {
-		in   int64
-		want string
-	}{
-		{0, "0 B"},
-		{512, "512 B"},
-		{1024, "1.0 KiB"},
-		{1536, "1.5 KiB"},
-		{1024 * 1024, "1.0 MiB"},
-		{3 * 1024 * 1024 * 1024, "3.0 GiB"},
-	}
-	for _, tc := range tests {
-		if got := HumanSize(tc.in); got != tc.want {
-			t.Errorf("HumanSize(%d) = %q, want %q", tc.in, got, tc.want)
-		}
 	}
 }
 
@@ -107,9 +87,12 @@ func TestFileHelpers(t *testing.T) {
 	}
 }
 
-func ExampleHumanSize() {
-	fmt.Println(HumanSize(2048))
-	// Output: 2.0 KiB
+func TestUsageLabelUsesDecimalSizes(t *testing.T) {
+	quota := int64(5_000_000)
+	u := &User{StorageUsed: 1_500_000, QuotaBytes: quota}
+	if got := u.UsageLabel(); got != "1.5 MB of 5 MB" {
+		t.Errorf("UsageLabel() = %q", got)
+	}
 }
 
 func TestVisibilityParsingClosesOnAnythingUnknown(t *testing.T) {

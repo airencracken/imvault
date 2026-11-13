@@ -3,7 +3,7 @@
   {{if .NewKey}}
   <div class="flash ok">
     <p><strong>Copy this key now.</strong> It is stored hashed and cannot be shown again.</p>
-    <input class="key-reveal" readonly value="{{.NewKey}}" data-select-on-focus>
+    <input class="key-reveal" readonly value="{{.NewKey}}" data-select-on-focus data-comfy-copy>
   </div>
   {{end}}
   {{if .Error}}<p class="flash err">{{.Error}}</p>{{end}}

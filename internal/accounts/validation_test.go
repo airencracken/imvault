@@ -37,8 +37,11 @@ func TestEmails(t *testing.T) {
 func TestPasswordsAndRegistrationReportProblems(t *testing.T) {
 	for password, ok := range map[string]bool{
 		"short":                 false,
-		"long enough":           true,
-		strings.Repeat("é", 8):  true,  // eight characters, sixteen bytes
+		"elevenchars":           false,
+		"long enough!":          true,
+		strings.Repeat("é", 12): true, // twelve characters, 24 bytes
+		strings.Repeat("x", 11): false,
+		"bad\xffutf8 password":  false,
 		strings.Repeat("x", 72): true,  // bcrypt's limit
 		strings.Repeat("x", 73): false, // past it, and silently truncated
 		strings.Repeat("€", 25): false, // 25 characters, 75 bytes
@@ -52,10 +55,10 @@ func TestPasswordsAndRegistrationReportProblems(t *testing.T) {
 			t.Errorf("%v is not a Problem the form can show", err)
 		}
 	}
-	if err := ValidateRegistration("ok_name", "", "long enough"); err != nil {
+	if err := ValidateRegistration("ok_name", "", "long enough!"); err != nil {
 		t.Errorf("an address is optional: %v", err)
 	}
-	if err := ValidateRegistration("ok_name", "not-an-address", "long enough"); err == nil {
+	if err := ValidateRegistration("ok_name", "not-an-address", "long enough!"); err == nil {
 		t.Error("a bad address was accepted")
 	}
 }

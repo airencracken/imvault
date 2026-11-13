@@ -5,9 +5,9 @@
     <h2 id="invitation-ready">Copy this invitation now</h2>
     <p class="muted">Send the link privately to the person you're inviting. It cannot be shown again.</p>
     <label for="invitation-link">Invitation link</label>
-    <input id="invitation-link" aria-label="Invitation link" readonly value="{{.InviteURL}}" data-select-on-focus>
+    <input id="invitation-link" aria-label="Invitation link" readonly value="{{.InviteURL}}" data-select-on-focus data-comfy-copy>
     <label for="invitation-code">Invitation code</label>
-    <input id="invitation-code" aria-label="Invitation code" readonly value="{{.NewCode}}" data-select-on-focus>
+    <input id="invitation-code" aria-label="Invitation code" readonly value="{{.NewCode}}" data-select-on-focus data-comfy-copy>
   </section>
   {{end}}
   {{if .Error}}<p class="comfy-notice comfy-notice-error flash err" role="alert">{{.Error}}</p>{{end}}

@@ -319,19 +319,6 @@
     if (target.closest("[data-confirm-accept]")) return settle(true);
     if (target.closest("[data-confirm-cancel]") || target === dialog()) return settle(false);
 
-    var copy = target.closest("[data-copy]");
-    if (copy) {
-      var field = byId(copy.getAttribute("data-copy"));
-      if (field && window.navigator && navigator.clipboard) {
-        navigator.clipboard.writeText(field.value).then(function () {
-          var label = copy.textContent;
-          copy.textContent = "Copied";
-          setTimeout(function () { copy.textContent = label; }, 1500);
-        }, function () {});
-      }
-      return;
-    }
-
     // On the upload page, choosing public turns camera details and location
     // off, and choosing a closed level turns them back on. Either can still be
     // ticked by hand afterwards.

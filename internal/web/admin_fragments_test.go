@@ -53,7 +53,7 @@ func TestAdminActionsAnswerHTMXWithAFragment(t *testing.T) {
 		t.Errorf("the response is not the affected row: %s", truncate(body))
 	}
 	// The row carries the new state, so the client does not have to guess.
-	if !strings.Contains(body, "3.0 MiB") {
+	if !strings.Contains(body, "3.1 MB") {
 		t.Errorf("the row does not reflect the new quota: %s", truncate(body))
 	}
 	// And the notice arrives out of band, to be placed elsewhere on the page.

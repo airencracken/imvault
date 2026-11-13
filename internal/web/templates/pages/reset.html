@@ -9,10 +9,10 @@
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
     {{if .Username}}<p class="muted">Setting a new password for <strong>{{.Username}}</strong>.</p>{{end}}
     <label>New password
-      <input name="password" type="password" autocomplete="new-password" minlength="8" required autofocus>
+      <input name="password" type="password" autocomplete="new-password" minlength="12" required autofocus>
     </label>
     <label>Confirm new password
-      <input name="password_confirm" type="password" autocomplete="new-password" minlength="8" required>
+      <input name="password_confirm" type="password" autocomplete="new-password" minlength="12" required>
     </label>
     <button class="btn primary" type="submit">Set password</button>
   </form>

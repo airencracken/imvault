@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/airencracken/comfylib/ui"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -48,8 +49,8 @@ func (s *Server) handleUploadPage(w http.ResponseWriter, r *http.Request) {
 func (s *Server) uploadPageView(r *http.Request, user *models.User) uploadView {
 	view := uploadView{
 		base:            s.base(r, "Upload"),
-		MaxUploadMB:     s.fileLimit(user, media.FormatImage) >> 20,
-		MaxVideoMB:      s.fileLimit(user, media.FormatWebM) >> 20,
+		MaxUpload:       ui.Size(s.fileLimit(user, media.FormatImage)),
+		MaxVideo:        ui.Size(s.fileLimit(user, media.FormatWebM)),
 		MaxVideoSeconds: int(s.cfg.MaxVideoDuration.Seconds()),
 		VideoEnabled:    s.media.VideoEnabled(),
 	}
@@ -240,8 +241,8 @@ func (s *Server) ingest(ctx context.Context, header *multipart.FileHeader, user 
 	}
 
 	if limit := s.fileLimit(user, format); header.Size > limit {
-		return nil, fmt.Errorf("larger than the %d MiB limit for %s",
-			limit>>20, kindNoun(format))
+		return nil, fmt.Errorf("larger than the %s limit for %s",
+			ui.Size(limit), kindNoun(format))
 	}
 
 	// Read what the file says about itself, once, while the stream is at the
@@ -293,7 +294,7 @@ func quotaError(err error, user *models.User) error {
 		return errors.New("storage quota exceeded")
 	}
 	return fmt.Errorf("storage quota exceeded (%s used of %s)",
-		models.HumanSize(user.StorageUsed), models.HumanSize(user.QuotaBytes))
+		ui.Size(user.StorageUsed), ui.Size(user.QuotaBytes))
 }
 
 // classifyUpload sniffs the leading bytes then returns the reader to the start.
@@ -715,7 +716,7 @@ func uploadErrStatus(err error) int {
 func uploadErrMessage(err error) string {
 	var maxErr *http.MaxBytesError
 	if errors.As(err, &maxErr) {
-		return fmt.Sprintf("the request exceeded the %d MiB limit", maxErr.Limit>>20)
+		return fmt.Sprintf("the request exceeded the %s limit", ui.Size(maxErr.Limit))
 	}
 	if strings.Contains(err.Error(), "multipart") {
 		return "the form data was malformed"

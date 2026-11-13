@@ -4,19 +4,17 @@
 package accounts
 
 import (
-	"fmt"
 	"net/mail"
 	"regexp"
 	"strings"
-	"unicode/utf8"
+
+	"github.com/airencracken/comfylib/password"
 )
 
 var usernameRE = regexp.MustCompile(`^[A-Za-z0-9_.-]{3,32}$`)
 
-const MinPasswordLength = 8
-
 // MaxPasswordBytes is bcrypt's maximum input length.
-const MaxPasswordBytes = 72
+const MaxPasswordBytes = password.MaxBytes
 
 func ValidUsername(username string) bool {
 	return usernameRE.MatchString(username)
@@ -34,12 +32,11 @@ type Problem string
 
 func (p Problem) Error() string { return string(p) }
 
-func ValidatePassword(password string) error {
-	if utf8.RuneCountInString(password) < MinPasswordLength {
-		return Problem(fmt.Sprintf("Password must be at least %d characters.", MinPasswordLength))
-	}
-	if len(password) > MaxPasswordBytes {
-		return Problem(fmt.Sprintf("Password must be at most %d bytes.", MaxPasswordBytes))
+// ValidatePassword applies the shared Comfyware rule for a new password. Its
+// errors are plain sentences, shown as they are.
+func ValidatePassword(value string) error {
+	if err := password.Validate(value); err != nil {
+		return Problem(err.Error())
 	}
 	return nil
 }
