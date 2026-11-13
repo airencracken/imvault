@@ -18,7 +18,7 @@ img.example.com {
 	# request from being received in full. It covers every file in a batch
 	# plus multipart overhead; raise it for larger batches or file limits.
 	request_body {
-		max_size 256MB
+		max_size 256MiB
 	}
 
 	reverse_proxy 127.0.0.1:8080 {

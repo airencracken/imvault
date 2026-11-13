@@ -87,10 +87,10 @@ func TestFileHelpers(t *testing.T) {
 	}
 }
 
-func TestUsageLabelUsesDecimalSizes(t *testing.T) {
-	quota := int64(5_000_000)
-	u := &User{StorageUsed: 1_500_000, QuotaBytes: quota}
-	if got := u.UsageLabel(); got != "1.5 MB of 5 MB" {
+func TestUsageLabelUsesBinarySizes(t *testing.T) {
+	quota := int64(5 << 20)
+	u := &User{StorageUsed: 3 << 19, QuotaBytes: quota}
+	if got := u.UsageLabel(); got != "1.5 MiB of 5 MiB" {
 		t.Errorf("UsageLabel() = %q", got)
 	}
 }
