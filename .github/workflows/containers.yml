@@ -20,7 +20,7 @@ jobs:
     permissions:
       contents: read
       packages: write
-    uses: airencracken/comfylib/.github/workflows/containers.yml@98f4933cf7ce5c3bb9887fdd2b830bdf03363023 # v0.5.0
+    uses: airencracken/comfylib/.github/workflows/containers.yml@57e2a2c00cd36c29a7565e4827e197f93ddfcf39 # v0.7.0
     with:
       source_ref: ${{ inputs.source_ref }}
       release_tag: ${{ inputs.release_tag }}

@@ -28,8 +28,8 @@ Public for an audience, members-only for your people, private for the
 
 *The local demo, stocked with sample media.*
 
-**What's new:** see the [release notes](docs/release-notes/) and the
-[latest release](docs/releases.md).
+**Current release:** 0.26.0. See [what's new](docs/release-notes/0.26.0.md) and
+[all releases](docs/releases.md).
 
 ## Come on in
 

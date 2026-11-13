@@ -1,7 +1,7 @@
 # Binary releases
 
 Download Imvault from [GitHub Releases](https://github.com/airencracken/imvault/releases).
-The latest release is [0.25.0](release-notes/0.25.0.md). Every version's
+The latest release is [0.26.0](release-notes/0.26.0.md). Every version's
 changes and upgrade steps are in [release notes](release-notes/); read the
 notes for each version you skip.
 
@@ -22,7 +22,7 @@ system's CA certificates.
 Pick a version and architecture, then download, verify and install:
 
 ```sh
-release_version=0.25.0
+release_version=0.26.0
 release_arch=amd64
 release_url="https://github.com/airencracken/imvault/releases/download/v$release_version"
 curl -fLO "$release_url/imvault_${release_version}_${release_arch}.deb"
@@ -73,8 +73,8 @@ those yourself only when you mean to discard the installation.
 Download the archive and checksum file, verify them as above, and extract:
 
 ```sh
-tar -xzf imvault_0.25.0_linux_amd64.tar.gz
-cd imvault_0.25.0_linux_amd64
+tar -xzf imvault_0.26.0_linux_amd64.tar.gz
+cd imvault_0.26.0_linux_amd64
 sudo install -m 0755 imvault /usr/local/bin/imvault
 sudo install -d /usr/local/share/doc/imvault
 sudo install -m 0644 LICENSE README.md THIRD_PARTY_NOTICES.txt /usr/local/share/doc/imvault/
