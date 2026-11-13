@@ -116,7 +116,7 @@ func (s *Server) renderPartialStatus(w http.ResponseWriter, r *http.Request, sta
 	var buf bytes.Buffer
 	if err := s.render.partial(&buf, name, data, preferredTimezone(r)); err != nil {
 		s.log.Error("render partial", "template", name, "error", err)
-		http.Error(w, "template error", http.StatusInternalServerError)
+		http.Error(w, "Something went wrong on our side. Please try again.", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -129,7 +129,7 @@ func (s *Server) renderPage(w http.ResponseWriter, r *http.Request, status int, 
 	var buf bytes.Buffer
 	if err := s.render.page(&buf, name, data, preferredTimezone(r)); err != nil {
 		s.log.Error("render page", "template", name, "error", err)
-		http.Error(w, "template error", http.StatusInternalServerError)
+		http.Error(w, "Something went wrong on our side. Please try again.", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

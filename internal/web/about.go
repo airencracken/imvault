@@ -16,7 +16,7 @@ func (s *Server) handleAbout(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.store.DB().QueryContext(r.Context(), `SELECT username, role FROM users WHERE disabled = 0 AND role IN ('admin', 'moderator') ORDER BY role, username COLLATE NOCASE`)
 	if err != nil {
 		s.log.Error("about: staff", "error", err)
-		http.Error(w, "Could not read the site information.", 500)
+		s.fail(w, r, 500, "Site information couldn't be loaded. Please try again.")
 		return
 	}
 	defer rows.Close()
@@ -24,13 +24,13 @@ func (s *Server) handleAbout(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var person siteStaff
 		if err := rows.Scan(&person.Username, &person.Role); err != nil {
-			http.Error(w, "Could not read the site information.", 500)
+			s.fail(w, r, 500, "Site information couldn't be loaded. Please try again.")
 			return
 		}
 		staff = append(staff, person)
 	}
 	if rows.Err() != nil {
-		http.Error(w, "Could not read the site information.", 500)
+		s.fail(w, r, 500, "Site information couldn't be loaded. Please try again.")
 		return
 	}
 	s.renderPage(w, r, 200, "about", struct {

@@ -20,13 +20,13 @@ func (s *Server) handleTrash(w http.ResponseWriter, r *http.Request) {
 	owner := currentUser(r.Context()).ID
 	total, err := s.store.CountTrash(r.Context(), owner)
 	if err != nil {
-		http.Error(w, "could not load Trash", 500)
+		s.fail(w, r, 500, "Trash couldn't be loaded. Please try again.")
 		return
 	}
 	page, pg := pagination(r, total)
 	files, err := s.store.ListTrash(r.Context(), owner, defaultPageSize, (page-1)*defaultPageSize)
 	if err != nil {
-		http.Error(w, "could not load Trash", 500)
+		s.fail(w, r, 500, "Trash couldn't be loaded. Please try again.")
 		return
 	}
 	noStore(w)
@@ -62,7 +62,7 @@ func (s *Server) handleTrashRestore(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleTrashPurge(w http.ResponseWriter, r *http.Request) {
 	if r.FormValue("confirm") != "yes" {
-		http.Error(w, "confirm permanent deletion", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "Tick the box to confirm permanent deletion.")
 		return
 	}
 	file, err := s.store.PurgeTrashedFile(r.Context(), r.PathValue("id"), currentUser(r.Context()).ID)
@@ -81,7 +81,7 @@ func (s *Server) trashError(w http.ResponseWriter, r *http.Request, err error) {
 		return
 	}
 	s.log.Error("trash", "error", err)
-	http.Error(w, "could not update Trash", http.StatusInternalServerError)
+	s.fail(w, r, http.StatusInternalServerError, "Trash couldn't be updated. Please try again.")
 }
 
 func (s *Server) apiRestoreTrash(w http.ResponseWriter, r *http.Request) {

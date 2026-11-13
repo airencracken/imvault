@@ -25,7 +25,7 @@ func (s *Server) handleAlbumsPage(w http.ResponseWriter, r *http.Request) {
 	albums, err := s.store.AlbumsByUser(r.Context(), user.ID)
 	if err != nil {
 		s.log.Error("albums page: list", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 
@@ -106,7 +106,7 @@ func (s *Server) handleAlbumUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "malformed form", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "That form couldn't be read. Please try again.")
 		return
 	}
 
@@ -151,7 +151,7 @@ func (s *Server) handleAlbumPage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.log.Error("album page: lookup", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 
@@ -176,7 +176,7 @@ func (s *Server) handleAlbumPage(w http.ResponseWriter, r *http.Request) {
 	files, err := s.store.ListFiles(r.Context(), filter)
 	if err != nil {
 		s.log.Error("album page: list files", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 
@@ -196,7 +196,7 @@ func (s *Server) handleAlbumPage(w http.ResponseWriter, r *http.Request) {
 
 	links, err := s.store.AlbumDiscussions(r.Context(), album.ID)
 	if err != nil {
-		http.Error(w, "database error", 500)
+		s.fail(w, r, 500, "Something went wrong on our side. Please try again.")
 		return
 	}
 	view := albumView{
@@ -267,7 +267,7 @@ func (s *Server) handleAlbumDelete(w http.ResponseWriter, r *http.Request) {
 
 	if err := s.store.DeleteAlbum(r.Context(), album.ID); err != nil {
 		s.log.Error("delete album", "id", album.ID, "error", err)
-		http.Error(w, "could not delete the album", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "The album couldn't be deleted. Please try again.")
 		return
 	}
 	s.recordAlbumRemoval(r.Context(), currentUser(r.Context()), album, "")
@@ -290,7 +290,7 @@ func (s *Server) handleAlbumAddFiles(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "malformed form", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "That form couldn't be read. Please try again.")
 		return
 	}
 
@@ -359,14 +359,14 @@ func (s *Server) handleAlbumRemoveFile(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if file.UserID == nil || *file.UserID != user.ID {
-			http.Error(w, "not permitted", http.StatusForbidden)
+			s.fail(w, r, http.StatusForbidden, "You don't have permission to do that.")
 			return
 		}
 	}
 
 	if err := s.store.RemoveFileFromAlbum(r.Context(), album.ID, fileID); err != nil {
 		s.log.Error("remove file from album", "album", album.ID, "file", fileID, "error", err)
-		http.Error(w, "could not update the album", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "The album couldn't be updated. Please try again.")
 		return
 	}
 
@@ -429,7 +429,7 @@ func (s *Server) loadAlbum(w http.ResponseWriter, r *http.Request) (*models.Albu
 			return nil, false
 		}
 		s.log.Error("load album", "slug", r.PathValue("slug"), "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return nil, false
 	}
 	return album, true
@@ -443,7 +443,7 @@ func (s *Server) loadAdministerableAlbum(w http.ResponseWriter, r *http.Request)
 		return nil, false
 	}
 	if !canAdministerAlbum(currentUser(r.Context()), album) {
-		http.Error(w, "not permitted", http.StatusForbidden)
+		s.fail(w, r, http.StatusForbidden, "You don't have permission to do that.")
 		return nil, false
 	}
 	return album, true
@@ -457,7 +457,7 @@ func (s *Server) loadDeletableAlbum(w http.ResponseWriter, r *http.Request) (*mo
 		return nil, false
 	}
 	if !canDeleteAlbum(currentUser(r.Context()), album) {
-		http.Error(w, "not permitted", http.StatusForbidden)
+		s.fail(w, r, http.StatusForbidden, "You don't have permission to do that.")
 		return nil, false
 	}
 	return album, true
@@ -471,7 +471,7 @@ func (s *Server) loadContributableAlbum(w http.ResponseWriter, r *http.Request) 
 		return nil, false
 	}
 	if !canContributeToAlbum(currentUser(r.Context()), album) {
-		http.Error(w, "not permitted", http.StatusForbidden)
+		s.fail(w, r, http.StatusForbidden, "You don't have permission to do that.")
 		return nil, false
 	}
 	return album, true

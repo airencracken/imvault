@@ -114,7 +114,7 @@
   {
     "name": "a failed export reports failure before successful headers",
     "file": "internal/web/handlers_export.go",
-    "before": "\t\t\ts.exportFailure(w, user, \"write file\", err)\n\t\t\treturn",
+    "before": "\t\t\ts.exportFailure(w, r, user, \"write file\", err)\n\t\t\treturn",
     "after": "\t\t\tcontinue",
     "package": "./internal/web",
     "run": "^TestAFailedExportIsNotAValidArchive$"

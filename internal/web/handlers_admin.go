@@ -77,7 +77,7 @@ func (s *Server) notPermitted(w http.ResponseWriter, r *http.Request, message st
 func (s *Server) adminTargetUser(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
-		http.Error(w, "invalid account", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "That account doesn't exist.")
 		return 0, false
 	}
 	return id, true
@@ -88,21 +88,21 @@ func (s *Server) handleAdminDashboard(w http.ResponseWriter, r *http.Request) {
 	stats, err := s.store.Stats(r.Context())
 	if err != nil {
 		s.log.Error("admin: stats", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 
 	users, _, err := s.store.ListUsers(r.Context(), 8, 0)
 	if err != nil {
 		s.log.Error("admin: top users", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 
 	recent, err := s.store.ListFiles(r.Context(), store.FileQuery{Limit: 12})
 	if err != nil {
 		s.log.Error("admin: recent files", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 
@@ -148,7 +148,7 @@ func (s *Server) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 	users, total, err := s.store.ListUsers(r.Context(), adminPageSize, (page-1)*adminPageSize)
 	if err != nil {
 		s.log.Error("admin: list users", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 
@@ -181,7 +181,7 @@ func (s *Server) handleAdminSetLimits(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "malformed form", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "That form couldn't be read. Please try again.")
 		return
 	}
 
@@ -357,12 +357,12 @@ func (s *Server) handleAdminSetRole(w http.ResponseWriter, r *http.Request) {
 // invitations without changing their role.
 func (s *Server) handleAdminSetInvitePermission(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "malformed form", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "That form couldn't be read. Please try again.")
 		return
 	}
 	values := r.PostForm["can_invite"]
 	if len(values) != 1 || (values[0] != "0" && values[0] != "1") {
-		http.Error(w, "choose whether invitation access is allowed", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "Choose whether this account can invite people.")
 		return
 	}
 	userID, ok := s.adminTargetUser(w, r)
@@ -492,14 +492,14 @@ func (s *Server) handleAdminFiles(w http.ResponseWriter, r *http.Request) {
 	total, err := s.store.CountFiles(r.Context(), filter)
 	if err != nil {
 		s.log.Error("admin: count files", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 
 	files, err := s.store.ListFiles(r.Context(), filter)
 	if err != nil {
 		s.log.Error("admin: list files", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 
@@ -527,7 +527,7 @@ func (s *Server) handleAdminDeleteFile(w http.ResponseWriter, r *http.Request) {
 
 	if err := s.deleteFileAndRelease(r.Context(), file); err != nil {
 		s.log.Error("admin: delete file", "id", file.ID, "error", err)
-		http.Error(w, "could not delete the file", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "The file couldn't be deleted. Please try again.")
 		return
 	}
 	s.recordFileRemoval(r.Context(), currentUser(r.Context()), file, "")

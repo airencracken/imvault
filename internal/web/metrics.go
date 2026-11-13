@@ -17,12 +17,12 @@ func (s *Server) handleAdminMetrics(w http.ResponseWriter, r *http.Request) {
 	metrics, err := s.store.Metrics(r.Context(), time.Now())
 	if err != nil {
 		s.log.Error("admin metrics", "error", err)
-		http.Error(w, "Could not load instance metrics", 500)
+		s.fail(w, r, 500, "Site figures couldn't be loaded. Please try again.")
 		return
 	}
 	activity, err := s.store.Analytics(r.Context(), time.Now())
 	if err != nil {
-		http.Error(w, "Could not load activity metrics", 500)
+		s.fail(w, r, 500, "Activity figures couldn't be loaded. Please try again.")
 		return
 	}
 	overview := admin.WithSuite(admin.Runtime(s.cfg.Version, s.Backups.Status()), "IMVAULT_")

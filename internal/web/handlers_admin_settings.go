@@ -266,7 +266,7 @@ func (s *Server) handleAdminSettings(w http.ResponseWriter, r *http.Request) {
 // handleAdminSaveSettings applies new policy.
 func (s *Server) handleAdminSaveSettings(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "malformed form", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "That form couldn't be read. Please try again.")
 		return
 	}
 

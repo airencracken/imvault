@@ -35,14 +35,14 @@ func (s *Server) handleGallery(w http.ResponseWriter, r *http.Request) {
 	}
 	dates, err := applyLibraryDates(r.URL.Query(), &filter)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, sentence(err.Error()))
 		return
 	}
 
 	total, err := s.store.CountFiles(r.Context(), filter)
 	if err != nil {
 		s.log.Error("gallery: count", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 
@@ -53,7 +53,7 @@ func (s *Server) handleGallery(w http.ResponseWriter, r *http.Request) {
 	files, err := s.store.ListFiles(r.Context(), filter)
 	if err != nil {
 		s.log.Error("gallery: list", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 
@@ -62,7 +62,7 @@ func (s *Server) handleGallery(w http.ResponseWriter, r *http.Request) {
 	grid.ShowTaken = true
 	years, err := s.store.CaptureYears(r.Context(), user.ID)
 	if err != nil {
-		http.Error(w, "could not load photo dates", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Photo dates couldn't be loaded. Please try again.")
 		return
 	}
 	if dates.Year != "" && dates.Year != "unknown" && !slices.Contains(years, dates.Year) {
@@ -96,7 +96,7 @@ func (s *Server) handleRecent(w http.ResponseWriter, r *http.Request) {
 	total, err := s.store.CountFiles(r.Context(), filter)
 	if err != nil {
 		s.log.Error("recent: count", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 
@@ -107,7 +107,7 @@ func (s *Server) handleRecent(w http.ResponseWriter, r *http.Request) {
 	files, err := s.store.ListFiles(r.Context(), filter)
 	if err != nil {
 		s.log.Error("recent: list", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 
@@ -148,14 +148,14 @@ func (s *Server) handleFilePage(w http.ResponseWriter, r *http.Request) {
 			var err error
 			view.OwnerProfile, err = s.store.MemberProfile(r.Context(), *file.UserID)
 			if err != nil && !errors.Is(err, store.ErrNotFound) {
-				s.avatarError(w, err)
+				s.avatarError(w, r, err)
 				return
 			}
 		}
 		favorite, err := s.store.IsFavorite(r.Context(), user.ID, file.ID)
 		if err != nil {
 			s.log.Error("file page: favorite", "error", err)
-			http.Error(w, "database error", http.StatusInternalServerError)
+			s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 			return
 		}
 		view.Favorited = favorite
@@ -202,7 +202,7 @@ func (s *Server) handleTagsPage(w http.ResponseWriter, r *http.Request) {
 	tags, err := s.store.ListTags(r.Context(), userIDPtr(user), 200)
 	if err != nil {
 		s.log.Error("tags page: list", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 
@@ -245,7 +245,7 @@ func (s *Server) handleTagPage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.log.Error("tag page: lookup", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 
@@ -254,7 +254,7 @@ func (s *Server) handleTagPage(w http.ResponseWriter, r *http.Request) {
 	visible, err := s.store.CountTagVisibleTo(r.Context(), tag.ID, viewer)
 	if err != nil {
 		s.log.Error("tag page: count", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 	if visible == 0 {
@@ -274,7 +274,7 @@ func (s *Server) handleTagPage(w http.ResponseWriter, r *http.Request) {
 	total, err := s.store.CountFiles(r.Context(), filter)
 	if err != nil {
 		s.log.Error("tag page: count files", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 
@@ -285,7 +285,7 @@ func (s *Server) handleTagPage(w http.ResponseWriter, r *http.Request) {
 	files, err := s.store.ListFiles(r.Context(), filter)
 	if err != nil {
 		s.log.Error("tag page: list", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 
@@ -310,7 +310,7 @@ func (s *Server) lookupVisibleFile(w http.ResponseWriter, r *http.Request) (file
 			return nil, false
 		}
 		s.log.Error("lookup file", "id", id, "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return nil, false
 	}
 

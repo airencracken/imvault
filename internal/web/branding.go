@@ -26,7 +26,7 @@ func (s *Server) handleBrandingAsset(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		s.log.Error("load branding asset", "name", name, "error", err)
-		http.Error(w, "could not load image", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "The image couldn't be loaded. Please try again.")
 		return
 	}
 	w.Header().Set("Content-Type", "image/png")

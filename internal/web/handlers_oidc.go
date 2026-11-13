@@ -161,7 +161,7 @@ func (s *Server) sendToProvider(w http.ResponseWriter, r *http.Request, attempt 
 
 	if err := s.setOIDCAttempt(w, r, attempt); err != nil {
 		s.log.Error("oidc: seal attempt", "error", err)
-		http.Error(w, "could not start the sign-in", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Sign-in couldn't start. Please try again.")
 		return
 	}
 
@@ -275,7 +275,7 @@ func (s *Server) resolveOIDCIdentity(w http.ResponseWriter, r *http.Request, att
 	attempt.Identity = identity
 	if err := s.setOIDCAttempt(w, r, attempt); err != nil {
 		s.log.Error("oidc: seal attempt", "error", err)
-		http.Error(w, "could not continue the sign-in", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Sign-in couldn't continue. Please try again.")
 		return
 	}
 	http.Redirect(w, r, "/auth/oidc/complete", http.StatusSeeOther)
@@ -441,7 +441,7 @@ func (s *Server) handleOIDCCompleteSubmit(w http.ResponseWriter, r *http.Request
 	}
 
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "malformed form", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "That form couldn't be read. Please try again.")
 		return
 	}
 
@@ -486,7 +486,7 @@ func (s *Server) handleOIDCCompleteSubmit(w http.ResponseWriter, r *http.Request
 	placeholder, err := bcrypt.GenerateFromPassword([]byte(ids.Token(32)), bcrypt.DefaultCost)
 	if err != nil {
 		s.log.Error("oidc: placeholder password", "error", err)
-		http.Error(w, "could not create the account", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Your account couldn't be created. Please try again.")
 		return
 	}
 
@@ -507,7 +507,7 @@ func (s *Server) handleOIDCCompleteSubmit(w http.ResponseWriter, r *http.Request
 			renderErr(http.StatusForbidden, "That invitation is not valid, or has already been used.")
 		default:
 			s.log.Error("oidc: create account", "error", err)
-			http.Error(w, "could not create the account", http.StatusInternalServerError)
+			s.fail(w, r, http.StatusInternalServerError, "Your account couldn't be created. Please try again.")
 		}
 		return
 	}

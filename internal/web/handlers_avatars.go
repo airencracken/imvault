@@ -27,12 +27,12 @@ func (s *Server) handleAvatar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		s.avatarError(w, err)
+		s.avatarError(w, r, err)
 		return
 	}
 	on, err := s.store.AnimateAvatars(r.Context(), currentUser(r.Context()).ID)
 	if err != nil {
-		s.avatarError(w, err)
+		s.avatarError(w, r, err)
 		return
 	}
 	content, kind := picture.Still, "image/png"
@@ -50,9 +50,9 @@ func (s *Server) handleAvatar(w http.ResponseWriter, r *http.Request) {
 	s.writeBody(w, content)
 }
 
-func (s *Server) avatarError(w http.ResponseWriter, err error) {
+func (s *Server) avatarError(w http.ResponseWriter, r *http.Request, err error) {
 	s.log.Error("avatar operation", "error", err)
-	http.Error(w, "Could not update or load the avatar.", 500)
+	s.fail(w, r, 500, "The avatar couldn't be updated or loaded. Please try again.")
 }
 
 func avatarUpload(r *http.Request) ([]byte, bool, error) {
@@ -115,11 +115,11 @@ func (s *Server) handleAvatarSave(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleAvatarPreference(w http.ResponseWriter, r *http.Request) {
 	values := r.PostForm["animate"]
 	if len(values) > 1 || len(values) == 1 && values[0] != "1" {
-		http.Error(w, "Choose a valid animation preference.", 422)
+		s.fail(w, r, 422, "Choose whether avatars may animate.")
 		return
 	}
 	if err := s.store.SetAnimateAvatars(r.Context(), currentUser(r.Context()).ID, len(values) == 1); err != nil {
-		s.avatarError(w, err)
+		s.avatarError(w, r, err)
 		return
 	}
 	s.redirectFlash(w, r, "/settings/profile#avatar", flashNotice, "Animation preference saved.")
@@ -132,7 +132,7 @@ func (s *Server) handleAdminAvatarRemove(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if err = s.store.DeleteAvatar(r.Context(), id); err != nil {
-		s.avatarError(w, err)
+		s.avatarError(w, r, err)
 		return
 	}
 	s.redirectFlash(w, r, fmt.Sprintf("/members/%d", id), flashNotice, "Avatar removed.")

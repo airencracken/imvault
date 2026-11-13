@@ -138,7 +138,7 @@ func (s *Server) serveObject(w http.ResponseWriter, r *http.Request, file *model
 			return
 		}
 		s.log.Error("open object", "id", file.ID, "key", key, "error", err)
-		http.Error(w, "storage error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "The file couldn't be read. Please try again.")
 		return
 	}
 	defer s.closeLogged(f, "stored object")
@@ -191,7 +191,7 @@ func (s *Server) handleFileVisibility(w http.ResponseWriter, r *http.Request) {
 	visibility := models.ParseVisibility(r.FormValue("visibility"))
 	if err := s.store.SetFileVisibility(r.Context(), file.ID, visibility); err != nil {
 		s.log.Error("set visibility", "id", file.ID, "error", err)
-		http.Error(w, "could not update visibility", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Visibility couldn't be changed. Please try again.")
 		return
 	}
 	becamePublic := visibility.IsPublic() && !file.Visibility.IsPublic()
@@ -224,7 +224,7 @@ func (s *Server) handleFileDelete(w http.ResponseWriter, r *http.Request) {
 	// the stored bytes, while staff removal releases them after deletion.
 	if err := s.removeOrTrashFile(r, file); err != nil {
 		s.log.Error("delete file", "id", file.ID, "error", err)
-		http.Error(w, "could not delete the file", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "The file couldn't be deleted. Please try again.")
 		return
 	}
 	s.recordFileRemoval(r.Context(), currentUser(r.Context()), file, "")
@@ -274,7 +274,7 @@ func (s *Server) handleTagAdd(w http.ResponseWriter, r *http.Request) {
 
 	if _, err := s.store.AddTag(r.Context(), file.ID, tagOwner(file), name); err != nil {
 		s.log.Error("add tag", "id", file.ID, "error", err)
-		http.Error(w, "could not add the tag", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "The tag couldn't be added. Please try again.")
 		return
 	}
 	s.renderTagsFragment(w, r, file)
@@ -289,13 +289,13 @@ func (s *Server) handleTagRemove(w http.ResponseWriter, r *http.Request) {
 
 	tagID, err := strconv.ParseInt(r.PathValue("tagID"), 10, 64)
 	if err != nil {
-		http.Error(w, "invalid tag", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "That tag doesn't exist.")
 		return
 	}
 
 	if err := s.store.RemoveTag(r.Context(), file.ID, tagID); err != nil {
 		s.log.Error("remove tag", "id", file.ID, "tag", tagID, "error", err)
-		http.Error(w, "could not remove the tag", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "The tag couldn't be removed. Please try again.")
 		return
 	}
 	s.renderTagsFragment(w, r, file)
@@ -305,7 +305,7 @@ func (s *Server) renderTagsFragment(w http.ResponseWriter, r *http.Request, file
 	tags, err := s.store.TagsForFile(r.Context(), file.ID)
 	if err != nil {
 		s.log.Error("load tags", "id", file.ID, "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 	s.renderPartial(w, r, "tag_chips", tagsFragmentView{
@@ -337,7 +337,7 @@ func (s *Server) loadFile(w http.ResponseWriter, r *http.Request) (*models.File,
 			return nil, false
 		}
 		s.log.Error("load file", "id", id, "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return nil, false
 	}
 	return file, true
@@ -351,7 +351,7 @@ func (s *Server) loadChangeableFile(w http.ResponseWriter, r *http.Request) (*mo
 		return nil, false
 	}
 	if !canChangeFile(currentUser(r.Context()), file) {
-		http.Error(w, "not permitted", http.StatusForbidden)
+		s.fail(w, r, http.StatusForbidden, "You don't have permission to do that.")
 		return nil, false
 	}
 	return file, true
@@ -365,7 +365,7 @@ func (s *Server) loadDeletableFile(w http.ResponseWriter, r *http.Request) (*mod
 		return nil, false
 	}
 	if !canDeleteFile(currentUser(r.Context()), file) {
-		http.Error(w, "not permitted", http.StatusForbidden)
+		s.fail(w, r, http.StatusForbidden, "You don't have permission to do that.")
 		return nil, false
 	}
 	return file, true

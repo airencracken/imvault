@@ -16,12 +16,12 @@ func (s *Server) handleFileRename(w http.ResponseWriter, r *http.Request) {
 	}
 	name := strings.TrimSpace(r.FormValue("name"))
 	if !validFileName(name) {
-		http.Error(w, "Use a filename of 1–200 characters without path separators or control characters.", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "Use a filename of 1 to 200 characters, without slashes or control characters.")
 		return
 	}
 	if err := s.store.RenameFile(r.Context(), file.ID, name); err != nil {
 		s.log.Error("rename file", "id", file.ID, "error", err)
-		http.Error(w, "could not rename the file", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "The file couldn't be renamed. Please try again.")
 		return
 	}
 	s.redirectFlash(w, r, "/f/"+file.ID, flashNotice, "File renamed.")

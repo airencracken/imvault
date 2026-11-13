@@ -155,7 +155,7 @@ func (s *Server) checkCurrentPassword(r *http.Request, user *models.User, passwo
 func (s *Server) handleReauthStart(w http.ResponseWriter, r *http.Request) {
 	user := currentUser(r.Context())
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "malformed form", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "That form couldn't be read. Please try again.")
 		return
 	}
 	next := safeNext(r.PostFormValue("next"))

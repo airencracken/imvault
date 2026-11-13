@@ -14,7 +14,7 @@ import (
 
 func (s *Server) handleBulkTags(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "could not parse the form", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "That form couldn't be read. Please try again.")
 		return
 	}
 	count, err := s.store.AddTagsToFiles(r.Context(), currentUser(r.Context()).ID, r.PostForm["files"], strings.Split(r.PostForm.Get("tags"), ","))

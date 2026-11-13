@@ -22,17 +22,17 @@ func (s *Server) handleFileRotate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !file.CanRotate() {
-		http.Error(w, "Only still photos with previews can be rotated.", http.StatusUnprocessableEntity)
+		s.fail(w, r, http.StatusUnprocessableEntity, "Only still photos with previews can be rotated.")
 		return
 	}
 	direction := r.PostForm.Get("direction")
 	if direction != "left" && direction != "right" && direction != "reset" {
-		http.Error(w, "Choose rotate left, rotate right, or reset.", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "Choose rotate left, rotate right or reset.")
 		return
 	}
 	if err := s.store.RotateFile(r.Context(), file.ID, direction); err != nil {
 		s.log.Error("rotate photo", "id", file.ID, "error", err)
-		http.Error(w, "Could not rotate this photo.", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "This photo couldn't be rotated. Please try again.")
 		return
 	}
 	s.redirectFlash(w, r, "/f/"+file.ID, flashNotice, "Photo rotation saved.")
@@ -70,7 +70,7 @@ func (s *Server) serveRotatedPhoto(w http.ResponseWriter, r *http.Request, file 
 		finish, ok := s.exports.acquire(r.Context())
 		if !ok {
 			w.Header().Set("Retry-After", "10")
-			http.Error(w, "The server is preparing another download. Try again in a moment.", http.StatusServiceUnavailable)
+			s.fail(w, r, http.StatusServiceUnavailable, "The server is preparing another download. Please try again in a moment.")
 			return
 		}
 		defer finish()
@@ -78,7 +78,7 @@ func (s *Server) serveRotatedPhoto(w http.ResponseWriter, r *http.Request, file 
 	release, ok := s.processing.acquire(r.Context())
 	if !ok {
 		w.Header().Set("Retry-After", "10")
-		http.Error(w, "The server is busy processing photos. Try again in a moment.", http.StatusServiceUnavailable)
+		s.fail(w, r, http.StatusServiceUnavailable, "The server is busy with other photos. Please try again in a moment.")
 		return
 	}
 	defer func() {
@@ -89,14 +89,14 @@ func (s *Server) serveRotatedPhoto(w http.ResponseWriter, r *http.Request, file 
 	source, err := s.objects.Open(r.Context(), key)
 	if err != nil {
 		s.log.Error("open photo for rotation", "id", file.ID, "error", err)
-		http.Error(w, "Photo could not be opened.", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "This photo couldn't be opened. Please try again.")
 		return
 	}
 	defer s.closeLogged(source, "rotation source")
 	rendition, err := imaging.Rotate(source, file.Rotation, 95, download)
 	if err != nil {
 		s.log.Error("render rotated photo", "id", file.ID, "error", err)
-		http.Error(w, "Photo could not be rotated.", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "This photo couldn't be rotated. Please try again.")
 		return
 	}
 	release()

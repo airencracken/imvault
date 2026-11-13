@@ -51,7 +51,7 @@ func (s *Server) handleForgot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "malformed form", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "That form couldn't be read. Please try again.")
 		return
 	}
 
@@ -176,7 +176,7 @@ func (s *Server) handleResetPage(w http.ResponseWriter, r *http.Request) {
 // handleReset applies a new password.
 func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "malformed form", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "That form couldn't be read. Please try again.")
 		return
 	}
 
@@ -202,7 +202,7 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		http.Error(w, "could not reset the password", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Your password couldn't be reset. Please try again.")
 		return
 	}
 
@@ -215,13 +215,13 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.log.Error("reset: consume token", "error", err)
-		http.Error(w, "could not reset the password", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Your password couldn't be reset. Please try again.")
 		return
 	}
 
 	if user.TwoFactorRequired() {
 		if err := s.startPendingLogin(r.Context(), w, r, user.ID); err != nil {
-			http.Error(w, "could not start sign-in", http.StatusInternalServerError)
+			s.fail(w, r, http.StatusInternalServerError, "Sign-in couldn't start. Please try again.")
 			return
 		}
 		http.Redirect(w, r, "/login/2fa", http.StatusSeeOther)
@@ -229,7 +229,7 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := s.startSession(r.Context(), w, r, user.ID); err != nil {
 		s.log.Error("reset: start session", "user", user.ID, "error", err)
-		http.Error(w, "could not reset the password", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Your password couldn't be reset. Please try again.")
 		return
 	}
 
@@ -255,7 +255,7 @@ func (s *Server) handleChangeEmail(w http.ResponseWriter, r *http.Request) {
 	user := currentUser(r.Context())
 
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "malformed form", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "That form couldn't be read. Please try again.")
 		return
 	}
 
@@ -279,7 +279,7 @@ func (s *Server) handleChangeEmail(w http.ResponseWriter, r *http.Request) {
 
 	if err := s.store.SetEmail(r.Context(), user.ID, email, false); err != nil {
 		s.log.Error("change email", "user", user.ID, "error", err)
-		http.Error(w, "could not update the address", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Your email address couldn't be updated. Please try again.")
 		return
 	}
 
@@ -311,13 +311,13 @@ func (s *Server) handleVerifyEmail(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.log.Error("verify email: consume token", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 
 	if err := s.store.SetEmail(r.Context(), user.ID, user.Email, true); err != nil {
 		s.log.Error("verify email: set verified", "user", user.ID, "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 
@@ -336,7 +336,7 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	user := currentUser(r.Context())
 
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "malformed form", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "That form couldn't be read. Please try again.")
 		return
 	}
 
@@ -362,7 +362,7 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 
 	if err := s.applyNewPassword(r.Context(), w, r, user, password); err != nil {
 		s.log.Error("change password", "user", user.ID, "error", err)
-		http.Error(w, "could not change the password", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Your password couldn't be changed. Please try again.")
 		return
 	}
 
@@ -399,7 +399,7 @@ func (s *Server) resetTokenUser(w http.ResponseWriter, r *http.Request) (*models
 			return nil, false
 		}
 		s.log.Error("reset page: lookup token", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return nil, false
 	}
 	return user, true

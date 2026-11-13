@@ -39,7 +39,7 @@ func libraryError(err error) (int, string) {
 
 func (s *Server) handleBulkLibrary(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "could not parse the form", 400)
+		s.fail(w, r, 400, "That form couldn't be read. Please try again.")
 		return
 	}
 	action := r.PathValue("action")

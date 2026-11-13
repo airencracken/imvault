@@ -32,7 +32,7 @@ func (s *Server) handleMemberProfile(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		s.log.Error("load member profile", "error", err)
-		http.Error(w, "Could not load the profile.", 500)
+		s.fail(w, r, 500, "This profile couldn't be loaded. Please try again.")
 		return
 	}
 	view := memberProfileView{base: s.base(r, p.Username+"'s profile"), Member: p}
@@ -45,13 +45,13 @@ func (s *Server) handleProfileSettings(w http.ResponseWriter, r *http.Request) {
 	p, err := s.store.MemberProfile(r.Context(), currentUser(r.Context()).ID)
 	if err != nil {
 		s.log.Error("load own profile", "error", err)
-		http.Error(w, "Could not load your profile.", 500)
+		s.fail(w, r, 500, "Your profile couldn't be loaded. Please try again.")
 		return
 	}
 	view := memberProfileView{base: s.base(r, "Your profile"), Biography: p.Biography, Member: p}
 	view.AnimateAvatars, err = s.store.AnimateAvatars(r.Context(), p.ID)
 	if err != nil {
-		s.avatarError(w, err)
+		s.avatarError(w, r, err)
 		return
 	}
 	view.Notice, view.Error = s.flash(r)
@@ -64,12 +64,12 @@ func (s *Server) handleProfileSave(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		member, loadErr := s.store.MemberProfile(r.Context(), currentUser(r.Context()).ID)
 		if loadErr != nil {
-			s.avatarError(w, loadErr)
+			s.avatarError(w, r, loadErr)
 			return
 		}
 		animate, loadErr := s.store.AnimateAvatars(r.Context(), member.ID)
 		if loadErr != nil {
-			s.avatarError(w, loadErr)
+			s.avatarError(w, r, loadErr)
 			return
 		}
 		view := memberProfileView{base: s.base(r, "Your profile"), Biography: p, Member: member, AnimateAvatars: animate}
@@ -79,7 +79,7 @@ func (s *Server) handleProfileSave(w http.ResponseWriter, r *http.Request) {
 	}
 	if err = s.store.SetMemberProfile(r.Context(), currentUser(r.Context()).ID, p); err != nil {
 		s.log.Error("save profile", "error", err)
-		http.Error(w, "Could not save your profile.", 500)
+		s.fail(w, r, 500, "Your profile couldn't be saved. Please try again.")
 		return
 	}
 	s.redirectFlash(w, r, "/settings/profile", flashNotice, "Profile saved.")

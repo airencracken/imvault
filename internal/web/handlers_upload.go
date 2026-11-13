@@ -112,7 +112,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	user := currentUser(r.Context())
 	anonymous := user == nil
 	if anonymous && !s.policy().AllowAnonymousUploads {
-		http.Error(w, "anonymous uploads are disabled", http.StatusForbidden)
+		s.fail(w, r, http.StatusForbidden, "Uploading without an account is turned off on this site.")
 		return
 	}
 

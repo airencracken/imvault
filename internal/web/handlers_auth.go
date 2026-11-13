@@ -53,7 +53,7 @@ func (s *Server) handleLoginPage(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "malformed form", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "That form couldn't be read. Please try again.")
 		return
 	}
 
@@ -99,7 +99,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if user.TwoFactorRequired() {
 		if err := s.startPendingLogin(r.Context(), w, r, user.ID); err != nil {
 			s.log.Error("login: start pending login", "error", err)
-			http.Error(w, "could not start session", http.StatusInternalServerError)
+			s.fail(w, r, http.StatusInternalServerError, "You couldn't be signed in. Please try again.")
 			return
 		}
 		// Where the person was going survives the second step.
@@ -113,7 +113,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	if err := s.startLoginSession(r.Context(), w, r, user.ID); err != nil {
 		s.log.Error("login: start session", "error", err)
-		http.Error(w, "could not start session", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "You couldn't be signed in. Please try again.")
 		return
 	}
 
@@ -205,7 +205,7 @@ func (s *Server) handleRegisterPage(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "malformed form", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "That form couldn't be read. Please try again.")
 		return
 	}
 
@@ -242,7 +242,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		s.log.Error("register: hash password", "error", err)
-		http.Error(w, "could not create account", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Your account couldn't be created. Please try again.")
 		return
 	}
 
@@ -272,7 +272,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 				"That invitation is not valid, or has already been used.")
 		default:
 			s.log.Error("register: create user", "error", err)
-			http.Error(w, "could not create account", http.StatusInternalServerError)
+			s.fail(w, r, http.StatusInternalServerError, "Your account couldn't be created. Please try again.")
 		}
 		return
 	}
@@ -287,7 +287,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 func (s *Server) finishRegistration(w http.ResponseWriter, r *http.Request, user *models.User) {
 	if err := s.startLoginSession(r.Context(), w, r, user.ID); err != nil {
 		s.log.Error("register: start session", "error", err)
-		http.Error(w, "account created, but sign-in failed", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Your account was created, but signing in failed. Please sign in.")
 		return
 	}
 

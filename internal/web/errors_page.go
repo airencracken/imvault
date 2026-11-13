@@ -5,6 +5,9 @@ package web
 import (
 	"net/http"
 	"strconv"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 // fail renders the styled error page for a browser request. The message is one
@@ -33,4 +36,19 @@ func errorTitle(status int) string {
 		return "Something went wrong"
 	}
 	return "Couldn't do that"
+}
+
+// sentence turns a lower-case validation message, shared with the JSON API,
+// into a sentence for the error page.
+func sentence(message string) string {
+	message = strings.TrimSpace(message)
+	if message == "" {
+		return ""
+	}
+	first, size := utf8.DecodeRuneInString(message)
+	message = string(unicode.ToUpper(first)) + message[size:]
+	if !strings.HasSuffix(message, ".") {
+		message += "."
+	}
+	return message
 }

@@ -24,7 +24,7 @@ func (s *Server) handleAPIKeysPage(w http.ResponseWriter, r *http.Request) {
 	keys, err := s.store.APIKeysByUser(r.Context(), user.ID)
 	if err != nil {
 		s.log.Error("api keys page: list", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 
@@ -40,7 +40,7 @@ func (s *Server) handleAPIKeyCreate(w http.ResponseWriter, r *http.Request) {
 	user := currentUser(r.Context())
 
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "malformed form", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "That form couldn't be read. Please try again.")
 		return
 	}
 
@@ -75,7 +75,7 @@ func (s *Server) handleAPIKeyDelete(w http.ResponseWriter, r *http.Request) {
 
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
-		http.Error(w, "invalid key", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "That API key doesn't exist.")
 		return
 	}
 
@@ -99,7 +99,7 @@ func (s *Server) renderAPIKeysPanel(w http.ResponseWriter, r *http.Request, newK
 	keys, err := s.store.APIKeysByUser(r.Context(), user.ID)
 	if err != nil {
 		s.log.Error("api keys panel: list", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 

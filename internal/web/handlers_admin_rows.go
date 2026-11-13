@@ -95,7 +95,7 @@ func (s *Server) renderAdminUsersPage(w http.ResponseWriter, r *http.Request, st
 	users, total, err := s.store.ListUsers(r.Context(), adminPageSize, 0)
 	if err != nil {
 		s.log.Error("admin: list users", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 
@@ -122,7 +122,7 @@ func (s *Server) renderAdminRow(w http.ResponseWriter, r *http.Request, rowTempl
 	if row != nil {
 		if err := s.render.partial(&buf, rowTemplate, row, preferredTimezone(r)); err != nil {
 			s.log.Error("render admin row", "template", rowTemplate, "error", err)
-			http.Error(w, "template error", http.StatusInternalServerError)
+			http.Error(w, "Something went wrong on our side. Please try again.", http.StatusInternalServerError)
 			return
 		}
 	}
@@ -130,7 +130,7 @@ func (s *Server) renderAdminRow(w http.ResponseWriter, r *http.Request, rowTempl
 	if notice.Text != "" {
 		if err := s.render.partial(&buf, "admin_notice", notice, preferredTimezone(r)); err != nil {
 			s.log.Error("render admin notice", "error", err)
-			http.Error(w, "template error", http.StatusInternalServerError)
+			http.Error(w, "Something went wrong on our side. Please try again.", http.StatusInternalServerError)
 			return
 		}
 	}

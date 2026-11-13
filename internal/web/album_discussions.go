@@ -20,15 +20,16 @@ func (s *Server) handleAlbumDiscussion(w http.ResponseWriter, r *http.Request) {
 	}
 	raw := r.PostForm.Get("url")
 	if token := r.PostForm.Get("discussion_state"); token != "" && !suite.CheckDiscussion(token, "/a/"+album.Slug, s.discussionSession(r), raw, s.cfg.WitmootURL) {
-		http.Error(w, "This discussion return expired. Prepare a new draft.", 400)
+		s.fail(w, r, 400, "This link has expired. Start a new discussion draft from the album.")
 		return
 	}
 	if _, err := reference.URL(raw); err != nil {
-		http.Error(w, "Use an absolute HTTP(S) discussion link without credentials.", 400)
+		s.fail(w, r, 400, "Use a full https:// or http:// discussion link without a username or password.")
 		return
 	}
 	if err := s.store.LinkAlbumDiscussion(r.Context(), user.ID, album.ID, raw, r.PostForm.Get("remove") == "1"); err != nil {
-		http.Error(w, "Could not save discussion link.", 500)
+		s.log.Error("link album discussion", "album", album.ID, "error", err)
+		s.fail(w, r, 500, "The discussion link couldn't be saved. Please try again.")
 		return
 	}
 	suite.FinishDiscussion(r.PostForm.Get("discussion_state"))
@@ -49,20 +50,22 @@ func (s *Server) handleAlbumShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if s.cfg.WitmootURL == "" || s.cfg.BaseURL == "" {
-		http.Error(w, "Configure IMVAULT_BASE_URL and IMVAULT_WITMOOT_URL to prepare a discussion.", 422)
+		s.log.Warn("album discussions need IMVAULT_BASE_URL and IMVAULT_WITMOOT_URL", "album", album.ID)
+		s.fail(w, r, 422, "Discussions aren't set up on this site yet.")
 		return
 	}
 	draft := albumDraft(s.absoluteURL(r, "/a/"+album.Slug), album)
 	// Titles are fetched on demand in Witmoot, so later privacy changes apply.
 	link, err := reference.Handoff(s.cfg.WitmootURL, draft)
 	if err != nil {
-		http.Error(w, "Invalid discussion server configuration.", 500)
+		s.log.Error("prepare discussion handoff", "album", album.ID, "error", err)
+		s.fail(w, r, 500, "Discussions aren't set up on this site yet.")
 		return
 	}
 	if ownsAlbum(currentUser(r.Context()), album) {
 		link, err = suite.PrepareDiscussion(link, draft.Source, s.discussionSession(r))
 		if err != nil {
-			http.Error(w, "Could not prepare discussion return.", 429)
+			s.fail(w, r, 429, "Too many discussions are being prepared. Please wait a moment and try again.")
 			return
 		}
 	}
@@ -109,7 +112,7 @@ func (s *Server) handleAlbumDiscussionReturn(w http.ResponseWriter, r *http.Requ
 	path := "/a/" + album.Slug
 	q := r.URL.Query()
 	if len(q["state"]) != 1 || len(q["thread"]) != 1 || !suite.CheckDiscussion(q.Get("state"), path, s.discussionSession(r), q.Get("thread"), s.cfg.WitmootURL) {
-		http.Error(w, "This discussion return expired. Prepare a new draft.", 400)
+		s.fail(w, r, 400, "This link has expired. Start a new discussion draft from the album.")
 		return
 	}
 	suite.RenderDiscussion(w, path+"/discussion", path, q.Get("thread"), q.Get("state"), "csrf_token", csrfToken(r.Context()), "/static/comfyware/components.css")

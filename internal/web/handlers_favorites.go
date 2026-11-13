@@ -18,7 +18,7 @@ func (s *Server) handleFavorites(w http.ResponseWriter, r *http.Request) {
 	total, err := s.store.CountFiles(r.Context(), filter)
 	if err != nil {
 		s.log.Error("favorites: count", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 	page, pg := pagination(r, total)
@@ -27,7 +27,7 @@ func (s *Server) handleFavorites(w http.ResponseWriter, r *http.Request) {
 	files, err := s.store.ListFiles(r.Context(), filter)
 	if err != nil {
 		s.log.Error("favorites: list", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 	s.renderPage(w, r, http.StatusOK, "favorites", galleryView{
@@ -44,19 +44,19 @@ func (s *Server) handleFavorite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "malformed form", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "That form couldn't be read. Please try again.")
 		return
 	}
 	value := r.PostForm.Get("favorite")
 	if value != "0" && value != "1" {
-		http.Error(w, "favorite must be 0 or 1", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "That favorite change isn't valid.")
 		return
 	}
 	favorite := value == "1"
 	user := currentUser(r.Context())
 	if err := s.store.SetFavorite(r.Context(), user.ID, file.ID, favorite); err != nil {
 		s.log.Error("set favorite", "id", file.ID, "error", err)
-		http.Error(w, "could not update favorite", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Your favorites couldn't be updated. Please try again.")
 		return
 	}
 	if isHTMX(r) {

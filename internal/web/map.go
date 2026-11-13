@@ -80,7 +80,7 @@ func (s *Server) handleFileMap(w http.ResponseWriter, r *http.Request) {
 	image, err := s.fetchMap(r.Context(), *details.Latitude, *details.Longitude)
 	if err != nil {
 		s.log.Error("map fetch", "id", file.ID, "error", err)
-		http.Error(w, "The map is unavailable right now.", http.StatusBadGateway)
+		s.fail(w, r, http.StatusBadGateway, "The map is unavailable right now.")
 		return
 	}
 

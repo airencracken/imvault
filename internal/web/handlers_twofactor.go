@@ -60,7 +60,7 @@ func (s *Server) handleTwoFactorPage(w http.ResponseWriter, r *http.Request) {
 	status, err := s.store.StatusFor(r.Context(), user.ID)
 	if err != nil {
 		s.log.Error("two factor: load status", "user", user.ID, "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 
@@ -113,14 +113,14 @@ func (s *Server) handleTwoFactorQR(w http.ResponseWriter, r *http.Request) {
 	secret, err := s.secrets.Decrypt(user.TOTPSecret)
 	if err != nil {
 		s.log.Error("two factor: decrypt for QR", "user", user.ID, "error", err)
-		http.Error(w, "could not read the secret", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "The setup code couldn't be read. Please try again.")
 		return
 	}
 
 	code, err := qr.Encode(totp.ProvisioningURI(s.cfg.TOTPIssuer, user.Username, secret), qr.M)
 	if err != nil {
 		s.log.Error("two factor: encode QR", "user", user.ID, "error", err)
-		http.Error(w, "could not render the code", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "The QR code couldn't be drawn. Please try again.")
 		return
 	}
 
@@ -168,7 +168,7 @@ func (s *Server) handleTwoFactorConfirm(w http.ResponseWriter, r *http.Request) 
 	user := currentUser(r.Context())
 
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "malformed form", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "That form couldn't be read. Please try again.")
 		return
 	}
 
@@ -213,7 +213,7 @@ func (s *Server) handleTwoFactorConfirm(w http.ResponseWriter, r *http.Request) 
 	r, err = s.rotateSession(w, r, user.ID)
 	if err != nil {
 		s.log.Error("two factor: rotate session", "user", user.ID, "error", err)
-		http.Error(w, "could not start a new session", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "You couldn't be signed in. Please try again.")
 		return
 	}
 
@@ -308,7 +308,7 @@ func (s *Server) renderTwoFactorPage(w http.ResponseWriter, r *http.Request, cod
 	status, err := s.store.StatusFor(r.Context(), currentUser(r.Context()).ID)
 	if err != nil {
 		s.log.Error("two factor: reload status", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 
@@ -545,7 +545,7 @@ func (s *Server) handleLoginTwoFactor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "malformed form", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "That form couldn't be read. Please try again.")
 		return
 	}
 	next := safeNext(r.PostFormValue("next"))

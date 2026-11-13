@@ -105,7 +105,7 @@ func (s *Server) handleAccountExport(w http.ResponseWriter, r *http.Request) {
 	release, ok := s.exports.acquire(r.Context())
 	if !ok {
 		w.Header().Set("Retry-After", "10")
-		http.Error(w, "Another export is being prepared. Try again shortly.", http.StatusServiceUnavailable)
+		s.fail(w, r, http.StatusServiceUnavailable, "Another export is being prepared. Please try again in a minute.")
 		return
 	}
 	defer release()
@@ -115,25 +115,25 @@ func (s *Server) handleAccountExport(w http.ResponseWriter, r *http.Request) {
 	files, err := s.exportableFiles(r, user.ID)
 	if err != nil {
 		s.log.Error("export: list files", "user", user.ID, "error", err)
-		http.Error(w, "could not read the account's files", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Your files couldn't be read for the export. Please try again.")
 		return
 	}
 
 	albums, err := s.exportableAlbums(ctx, user.ID, files)
 	if err != nil {
 		s.log.Error("export: list albums", "user", user.ID, "error", err)
-		http.Error(w, "could not read the account's albums", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Your albums couldn't be read for the export. Please try again.")
 		return
 	}
 
 	profile, err := s.store.MemberProfile(r.Context(), user.ID)
 	if err != nil {
-		s.exportFailure(w, user, "read profile", err)
+		s.exportFailure(w, r, user, "read profile", err)
 		return
 	}
 	picture, on, err := s.store.AvatarExport(ctx, user.ID)
 	if err != nil {
-		s.exportFailure(w, user, "read avatar", err)
+		s.exportFailure(w, r, user, "read avatar", err)
 		return
 	}
 	manifest := exportManifest{
@@ -159,33 +159,33 @@ func (s *Server) handleAccountExport(w http.ResponseWriter, r *http.Request) {
 
 	temp, err := os.CreateTemp("", "imvault-export-*.zip")
 	if err != nil {
-		s.exportFailure(w, user, "prepare archive", err)
+		s.exportFailure(w, r, user, "prepare archive", err)
 		return
 	}
 	defer os.Remove(temp.Name())
 	defer temp.Close()
 	archive := zip.NewWriter(temp)
 	if err := writeAvatarEntries(archive, &manifest.Account, picture); err != nil {
-		s.exportFailure(w, user, "write avatar", err)
+		s.exportFailure(w, r, user, "write avatar", err)
 		return
 	}
 	if err := writeJSONEntry(archive, "manifest.json", manifest); err != nil {
-		s.exportFailure(w, user, "write manifest", err)
+		s.exportFailure(w, r, user, "write manifest", err)
 		return
 	}
 	for _, file := range files {
 		if err := s.writeExportEntry(ctx, archive, file); err != nil {
-			s.exportFailure(w, user, "write file", err)
+			s.exportFailure(w, r, user, "write file", err)
 			return
 		}
 	}
 	if err := archive.Close(); err != nil {
-		s.exportFailure(w, user, "finish archive", err)
+		s.exportFailure(w, r, user, "finish archive", err)
 		return
 	}
 	info, err := temp.Stat()
 	if err != nil {
-		s.exportFailure(w, user, "read archive", err)
+		s.exportFailure(w, r, user, "read archive", err)
 		return
 	}
 	w.Header().Set("Content-Type", "application/zip")
@@ -195,9 +195,9 @@ func (s *Server) handleAccountExport(w http.ResponseWriter, r *http.Request) {
 	s.log.Info("account exported", "user", user.ID, "files", len(files))
 }
 
-func (s *Server) exportFailure(w http.ResponseWriter, user *models.User, step string, err error) {
+func (s *Server) exportFailure(w http.ResponseWriter, r *http.Request, user *models.User, step string, err error) {
 	s.log.Error("export: "+step, "user", user.ID, "error", err)
-	http.Error(w, "Could not prepare your export. Please try again.", http.StatusInternalServerError)
+	s.fail(w, r, http.StatusInternalServerError, "Your export couldn't be prepared. Please try again.")
 }
 
 // exportFilename is the name the browser saves the archive as. It is named for

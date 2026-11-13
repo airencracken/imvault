@@ -17,17 +17,17 @@ func (s *Server) handleFileDescription(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := r.ParseForm(); err != nil || !r.PostForm.Has("description") {
-		http.Error(w, "provide a description, or an empty value to clear it", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "Send a description, or an empty one to remove it.")
 		return
 	}
 	text, err := models.NormalizeFileDescription(r.PostForm.Get("description"))
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, sentence(err.Error()))
 		return
 	}
 	if err := s.store.UpdateFile(r.Context(), file.ID, store.FileUpdate{Description: &text}); err != nil {
 		s.log.Error("set file description", "id", file.ID, "error", err)
-		http.Error(w, "could not save the description", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "The description couldn't be saved. Please try again.")
 		return
 	}
 	s.redirectFlash(w, r, "/f/"+file.ID, flashNotice, "Description saved.")

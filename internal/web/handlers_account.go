@@ -40,14 +40,14 @@ func (s *Server) accountPage(w http.ResponseWriter, r *http.Request, statusCode 
 	status, err := s.store.StatusFor(r.Context(), user.ID)
 	if err != nil {
 		s.log.Error("account: load status", "user", user.ID, "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 
 	count, err := s.store.CountFiles(r.Context(), store.FileQuery{OwnerID: &user.ID})
 	if err != nil {
 		s.log.Error("account: count files", "user", user.ID, "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 
@@ -150,7 +150,7 @@ func (s *Server) handleUnlinkIdentity(w http.ResponseWriter, r *http.Request) {
 
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
-		http.Error(w, "invalid connection", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "That sign-in connection doesn't exist.")
 		return
 	}
 
@@ -198,7 +198,7 @@ func (s *Server) unlinkRefusal(r *http.Request, user *models.User) string {
 
 func (s *Server) handleTimezone(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Could not read timezone form", 400)
+		s.fail(w, r, 400, "That form couldn't be read. Please try again.")
 		return
 	}
 	name, err := displaytime.ParseForm(r.PostForm)
@@ -210,7 +210,7 @@ func (s *Server) handleTimezone(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		http.Error(w, "Could not save timezone", 500)
+		s.fail(w, r, 500, "Your timezone couldn't be saved. Please try again.")
 		return
 	}
 	http.Redirect(w, r, "/settings/account?saved=timezone#display-timezone", 303)

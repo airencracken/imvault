@@ -138,7 +138,7 @@ func (s *Server) renderInvitesPanel(w http.ResponseWriter, r *http.Request, form
 	list, pg, err := s.listInvites(r, user)
 	if err != nil {
 		s.log.Error("invites panel: list", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 
@@ -247,7 +247,7 @@ func (s *Server) handleCreateInvite(w http.ResponseWriter, r *http.Request) {
 	user := currentUser(r.Context())
 
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "malformed form", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "That form couldn't be read. Please try again.")
 		return
 	}
 
@@ -293,7 +293,7 @@ func (s *Server) handleCreateInvite(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleRevokeInvite(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
-		http.Error(w, "invalid invitation", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "That invitation doesn't exist.")
 		return
 	}
 	user := currentUser(r.Context())

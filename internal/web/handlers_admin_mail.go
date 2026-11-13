@@ -15,7 +15,7 @@ import (
 func (s *Server) adminTargetID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "That message doesn't exist.")
 		return 0, false
 	}
 	return id, true
@@ -26,14 +26,14 @@ func (s *Server) handleAdminMail(w http.ResponseWriter, r *http.Request) {
 	messages, err := s.store.ListMail(r.Context(), 100)
 	if err != nil {
 		s.log.Error("admin: list mail", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 
 	pending, failed, err := s.store.MailBacklog(r.Context())
 	if err != nil {
 		s.log.Error("admin: mail backlog", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 

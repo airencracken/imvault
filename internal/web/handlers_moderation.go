@@ -95,7 +95,7 @@ func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
 	user := currentUser(r.Context())
 
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "malformed form", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "That form couldn't be read. Please try again.")
 		return
 	}
 
@@ -133,7 +133,7 @@ func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
 		// different album than the one somebody complained about.
 		targetID = albumReportTarget(album)
 	default:
-		http.Error(w, "invalid report", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "That report doesn't exist.")
 		return
 	}
 
@@ -235,7 +235,7 @@ func (s *Server) handleModeration(w http.ResponseWriter, r *http.Request) {
 		moderationPageSize, (page-1)*moderationPageSize)
 	if err != nil {
 		s.log.Error("moderation: list reports", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 
@@ -275,7 +275,7 @@ func (s *Server) handleModerationLog(w http.ResponseWriter, r *http.Request) {
 	entries, _, err := s.store.ListModerationLog(r.Context(), moderationPageSize, (page-1)*moderationPageSize)
 	if err != nil {
 		s.log.Error("moderation: list log", "error", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
 		return
 	}
 
@@ -293,12 +293,12 @@ func (s *Server) handleResolveReport(w http.ResponseWriter, r *http.Request) {
 
 	reportID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
-		http.Error(w, "invalid report", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "That report doesn't exist.")
 		return
 	}
 
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "malformed form", http.StatusBadRequest)
+		s.fail(w, r, http.StatusBadRequest, "That form couldn't be read. Please try again.")
 		return
 	}
 

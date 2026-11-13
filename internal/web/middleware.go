@@ -65,7 +65,7 @@ func (s *Server) recoverMW(next http.Handler) http.Handler {
 					"panic", rec,
 					"stack", string(debug.Stack()),
 				)
-				http.Error(w, "internal server error", http.StatusInternalServerError)
+				http.Error(w, "Something went wrong on our side. Please try again.", http.StatusInternalServerError)
 			}
 		}()
 		next.ServeHTTP(w, r)
@@ -143,7 +143,7 @@ func (s *Server) sessionMW(next http.Handler) http.Handler {
 
 		user.Timezone, err = s.store.Timezone(r.Context(), user.ID)
 		if err != nil {
-			http.Error(w, "Could not load account preferences", http.StatusInternalServerError)
+			s.fail(w, r, http.StatusInternalServerError, "Your account preferences couldn't be loaded. Please try again.")
 			return
 		}
 		next.ServeHTTP(w, r.WithContext(withUser(r.Context(), user)))
@@ -170,15 +170,15 @@ func (s *Server) csrfMW(next http.Handler) http.Handler {
 				if errors.As(err, &tooLarge) {
 					status = http.StatusRequestEntityTooLarge
 				}
-				http.Error(w, "could not read form", status)
+				s.fail(w, r, status, "That form couldn't be read. Please try again.")
 				return
 			}
 			if subtle.ConstantTimeCompare([]byte(provided), []byte(token)) != 1 {
 				s.log.Warn("csrf rejection", "method", r.Method, "path", r.URL.Path)
-				http.Error(w, "invalid or missing CSRF token", http.StatusForbidden)
+				s.fail(w, r, http.StatusForbidden, "This form has expired. Go back, reload the page and try again.")
 				return
 			}
-			if !parseCheckedMultipart(w, r) {
+			if !s.parseCheckedMultipart(w, r) {
 				return
 			}
 		}
@@ -214,7 +214,7 @@ func providedCSRF(r *http.Request) (string, error) {
 // arrived as multipart or not. The upload endpoints are left alone: they parse
 // their own body, after taking a processing slot. It writes the refusal itself
 // and reports whether to continue.
-func parseCheckedMultipart(w http.ResponseWriter, r *http.Request) bool {
+func (s *Server) parseCheckedMultipart(w http.ResponseWriter, r *http.Request) bool {
 	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || mediaType != "multipart/form-data" || isUploadPath(r) {
 		return true
@@ -225,7 +225,7 @@ func parseCheckedMultipart(w http.ResponseWriter, r *http.Request) bool {
 		if errors.As(err, &tooLarge) {
 			status = http.StatusRequestEntityTooLarge
 		}
-		http.Error(w, "could not read form", status)
+		s.fail(w, r, status, "That form couldn't be read. Please try again.")
 		return false
 	}
 	return true
@@ -548,8 +548,7 @@ func (s *Server) rateLimitLogins(next http.HandlerFunc) http.HandlerFunc {
 			s.log.Warn("sign-in rate limited", "key", key, "retry_after_s", seconds, "remote", r.RemoteAddr)
 
 			w.Header().Set("Retry-After", strconv.Itoa(seconds))
-			http.Error(w, "Too many sign-in attempts. Try again in "+strconv.Itoa(seconds)+" seconds.",
-				http.StatusTooManyRequests)
+			s.fail(w, r, http.StatusTooManyRequests, "Too many sign-in attempts. Please try again in "+strconv.Itoa(seconds)+" seconds.")
 			return
 		}
 
