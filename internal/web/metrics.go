@@ -20,15 +20,9 @@ func (s *Server) handleAdminMetrics(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, 500, "Site figures couldn't be loaded. Please try again.")
 		return
 	}
-	activity, err := s.store.Analytics(r.Context(), time.Now())
-	if err != nil {
-		s.fail(w, r, 500, "Activity figures couldn't be loaded. Please try again.")
-		return
-	}
 	overview := admin.WithSuite(admin.Runtime(s.cfg.Version, s.Backups.Status()), "IMVAULT_")
 	overview.Timezone = preferredTimezone(r)
 	overview.Metrics = metrics
-	overview.Activity = &activity
 	overview.BackURL = "/admin"
 	s.renderPage(w, r, 200, "metrics", metricsView{base: s.base(r, "Instance metrics"), Overview: overview})
 }

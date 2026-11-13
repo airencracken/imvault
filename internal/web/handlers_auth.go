@@ -324,17 +324,17 @@ func (s *Server) startSession(ctx context.Context, w http.ResponseWriter, r *htt
 }
 
 func (s *Server) startLoginSession(ctx context.Context, w http.ResponseWriter, r *http.Request, userID int64) error {
-	_, err := s.newSession(ctx, w, r, userID, true)
+	_, err := s.newSession(ctx, w, r, userID)
 	return err
 }
 
 // newSession creates a session row, sets its cookie and the CSRF token bound
 // to it, and returns the session token.
-func (s *Server) newSession(ctx context.Context, w http.ResponseWriter, r *http.Request, userID int64, authenticated ...bool) (string, error) {
+func (s *Server) newSession(ctx context.Context, w http.ResponseWriter, r *http.Request, userID int64) (string, error) {
 	token := ids.Token(32)
 	expires := time.Now().Add(s.cfg.SessionTTL)
 
-	if err := s.store.CreateSession(ctx, hashToken(token), userID, expires, authenticated...); err != nil {
+	if err := s.store.CreateSession(ctx, hashToken(token), userID, expires); err != nil {
 		return "", err
 	}
 	s.setCSRFCookie(w, r, sessionCSRFToken(token))

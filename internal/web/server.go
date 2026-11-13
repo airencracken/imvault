@@ -214,7 +214,7 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /upload", s.rateLimitUploads(s.handleUpload))
 
 	// Individual files
-	mux.HandleFunc("GET /f/{id}", s.trackFile(s.handleFilePage))
+	mux.HandleFunc("GET /f/{id}", s.handleFilePage)
 	mux.HandleFunc("GET /f/{id}/raw", s.handleFileRaw)
 	mux.HandleFunc("GET /f/{id}/thumb", s.handleFileThumb)
 	mux.HandleFunc("GET /f/{id}/preview", s.handleFilePreview)

@@ -520,22 +520,6 @@
     "run": "^TestOwnerMetricsTotalsPermissionsAndFailure$"
   },
   {
-    "name": "verified sign-ins differ from session rotations",
-    "file": "internal/web/handlers_auth.go",
-    "before": "s.newSession(ctx, w, r, userID, true)",
-    "after": "s.newSession(ctx, w, r, userID, false)",
-    "package": "./internal/web",
-    "run": "^TestActivityCountsAuthorizedOpensAndSuccessfulLogins$"
-  },
-  {
-    "name": "file opens reach the shared collector",
-    "file": "internal/web/server.go",
-    "before": "s.trackFile(s.handleFilePage)",
-    "after": "s.handleFilePage",
-    "package": "./internal/web",
-    "run": "^TestActivityCountsAuthorizedOpensAndSuccessfulLogins$"
-  },
-  {
     "name": "reader timezone reaches native rendering",
     "file": "internal/web/render.go",
     "before": "return displaytime.New(u.Timezone).Name()",
@@ -550,5 +534,21 @@
     "after": "AND disabled IN (0,1)",
     "package": "./internal/web",
     "run": "^TestDisplayTimezoneAccountRoutesAndRendering$"
+  },
+  {
+    "name": "upgrades forget identifying analytics",
+    "file": "internal/db/db.go",
+    "before": "_, err := tx.ExecContext(ctx, `DELETE FROM comfy_analytics_activity`)",
+    "after": "_, err := tx.ExecContext(ctx, `SELECT 1`)",
+    "package": "./internal/db",
+    "run": "^TestForgetAnalyticsDeletesIdentifyingRows$"
+  },
+  {
+    "name": "file opens are not tracked per member",
+    "file": "internal/web/server.go",
+    "before": "mux.HandleFunc(\"GET /f/{id}\", s.handleFilePage)",
+    "after": "mux.HandleFunc(\"GET /f/{id}\", func(w http.ResponseWriter, r *http.Request) { s.handleFilePage(w, r); _, _ = s.store.AnalyticsDB().ExecContext(r.Context(), `INSERT INTO comfy_analytics_activity(day,kind,member,item,count,last_at) VALUES(1,'image','1',?,1,1) ON CONFLICT DO NOTHING`, r.PathValue(\"id\")) })",
+    "package": "./internal/web",
+    "run": "^TestSignInsAndOpensRecordNothingIdentifying$"
   }
 ]

@@ -110,5 +110,21 @@
     "after": "{{if .Albums}}<option value=\"new\">Create a new album</option>{{end}}",
     "package": "./internal/web",
     "run": "^TestBulkCreateAlbumWebAndAPI$"
+  },
+  {
+    "name": "making a file public hides its camera details and location",
+    "file": "internal/store/files.go",
+    "before": "`UPDATE files SET `+hideSharingWhenPublic+`, visibility = ? WHERE id = ?`,\n\t\tstring(visibility), string(visibility), string(visibility), id)",
+    "after": "`UPDATE files SET visibility = ? WHERE id = ?`,\n\t\tstring(visibility), id)",
+    "package": "./internal/store",
+    "run": "^TestMakingAFilePublicHidesCameraDetailsAndLocation$"
+  },
+  {
+    "name": "the sharing migration resolves album ceilings",
+    "file": "internal/db/migrations/035_simple_metadata_sharing.sql",
+    "before": "UPDATE files SET show_location = 0\nWHERE show_location = 1 AND EXISTS (",
+    "after": "UPDATE files SET show_location = 0\nWHERE 0 AND EXISTS (",
+    "package": "./internal/db",
+    "run": "^TestSimpleSharingMigrationKeepsEffectiveVisibility$"
   }
 ]

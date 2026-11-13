@@ -5,7 +5,6 @@ package store
 import (
 	"context"
 	"fmt"
-	"github.com/airencracken/comfylib/analytics"
 	"strings"
 	"time"
 
@@ -14,7 +13,7 @@ import (
 
 // CreateSession records a login session. Only the hash of the session token is
 // stored, so a database leak does not hand over live sessions.
-func (s *Store) CreateSession(ctx context.Context, tokenHash string, userID int64, expiresAt time.Time, authenticated ...bool) error {
+func (s *Store) CreateSession(ctx context.Context, tokenHash string, userID int64, expiresAt time.Time) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -27,11 +26,6 @@ func (s *Store) CreateSession(ctx context.Context, tokenHash string, userID int6
 	)
 	if err != nil {
 		return fmt.Errorf("insert session: %w", err)
-	}
-	if len(authenticated) > 0 && authenticated[0] {
-		if err := analytics.RecordLogin(ctx, tx, analytics.MemberID(userID), time.Now()); err != nil {
-			return err
-		}
 	}
 	return tx.Commit()
 }

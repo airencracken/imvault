@@ -293,6 +293,11 @@ func applyMigration(ctx context.Context, sqlDB *sql.DB, name string) error {
 			return errors.Join(fmt.Errorf("backfill capture dates: %w", err), tx.Rollback())
 		}
 	}
+	if name == forgetAnalyticsMigration {
+		if err := forgetIdentifyingAnalytics(ctx, tx); err != nil {
+			return errors.Join(fmt.Errorf("forget identifying analytics: %w", err), tx.Rollback())
+		}
+	}
 	if _, err := tx.ExecContext(ctx,
 		`INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)`,
 		name, time.Now().UTC().Unix(),
@@ -303,4 +308,22 @@ func applyMigration(ctx context.Context, sqlDB *sql.DB, name string) error {
 		return fmt.Errorf("commit migration %s: %w", name, err)
 	}
 	return nil
+}
+
+// forgetAnalyticsMigration removes analytics that name members or files.
+const forgetAnalyticsMigration = "036_forget_identifying_analytics.sql"
+
+// forgetIdentifyingAnalytics deletes every stored activity row. Each one names
+// a member, and views also name a file, so none of them is a plain count.
+func forgetIdentifyingAnalytics(ctx context.Context, tx *sql.Tx) error {
+	var tables int
+	if err := tx.QueryRowContext(ctx,
+		`SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'comfy_analytics_activity'`).Scan(&tables); err != nil {
+		return err
+	}
+	if tables == 0 {
+		return nil
+	}
+	_, err := tx.ExecContext(ctx, `DELETE FROM comfy_analytics_activity`)
+	return err
 }

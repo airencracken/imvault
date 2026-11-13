@@ -127,7 +127,7 @@ Administrators only.
 | Method | Path | Description |
 | --- | --- | --- |
 | `GET` | `/admin` | Overview |
-| `GET` | `/admin/metrics` | Activity and usage dashboard |
+| `GET` | `/admin/metrics` | Site usage and health dashboard |
 | `GET` | `/admin/users` | Accounts and usage |
 | `POST` | `/admin/users/{id}/limits` | Set storage quota and file size limit |
 | `POST` | `/admin/users/{id}/role` | Set member, moderator or administrator |
