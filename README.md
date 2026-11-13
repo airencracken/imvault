@@ -85,7 +85,7 @@ command.
 | **Pictures that stay pictures** | JPEG, PNG, WebP, BMP, TIFF, and animated GIF and WebP. Thumbnails and previews are made once, with orientation and transparency handled. |
 | **A home for little movies** | WebM, MP4 and MOV clips, served with range requests. Optional ffmpeg adds posters and duration checks; originals are never transcoded. |
 | **A library, not a pile** | Galleries, albums, tags, private favorites, camera-date browsing, a recent feed and a 30-day Trash. Shared albums take contributions from members. Identical uploads share stored bytes. |
-| **Your audience, your call** | Public, members-only and private visibility, with separate EXIF and location sharing on photos and albums. |
+| **Your audience, your call** | Public, members-only and private visibility, with separate camera details and location switches on each photo. |
 | **Keys for people and scripts** | Invitations, member, moderator and admin roles, TOTP two-factor sign-in, OpenID Connect, password resets and a bearer-token API. |
 | **A broom cupboard** | Reports, a moderation log, account export and deletion, quotas, upload limits, rate limits, expiring anonymous uploads and queued mail. |
 | **Room to grow** | Local disk or a private S3-compatible bucket, verified storage migration, and automatic and manual backups. |

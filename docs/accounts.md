@@ -76,7 +76,8 @@ Times show in UTC until you choose a timezone. On `/settings/account`, find
 JavaScript on, **Use this device's timezone** fills in the field for you; it
 still waits for you to save.
 
-Backup times on the admin pages use your timezone. Metrics days stay in UTC. Camera dates without a recorded offset show exactly as the camera wrote
+Backup times on the admin pages use your timezone. Metrics days stay in UTC.
+Camera dates without a recorded offset show exactly as the camera wrote
 them.
 
 ## Theme

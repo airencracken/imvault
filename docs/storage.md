@@ -46,8 +46,8 @@ objects return `404`. Create the bucket yourself. Imvault never creates buckets,
 changes bucket policy or sets public ACLs.
 
 Give each instance its own prefix, and run one server per database. Every
-download goes through Imvault, so visibility and EXIF rules apply. Viewers never
-see bucket URLs or credentials.
+download goes through Imvault, so each file's visibility, camera details and
+location choices apply. Viewers never see bucket URLs or credentials.
 
 Uploads spool to temporary files first; those above 64 MiB use multipart
 requests. Leave room in `TMPDIR` for uploads and ffmpeg's working copies.
