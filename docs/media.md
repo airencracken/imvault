@@ -50,7 +50,10 @@ Every file has two choices, on its page under **Edit**:
   fields.
 - **Location**: GPS coordinates, altitude, the map and its link.
 
-Both start hidden on public uploads and shown on members-only and private ones.
+The upload form starts with both hidden, even when JavaScript is disabled.
+Tick either choice to share it. API uploads that omit both fields keep their
+existing defaults: hidden for public files and shown for members-only or
+private files.
 Making a file public hides both again; show them afterwards if you want to.
 Albums do not change either choice.
 
