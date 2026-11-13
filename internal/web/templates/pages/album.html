@@ -12,7 +12,7 @@
   </div>
   {{if .IsOwner}}
   <form method="post" action="/a/{{.Album.Slug}}/delete"
-        onsubmit="return confirm('Delete this album? The files themselves are kept.');">
+        data-confirm="Delete this album?" data-confirm-detail="The files in it are kept." data-confirm-action="Delete album">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
     <button class="btn danger" type="submit">Delete album</button>
   </form>

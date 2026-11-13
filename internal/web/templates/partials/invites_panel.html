@@ -5,9 +5,9 @@
     <h2 id="invitation-ready">Copy this invitation now</h2>
     <p class="muted">Send the link privately to the person you're inviting. It cannot be shown again.</p>
     <label for="invitation-link">Invitation link</label>
-    <input id="invitation-link" aria-label="Invitation link" readonly value="{{.InviteURL}}" onclick="this.select()">
+    <input id="invitation-link" aria-label="Invitation link" readonly value="{{.InviteURL}}" data-select-on-focus>
     <label for="invitation-code">Invitation code</label>
-    <input id="invitation-code" aria-label="Invitation code" readonly value="{{.NewCode}}" onclick="this.select()">
+    <input id="invitation-code" aria-label="Invitation code" readonly value="{{.NewCode}}" data-select-on-focus>
   </section>
   {{end}}
   {{if .Error}}<p class="comfy-notice comfy-notice-error flash err" role="alert">{{.Error}}</p>{{end}}
@@ -54,13 +54,9 @@
         <form method="post" action="{{$.InvitePath}}/{{.Invite.ID}}/revoke" hx-post="{{$.InvitePath}}/{{.Invite.ID}}/revoke" hx-target="#invites" hx-swap="outerHTML">
           <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
           <button class="btn" type="submit" aria-label="Revoke invitation {{if .Invite.Label}}{{.Invite.Label}}{{else}}{{.Invite.Prefix}}{{end}}"
-                  @click="if (!$el.form.dataset.confirmed) {
-                            $event.preventDefault();
-                            $store.confirm.ask($el.form, {
-                              message: 'Revoke this invitation?',
-                              detail: 'Anyone holding it will no longer be able to register.',
-                              action: 'Revoke' });
-                          }">Revoke invitation</button>
+                  data-confirm="Revoke this invitation?"
+                  data-confirm-detail="Anyone holding it can no longer register."
+                  data-confirm-action="Revoke">Revoke invitation</button>
         </form>
         {{end}}
       </article>

@@ -10,6 +10,8 @@ async function checkBulkAlbumCreation(page, base, photoID, enabled) {
   }
   await page.evaluate(`
     document.querySelector('input[name="files"][value="${photoID}"]').click();
+    // Without scripts the organise panel stays collapsed until opened by hand.
+    document.querySelector('#bulk-panel').open = true;
     const select = document.querySelector('#bulk-album-select');
     select.value = 'new';
     select.dispatchEvent(new Event('change', {bubbles:true}));

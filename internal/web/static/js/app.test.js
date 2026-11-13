@@ -5,9 +5,9 @@
 // Run with: node --test internal/web/static/js/
 //
 // app.js is a plain script loaded from a <script> tag, so there is nothing to
-// import. It is executed here inside a VM with a minimal document shim, which
-// lets the Alpine registrations be captured and exercised directly. That keeps
-// this test free of any dependency: node --test is built in.
+// import. It is executed here inside a VM with a minimal document shim, so the
+// handlers can be exercised directly without any dependency: node --test is
+// built in.
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -124,166 +124,205 @@ test("bulk album creation reveals its title and keeps selection when validation 
   assert.equal(title.value, "Family picnic", "Switching albums keeps the unfinished title");
 });
 
-// The Alpine object the listener uses is the global one, so it is captured by
-// running the listener against a shim that records the calls.
-function loadAlpineRegistrations() {
-  const listeners = new Map();
+// loadBehaviours runs app.js against a shim with the confirmation dialog and
+// returns the helpers it exposes on window.imvault.
+function loadBehaviours(extra) {
+  const elements = {};
+  const make = (props) => Object.assign({ hidden: false, textContent: "", listeners: {}, addEventListener(name, fn) { this.listeners[name] = fn; } }, props);
+  const accept = make({});
+  const dialog = make({
+    open: false,
+    showModal() { this.open = true; },
+    close() { this.open = false; },
+    querySelector: (selector) => (selector === "[data-confirm-accept]" ? accept : null),
+  });
+  elements["confirm-dialog"] = dialog;
+  elements["confirm-message"] = make({});
+  elements["confirm-detail"] = make({});
+  Object.assign(elements, extra || {});
+  const listeners = {};
   const document = {
-    getElementById: () => null,
-    addEventListener: (name, handler) => listeners.set(name, handler),
-    body: { addEventListener: () => {} },
+    getElementById: (id) => elements[id] || null,
+    addEventListener: (name, fn) => { listeners[name] = fn; },
+    body: { addEventListener() {} },
   };
-
-  const stores = {};
-  const data = {};
-  const Alpine = {
-    store: (name, value) => {
-      stores[name] = value;
-    },
-    data: (name, factory) => {
-      data[name] = factory;
-    },
-  };
-
-  const context = { document, window: {}, setTimeout, console, Alpine };
-  vm.runInNewContext(SOURCE, context);
-  listeners.get("alpine:init")();
-
-  return { stores, data };
+  const window = { addEventListener() {} };
+  vm.runInNewContext(SOURCE, { document, window, setTimeout, navigator: {} });
+  return { api: window.imvault, listeners, elements, dialog, accept };
 }
 
-test("registers the confirm store and the table filter component", () => {
-  const { stores, data } = loadAlpineRegistrations();
+function attrs(map) {
+  return (name) => (Object.prototype.hasOwnProperty.call(map, name) ? map[name] : null);
+}
 
-  assert.ok(stores.confirm, "expected a confirm store");
-  assert.ok(data.tableFilter, "expected a tableFilter component");
+function submitEvent(form, submitter) {
+  return {
+    target: form,
+    submitter: submitter || null,
+    prevented: false,
+    stopped: false,
+    preventDefault() { this.prevented = true; },
+    stopPropagation() { this.stopped = true; },
+  };
+}
 
-  const confirm = stores.confirm;
-  for (const method of ["ask", "cancel", "accept"]) {
-    assert.equal(typeof confirm[method], "function", `confirm.${method} should be a function`);
+test("behaviours are registered on the document, with submit in the capture phase", () => {
+  const { api, listeners } = loadBehaviours();
+  for (const name of ["submit", "click", "focusin", "input", "DOMContentLoaded"]) {
+    assert.equal(typeof listeners[name], "function", `expected a ${name} listener`);
   }
-  assert.equal(confirm.open, false, "the dialog should start closed");
+  for (const name of ["matches", "summary", "onSubmit", "onClick", "settle"]) {
+    assert.equal(typeof api[name], "function");
+  }
 });
 
-test("confirm ask/cancel/accept drives the dialog and submits the form", () => {
-  const { stores } = loadAlpineRegistrations();
-  const confirm = stores.confirm;
+test("a data-confirm form opens the dialog instead of submitting", () => {
+  const { api, dialog, accept, elements } = loadBehaviours();
+  let submitted = [];
+  const form = {
+    dataset: {},
+    getAttribute: attrs({ "data-confirm": "Delete this album?", "data-confirm-detail": "The files in it are kept.", "data-confirm-action": "Delete album" }),
+    requestSubmit: (button) => submitted.push(button || null),
+  };
+  const first = submitEvent(form);
+  api.onSubmit(first);
+  assert.equal(first.prevented, true);
+  assert.equal(first.stopped, true, "htmx must not see the unconfirmed submit");
+  assert.equal(dialog.open, true);
+  assert.equal(elements["confirm-message"].textContent, "Delete this album?");
+  assert.equal(elements["confirm-detail"].textContent, "The files in it are kept.");
+  assert.equal(elements["confirm-detail"].hidden, false);
+  assert.equal(accept.textContent, "Delete album");
 
-  let submitted = 0;
-  const form = { dataset: {}, requestSubmit: () => submitted++ };
+  // Cancelling submits nothing.
+  api.settle(false);
+  assert.equal(dialog.open, false);
+  assert.deepEqual(submitted, []);
 
-  confirm.ask(form, {
-    message: "Delete alice?",
-    detail: "This cannot be undone.",
-    action: "Delete account",
-  });
+  // Accepting resubmits once, and the resubmission passes straight through.
+  api.onSubmit(submitEvent(form));
+  api.settle(true);
+  assert.equal(submitted.length, 1);
+  assert.equal(form.dataset.confirmed, "1");
+  const second = submitEvent(form);
+  api.onSubmit(second);
+  assert.equal(second.prevented, false);
+  assert.equal(form.dataset.confirmed, undefined, "the mark is used once");
 
-  assert.equal(confirm.open, true);
-  assert.equal(confirm.message, "Delete alice?");
-  assert.equal(confirm.detail, "This cannot be undone.");
-  assert.equal(confirm.action, "Delete account");
-  assert.equal(confirm.form, form);
-  assert.equal(submitted, 0, "asking should not submit anything");
-
-  // Cancelling leaves the form alone and clears the pending target.
-  confirm.cancel();
-  assert.equal(confirm.open, false);
-  assert.equal(confirm.form, null);
-  assert.equal(submitted, 0);
-
-  // Accepting submits exactly the form it was given, once, and marks it so the
-  // click interceptor lets the resubmission through.
-  confirm.ask(form, { message: "Delete alice?" });
-  confirm.accept();
-  assert.equal(submitted, 1, "accepting should submit the form once");
-  assert.equal(form.dataset.confirmed, "1", "the form should be marked as confirmed");
-  assert.equal(confirm.open, false, "the dialog should close after accepting");
-  assert.equal(confirm.form, null, "the pending form should be cleared");
+  // Accepting with nothing pending is harmless.
+  api.settle(true);
+  assert.equal(submitted.length, 1);
 });
 
-test("confirm defaults its optional wording", () => {
-  const { stores } = loadAlpineRegistrations();
-  const confirm = stores.confirm;
+test("a button's data-confirm wins and is resubmitted as the submitter", () => {
+  const { api, elements, accept } = loadBehaviours();
+  const submitted = [];
+  const form = { dataset: {}, getAttribute: attrs({}), requestSubmit: (button) => submitted.push(button) };
+  const button = { getAttribute: attrs({ "data-confirm": "Disable alice?" }) };
+  api.onSubmit(submitEvent(form, button));
+  assert.equal(elements["confirm-message"].textContent, "Disable alice?");
+  assert.equal(elements["confirm-detail"].hidden, true, "no detail means no empty line");
+  assert.equal(accept.textContent, "Confirm", "the action defaults");
+  api.settle(true);
+  assert.deepEqual(submitted, [button]);
 
-  confirm.ask({ dataset: {}, requestSubmit() {} }, { message: "Sure?" });
-
-  // A trigger that omits them should still produce a usable dialog.
-  assert.equal(confirm.detail, "");
-  assert.equal(confirm.action, "Confirm");
+  // A form with no question is left alone.
+  const plain = submitEvent({ dataset: {}, getAttribute: attrs({}) });
+  api.onSubmit(plain);
+  assert.equal(plain.prevented, false);
 });
 
-test("tableFilter matches on the row's search text, case insensitively", () => {
-  const { data } = loadAlpineRegistrations();
-  const filter = data.tableFilter();
+test("hostile confirmation text is shown as text, never markup", () => {
+  const { api, elements } = loadBehaviours();
+  const form = { dataset: {}, getAttribute: attrs({ "data-confirm": "<img src=x onerror=alert(1)>" }), requestSubmit() {} };
+  api.onSubmit(submitEvent(form));
+  assert.equal(elements["confirm-message"].textContent, "<img src=x onerror=alert(1)>");
+  assert.equal(elements["confirm-message"].innerHTML, undefined);
+});
 
+test("without dialog support the form submits normally", () => {
+  const { api, dialog } = loadBehaviours();
+  delete dialog.showModal;
+  const event = submitEvent({ dataset: {}, getAttribute: attrs({ "data-confirm": "Sure?" }) });
+  api.onSubmit(event);
+  assert.equal(event.prevented, false);
+});
+
+test("typing a name to confirm blocks the submit until it matches", () => {
+  const { api } = loadBehaviours();
+  const typed = { value: "alic", focus() { this.focused = true; } };
+  const form = { dataset: {}, getAttribute: attrs({ "data-type-to-confirm": "alice" }), querySelector: () => typed };
+  const blocked = submitEvent(form);
+  api.onSubmit(blocked);
+  assert.equal(blocked.prevented, true);
+  assert.equal(typed.focused, true);
+  typed.value = "alice";
+  const allowed = submitEvent(form);
+  api.onSubmit(allowed);
+  assert.equal(allowed.prevented, false);
+  // A name that looks like markup is compared as plain text.
+  form.getAttribute = attrs({ "data-type-to-confirm": "a\"><b>" });
+  typed.value = "a\"><b>";
+  const odd = submitEvent(form);
+  api.onSubmit(odd);
+  assert.equal(odd.prevented, false);
+});
+
+test("table filtering matches search text case-insensitively and summarises", () => {
+  const { api } = loadBehaviours();
   const alice = { dataset: { search: "alice alice@example.com" } };
   const bob = { dataset: { search: "bob bob@example.com" } };
-
-  // An empty query shows everything.
-  assert.equal(filter.matches(alice), true);
-  assert.equal(filter.matches(bob), true);
-
-  filter.q = "ALICE";
-  assert.equal(filter.matches(alice), true, "matching should ignore case");
-  assert.equal(filter.matches(bob), false);
-
-  filter.q = "example.com";
-  assert.equal(filter.matches(alice), true, "the address should be searchable too");
-
-  filter.q = "  bob  ";
-  assert.equal(filter.matches(bob), true, "surrounding whitespace should be ignored");
-  assert.equal(filter.matches(alice), false);
-
-  filter.q = "nobody";
-  assert.equal(filter.matches(alice), false);
-  assert.equal(filter.matches(bob), false);
+  assert.equal(api.matches(alice, ""), true);
+  assert.equal(api.matches(alice, "ALICE"), true);
+  assert.equal(api.matches(bob, "ALICE"), false);
+  assert.equal(api.matches(bob, "  bob  "), true);
+  assert.equal(api.matches({ dataset: {} }, "anything"), false, "a missing attribute must not throw");
+  const rows = [alice, bob, { dataset: { search: "carol carol@example.com" } }];
+  assert.equal(api.summary(rows, ""), "3 total");
+  assert.equal(api.summary(rows, "bob"), "1 of 3 shown");
+  assert.equal(api.summary(rows, "example.com"), "3 of 3 shown");
+  assert.equal(api.summary(null, "x"), "");
 });
 
-test("tableFilter tolerates a row with no search text", () => {
-  const { data } = loadAlpineRegistrations();
-  const filter = data.tableFilter();
-
-  assert.equal(filter.matches({ dataset: {} }), true, "an empty query matches");
-
-  filter.q = "anything";
-  assert.equal(filter.matches({ dataset: {} }), false, "a missing attribute must not throw");
-});
-
-test("tableFilter summarises how many rows are shown", () => {
-  const { data } = loadAlpineRegistrations();
-  const filter = data.tableFilter();
-
+test("typing in a filter box hides rows in the named table", () => {
   const rows = [
-    { dataset: { search: "alice alice@example.com" } },
-    { dataset: { search: "bob bob@example.com" } },
-    { dataset: { search: "carol carol@example.com" } },
+    { dataset: { search: "alice" }, hidden: false },
+    { dataset: { search: "bob" }, hidden: false },
   ];
-  const table = { querySelectorAll: () => rows };
-
-  assert.equal(filter.summary(table), "3 total");
-
-  filter.q = "bob";
-  assert.equal(filter.summary(table), "1 of 3 shown");
-
-  filter.q = "example.com";
-  assert.equal(filter.summary(table), "3 of 3 shown");
-
-  // A table that is not on the page yet must not throw.
-  assert.equal(filter.summary(null), "");
+  const table = { querySelectorAll: (selector) => { assert.equal(selector, "tr[data-search]"); return rows; } };
+  const label = { textContent: "" };
+  const { listeners } = loadBehaviours({ "users-table": table, "users-summary": label });
+  const input = { value: "bo", getAttribute: attrs({ "data-table-filter": "#users-table", "data-table-summary": "#users-summary" }) };
+  listeners.input({ target: input });
+  assert.deepEqual(rows.map((r) => r.hidden), [true, false]);
+  assert.equal(label.textContent, "1 of 2 shown");
+  // A selector that is not an id is ignored rather than queried.
+  listeners.input({ target: { value: "x", getAttribute: attrs({ "data-table-filter": "body *" }) } });
 });
 
-test("accepting without a pending form is harmless", () => {
-  const { stores } = loadAlpineRegistrations();
-  const confirm = stores.confirm;
+test("read-only links select themselves on focus", () => {
+  const { api } = loadBehaviours();
+  let selected = false;
+  api.onFocus({ target: { hasAttribute: (name) => name === "data-select-on-focus", select() { selected = true; } } });
+  assert.equal(selected, true);
+  selected = false;
+  api.onFocus({ target: { hasAttribute: () => false, select() { selected = true; } } });
+  assert.equal(selected, false);
+});
 
-  confirm.accept();
-  assert.equal(confirm.open, false);
-  assert.equal(confirm.form, null);
+test("choosing public on the uploader turns camera details and location off", () => {
+  const { api } = loadBehaviours();
+  const boxes = [{ checked: true }, { checked: true }];
+  const form = { querySelectorAll: (selector) => { assert.equal(selector, "input[data-off-when-public]"); return boxes; } };
+  const radio = (value) => ({ name: "visibility", type: "radio", value, form, closest: () => null });
+  api.onClick({ target: radio("public") });
+  assert.deepEqual(boxes.map((b) => b.checked), [false, false]);
+  api.onClick({ target: radio("members") });
+  assert.deepEqual(boxes.map((b) => b.checked), [true, true]);
 });
 
 // The body-level listeners are registered against document.body, so they are
-// captured the same way the Alpine registrations are: by running the script
-// against a shim that records them.
+// captured by running the script against a shim that records them.
 function loadBodyListeners() {
   const listeners = new Map();
   const document = {
@@ -297,7 +336,6 @@ function loadBodyListeners() {
     window: {},
     setTimeout,
     console,
-    Alpine: { store() {}, data() {} },
   };
   vm.runInNewContext(SOURCE, context);
   return listeners;

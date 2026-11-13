@@ -78,15 +78,17 @@ func (s *Server) recoverMW(next http.Handler) http.Handler {
 // chose, which matters for user uploads above all. The framing headers keep
 // every page out of other sites' frames, so a button here cannot be dressed up
 // as something else and clicked by somebody who thinks they are elsewhere;
-// both forms are sent because older browsers only know X-Frame-Options. Only
-// frame-ancestors is set in the policy: a full Content-Security-Policy would
-// have to allow the inline Alpine expressions, and is the operator's choice.
+// both forms are sent because older browsers only know X-Frame-Options. The
+// policy allows scripts only from this origin: no inline scripts, handlers or
+// eval, which is what makes injected markup inert.
+const contentSecurityPolicy = "script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+
 func securityHeadersMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		header := w.Header()
 		header.Set("X-Content-Type-Options", "nosniff")
 		header.Set("X-Frame-Options", "DENY")
-		header.Set("Content-Security-Policy", "frame-ancestors 'none'")
+		header.Set("Content-Security-Policy", contentSecurityPolicy)
 		header.Set("Referrer-Policy", "same-origin")
 		next.ServeHTTP(w, r)
 	})

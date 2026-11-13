@@ -3,8 +3,7 @@
   One queued message. The error, when there is one, is part of the same row so
   that swapping the row keeps the reason next to the status it explains.
 */}}
-<tr id="mail-{{.Message.ID}}" data-search="{{lower .Search}}"
-    x-show="matches($el)">
+<tr id="mail-{{.Message.ID}}" data-search="{{lower .Search}}">
   <td>{{.Message.Recipient}}</td>
   <td>
     {{.Message.Subject}}
@@ -35,13 +34,9 @@
           hx-target="closest tr" hx-swap="outerHTML">
       <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
       <button class="btn small danger" type="submit"
-              @click="if (!$el.form.dataset.confirmed) {
-                        $event.preventDefault();
-                        $store.confirm.ask($el.form, {
-                          message: 'Discard this message?',
-                          detail: 'It will not be delivered, and the recipient will never receive it.',
-                          action: 'Discard' });
-                      }">Discard</button>
+              data-confirm="Discard this message?"
+              data-confirm-detail="It won't be delivered."
+              data-confirm-action="Discard">Discard</button>
     </form>
   </td>
 </tr>

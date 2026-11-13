@@ -32,14 +32,14 @@
 </div>
 
 {{if .Rows}}
-<section x-data="tableFilter">
+<section>
   <div class="filter-row">
-    <input type="search" x-model="q" placeholder="Filter by recipient, subject or status"
-           autocomplete="off" aria-label="Filter messages">
-    <span class="muted" x-text="summary($refs.table)"></span>
+    <input type="search" placeholder="Filter by recipient, subject or status"
+           autocomplete="off" aria-label="Filter messages" data-table-filter="#mail-table" data-table-summary="#mail-summary">
+    <span class="muted" id="mail-summary" role="status"></span>
   </div>
 
-  <table class="keys" x-ref="table">
+  <table class="keys" id="mail-table">
     <thead>
       <tr><th>Recipient</th><th>Subject</th><th>Status</th><th>Tries</th><th>When</th><th></th></tr>
     </thead>

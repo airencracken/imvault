@@ -107,7 +107,6 @@ func (s *Server) renderAdminUsersPage(w http.ResponseWriter, r *http.Request, st
 		Notice:     notice,
 	}
 	view.base = s.base(r, "Users")
-	view.UseAlpine = true
 
 	s.renderPage(w, r, status, "admin_users", view)
 }

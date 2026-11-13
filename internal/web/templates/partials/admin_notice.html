@@ -8,15 +8,10 @@
 <div class="flash {{if .Error}}err{{else}}ok{{end}}">
   {{.Text}}
   {{if .Link}}
-  <div class="notice-link" x-data="{ copied: false }">
-    <input class="key-reveal" readonly value="{{.Link}}" x-ref="link"
-           @click="$refs.link.select()" aria-label="{{default "One-time link" .LinkLabel}}">
-    <button class="btn small" type="button" x-ref="copy"
-            @click="navigator.clipboard.writeText($refs.link.value)
-                      .then(() => { copied = true; setTimeout(() => copied = false, 1500) })
-                      .catch(() => {})">
-      <span x-text="copied ? 'Copied' : 'Copy'">Copy</span>
-    </button>
+  <div class="notice-link">
+    <input class="key-reveal" id="admin-notice-link" readonly value="{{.Link}}" data-select-on-focus
+           aria-label="{{default "One-time link" .LinkLabel}}">
+    <button class="btn small" type="button" data-copy="#admin-notice-link">Copy</button>
   </div>
   {{end}}
 </div>

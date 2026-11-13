@@ -5,6 +5,7 @@ package web
 import (
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -81,9 +82,11 @@ func TestAdminRowsAreWiredForClientSideFiltering(t *testing.T) {
 
 	_, page := h.get("/admin/users")
 
-	// The filter counts rows by their data-search text, so every row must carry
-	// it, and every row must bind the predicate that actually hides it. A row
-	// with one but not the other makes the summary disagree with the screen.
+	// The filter hides rows by their data-search text, inside the table the
+	// filter box names.
+	if !strings.Contains(page, `data-table-filter="#users-table"`) || !strings.Contains(page, `id="users-table"`) || !strings.Contains(page, `id="users-summary"`) {
+		t.Fatal("the filter box is not wired to the accounts table")
+	}
 	rows := strings.Split(page, "<tr ")
 	found := 0
 	for _, row := range rows {
@@ -91,8 +94,8 @@ func TestAdminRowsAreWiredForClientSideFiltering(t *testing.T) {
 			continue
 		}
 		found++
-		if !strings.Contains(row, "x-show=\"matches($el)\"") {
-			t.Errorf("a row carries data-search without the x-show binding:\n%.200s", row)
+		if strings.Contains(row, "x-show") {
+			t.Errorf("a row still carries an Alpine binding:\n%.200s", row)
 		}
 	}
 	if found < 2 {
@@ -278,32 +281,18 @@ func TestAdminMailRowsAreFragments(t *testing.T) {
 	}
 }
 
-func TestPagesUsingAlpineAlsoLoadIt(t *testing.T) {
+func TestPagesHaveNoInlineScriptOrAlpine(t *testing.T) {
 	h := newHarness(t)
-
-	// Provision an administrator so the admin pages are reachable.
 	h.provisionAdmin("boss")
 
-	// A page with Alpine attributes but no Alpine loaded is silently inert:
-	// the confirmation dialog never opens, the filter never hides anything, and
-	// nothing reports an error. This is the check that catches it.
-	// "/" is not here: it redirects to the gallery once signed in, which is the
-	// state this test needs in order to reach the admin pages.
+	// The Content-Security-Policy refuses inline scripts and handlers, so any
+	// left in a template would silently stop working.
 	paths := []string{
 		"/gallery", "/upload", "/albums", "/tags",
 		"/settings/password", "/settings/2fa", "/settings/account", "/settings/api-keys",
-		"/admin", "/admin/users", "/admin/mail", "/admin/files",
+		"/admin", "/admin/users", "/admin/mail", "/admin/files", "/admin/settings", "/admin/invites",
 	}
-
-	usesAlpine := func(body string) bool {
-		for _, marker := range []string{"x-data", "x-model", "x-show", "x-text", "@submit", "@click"} {
-			if strings.Contains(body, marker) {
-				return true
-			}
-		}
-		return false
-	}
-
+	inline := regexp.MustCompile(`(?i)\son[a-z]+\s*=|<script(?:\s[^>]*)?>[^<]|javascript:|\sx-(data|model|show|text|init|ref)=|\s@(click|submit)=`)
 	checked := 0
 	for _, path := range paths {
 		resp, body := h.get(path)
@@ -312,13 +301,16 @@ func TestPagesUsingAlpineAlsoLoadIt(t *testing.T) {
 			continue
 		}
 		checked++
-
-		loads := strings.Contains(body, "alpine.min.js")
-		if usesAlpine(body) && !loads {
-			t.Errorf("%s uses Alpine attributes but does not load Alpine", path)
+		if match := inline.FindString(body); match != "" {
+			t.Errorf("%s has inline script or Alpine markup: %q", path, match)
+		}
+		if strings.Contains(body, "alpine") {
+			t.Errorf("%s still loads Alpine", path)
+		}
+		if !strings.Contains(body, `<dialog class="modal" id="confirm-dialog"`) {
+			t.Errorf("%s has no confirmation dialog for data-confirm forms", path)
 		}
 	}
-
 	if checked < len(paths) {
 		t.Fatalf("only %d of %d pages rendered", checked, len(paths))
 	}

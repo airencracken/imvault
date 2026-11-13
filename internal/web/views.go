@@ -34,10 +34,6 @@ type base struct {
 	// DefaultVisibility is what a new upload gets unless the uploader picks
 	// something, so the forms can preselect it.
 	DefaultVisibility models.Visibility
-	// UseAlpine pulls in Alpine.js for pages with confirmation dialogs: it carries
-	// client-side UI state (a confirmation dialog, table filtering, copy
-	// feedback) that htmx is not the right tool for.
-	UseAlpine bool
 	// FailedMail is only populated on the dashboard, where the mail queue's
 	// health is worth surfacing before an administrator goes looking for it.
 	FailedMail int

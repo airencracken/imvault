@@ -158,7 +158,6 @@ func (s *Server) renderInvitesPanel(w http.ResponseWriter, r *http.Request, form
 	if view.Limited {
 		view.MaxUsesCap, view.MaxDaysCap = memberMaxInviteUses, memberMaxInviteDays
 	}
-	view.UseAlpine = true
 	if newCode != "" {
 		view.InviteURL = s.absoluteURL(r, "/register") + "?invite=" + newCode
 		view.inviteForm = inviteForm{}

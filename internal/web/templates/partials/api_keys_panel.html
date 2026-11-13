@@ -3,7 +3,7 @@
   {{if .NewKey}}
   <div class="flash ok">
     <p><strong>Copy this key now.</strong> It is stored hashed and cannot be shown again.</p>
-    <input class="key-reveal" readonly value="{{.NewKey}}" onclick="this.select()">
+    <input class="key-reveal" readonly value="{{.NewKey}}" data-select-on-focus>
   </div>
   {{end}}
   {{if .Error}}<p class="flash err">{{.Error}}</p>{{end}}
@@ -37,7 +37,7 @@
           <form method="post" action="/settings/api-keys/{{.ID}}/delete"
                 hx-post="/settings/api-keys/{{.ID}}/delete"
                 hx-target="#api-keys" hx-swap="outerHTML"
-                onsubmit="return confirm('Revoke this key? Anything using it will stop working.');">
+                data-confirm="Revoke this key?" data-confirm-detail="Anything using it will stop working." data-confirm-action="Revoke">
             <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
             <button class="btn small danger" type="submit">Revoke</button>
           </form>

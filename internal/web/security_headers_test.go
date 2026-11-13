@@ -21,7 +21,7 @@ func TestEveryResponseCarriesSecurityHeaders(t *testing.T) {
 		for header, want := range map[string]string{
 			"X-Content-Type-Options":  "nosniff",
 			"X-Frame-Options":         "DENY",
-			"Content-Security-Policy": "frame-ancestors 'none'",
+			"Content-Security-Policy": "script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
 			"Referrer-Policy":         "same-origin",
 		} {
 			if got := resp.Header.Get(header); got != want {

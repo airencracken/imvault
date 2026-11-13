@@ -45,7 +45,6 @@ func (s *Server) handleAdminMail(w http.ResponseWriter, r *http.Request) {
 		Notice:      s.noticeFromQuery(r),
 	}
 	view.base = s.base(r, "Outbound mail")
-	view.UseAlpine = true
 
 	s.renderPage(w, r, http.StatusOK, "admin_mail", view)
 }

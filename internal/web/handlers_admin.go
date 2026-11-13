@@ -128,7 +128,6 @@ func (s *Server) handleAdminDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 	view.base = s.base(r, "Admin")
 	view.FailedMail = failedMail
-	view.UseAlpine = true
 
 	s.renderPage(w, r, http.StatusOK, "admin", view)
 }
@@ -161,7 +160,6 @@ func (s *Server) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 		Notice:     s.noticeFromQuery(r),
 	}
 	view.base = s.base(r, "Users")
-	view.UseAlpine = true
 
 	s.renderPage(w, r, http.StatusOK, "admin_users", view)
 }
@@ -511,7 +509,6 @@ func (s *Server) handleAdminFiles(w http.ResponseWriter, r *http.Request) {
 		Pagination: pg,
 	}
 	view.base = s.base(r, "Content")
-	view.UseAlpine = true
 
 	s.renderPage(w, r, http.StatusOK, "admin_files", view)
 }

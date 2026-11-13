@@ -6,8 +6,8 @@ import { findBrowser, temporaryDirectory, reservePort, waitForHTTP, stopProcess 
 // that only exists once JavaScript runs.
 //
 // The Go tests cover what the server sends; this covers what the browser then
-// does with it — Alpine initialising, the confirmation dialog standing in front
-// of a submit, and the table filter hiding rows without a round trip. Those are
+// does with it — the confirmation dialog standing in front of a submit, and
+// the table filter hiding rows without a round trip. Those are
 // exactly the things that cannot be verified over HTTP.
 //
 //   make test-browser
@@ -148,7 +148,7 @@ export class Page {
     await this.send("Page.navigate", { url });
     // waitFor takes an expression, not a statement: it is wrapped in a return.
     await this.waitFor("document.readyState === 'complete'");
-    // Alpine initialises on DOMContentLoaded and then runs x-init; give it a tick.
+    // app.js finishes its DOMContentLoaded work; give it a tick.
     await sleep(250);
   }
 
@@ -280,8 +280,8 @@ async function main() {
       return document.querySelectorAll(".flash").length === 0;
     `));
 
-    record("Alpine initialises on the admin page", await page.evaluate(`
-      return typeof window.Alpine !== "undefined";
+    record("the confirmation dialog is ready on the admin page", await page.evaluate(`
+      return !!document.getElementById("confirm-dialog") && typeof window.imvault === "object";
     `));
 
     const rows = await page.evaluate(`
@@ -325,7 +325,7 @@ async function main() {
     `);
     record("clicking Delete opens the dialog", opened.open === true);
     record("the dialog names what is about to happen",
-      opened.text.includes("Delete alice") && opened.text.includes("cannot be undone"),
+      opened.text.includes("Delete alice") && opened.text.includes("can't be undone"),
       opened.text.slice(0, 90));
     record("no native confirm() was used", page.dialogs.length === 0,
       page.dialogs.join(" | "));
@@ -479,8 +479,7 @@ async function main() {
     `);
     await page.waitFor(`!document.querySelector('.file-description')`);
     record("an empty description clears it", await page.evaluate(`
-      return document.querySelector('form[action$="/description"]').closest('details')
-        .querySelector('summary').textContent === 'Add description';
+      return document.querySelector('textarea[name="description"]').value === '';
     `));
 
     const readPressed = `
@@ -504,38 +503,20 @@ async function main() {
     const persisted = await page.evaluate(readPressed);
     record("the new level persisted", persisted === "Private", `showed "${persisted}"`);
 
-    // --- the metadata control ---
-    const metadataBefore = await page.evaluate(`
-      const select = document.querySelector('.meta-control select[name="metadata"]');
-      return select ? select.value : "";
-    `);
-    record("the file page offers a metadata setting", metadataBefore !== "",
-      `value "${metadataBefore}"`);
-
-    const metadataAfter = await page.evaluate(`
-      const form = document.querySelector(".meta-control");
-      if (!form) return { error: "no metadata control" };
-      const select = form.querySelector('select[name="metadata"]');
-      select.value = "hidden";
-      form.querySelector('button[type="submit"]').click();
-      await new Promise((r) => setTimeout(r, 400));
-      const after = document.querySelector('.meta-control select[name="metadata"]');
-      return { value: after ? after.value : "" };
-    `);
-    record("changing it swaps in place over htmx", metadataAfter.value === "hidden",
-      JSON.stringify(metadataAfter));
-
-    record("location offers its own sharing setting", await page.evaluate(`
-      return document.querySelector('select[name="location"]')?.value === 'inherit';
+    // --- camera details and location ---
+    record("the file page offers camera details and location switches", await page.evaluate(`
+      return !!document.querySelector('form[action$="/metadata"] button[name="metadata"]') &&
+        !!document.querySelector('form[action$="/location"] button[name="location"]');
     `));
-    await page.evaluate(`
-      const select = document.querySelector('select[name="location"]');
-      select.value = 'shown';
-      select.form.requestSubmit();
-    `);
-    await page.waitFor(`document.querySelector('select[name="location"]')?.value === 'shown' && document.body.textContent.includes('Location sharing updated.')`);
-    record("location changes without changing EXIF", await page.evaluate(`
-      return document.querySelector('select[name="metadata"]')?.value === 'hidden';
+    await page.evaluate(`document.querySelector('form[action$="/metadata"] button[name="metadata"][value="hidden"]').click();`);
+    await page.waitFor(`document.body.textContent.includes('Camera details are now hidden.')`);
+    record("hiding camera details persists", await page.evaluate(`
+      return !!document.querySelector('form[action$="/metadata"] button[value="shown"]');
+    `));
+    await page.evaluate(`document.querySelector('form[action$="/location"] button[name="location"]').click();`);
+    await page.waitFor(`document.body.textContent.includes('Location is now')`);
+    record("location changes without changing camera details", await page.evaluate(`
+      return !!document.querySelector('form[action$="/metadata"] button[value="shown"]');
     `));
 
     // --- private favorites ---

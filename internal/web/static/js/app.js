@@ -217,68 +217,153 @@
 })();
 
 /* ---------------------------------------------------------------------------
- * Alpine.js components.
- *
- * Alpine is loaded only on the pages that ask for it (the admin area, the
- * account and invitation pages), where a little client-side state earns its
- * keep: htmx owns every server round trip, and Alpine owns the state that never
- * needs one.
+ * Small behaviours declared in the markup with data attributes. Every one of
+ * them is an enhancement: the forms and links work without this script.
  * ------------------------------------------------------------------------- */
 
-document.addEventListener("alpine:init", function () {
-  // Confirmation for destructive actions. A trigger calls ask() with the form
-  // to submit; accepting re-submits it so htmx makes the request it would have
-  // made anyway, with the dialog only standing in the way.
-  Alpine.store("confirm", {
-    open: false,
-    message: "",
-    detail: "",
-    action: "Confirm",
-    form: null,
+(function () {
+  "use strict";
 
-    ask: function (form, options) {
-      this.form = form;
-      this.message = options.message;
-      this.detail = options.detail || "";
-      this.action = options.action || "Confirm";
-      this.open = true;
-    },
+  // Row filtering for a server-rendered table. Exposed for the tests.
+  function matches(row, query) {
+    var q = (query || "").trim().toLowerCase();
+    return !q || ((row.dataset && row.dataset.search) || "").indexOf(q) !== -1;
+  }
 
-    cancel: function () {
-      this.open = false;
-      this.form = null;
-    },
+  function summary(rows, query) {
+    if (!rows) return "";
+    if (!(query || "").trim()) return rows.length + " total";
+    var shown = rows.filter(function (row) { return matches(row, query); }).length;
+    return shown + " of " + rows.length + " shown";
+  }
 
-    accept: function () {
-      var form = this.form;
-      this.open = false;
-      this.form = null;
-      if (!form) return;
+  function byId(selector) {
+    return selector && selector.charAt(0) === "#" ? document.getElementById(selector.slice(1)) : null;
+  }
 
-      // Marking the form is what tells the click interceptor to stand aside,
-      // so the resubmission reaches htmx instead of reopening the dialog.
-      form.dataset.confirmed = "1";
-      form.requestSubmit();
-    },
+  function filterTable(input) {
+    var table = byId(input.getAttribute("data-table-filter"));
+    if (!table) return;
+    var rows = Array.prototype.slice.call(table.querySelectorAll("tr[data-search]"));
+    rows.forEach(function (row) { row.hidden = !matches(row, input.value); });
+    var label = byId(input.getAttribute("data-table-summary"));
+    if (label) label.textContent = summary(rows, input.value);
+  }
+
+  // Confirmation for destructive forms, in place of window.confirm. The form
+  // or the button that submits it names the question in data-confirm; the
+  // dialog is the confirm_dialog partial in the layout. Accepting resubmits
+  // the same form with the same button, so htmx sends exactly the request it
+  // would have sent.
+  var pending = null;
+
+  function dialog() { return document.getElementById("confirm-dialog"); }
+
+  function ask(form, submitter, source) {
+    var box = dialog();
+    if (!box || typeof box.showModal !== "function") return false;
+    pending = { form: form, submitter: submitter };
+    document.getElementById("confirm-message").textContent = source.getAttribute("data-confirm");
+    var detail = document.getElementById("confirm-detail");
+    detail.textContent = source.getAttribute("data-confirm-detail") || "";
+    detail.hidden = !detail.textContent;
+    box.querySelector("[data-confirm-accept]").textContent = source.getAttribute("data-confirm-action") || "Confirm";
+    box.showModal();
+    return true;
+  }
+
+  function settle(accepted) {
+    var box = dialog();
+    var current = pending;
+    pending = null;
+    if (box && box.open) box.close();
+    if (!accepted || !current) return;
+    current.form.dataset.confirmed = "1";
+    if (current.submitter && current.form.requestSubmit) current.form.requestSubmit(current.submitter);
+    else if (current.form.requestSubmit) current.form.requestSubmit();
+    else current.form.submit();
+  }
+
+  function onSubmit(event) {
+    var form = event.target;
+    if (!form || !form.getAttribute) return;
+
+    // Typing a name to confirm: the server checks it too.
+    var expected = form.getAttribute("data-type-to-confirm");
+    if (expected !== null) {
+      var typed = form.querySelector('input[name="confirm"]');
+      if (!typed || typed.value !== expected) {
+        event.preventDefault();
+        if (typed) typed.focus();
+        return;
+      }
+    }
+
+    if (form.dataset && form.dataset.confirmed === "1") {
+      delete form.dataset.confirmed;
+      return;
+    }
+    var submitter = event.submitter || null;
+    var source = submitter && submitter.getAttribute && submitter.getAttribute("data-confirm") !== null ? submitter : form;
+    if (source.getAttribute("data-confirm") === null) return;
+    if (ask(form, submitter, source)) {
+      // Stopped in the capture phase, so htmx never sees the first submit.
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }
+
+  function onClick(event) {
+    var target = event.target;
+    if (!target || !target.closest) return;
+    if (target.closest("[data-confirm-accept]")) return settle(true);
+    if (target.closest("[data-confirm-cancel]") || target === dialog()) return settle(false);
+
+    var copy = target.closest("[data-copy]");
+    if (copy) {
+      var field = byId(copy.getAttribute("data-copy"));
+      if (field && window.navigator && navigator.clipboard) {
+        navigator.clipboard.writeText(field.value).then(function () {
+          var label = copy.textContent;
+          copy.textContent = "Copied";
+          setTimeout(function () { copy.textContent = label; }, 1500);
+        }, function () {});
+      }
+      return;
+    }
+
+    // On the upload page, choosing public turns camera details and location
+    // off, and choosing a closed level turns them back on. Either can still be
+    // ticked by hand afterwards.
+    if (target.name === "visibility" && target.type === "radio" && target.form) {
+      var boxes = target.form.querySelectorAll("input[data-off-when-public]");
+      for (var i = 0; i < boxes.length; i++) boxes[i].checked = target.value !== "public";
+    }
+  }
+
+  function onFocus(event) {
+    var target = event.target;
+    if (target && target.hasAttribute && target.hasAttribute("data-select-on-focus") && target.select) target.select();
+  }
+
+  function onInput(event) {
+    var target = event.target;
+    if (target && target.getAttribute && target.getAttribute("data-table-filter")) filterTable(target);
+  }
+
+  document.addEventListener("submit", onSubmit, true);
+  document.addEventListener("click", onClick);
+  document.addEventListener("focusin", onFocus);
+  document.addEventListener("input", onInput);
+  document.addEventListener("DOMContentLoaded", function () {
+    var box = dialog();
+    if (box) box.addEventListener("close", function () { pending = null; });
+    if (!document.querySelectorAll) return;
+    var filters = document.querySelectorAll("[data-table-filter]");
+    for (var i = 0; i < filters.length; i++) filterTable(filters[i]);
   });
 
-  // Client-side filtering of a server-rendered table. Doing this with htmx
-  // would mean a request per keystroke to narrow a list that is already on the
-  // page.
-  Alpine.data("tableFilter", function () {
-    return {
-      q: "",
-      matches: function (row) {
-        var query = this.q.trim().toLowerCase();
-        return !query || (row.dataset.search || "").indexOf(query) !== -1;
-      },
-      summary: function (table) {
-        if (!table) return "";
-        var rows = Array.prototype.slice.call(table.querySelectorAll("tr[data-search]"));
-        if (!this.q.trim()) return rows.length + " total";
-        var shown = rows.filter(this.matches, this).length;
-        return shown + " of " + rows.length + " shown";
-      },
-    };
-  });
-});
+  if (typeof window !== "undefined") {
+    window.imvault = { matches: matches, summary: summary, onSubmit: onSubmit, onClick: onClick, onFocus: onFocus, settle: settle };
+  }
+})();

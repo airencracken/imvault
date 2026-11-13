@@ -13,14 +13,14 @@
 
 {{/* Rendered by both the full page and by an out-of-band swap after an
      action, so a single response can update a row and report what happened. */}}
-<section x-data="tableFilter">
+<section>
   <div class="filter-row">
-    <input type="search" x-model="q" placeholder="Filter by name or address" autocomplete="off"
-           aria-label="Filter accounts">
-    <span class="muted" x-text="summary($refs.table)"></span>
+    <input type="search" placeholder="Filter by name or address" autocomplete="off"
+           aria-label="Filter accounts" data-table-filter="#users-table" data-table-summary="#users-summary">
+    <span class="muted" id="users-summary" role="status"></span>
   </div>
 
-  <table class="keys users" x-ref="table">
+  <table class="keys users" id="users-table">
     <thead>
       <tr>
         <th>Account</th>

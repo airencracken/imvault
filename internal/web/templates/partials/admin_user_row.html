@@ -7,11 +7,7 @@
   which means the usage bar, quota and status always reflect what the server
   actually stored.
 */}}
-{{/* x-show is what actually hides a row; the summary alone would otherwise
-     report a count that did not match what is on screen. $el is the row, so
-     the predicate reads the same data-search text the summary counts. */}}
-<tr id="user-{{.User.ID}}" data-search="{{lower .Search}}"
-    x-show="matches($el)">
+<tr id="user-{{.User.ID}}" data-search="{{lower .Search}}">
   <td>
     <strong>{{.User.Username}}</strong>
     {{if .User.Role.IsAdmin}}<span class="badge">admin</span>
@@ -95,18 +91,10 @@
       {{if .User.Disabled}}
       <button class="btn small" type="submit">Enable</button>
       {{else}}
-      {{/* Intercepting the click rather than the submit: htmx listens for
-           submit and would issue the request regardless of preventDefault, but
-           a cancelled click never produces a submit event at all. Without
-           JavaScript the button is simply a submit button. */}}
       <button class="btn small" type="submit"
-              @click="if (!$el.form.dataset.confirmed) {
-                        $event.preventDefault();
-                        $store.confirm.ask($el.form, {
-                          message: 'Disable {{.User.Username}}?',
-                          detail: 'They will be signed out and their API keys revoked immediately.',
-                          action: 'Disable' });
-                      }">Disable</button>
+              data-confirm="Disable {{.User.Username}}?"
+              data-confirm-detail="They are signed out and their API keys are revoked straight away."
+              data-confirm-action="Disable">Disable</button>
       {{end}}
     </form>
     {{end}}
@@ -133,13 +121,9 @@
           hx-target="closest tr" hx-swap="outerHTML">
       <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
       <button class="btn small danger" type="submit"
-              @click="if (!$el.form.dataset.confirmed) {
-                        $event.preventDefault();
-                        $store.confirm.ask($el.form, {
-                          message: 'Delete {{.User.Username}}?',
-                          detail: 'Every file they uploaded will be deleted too. This cannot be undone.',
-                          action: 'Delete account' });
-                      }">Delete</button>
+              data-confirm="Delete {{.User.Username}}?"
+              data-confirm-detail="Every file they uploaded is deleted too. This can't be undone."
+              data-confirm-action="Delete account">Delete</button>
     </form>
     {{end}}
   </td>

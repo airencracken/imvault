@@ -66,7 +66,6 @@ func (s *Server) accountPage(w http.ResponseWriter, r *http.Request, statusCode 
 	view.Credentials = s.credentialsFor(r, user, "/settings/account")
 	view.base = s.base(r, "Account")
 	// The confirmation field uses Alpine, so the page has to load it.
-	view.UseAlpine = true
 	if draft != nil {
 		view.TimezoneControl.Name = *draft
 	}

@@ -51,7 +51,7 @@
         <td class="muted">{{humanTime .CreatedAt}}</td>
         <td>
           <form method="post" action="/settings/account/identities/{{.ID}}/delete"
-                onsubmit="return confirm('Disconnect this sign-in? Afterwards you sign in with your password.');">
+                data-confirm="Disconnect this sign-in?" data-confirm-detail="Afterwards you sign in with your password." data-confirm-action="Disconnect">
             <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
             <button class="btn small danger" type="submit">Disconnect</button>
           </form>
@@ -114,12 +114,8 @@
     </p>
   </div>
 
-  {{/* The username reaches the guard as data, never as part of the
-       expression, so what it may contain does not matter to the script. */}}
   <form class="stack" method="post" action="/settings/account/delete"
-        data-username="{{.Status.User.Username}}"
-        x-data="{ typed: '' }"
-        @submit="if (typed !== $el.dataset.username) { $event.preventDefault(); }">
+        data-type-to-confirm="{{.Status.User.Username}}">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
 
     {{if .Credentials.PasswordSet}}
@@ -135,7 +131,7 @@
     {{end}}
 
     <label>Type <strong>{{.Status.User.Username}}</strong> to confirm
-      <input name="confirm" x-model="typed" autocomplete="off" required>
+      <input name="confirm" autocomplete="off" required>
     </label>
 
     <button class="btn danger" type="submit">Delete my account</button>

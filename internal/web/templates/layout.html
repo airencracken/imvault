@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="{{.CSRFToken}}">
+  <meta name="htmx-config" content='{"allowEval":false,"allowScriptTags":false,"includeIndicatorStyles":false}'>
   <title>{{if .Title}}{{.Title}} · {{.SiteName}}{{else}}{{.SiteName}}{{end}}</title>
   {{if .FaviconURL}}<link rel="icon" type="image/png" href="{{.FaviconURL}}">
   {{else}}<link rel="icon" type="image/png" sizes="32x32" href="/static/img/favicon-32.png">
@@ -14,9 +15,7 @@
   <link rel="stylesheet" href="/static/comfyware/components.css">
   <script src="/static/js/htmx.min.js" defer></script>
   <script src="/static/comfyware/timezone.js" defer></script>
-  <!-- app.js registers its alpine:init hooks, so it must be parsed first. -->
   <script src="/static/js/app.js" defer></script>
-  {{if .UseAlpine}}<script src="/static/js/alpine.min.js" defer></script>{{end}}
   <script src="/static/comfyware/suite.js"></script>
 </head>
 <body hx-headers='{"X-CSRF-Token":"{{.CSRFToken}}"}'>
@@ -63,7 +62,7 @@
     {{template "content" .}}
   </main>
 
-  {{if .UseAlpine}}{{template "confirm_dialog" .}}{{end}}
+  {{template "confirm_dialog" .}}
 
   <footer class="foot">
     <span>{{.SiteName}} · <a href="/about"{{if eq .CurrentPath "/about"}} aria-current="page"{{end}}>About &amp; house rules</a></span>
