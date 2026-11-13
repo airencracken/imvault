@@ -102,6 +102,16 @@ func (s *Store) LoadBranding(ctx context.Context, defaults models.Branding) (mod
 	if err := rows.Err(); err != nil {
 		return defaults, nil, err
 	}
+	resolved := resolveBranding(defaults, values, stored)
+	resolved.ShowVersion, err = showVersionSetting(values, defaults.ShowVersion)
+	if err != nil {
+		return defaults, nil, fmt.Errorf("load show_version: %w", err)
+	}
+	return resolved, stored, nil
+}
+
+// resolveBranding lays stored text values over the configuration defaults.
+func resolveBranding(defaults models.Branding, values map[string]string, stored map[string]bool) models.Branding {
 	resolved := defaults
 	if stored[models.SettingSiteName] && strings.TrimSpace(values[models.SettingSiteName]) != "" {
 		resolved.SiteName = values[models.SettingSiteName]
@@ -126,11 +136,7 @@ func (s *Store) LoadBranding(ctx context.Context, defaults models.Branding) (mod
 	if palette, err := ui.ParsePalette(values[models.SettingPalette]); err == nil {
 		resolved.Palette = string(palette)
 	}
-	resolved.ShowVersion, err = showVersionSetting(values, defaults.ShowVersion)
-	if err != nil {
-		return defaults, nil, fmt.Errorf("load show_version: %w", err)
-	}
-	return resolved, stored, nil
+	return resolved
 }
 
 func showVersionSetting(values map[string]string, fallback bool) (bool, error) {

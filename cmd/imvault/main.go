@@ -178,6 +178,12 @@ func run() (err error) {
 		logger.Info("shutdown signal received")
 	}
 
+	return shutdown(httpServer, srv, logger)
+}
+
+// shutdown stops taking requests, then writes the site health counts still
+// held in memory.
+func shutdown(httpServer *http.Server, srv *web.Server, logger *slog.Logger) error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownGrace)
 	defer cancel()
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
