@@ -264,6 +264,10 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /settings/profile", s.requireUser(s.handleProfileSettings))
 	mux.HandleFunc("POST /settings/profile", s.requireUser(s.handleProfileSave))
 	mux.HandleFunc("GET /settings/account", s.requireUser(s.handleAccountPage))
+	// Shared Comfylib pages link to /account; Imvault keeps it at /settings/account.
+	mux.HandleFunc("GET /account", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/settings/account", http.StatusSeeOther)
+	})
 	mux.HandleFunc("POST /settings/account/timezone", s.requireUser(s.handleTimezone))
 	mux.HandleFunc("GET /settings/account/export", s.requireUser(s.handleAccountExport))
 	mux.HandleFunc("POST /settings/account/delete", s.requireUser(s.rateLimitLogins(s.handleAccountDelete)))

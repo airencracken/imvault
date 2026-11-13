@@ -10,6 +10,7 @@
   --muted: light-dark(#596579, #8b93a3);
   --accent: light-dark(#245eb6, #6ea8fe);
   --accent-strong: light-dark(#184a96, #4d8ef7);
+  --accent-fg: light-dark(#ffffff, #0b1220);
   --danger: light-dark(#a82c3b, #f2707a);
   --ok: light-dark(#216b45, #6ee7a8);
   --warn: light-dark(#80580c, #f5c168);
@@ -70,7 +71,6 @@ h2 { font-size: 1.05rem; margin: 0 0 .75rem; color: var(--text); }
 .nav a.btn { color: var(--text); }
 .nav a.btn.primary { color: light-dark(#ffffff, #0b1220); }
 
-.who { color: var(--muted); font-size: .92rem; border-left: 1px solid var(--border); padding-left: 1rem; }
 .theme-picker { display: flex; align-items: center; gap: .4rem; font-size: .82rem; }
 .theme-picker[hidden] { display: none; }
 .theme-picker select { width: auto; margin: 0; padding: .3rem .4rem; font-size: .82rem; }
@@ -642,3 +642,8 @@ code {
 .trash-grid .caption { overflow-wrap: anywhere; }
 .trash-grid .name { white-space: normal; }
 .trash-grid input[type="checkbox"] { flex-shrink: 0; }
+
+/* Skip link: off-screen until focused, then the first thing on the page. */
+.skip-link { position: absolute; left: .75rem; top: -3rem; z-index: 100; padding: .5rem .85rem; border-radius: var(--radius); background: var(--accent); color: var(--accent-fg); font-weight: 600; }
+.skip-link:focus { top: .75rem; }
+main:focus { outline: none; }

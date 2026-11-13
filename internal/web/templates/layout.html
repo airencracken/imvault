@@ -5,49 +5,57 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="{{.CSRFToken}}">
   <title>{{if .Title}}{{.Title}} · {{.SiteName}}{{else}}{{.SiteName}}{{end}}</title>
-  <script src="/static/js/theme.js"></script>
-  <link rel="stylesheet" href="/static/css/app.css">
-  <link rel="stylesheet" href="/static/comfyware/accounts.css">
   {{if .FaviconURL}}<link rel="icon" type="image/png" href="{{.FaviconURL}}">
   {{else}}<link rel="icon" type="image/png" sizes="32x32" href="/static/img/favicon-32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/static/img/favicon-16.png">{{end}}
+  <script src="/static/js/theme.js"></script>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link rel="stylesheet" href="/static/comfyware/accounts.css">
+  <link rel="stylesheet" href="/static/comfyware/components.css">
   <script src="/static/js/htmx.min.js" defer></script>
+  <script src="/static/comfyware/timezone.js" defer></script>
   <!-- app.js registers its alpine:init hooks, so it must be parsed first. -->
   <script src="/static/js/app.js" defer></script>
   {{if .UseAlpine}}<script src="/static/js/alpine.min.js" defer></script>{{end}}
-<link rel="stylesheet" href="/static/comfyware/components.css"><script src="/static/comfyware/timezone.js" defer></script><script src="/static/comfyware/suite.js"></script></head>
+  <script src="/static/comfyware/suite.js"></script>
+</head>
 <body hx-headers='{"X-CSRF-Token":"{{.CSRFToken}}"}'>
+  <a class="skip-link" href="#main">Skip to content</a>
   <header class="topbar">
-    <a class="brand" href="/"><img src="{{.MascotURL}}" alt="" width="32" height="32">{{.SiteName}}</a>
-    <nav class="nav" aria-label="Main navigation">{{with suiteApps}}<details class="comfy-menu comfy-apps"><summary>Apps</summary><div class="comfy-menu-panel"><p class="comfy-menu-label">Your Comfyware apps</p>{{range .}}<a href="{{.URL}}" hx-boost="false" rel="noreferrer">{{.Name}}</a>{{end}}</div></details>{{end}}
+    <a class="brand" href="/"{{if eq .CurrentPath "/"}} aria-current="page"{{end}}><img src="{{.MascotURL}}" alt="" width="32" height="32">{{.SiteName}}</a>
+    <nav class="nav" aria-label="Main navigation">
+      {{with suiteApps}}<details class="comfy-menu comfy-apps"><summary>Apps</summary><div class="comfy-menu-panel"><p class="comfy-menu-label">Your Comfyware apps</p>{{range .}}<a href="{{.URL}}" hx-boost="false" rel="noreferrer">{{.Name}}</a>{{end}}</div></details>{{end}}
       {{if .IsAuthed}}
-        <a href="/recent">Recent</a>
-        <details class="comfy-menu"><summary>Library</summary><div class="comfy-menu-panel"><a href="/gallery">Your gallery</a><a href="/favorites">Favorites</a><a href="/albums">Albums</a><a href="/tags">Tags</a></div></details>
-        <a class="btn small primary" href="/upload">Upload</a>
-<details class="comfy-menu comfy-account"><summary>Account</summary><div class="comfy-menu-panel">{{if sharedSignIn}}<a href="/auth/shared/manage" hx-boost="false">Community sign-in</a>{{end}}<p class="comfy-menu-label">Signed in as {{.User.Username}}</p><a href="/account">Your account</a><a href="/settings/2fa">Security settings</a>{{if and .User.CanInvite (not .IsAdmin)}}<a href="/invites">Invitations</a>{{end}}{{if .IsAdmin}}<a href="/admin">Admin</a>{{else if .CanModerate}}<a href="/admin/files">Moderate</a>{{end}}      <label class="theme-picker" hidden>Theme
-        <select data-theme-select aria-label="Color theme">
-          <option value="system">System</option>
-          <option value="light">Light</option>
-          <option value="dark">Dark</option>
-        </select>
-      </label><hr><form method="post" action="/logout"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><button class="link" type="submit">Sign out</button></form></div></details>
+      <a href="/recent"{{if eq .CurrentPath "/recent"}} aria-current="page"{{end}}>Recent</a>
+      <details class="comfy-menu"><summary>Library</summary><div class="comfy-menu-panel">
+        <a href="/gallery"{{if eq .CurrentPath "/gallery"}} aria-current="page"{{end}}>Your gallery</a>
+        <a href="/favorites"{{if eq .CurrentPath "/favorites"}} aria-current="page"{{end}}>Favorites</a>
+        <a href="/albums"{{if eq .CurrentPath "/albums"}} aria-current="page"{{end}}>Albums</a>
+        <a href="/tags"{{if eq .CurrentPath "/tags"}} aria-current="page"{{end}}>Tags</a>
+      </div></details>
+      <a class="btn small primary" href="/upload"{{if eq .CurrentPath "/upload"}} aria-current="page"{{end}}>Upload</a>
+      <details class="comfy-menu comfy-account"><summary>Account</summary><div class="comfy-menu-panel">
+        {{if sharedSignIn}}<a href="/auth/shared/manage" hx-boost="false">Community sign-in</a>{{end}}
+        <p class="comfy-menu-label">Signed in as {{.User.Username}}</p>
+        <a href="/settings/account"{{if eq .CurrentPath "/settings/account"}} aria-current="page"{{end}}>Your account</a>
+        <a href="/settings/2fa"{{if eq .CurrentPath "/settings/2fa"}} aria-current="page"{{end}}>Security settings</a>
+        {{if and .User.CanInvite (not .IsAdmin)}}<a href="/invites"{{if eq .CurrentPath "/invites"}} aria-current="page"{{end}}>Invitations</a>{{end}}
+        {{if .IsAdmin}}<a href="/admin"{{if eq .CurrentPath "/admin"}} aria-current="page"{{end}}>Admin</a>{{else if .CanModerate}}<a href="/admin/files"{{if eq .CurrentPath "/admin/files"}} aria-current="page"{{end}}>Moderate</a>{{end}}
+        {{template "theme_picker"}}
+        <hr>
+        <form method="post" action="/logout"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><button class="link" type="submit">Sign out</button></form>
+      </div></details>
       {{else}}
-        <a href="/tags">Tags</a>
-        {{if .AnonUploads}}<a class="btn small primary" href="/upload">Upload</a>{{end}}
-        <a href="/login">Sign in</a>      <label class="theme-picker" hidden>Theme
-        <select data-theme-select aria-label="Color theme">
-          <option value="system">System</option>
-          <option value="light">Light</option>
-          <option value="dark">Dark</option>
-        </select>
-      </label>
-        {{if .SignupOpen}}<a href="/register">Register</a>{{end}}
+      <a href="/tags"{{if eq .CurrentPath "/tags"}} aria-current="page"{{end}}>Tags</a>
+      {{if .AnonUploads}}<a class="btn small primary" href="/upload"{{if eq .CurrentPath "/upload"}} aria-current="page"{{end}}>Upload</a>{{end}}
+      <a href="/login"{{if eq .CurrentPath "/login"}} aria-current="page"{{end}}>Sign in</a>
+      {{template "theme_picker"}}
+      {{if .SignupOpen}}<a href="/register"{{if eq .CurrentPath "/register"}} aria-current="page"{{end}}>Register</a>{{end}}
       {{end}}
-
     </nav>
   </header>
 
-  <main class="page">
+  <main id="main" class="page" tabindex="-1">
     {{block "page_notices" .}}
       {{if .Notice}}<p class="flash ok">{{.Notice}}</p>{{end}}
       {{if .Error}}<p class="flash err">{{.Error}}</p>{{end}}
@@ -58,7 +66,7 @@
   {{if .UseAlpine}}{{template "confirm_dialog" .}}{{end}}
 
   <footer class="foot">
-    <span>{{.SiteName}} · <a href="/about">About &amp; house rules</a></span>
+    <span>{{.SiteName}} · <a href="/about"{{if eq .CurrentPath "/about"}} aria-current="page"{{end}}>About &amp; house rules</a></span>
     <span class="muted">
       Self-hosted photos and clips{{if .ShowVersion}} · Imvault {{.Version}}{{end}}{{if .SourceURL}} ·
       <a href="{{.SourceURL}}" rel="noopener">source</a> · AGPLv3{{end}}
