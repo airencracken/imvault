@@ -558,5 +558,13 @@
     "after": "\t\tview.Error",
     "package": "./internal/web",
     "run": "^TestSecurityCountersRecordRejectedAttempts$"
+  },
+  {
+    "name": "upload metadata requires an explicit choice",
+    "file": "internal/web/templates/pages/upload.html",
+    "before": "type=\"checkbox\" name=\"location\" value=\"shown\" data-off-when-public>",
+    "after": "type=\"checkbox\" name=\"location\" value=\"shown\" data-off-when-public checked>",
+    "package": "./internal/web",
+    "run": "^TestPublicUploadDefaultsWithoutJavaScript$"
   }
 ]

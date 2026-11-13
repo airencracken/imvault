@@ -41,20 +41,19 @@
       <p class="muted">You can change this later on each file.</p>
     </fieldset>
 
-    {{$shareByDefault := not .DefaultVisibility.IsPublic}}
     <fieldset class="choices sharing-choices">
       <legend>Camera details and location</legend>
       <input type="hidden" name="metadata" value="hidden">
       <label class="row">
-        <input type="checkbox" name="metadata" value="shown" data-off-when-public {{if $shareByDefault}}checked{{end}}>
+        <input type="checkbox" name="metadata" value="shown" data-off-when-public>
         <span>Show camera details, such as the camera and when the photo was taken</span>
       </label>
       <input type="hidden" name="location" value="hidden">
       <label class="row">
-        <input type="checkbox" name="location" value="shown" data-off-when-public {{if $shareByDefault}}checked{{end}}>
+        <input type="checkbox" name="location" value="shown" data-off-when-public>
         <span>Show where the photo was taken</span>
       </label>
-      <p class="muted">Both start off for public uploads. You always see them on your own files.</p>
+      <p class="muted">Both start off. Tick either to share it. You always see them on your own files.</p>
     </fieldset>
     {{else}}
     <p class="muted">

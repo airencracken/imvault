@@ -18,6 +18,8 @@
   --comfy-accent: light-dark(#245eb6, #6ea8fe);
   --comfy-accent-text: light-dark(#ffffff, #0b1220);
   --comfy-danger: light-dark(#a82c3b, #f2707a);
+  --comfy-heading-font: var(--comfy-font);
+  --comfy-heading-weight: 650;
   --comfy-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --comfy-radius: 10px;
 

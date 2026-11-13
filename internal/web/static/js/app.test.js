@@ -318,7 +318,10 @@ test("choosing public on the uploader turns camera details and location off", ()
   api.onClick({ target: radio("public") });
   assert.deepEqual(boxes.map((b) => b.checked), [false, false]);
   api.onClick({ target: radio("members") });
-  assert.deepEqual(boxes.map((b) => b.checked), [true, true]);
+  assert.deepEqual(boxes.map((b) => b.checked), [false, false]);
+  boxes[0].checked = true;
+  api.onClick({ target: radio("private") });
+  assert.deepEqual(boxes.map((b) => b.checked), [true, false]);
 });
 
 // The body-level listeners are registered against document.body, so they are

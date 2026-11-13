@@ -11,6 +11,6 @@ permissions:
   contents: read
 jobs:
   shared:
-    uses: airencracken/comfylib/.github/workflows/browser.yml@cd7d278abca6def827880e0dd98f3a91a3d9ee01 # v0.7.1
+    uses: airencracken/comfylib/.github/workflows/browser.yml@97d6c188312e1f2146b11cbd98a28a76d0b8e242 # v0.7.2
     with:
       source_ref: ${{ inputs.source_ref }}

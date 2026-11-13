@@ -319,12 +319,11 @@
     if (target.closest("[data-confirm-accept]")) return settle(true);
     if (target.closest("[data-confirm-cancel]") || target === dialog()) return settle(false);
 
-    // On the upload page, choosing public turns camera details and location
-    // off, and choosing a closed level turns them back on. Either can still be
-    // ticked by hand afterwards.
-    if (target.name === "visibility" && target.type === "radio" && target.form) {
+    // Public uploads require a fresh choice to share camera details or
+    // location. A closed level keeps the uploader's choices as they are.
+    if (target.name === "visibility" && target.type === "radio" && target.value === "public" && target.form) {
       var boxes = target.form.querySelectorAll("input[data-off-when-public]");
-      for (var i = 0; i < boxes.length; i++) boxes[i].checked = target.value !== "public";
+      for (var i = 0; i < boxes.length; i++) boxes[i].checked = false;
     }
   }
 
@@ -344,7 +343,7 @@
   document.addEventListener("input", onInput);
   document.addEventListener("DOMContentLoaded", function () {
     var box = dialog();
-    if (box) box.addEventListener("close", function () { pending = null; });
+    if (box) box.addEventListener("close", function () { if (!box.open) pending = null; });
     if (!document.querySelectorAll) return;
     var filters = document.querySelectorAll("[data-table-filter]");
     for (var i = 0; i < filters.length; i++) filterTable(filters[i]);

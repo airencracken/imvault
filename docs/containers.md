@@ -37,12 +37,12 @@ you bind to a specific non-loopback address.
 Pin a version in `.env`:
 
 ```dotenv
-IMVAULT_IMAGE="ghcr.io/airencracken/imvault:v0.26.0"
+IMVAULT_IMAGE="ghcr.io/airencracken/imvault:v0.26.1"
 ```
 
 To pin a digest, use the full multi-platform index digest
 (`ghcr.io/airencracken/imvault@sha256:...`) from
-`docker buildx imagetools inspect ghcr.io/airencracken/imvault:v0.26.0`.
+`docker buildx imagetools inspect ghcr.io/airencracken/imvault:v0.26.1`.
 There are no `latest`, major or minor tags, so a pull never brings in a
 database migration you did not choose.
 
@@ -91,7 +91,7 @@ your data before deleting the old volume. Restore only backups you made.
 From a source checkout:
 
 ```sh
-VERSION=0.26.0 docker compose -f docker-compose.yml -f docker-compose.build.yml up --build -d
+VERSION=0.26.1 docker compose -f docker-compose.yml -f docker-compose.build.yml up --build -d
 ```
 
 This builds `imvault:local` from source and does not pull the published image.
@@ -113,6 +113,6 @@ Local checks:
 
 ```sh
 make test-containers
-docker build --build-arg VERSION=0.26.0 -t imvault:local .
-make test-container-lifecycle VERSION=0.26.0
+docker build --build-arg VERSION=0.26.1 -t imvault:local .
+make test-container-lifecycle VERSION=0.26.1
 ```
