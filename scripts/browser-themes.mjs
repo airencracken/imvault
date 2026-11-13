@@ -1,6 +1,27 @@
 import assert from 'node:assert/strict';
 
 export async function checkThemes(page, base) {
+  await page.goto(base + '/login');
+  assert.ok(await page.evaluate(`
+    const root = document.documentElement;
+    const previous = root.getAttribute('data-palette');
+    const elements = [...document.querySelectorAll('body, h1, input, button')];
+    const fonts = () => JSON.stringify(elements.map(element => {
+      const style = getComputedStyle(element);
+      return [style.fontFamily, style.fontWeight, style.fontSize];
+    }));
+    const original = fonts();
+    try {
+      for (const palette of ['sage', 'slate']) {
+        root.setAttribute('data-palette', palette);
+        if (fonts() !== original) return false;
+      }
+      return true;
+    } finally {
+      if (previous === null) root.removeAttribute('data-palette');
+      else root.setAttribute('data-palette', previous);
+    }
+  `), 'Color palettes preserve Imvault typography');
   const media = value => page.send('Emulation.setEmulatedMedia', {
     features: [{ name: 'prefers-color-scheme', value }],
   });
