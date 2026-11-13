@@ -1,35 +1,31 @@
 # Deployment
 
-Running Imvault on a server, without Docker.
+This guide covers running Imvault on a host without Docker. For containers, see
+[Docker installation and operations](containers.md). For prebuilt binaries and
+Debian packages, see [binary releases](releases.md).
 
-GitHub Releases provide static Linux binaries and Debian packages for amd64
-and arm64. See [binary releases](releases.md) for downloads, installation,
-checksums, and upgrades. Install ffmpeg for video thumbnails and duration checks.
+## Build and install
 
-To produce a source archive for building yourself:
-
-```bash
-make dist                      # source only: dist/imvault-<version>.tar.gz
-```
-
-Or build in place and install:
+Building needs Go 1.26.11 or later. Install ffmpeg for clip posters and
+duration checks.
 
 ```bash
 make build
 sudo make install              # /usr/local/bin/imvault
+make dist                      # or a source tarball: dist/imvault-<version>.tar.gz
 ```
 
-Create the account it runs as, then pick one of the two init systems below.
+Create the service account:
 
 ```bash
 sudo useradd --system --home-dir /var/lib/imvault --shell /usr/sbin/nologin imvault
 ```
 
-Create your administrator with the local `imvault create-admin` command,
-running as the service account with the service's database settings. See
+Then set up systemd or OpenRC below, and create your administrator with
+`imvault create-admin` as described in
 [provisioning an administrator](accounts.md#provisioning-an-administrator).
-You can keep `IMVAULT_ALLOW_SIGNUP=false` throughout setup; public registration
-never grants administrator access.
+`IMVAULT_ALLOW_SIGNUP=false` can stay set throughout; public registration never
+grants administrator access.
 
 ## systemd
 
@@ -41,37 +37,29 @@ sudo systemctl enable --now imvault
 journalctl -u imvault -f
 ```
 
-The unit keeps everything but `/var/lib/imvault` read-only, drops privileges,
-and gives the service its own `/tmp` for the temporary copies ffmpeg makes.
-`StateDirectory=imvault` creates the data directory with the right ownership on
-first start, at mode 0700, and `UMask=0077` keeps what the server writes there
-private to the service account. The data directory holds account credentials,
-the encryption key and private uploads, so nobody else on the host should be
-able to list it. Starting the service also tightens a directory an older
-version created at 0750.
+The unit makes everything except `/var/lib/imvault` read-only, drops
+privileges and gives the service a private `/tmp`. It creates the data
+directory at mode 0700 on first start and runs with `UMask=0077`, because the
+directory holds credentials, the encryption key and private uploads. Starting
+also tightens a directory an older version created at 0750.
 
-**If you move the data directory**, add it to `ReadWritePaths` in the unit or
-`ProtectSystem=strict` will make it read-only and the service will not start.
+**If you move the data directory**, add it to `ReadWritePaths` in the unit.
+Otherwise `ProtectSystem=strict` makes it read-only and the service will not
+start.
 
-The hardening is deliberately the safe subset. A system call filter
-(`SystemCallFilter=@system-service`) is a reasonable addition, but Imvault shells
-out to ffmpeg for clip posters and a filter that turns out to be too tight would
-break video silently, so it is left for you to add once you have checked the
-journal after an upload.
+You can add `SystemCallFilter=@system-service` yourself. Check the journal
+after a clip upload, since a filter that is too tight breaks ffmpeg.
 
 ## OpenRC
 
-Both are covered by the same init script; they differ only in how the service
-account is created.
+Alpine and Gentoo share one init script. Only account creation differs.
 
 ```bash
-# Install the binary where the service looks for it.
 sudo make install PREFIX=/usr
 sudo make install-openrc
 
 # Alpine
 sudo adduser -S -D -H -h /var/lib/imvault -s /sbin/nologin imvault
-
 # Gentoo
 sudo useradd --system --home-dir /var/lib/imvault -s /sbin/nologin imvault
 
@@ -80,57 +68,48 @@ sudo rc-update add imvault default
 sudo rc-service imvault start
 ```
 
-`PREFIX` defaults to `/usr/local`, but the init script looks for the binary at
-`/usr/bin/imvault`, which is where a package installs it. Either pass
-`PREFIX=/usr` as above, or set `IMVAULT_BIN` in `/etc/conf.d/imvault`;
-`make install-openrc` says so when the two disagree, because the alternative is
-a service that starts and immediately stops.
+The init script expects `/usr/bin/imvault`, while `PREFIX` defaults to
+`/usr/local`. Pass `PREFIX=/usr` as above or set `IMVAULT_BIN` in
+`/etc/conf.d/imvault`; `make install-openrc` warns when they disagree.
 
-Keep `/etc/conf.d/imvault` at mode 0600 because it can contain SMTP credentials.
+Keep `/etc/conf.d/imvault` at mode 0600, since it can hold SMTP credentials.
+Every `IMVAULT_*` value in it reaches the server. Logs go to
+`/var/log/imvault.log`.
 
-On start, the init script refuses a relative `IMVAULT_DATA_DIR`, `IMVAULT_BIN`
-or `IMVAULT_LOG_FILE`, creates or tightens the data directory to mode 0700, and
-runs the server with umask 0077, for the same reasons as the systemd unit.
-Starting waits a second to see that the server stays up, so one that refuses
-its configuration or database fails the start. Stopping waits 25 seconds for
-in-flight requests before killing the server.
+On start, the script rejects a relative `IMVAULT_DATA_DIR`, `IMVAULT_BIN` or
+`IMVAULT_LOG_FILE`, sets the data directory to mode 0700 and runs the server
+with umask 0077. It waits a second to confirm the server stayed up, so a bad
+configuration fails the start. Stopping gives in-flight requests 25 seconds.
 
-Settings in `/etc/conf.d/imvault` use the same `IMVAULT_*` names the server
-reads from its environment. The init script re-reads that file with `allexport`
-set, so any `IMVAULT_*` value written there reaches the daemon without the
-script having to know the option's name. Logs go to `/var/log/imvault.log`.
+`make install-openrc` also installs `/etc/logrotate.d/imvault`, keeping an
+existing rule. Install logrotate and make sure its cron job or timer runs. To
+add only the rule to an existing install, run `sudo make install-logrotate`; no
+restart is needed. If you change `IMVAULT_LOG_FILE`, update the rule too. See
+[log rotation](operations.md#log-rotation).
 
-The same configuration file accepts optional S3 storage settings. See
-[Storage](storage.md) for private buckets, credentials, migration, and local
-scratch-space requirements. Stop the service before offline maintenance.
+For S3 storage settings, see [Storage](storage.md).
 
-`make install-openrc` also installs `/etc/logrotate.d/imvault`, preserving an
-existing rule. On Gentoo, install `app-admin/logrotate` and make sure its cron
-job or timer runs regularly. Existing installs can add just the rule with
-`sudo make install-logrotate`; no Imvault restart is needed. If you change
-`IMVAULT_LOG_FILE`, update the rule's path too. See
-[log rotation](operations.md#log-rotation) for the policy and validation command.
+## Before you open the doors
 
-Two things that are easy to miss on a host rather than in a container:
-
-- **ffmpeg is optional but not free.** Without it clips still upload, but they
-  get a placeholder poster and the duration limit cannot be enforced, so set
-  `IMVAULT_MAX_VIDEO_DURATION` down or accept unmeasured clips.
-- **Temporary space.** Multipart bodies spill past 8 MiB into `TMPDIR`, and one
-  request may carry twenty files. The container gets a sized tmpfs for that; on
-  a host it is `/tmp`, so either give it room or point `TMPDIR` at a filesystem
-  with some. See [Operations](operations.md#the-temporary-directory).
+- **Bind to loopback and put a TLS proxy in front.** See below.
+- **Turn off anonymous uploads** if you do not want them: **Admin → Settings →
+  Anonymous uploads**, uncheck **Allow uploads without an account**, and save.
+  The change applies immediately and survives restarts.
+- **Set a storage ceiling and upload concurrency** that fit the machine.
+- **Install ffmpeg.** Without it clips still upload, but
+  they get a placeholder poster and the duration limit cannot be checked.
+- **Leave room in `/tmp`.** Uploads past 8 MiB spill into `TMPDIR`, and one
+  request may carry twenty files. Give `/tmp` space or point `TMPDIR` at a
+  filesystem that has it. See
+  [the temporary directory](operations.md#the-temporary-directory).
 
 ## TLS with Caddy
 
-**Caddy is the recommended reverse proxy.** nginx and Apache 2.4 are also
-supported; see [HTTPS reverse proxies](reverse-proxies.md) for their complete
-examples, certificate setup, upload limits, and validation commands.
+Caddy is the recommended reverse proxy. For nginx and Apache 2.4, see
+[HTTPS reverse proxies](reverse-proxies.md).
 
-[Caddy](https://caddyserver.com) obtains and renews a certificate on its own, so
-the only things needed are a hostname pointed at the machine and that hostname
-in the site address. There is no certificate command to run and nothing to
-renew by hand.
+Caddy obtains and renews certificates by itself. Point a hostname at the
+machine and put it in the site address:
 
 ```bash
 sudo cp contrib/caddy/Caddyfile /etc/caddy/Caddyfile
@@ -138,113 +117,51 @@ sudo editor /etc/caddy/Caddyfile      # put your hostname in the site address
 sudo systemctl reload caddy
 ```
 
-For a machine on a trusted network, or for trying the proxy out before pointing
-a domain at it, `contrib/caddy/Caddyfile.local` does the same over plain HTTP on
-port 8081.
+`contrib/caddy/Caddyfile.local` serves plain HTTP on port 8081, for a trusted
+network or a trial run before you have a domain.
 
-`contrib/caddy/docker-compose.yml` runs Caddy and Imvault together, with Imvault
-publishing no ports of its own: an application port left open beside a TLS
-terminator is a way around it. That stack mounts `contrib/caddy/Caddyfile.compose`,
-which reaches Imvault by its service name; edit the site address there.
+`contrib/caddy/docker-compose.yml` runs Caddy and Imvault together, with no
+Imvault port published. It mounts `contrib/caddy/Caddyfile.compose`, which
+reaches Imvault by service name; edit the site address there.
 
-### The three things that matter
+Three settings matter:
 
-1. **Bind Imvault to loopback.** `IMVAULT_ADDR=127.0.0.1:8080` means the only
-   way in is through the proxy. Publishing 8080 as well would let anyone reach
-   the plaintext origin and its non-Secure cookies.
+1. **`IMVAULT_ADDR=127.0.0.1:8080`.** The proxy becomes the only way in. An
+   open 8080 would expose plain HTTP and its cookies.
+2. **`IMVAULT_TRUSTED_PROXIES=127.0.0.1/32,::1/128`.** Without it every request
+   seems to come from the proxy, and all visitors share one rate-limit bucket.
+   Forwarding headers from any other address are ignored. For a proxy on
+   another host or container, list its address instead.
+3. **`IMVAULT_SECURE_COOKIES` is optional behind Caddy.** Caddy sends
+   `X-Forwarded-Proto`, and Imvault marks cookies `Secure` when a trusted
+   proxy reports `https`. Set it anyway if you prefer not to rely on the
+   header.
 
-2. **Set `IMVAULT_TRUSTED_PROXIES=127.0.0.1/32,::1/128`.** Without it every
-   request appears to come from the proxy, so anonymous uploads and sign-in
-   attempts all share one rate-limit bucket. It names the proxies whose
-   forwarding headers are believed; a request from any other address has its
-   `X-Forwarded-For` and `X-Forwarded-Proto` ignored. For a proxy on another
-   host or container, list its address instead.
+If Caddy sits behind another proxy or a CDN, either add that proxy to Caddy's
+`trusted_proxies`, or keep Caddy replacing the header and list both proxies in
+`IMVAULT_TRUSTED_PROXIES`. Imvault reads `X-Forwarded-For` from the right,
+skips trusted proxies, and takes the first address that is not one.
 
-3. **You probably do not need `IMVAULT_SECURE_COOKIES`.** Caddy sets
-   `X-Forwarded-Proto`, and from a trusted proxy Imvault marks cookies
-   `Secure` when it sees `https`. The header is ignored from anywhere else,
-   since any client could send it. Set `IMVAULT_SECURE_COOKIES` anyway if you
-   would rather not depend on the header.
-
-### What was checked
-
-The example config was run against a real instance, and the following were
-observed rather than assumed:
-
-- **Caddy discards a client-supplied `X-Forwarded-For`** and replaces it with
-  the peer it accepted the connection from, so the header Imvault trusts is the
-  real one. The rate limiter keys on the forwarded address (`key=login:198.51.100.9`)
-  when a trusted proxy reports it, and on the IPv6 /64 for an IPv6 client.
-- **Range requests survive the proxy**, which matters for scrubbing a clip.
-- **Compression is applied by content type**: a JPEG came back with no
-  `Content-Encoding` while the stylesheet was gzipped, so images and zip exports
-  are not paying for a pointless deflate.
-- **A streaming export passes through intact** — the zip arrived complete, with
-  no CRC errors.
-
-### One thing to be careful of
-
-**Do not add a strict `Content-Security-Policy` without reading
-[Security](security.md) first.** Imvault's admin pages use inline Alpine
-expressions, which are evaluated with `new Function`, so a policy without
-`unsafe-eval` will break the confirmation dialog and the table filter — silently,
-as a console error rather than a visible failure.
-
-If Caddy is itself behind another proxy or a CDN, add that proxy to Caddy's
-`trusted_proxies` so `X-Forwarded-For` reflects the original client rather than
-the last hop. Alternatively, keep Caddy replacing the header and list both
-proxies in `IMVAULT_TRUSTED_PROXIES`: Imvault walks `X-Forwarded-For` from the
-right past every trusted proxy and takes the first address that is not one.
+Read [Security](security.md) before adding a strict `Content-Security-Policy`;
+some admin pages need it to allow `unsafe-eval`.
 
 ## Packages
-
-`contrib/` also carries the beginnings of distribution packaging:
 
 | Path | What it is |
 | --- | --- |
 | `contrib/systemd/` | The unit and its environment file |
 | `contrib/openrc/` | The OpenRC script and its configuration file |
-| `contrib/alpine/APKBUILD` | An Alpine package recipe, with a `pre-install` that creates the account |
-| `contrib/gentoo/imvault-9999.ebuild` | A live Gentoo ebuild that builds master, for an overlay |
+| `contrib/alpine/APKBUILD` | An Alpine recipe whose `pre-install` creates the account |
+| `contrib/gentoo/imvault-9999.ebuild` | A live Gentoo ebuild that builds `master` |
 
-The Alpine package has been built, installed, and run on Alpine 3.24: `abuild`
-produces `imvault-0.1.0-r0.apk`, the pre-install creates the service account,
-and the packaged binary serves.
+Native Alpine builds need Alpine 3.24 or later, whose Go is new enough; 3.23
+ships Go 1.25 and fails. The static binary itself runs on any Alpine. Run
+`abuild checksum` once against the release tarball to fill in the APKBUILD
+checksum.
 
-Building from source needs **Go 1.26.11**, which is not the language level of the
-code but the declared requirement of the pinned dependencies: `x/crypto`,
-`x/sys`, `x/image`, and `x/oauth2` all ask for 1.26.0 in their own `go.mod`, and
-a toolchain below that refuses before it compiles anything. A stable Alpine
-branch keeps the Go major it shipped with rather than tracking new ones, so the
-floor is fixed at release time:
-
-| Alpine | Released | Go | `abuild` with the packaged toolchain |
-| --- | --- | --- | --- |
-| 3.24 | June 2026 | 1.26.8 | yes |
-| 3.23 | December 2025 | 1.25.10 | no, "module requires go >= 1.26" |
-
-That is a choice of dependency versions rather than a requirement of the program.
-Holding the four modules back to their 1.25-era releases would lower the floor
-and bring 3.23 into range, at the cost of pinning the security-critical ones to
-older code. The trade taken here is to track them.
-
-Only a native build is affected. The container compiles with the upstream
-`golang` image, and **running needs no Go at all**, so any Alpine runs the
-static binary: the supplied Dockerfile runs it on 3.23.
-
-The APKBUILD needs `abuild checksum` run once against the release tarball to fill
-in the checksum.
-
-**The Gentoo ebuild is a live one.** It builds
-the `master` branch through `git-r3` and vendors the modules with
-`go-module_live_vendor`, so there is no version to bump, no manifest to
-regenerate, and no `EGO_SUM` to keep in step with `go.sum` — which the eclass now
-deprecates in favour of a dependency tarball in any case. The `LICENSE` line
-covers Imvault and every module linked into the binary, worked out from
-`go list -deps` rather than from the module graph, so it does not list the
-test-only dependencies that never end up in it.
-
-Copy all three packages into an overlay already configured in Portage:
+The Gentoo ebuild builds `master` through `git-r3` and vendors modules during
+unpack, so there is no version to bump. Copy it and its account packages into
+an overlay Portage already knows:
 
 ```bash
 sudo install -d /var/db/repos/local/www-apps/imvault
@@ -254,26 +171,10 @@ sudo cp -R contrib/gentoo/acct-user contrib/gentoo/acct-group /var/db/repos/loca
 sudo emerge -av www-apps/imvault
 ```
 
-The account packages use Gentoo's `acct-user` and `acct-group` eclasses with
-dynamically allocated IDs for a private overlay. The package installs both init
-scripts and the binary at `/usr/bin/imvault`; OpenRC exports the default
-`/var/lib/imvault` data directory even when the config file contains only comments.
+The package installs the binary at `/usr/bin/imvault` with both init scripts.
 Enable the `ffmpeg` USE flag for clip posters and duration checks.
 
-The recipes pass `pkgcheck` against the local Gentoo tree. The Go build and
-OpenRC environment checks run locally, but a full `emerge` installation and
-service start on the example host remain deployment checks.
-
-A versioned ebuild needs a release source tarball, a dependency tarball, and a
-manifest. The live ebuild vendors modules during unpack instead.
-
-Before exposing the service, bind it to loopback, configure the TLS proxy, and
-provision your administrator locally. Under **Admin → Settings → Anonymous
-uploads**, uncheck **Allow uploads without an account** and save to turn them
-off. The switch applies immediately and survives restarts. Set an instance
-storage ceiling and upload concurrency appropriate to the machine.
-
-## Verifying a deployment
+## Check the service
 
 ```bash
 systemctl status imvault          # or: rc-service imvault status
@@ -281,58 +182,31 @@ curl -fsS localhost:8080/healthz  # "ok"
 journalctl -u imvault -n 20       # or: tail /var/log/imvault.log
 ```
 
-The service runs as an unprivileged account, keeps everything but its data
-directory read-only, and shares no temporary space with the rest of the system.
-
-## Temporary space
-
-The server spills multipart uploads past 8 MiB into `TMPDIR`. The container sets
-it to `/tmp` and both compose files mount a 512 MiB tmpfs there, so a runaway
-spill fails an upload rather than filling the filesystem the database is on. See
-[Operations](operations.md#the-temporary-directory) for the arithmetic and how
-to size it.
-
-## Logs
-
-Every line is logfmt — a flat sequence of `key=value` pairs, one record per
-line — so logs can be read by eye and parsed without a schema:
+Logs are logfmt, one `key=value` record per line, with multi-line values quoted
+onto one line:
 
 ```
 time=2026-09-18T11:21:14.937-07:00 level=INFO msg="imvault listening" addr=:8080 data_dir=/var/lib/imvault
 time=2026-09-18T11:21:16.988-07:00 level=WARN msg="mail delivery failed; will retry" id=1 recipient=a@example.com attempt=1 error="smtp: dial tcp 127.0.0.1:9: connect: connection refused"
 ```
 
-Values containing spaces or newlines are quoted and escaped, so a multi-line
-stack trace stays on one line. Set `IMVAULT_LOG_LEVEL` to `debug`, `info`, `warn`
-or `error`.
+Set `IMVAULT_LOG_LEVEL` to `debug`, `info`, `warn` or `error`.
 
-## Optional Bubblewrap confinement
-
-See [Linux confinement](sandbox.md) for OpenRC settings, systemd overrides,
-custom paths and verification. Existing startup remains unchanged by default.
-
-The running service also makes bounded compressed backups automatically; see
-[automatic backups](automatic-backups.md) for defaults, status and recovery.
-
-## Published container images
-
-See [Docker installation and operations](containers.md) for multi-platform images,
-Compose setup, version pins, backups, upgrades, and restore instructions.
+The running service also makes [automatic backups](automatic-backups.md). For
+optional Bubblewrap confinement, see [Linux confinement](sandbox.md).
 
 ## Configuration format
 
-Use double quotes for every value, including numbers and booleans. No `export`
-prefix is needed in service configuration files:
+Double-quote every value, numbers and booleans included. Service files need no
+`export`:
 
 ```sh
 IMVAULT_BASE_URL="https://imvault.example.org"
 IMVAULT_BACKUP_KEEP="7"
 ```
 
-OpenRC reads `/etc/conf.d/imvault`; systemd reads
-`/etc/imvault/imvault.env`. Edit the file for the service manager you run,
-then restart the service. The other manager's file is independent. Existing
-bare or single-quoted values remain valid, and upgrades preserve local settings.
-
-The [shared configuration convention](https://github.com/airencracken/comfylib/blob/master/docs/configuration.md)
-covers quoting, escaping, and how the examples are checked.
+OpenRC reads `/etc/conf.d/imvault`; systemd reads `/etc/imvault/imvault.env`.
+Edit the one for your service manager and restart. Bare and single-quoted values
+still work, and upgrades keep your edits. Comfylib's
+[shared configuration convention](https://github.com/airencracken/comfylib/blob/master/docs/configuration.md)
+covers quoting and escaping.

@@ -1,12 +1,12 @@
 # Setting up Imvault
 
-Imvault shares its browser setup and account commands with the other
+Imvault uses the same browser setup and account commands as the other
 Comfyware apps.
 
-Configure your service's public HTTPS origin and listener, then choose either
-browser setup or a terminal prompt. Installed commands find the service's data
-directory and re-run as its account when invoked with sudo. Portable installs
-run these commands as the unprivileged account that owns their data directory.
+Configure the public HTTPS origin and listener first. Then create the first
+owner in a browser or at a terminal. Installed commands find the service's data
+directory and re-run as its account when invoked with sudo. On a portable
+install, run them as the account that owns the data directory.
 
 ## Browser
 
@@ -14,13 +14,14 @@ run these commands as the unprivileged account that owns their data directory.
 sudo imvault setup
 ```
 
-The command prints the setup address and a private setup key. Start the service,
-open `/setup`, and enter that key with your chosen username and confirmed
-password. A browser on the host may use its loopback HTTP address; external
-setup uses HTTPS. The page works without JavaScript, on mobile and desktop,
-and with system light and dark themes. Keep the key private; it is never part
-of a URL or server startup log. The setup page closes when any owner exists,
-including one created through the command line. It never replaces an account.
+The command prints the setup address and a private setup key. Start the
+service, open `/setup`, and enter the key with a username and password. A
+browser on the host may use the loopback HTTP address; anywhere else needs
+HTTPS. The page works without JavaScript.
+
+Keep the key private. It never appears in a URL or the startup log. The page
+closes once any owner exists, including one made at the command line, and it
+never replaces an account.
 
 ## Command line
 
@@ -29,19 +30,14 @@ sudo imvault create-owner --username yourname
 sudo imvault set-password --username yourname
 ```
 
-Both commands accept `--data-dir DIRECTORY` to select a portable instance.
-Without it, they discover the installed service or use the app’s data-directory
-environment variable. Both commands prompt twice with echo disabled. Automation may explicitly use
-`--password-stdin` or `--password-file /private/path/password`; the file must be
-a private regular file. `--password-prompt` remains supported. New passwords
-need at least 12 characters and at most 72 UTF-8 bytes. Existing usernames are
-never promoted or overwritten by owner creation. A password reset revokes the
-account's earlier sessions.
+Both commands prompt twice with echo off. For automation, pass
+`--password-stdin` or `--password-file /private/path/password`; the file must
+be a private regular file. `--data-dir DIRECTORY` selects a portable instance.
+Passwords need at least 12 characters and at most 72 UTF-8 bytes.
 
-Use `imvault help setup` or `imvault setup --help` for command help. Application-specific
-settings and invitations are available after signing in. Existing command names
-remain supported for compatibility.
+`create-owner` never promotes or overwrites an existing username;
+`create-admin` is an alias for it. `set-password` signs the account out everywhere
+and cancels its pending recovery links.
 
-Future Bubble Tea administration panels should call the same account and
-settings operations as these commands, retaining their validation and session
-revocation rules. Interactive panels supplement the commands used by automation.
+Run `imvault help setup` for command help. Invitations and site settings are in
+the app once you sign in.

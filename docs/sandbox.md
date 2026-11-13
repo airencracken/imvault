@@ -1,42 +1,37 @@
 # Linux confinement
 
-Bubblewrap support is optional. Normal startup is unchanged. Once you request
-confinement, missing tools, blocked namespaces, or invalid mounts cause an error;
-the application never retries outside the sandbox.
+Bubblewrap confinement is optional. Once you turn it on, a missing tool, a
+blocked namespace or a bad mount stops startup with an error. Imvault never
+falls back to running unconfined.
 
-Install your distribution's current, patched `bubblewrap` package. Unprivileged
-user namespaces must be permitted for the service account. The launcher refuses
-to run as root and rejects setuid Bubblewrap installations. Kernel or AppArmor policy may prevent startup; `sandbox --check`
-reports the error without starting the server. The check runs the confined
-binary itself, as `imvault --help`, inside the same namespaces the server will
-get. Do not weaken host policy merely to hide an error.
+Install your distribution's patched `bubblewrap` package and allow unprivileged
+user namespaces for the service account. The launcher refuses to run as root
+and rejects a setuid Bubblewrap. If kernel or AppArmor policy blocks startup,
+`imvault sandbox --check` reports the error without starting the server. Fix
+the policy; do not loosen host security to hide the error.
 
 ## OpenRC
 
-Add this to `/etc/conf.d/imvault`, then restart the service:
+Add this to `/etc/conf.d/imvault` and restart the service:
 
 ```sh
 IMVAULT_SANDBOX="true"
 ```
 
-The service continues to use its existing user, data directory and log file.
-Logs remain on stdout/stderr, with OpenRC handling redirection outside the
-sandbox. The launcher forwards SIGTERM and allows twenty seconds for shutdown.
+The service keeps its user, data directory and log file. On shutdown the
+launcher forwards SIGTERM and waits twenty seconds.
 
-You can verify the policy first, as the service account with its application
-settings loaded:
+To test the policy first, run the check as the service user (not root) with
+the service's settings loaded. The data directory must already exist.
 
 ```sh
 IMVAULT_DATA_DIR=/var/lib/imvault imvault sandbox --check
 ```
 
-Run that command using the configured service user, not root. The data directory
-must already exist. Provision accounts using the existing account commands.
-
 ## systemd
 
-The shipped unit already confines filesystem access. To also use Bubblewrap,
-create a drop-in with `systemctl edit imvault`:
+The shipped unit already confines filesystem access. To add Bubblewrap, create
+a drop-in with `systemctl edit imvault`:
 
 ```ini
 [Service]
@@ -50,103 +45,88 @@ KillMode=mixed
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
 ```
 
-Use `/usr/local/bin/imvault` for a default source installation. Keep the unit's
-other hardening settings. Its default `RestrictNamespaces=yes` blocks the
-namespaces Bubblewrap needs; the override permits only the listed types.
-`ProtectKernelTunables=yes` masks parts of procfs, which prevents an unprivileged
-Bubblewrap process from mounting its own procfs. The override removes that
-conflict while keeping host sysfs read-only. Bubblewrap supplies its own private
-procfs with protected kernel-control paths for the confined server and tools.
-`RestrictSUIDSGID=no` permits the path-resolution syscalls used by newer
-Bubblewrap versions; `NoNewPrivileges=yes` continues to block setuid privilege
-gains. `KillMode=mixed` sends SIGTERM to the launcher first, so it can let the
-server shut down before systemd kills any remaining processes.
-`AF_NETLINK` lets Bubblewrap initialize loopback inside each media job's isolated
-network namespace; the job still cannot reach the host network.
-Run `systemctl daemon-reload`, then restart the service. To disable whole-service
-Bubblewrap, remove these overrides and restore the packaged unit's restrictions.
+Use `/usr/local/bin/imvault` for a source install. Keep the unit's other
+hardening settings. What each override does:
+
+- `RestrictNamespaces` permits only the namespaces Bubblewrap needs.
+- `ProtectKernelTunables=no` lets Bubblewrap mount its own procfs;
+  `ReadOnlyPaths=/sys` keeps host sysfs read-only.
+- `RestrictSUIDSGID=no` allows syscalls newer Bubblewrap versions use.
+  `NoNewPrivileges=yes` still blocks setuid gains.
+- `KillMode=mixed` lets the launcher stop the server before systemd kills
+  what remains.
+- `AF_NETLINK` lets Bubblewrap bring up loopback in each media job's isolated
+  network namespace.
+
+Run `systemctl daemon-reload` and restart. To turn confinement off, remove the
+drop-in.
 
 ## What the server can access
 
-The sandbox has read-only `/usr`, binary and library directories, the dynamic linker cache and library alternatives, system CA
-certificates, DNS/hosts configuration and local timezone information. On a
-merged-`/usr` system, `/bin`, `/lib` and similar links are recreated as the
-same links rather than mounted again. When the service environment sets
-`SSL_CERT_FILE`, that bundle must be an existing regular file and is trusted
-instead of the system one, bound read-only inside the sandbox. It retains
-the host network for HTTP, mail and other configured services. It has its own
-process namespace, minimal devices, and temporary directory. Only its configured
-data directory is writable on the host by default. Other home directories,
-`/etc/shadow`, host temporary files and host Unix sockets are absent.
+Inside the sandbox the server sees, read-only: `/usr`, binary and library
+directories, the linker cache, CA certificates, DNS and hosts configuration,
+and timezone data. If `SSL_CERT_FILE` is set, that bundle must be a regular
+file and replaces the system one. The server keeps the host network. It gets
+its own process namespace, minimal devices and a private `/tmp`. Only the data
+directory is writable. Other home directories, `/etc/shadow`, host temporary
+files and host Unix sockets are absent. `/usr` stays visible, so keep
+credentials out of it.
 
-Application settings are passed in the environment, including credentials the
-server needs. So are `TZ` and the AWS SDK's own variables (`AWS_ACCESS_KEY_ID`,
-`AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_REGION`, `AWS_PROFILE`,
-`AWS_CONFIG_FILE`, `AWS_SHARED_CREDENTIALS_FILE`, `AWS_CA_BUNDLE`, the
-`AWS_ENDPOINT_URL` pair, the web-identity and container-credential variables),
-so S3 storage without explicit `IMVAULT_S3_*` keys keeps working. A file one of
-them names — a shared credentials file, a CA bundle, a web-identity token — must
-also be added with `--read-file`, because `HOME` inside the sandbox is the
-private `/tmp`. Other environment variables and dynamic-loader settings are
-removed. Credentials are never put in Bubblewrap's command-line arguments.
-`/usr` remains visible: do not place private application credentials there.
+The sandbox passes through Imvault's settings, `TZ` and the AWS SDK variables
+(`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`,
+`AWS_REGION`, `AWS_PROFILE`, `AWS_CONFIG_FILE`, `AWS_SHARED_CREDENTIALS_FILE`,
+`AWS_CA_BUNDLE`, the `AWS_ENDPOINT_URL` pair, and the web-identity and
+container-credential variables). It drops every other variable. Any file those
+variables name, such as a shared credentials file or CA bundle, must be added
+with `--read-file`, because `HOME` inside the sandbox is the private `/tmp`.
 
 Unless `IMVAULT_MEDIA_SANDBOX=true`, user namespaces are disabled inside the
-sandbox, since nothing in it needs to create one. The server runs as the
-namespace's first process, and collects any process orphaned inside it, such as
-a media job whose launcher was killed by a timeout.
+sandbox. The server runs as the namespace's first process and reaps orphaned
+children, such as a media job killed by a timeout.
 
-For a custom storage/database directory outside the data directory, explicitly
-add an existing writable mount with `sandbox --write-dir /srv/imvault-objects`.
-For a custom certificate or key file, use `--read-file /path/to/file`. Both flags
-can be repeated. OpenRC supports one extra directory and file through
-`IMVAULT_SANDBOX_WRITE_DIR` and `IMVAULT_SANDBOX_READ_FILE`; these are literal
-paths, not shell arguments. Broad mounts such as `/`, `/var`, `/home`, and `/tmp`,
-and writable mounts over runtime/system directories, are refused, including
-symlinks pointing to them. `--bwrap /path/to/bwrap` selects a custom executable;
-`IMVAULT_BWRAP` supplies its default.
+### Extra paths
 
-A compromised server can still access its own data and use the network. This
-limits access to the rest of the host; it does not protect the database from the
-application itself. Bubblewrap is not a CPU, memory or disk quota. Existing
-request limits and timeouts still apply; use your service manager for resource
-limits.
+- `--write-dir /srv/imvault-objects` adds an existing writable directory, for
+  storage or a database kept outside the data directory.
+- `--read-file /path/to/file` adds a read-only file, such as a certificate or key.
+- `--bwrap /path/to/bwrap` picks the Bubblewrap executable. `IMVAULT_BWRAP`
+  sets the default.
 
-The sandbox's `/tmp` is a private tmpfs, which is memory. Multipart uploads past
-8 MiB, S3 upload spools and clip scratch copies all land there, so a busy
-instance's temporary files count against the service's memory, not its disk.
-Size `MemoryMax=` (systemd) or the container's memory with
-`IMVAULT_MAX_CONCURRENT_UPLOADS` × `IMVAULT_MAX_VIDEO_BYTES` in mind.
+Both path flags can repeat. OpenRC takes one of each through
+`IMVAULT_SANDBOX_WRITE_DIR` and `IMVAULT_SANDBOX_READ_FILE`, as literal paths.
+The launcher refuses broad mounts such as `/`, `/var`, `/home` and `/tmp`,
+writable mounts over system directories, and symlinks to either.
 
-## Verification
+### Limits
 
-`make test-sandbox` requires real Bubblewrap namespaces. It tests hidden host
-files, environment filtering, writable data, retained server networking and
-graceful shutdown. Setup failures fail the tests rather than skipping them.
-`make test-sandbox-mutations` checks deliberate policy regressions, from
-`scripts/mutations/sandbox.json`; `make test-mutations` runs every table.
+A compromised server can still read its own data and use the network. The
+sandbox protects the rest of the host, not the database. It sets no CPU, memory
+or disk quota; use your service manager for those.
+
+The sandbox's `/tmp` is memory. Uploads past 8 MiB, S3 upload spools and clip
+scratch copies land there. Size `MemoryMax=` (systemd) or the container's memory
+for `IMVAULT_MAX_CONCURRENT_UPLOADS` × `IMVAULT_MAX_VIDEO_BYTES`.
 
 ## Media subprocesses
 
-Enable the stricter FFmpeg/FFprobe sandbox independently:
+To confine FFmpeg and FFprobe separately, set this in the service environment,
+or export it for maintenance commands such as `rebuild-thumbnails`:
 
 ```sh
 IMVAULT_MEDIA_SANDBOX="true"
 ```
 
-Set it in the service's environment file, or export it for maintenance commands
-such as `rebuild-thumbnails`. Both FFmpeg tools and working Bubblewrap are
-required when this setting is enabled. The server checks namespace availability
-at startup; a later setup failure rejects the operation without unrestricted
-processing. Still images continue to be decoded inside the Go server.
+It needs both FFmpeg tools and working Bubblewrap. The server checks at
+startup. If confinement fails later, the operation fails; media is never
+processed unconfined. Still images are always decoded inside the server.
 
-Each media invocation can read one input file and the runtime binaries/libraries.
-It can write only to private temporary space and a fresh output directory. It
-has no network, application environment, database, encryption key, object-store
-credentials, or access to other originals. Nested user namespaces are disabled.
-Probing, poster generation and metadata removal all use this boundary. Outputs
-must be regular files; symlinks are rejected before copying back to the server.
+Each media job can read one input file and the system binaries and libraries.
+It can write only to private scratch space and a fresh output directory. It has
+no network, environment, database, encryption key, storage credentials or other
+originals. Probing, posters and metadata removal all run this way. Output must
+be regular files; symlinks are rejected.
 
-When enabling this with the shipped systemd unit, also override
-the same `RestrictNamespaces`, `ProtectKernelTunables`, `ReadOnlyPaths` and
-`RestrictSUIDSGID` and `RestrictAddressFamilies` settings shown above, even if you leave `ExecStart` unchanged. Whole-service and media confinement can be enabled together.
+With the shipped systemd unit, apply the `RestrictNamespaces`,
+`ProtectKernelTunables`, `ReadOnlyPaths`, `RestrictSUIDSGID` and
+`RestrictAddressFamilies` overrides above even if `ExecStart` stays unchanged.
+Whole-service and media confinement can run together.

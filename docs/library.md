@@ -3,70 +3,55 @@
 ## Browse by date taken
 
 Open **Your gallery** and choose **Date taken** under **Sort by**. Photos with
-camera dates appear newest first, followed by files without a readable date.
-Choose a year and optionally a month to narrow the gallery, or **Unknown date**
-to find undated files. Search works together with these controls. **Date uploaded**
-is the default order.
+camera dates come first, newest at the top, then files without one. Pick a year,
+and a month if you like, or **Unknown date** to find undated files. Search works
+with these controls. **Date uploaded** is the default.
 
-Date taken uses the camera's recorded wall time. Imvault does not guess a
-timezone or substitute an upload date when the camera date is absent. Screenshots,
-animations and clips may have no readable capture date. The date shown on each
-gallery card makes that distinction visible. Original camera dates are not edited.
+Dates come from the camera's recorded local time. Imvault does not guess a
+timezone or fill in the upload date. Screenshots, animations and clips often have
+no capture date, and each gallery card shows which date it is using.
 
-Existing cached camera dates are indexed during upgrade; originals are not
-opened or changed by that migration. Uploads and metadata refreshes keep the
-index current. For older files whose cached metadata never recovered a date,
-[refresh their metadata](media.md#refreshing-older-photo-details).
+If an older photo is missing its date, [refresh its
+details](media.md#refreshing-older-photo-details).
 
-Date sorting and year/month filtering are confined to your own gallery and
-owner-scoped file API. They do not make another person's hidden camera dates
-searchable through shared albums or the recent feed.
+Date sorting and filtering cover only your own gallery and your own files in the
+API. Nobody can search another person's hidden camera dates through shared
+albums or the recent feed.
 
 ## Act on several photos
 
-Select the checkboxes on gallery cards, then use **Organize selected photos**:
+Tick the checkboxes on gallery cards, then use **Organize selected photos**:
 
-- **Add tags** keeps any labels already attached.
-- **Add to album** keeps other album memberships. The menu includes your albums
-  and shared albums you can contribute to; adding a file never changes its own
-  visibility.
+- **Add tags** keeps existing tags.
+- **Add to album** keeps other album memberships. You can pick your own albums
+  and shared albums you contribute to. Adding never changes a file's visibility.
 - **Change sharing** sets every selected file to public, members-only or private.
-  Making a file public affects its existing links too. Its EXIF and location
-  policies still apply.
+  Existing links follow the new setting. EXIF and location settings still apply.
 
-Selection covers the current page only. With JavaScript, **Select all on this
-page**, **Clear selection** and a selection count help with larger batches.
-Individual checkboxes and all actions also work without JavaScript. Each batch
-is checked and written together: an unavailable file, changed album permissions
-or failed write leaves the entire selection unchanged. Even administrators can
-only bulk-organize their own files from their gallery.
+Selection covers the current page. With JavaScript you also get **Select all on
+this page**, **Clear selection** and a count. Everything else works without it.
+If any file in the batch can't be changed, nothing changes. You can bulk-organize
+only your own files, administrators included.
 
 ## Trash and restore
 
-On a file you own, choose **Move to Trash**. Its regular page, originals,
-previews and shared links stop working immediately. It disappears from galleries,
-albums, favorites and the recent feed. Previously downloaded or cached copies
-cannot be recalled.
+On a file you own, choose **Move to Trash**. Its page, downloads and shared links
+stop working at once, and it leaves galleries, albums, favorites and the recent
+feed. Copies people already downloaded are out of reach.
 
-Choose **Trash** beside the gallery title to see your removed files and private
-thumbnails. **Restore** is available for 30 days, returning the original sharing
-settings, tags, favorites and album membership. Albums deleted in the meantime
-cannot be brought back by restoring a file. Other members, including staff,
-cannot use your Trash or restore files for you.
+Choose **Trash** beside the gallery title to see what you removed. **Restore**
+works for 30 days and brings back the sharing setting, tags, favorites and
+album memberships. Albums deleted in the meantime stay deleted. Nobody else,
+staff included, can see your Trash or restore for you.
 
-Files in Trash retain their content references and still count toward account
-and instance storage limits. **Permanently delete** reclaims that file's quota
-immediately; stored bytes are removed only when no other upload refers to them.
-The browser asks you to confirm permanent deletion. The regular cleanup worker
-purges files after 30 days; restoration is refused at the deadline even if
-cleanup has not run yet.
+Trashed files still count toward your storage. **Permanently delete** frees
+your quota at once, after a confirmation. After 30 days, files are purged
+automatically.
 
-Staff removals through moderation remain permanent. Moving a reported file to
-Trash does not prevent staff from permanently removing it. Anonymous uploads
-keep their existing expiry behavior. Account deletion is permanent and includes
-Trash.
+Staff removals are permanent, and moving a reported file to Trash does not stop
+staff from removing it. Anonymous uploads expire as before. Deleting your
+account deletes your Trash too.
 
-Account exports include trashed originals with a `trashed_at` marker and their
-album memberships. Instance backups include Trash too; a backup can retain an
-earlier copy after a file has been permanently deleted from the live instance.
-See [backups and recovery](operations.md#backups-and-restore-drills).
+Account exports include trashed files, marked with `trashed_at`. Instance backups
+include Trash, so a backup can hold a file after you permanently delete it. See
+[backups](operations.md#backups-and-restore-drills).

@@ -1,8 +1,8 @@
 # Storage and maintenance
 
-Local disk is the default. An optional S3 backend keeps originals, thumbnails,
-previews, and metadata-free copies in a private bucket. The database, encryption
-key, and video-processing scratch files stay on the Imvault host.
+Files live on local disk by default. With S3 storage, originals, thumbnails,
+previews and metadata-free copies go to a private bucket. The database,
+encryption key and video scratch files stay on the Imvault host.
 
 ## Choosing storage
 
@@ -11,24 +11,21 @@ key, and video-processing scratch files stay on the Imvault host.
 | `IMVAULT_STORAGE` | `disk` | `disk` or `s3` |
 | `IMVAULT_OBJECTS_DIR` | `<data>/objects` | Object directory for disk storage |
 | `IMVAULT_S3_BUCKET` | unset | Required for S3; an existing private bucket |
-| `IMVAULT_S3_REGION` | `us-east-1` | Signing region; use `auto` for R2 |
+| `IMVAULT_S3_REGION` | `us-east-1` | Signing region; `auto` for R2 |
 | `IMVAULT_S3_ENDPOINT` | unset | Custom HTTP(S) origin; omit for AWS |
-| `IMVAULT_S3_PREFIX` | unset | Optional directory-like prefix within the bucket |
-| `IMVAULT_S3_PATH_STYLE` | `false` | Enable for endpoints that need `/bucket/key` addressing |
-| `IMVAULT_S3_ACCESS_KEY` | unset | Explicit access key; pair with the secret key |
-| `IMVAULT_S3_SECRET_KEY` | unset | Explicit secret key |
-| `IMVAULT_S3_SESSION_TOKEN` | unset | Optional temporary-credential token |
-| `IMVAULT_S3_TIMEOUT` | `2m` | Timeout for each S3 HTTP request, including its body |
+| `IMVAULT_S3_PREFIX` | unset | Key prefix inside the bucket |
+| `IMVAULT_S3_PATH_STYLE` | `false` | `true` for endpoints that need `/bucket/key` addressing |
+| `IMVAULT_S3_ACCESS_KEY` | unset | Access key; set with the secret key |
+| `IMVAULT_S3_SECRET_KEY` | unset | Secret key |
+| `IMVAULT_S3_SESSION_TOKEN` | unset | Temporary-credential token |
+| `IMVAULT_S3_TIMEOUT` | `2m` | Timeout for each S3 request, body included |
 
-Without explicit credentials, S3 uses the AWS SDK's normal credential chain,
-including `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, profiles, and instance
-roles. Under the Bubblewrap sandbox the chain's variables are forwarded, but a
-profile or credentials file has to be made visible with `--read-file`; see
-[Linux confinement](sandbox.md#what-the-server-can-access). A custom endpoint supports S3-compatible services such as R2 and
-self-hosted object stores. Use HTTPS for remote endpoints. Certificate
-verification is always enabled.
-
-Example settings for an existing private S3-compatible bucket:
+Without explicit keys, Imvault uses the AWS SDK's credential chain:
+`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, profiles and instance roles. Under
+the Bubblewrap sandbox, expose a profile or credentials file with `--read-file`;
+see [Linux confinement](sandbox.md#what-the-server-can-access). A custom
+endpoint works with R2 and self-hosted S3-compatible stores. Use HTTPS for
+remote endpoints; certificates are always verified.
 
 ```bash
 IMVAULT_STORAGE="s3"
@@ -39,67 +36,54 @@ IMVAULT_S3_PREFIX="imvault"
 IMVAULT_S3_PATH_STYLE="true"
 ```
 
-Supply credentials through your service's protected environment or an AWS
-credential provider. Never put them into a repository or a public URL.
-On OpenRC these settings belong in `/etc/conf.d/imvault`; restrict its
-permissions if it contains credentials. No changes to Caddy are needed.
+Put credentials in the service's protected environment or an AWS credential
+provider. On OpenRC that is `/etc/conf.d/imvault`; restrict its permissions.
 
-Give Imvault permission to read, write, and delete objects beneath its prefix,
-and to start, upload, complete, and abort multipart uploads. On AWS this normally
-means `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`, and
+Grant read, write and delete on objects under the prefix, plus multipart
+uploads. On AWS: `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject` and
 `s3:AbortMultipartUpload`, plus `s3:ListBucket` scoped to the prefix so missing
-objects produce a distinguishable `404`. The bucket must already exist. Imvault
-does not create buckets, change bucket policy, or set public ACLs.
+objects return `404`. Create the bucket yourself. Imvault never creates buckets,
+changes bucket policy or sets public ACLs.
 
-Use a dedicated prefix for each instance. One running server is allowed per
-database. All readers fetch bytes through Imvault, so file visibility and EXIF
-policy apply before an object is served. Bucket URLs and credentials are never
-exposed to viewers.
+Give each instance its own prefix, and run one server per database. Every
+download goes through Imvault, so visibility and EXIF rules apply. Viewers never
+see bucket URLs or credentials.
 
-Video seeking uses bounded ranged reads. Uploads are spooled to temporary files
-for signing and retries; uploads above 64 MiB use multipart requests. Allow room
-in `TMPDIR` for uploads and ffmpeg's working copies. Requests retry up to three
-attempts; failed object deletions remain tracked for the cleanup worker to retry.
-An interrupted multipart upload is aborted when possible; configure the bucket
-to expire incomplete multipart uploads left by a killed process.
+Uploads spool to temporary files first; those above 64 MiB use multipart
+requests. Leave room in `TMPDIR` for uploads and ffmpeg's working copies.
+Requests make up to three attempts. Set the bucket to expire incomplete
+multipart uploads, which a killed process can leave behind.
 
-The automated suite exercises the real AWS SDK against a local S3 protocol
-fixture, including ranged reads, multipart writes, cancellation, and access
-errors. Hosted AWS/R2 credentials are not required by the suite. Before moving
-a live collection, test uploads, playback, deletion, and backup against your
-chosen endpoint. S3 compatibility varies by implementation; see the
+S3 compatibility varies. Before moving a live collection, test uploads,
+playback, deletion and backup against your endpoint. See the
 [AWS endpoint guide](https://docs.aws.amazon.com/sdk-for-go/v2/developer-guide/configure-endpoints.html)
-and [R2 compatibility table](https://developers.cloudflare.com/r2/api/s3/api/).
+and the [R2 compatibility table](https://developers.cloudflare.com/r2/api/s3/api/).
 
-There is also an opt-in endpoint test. Set `IMVAULT_TEST_S3_BUCKET` and the
-corresponding `IMVAULT_TEST_S3_ENDPOINT`, region, path-style and credential
+To check an endpoint from a source checkout, set `IMVAULT_TEST_S3_BUCKET` and
+the matching `IMVAULT_TEST_S3_ENDPOINT`, region, path-style and credential
 variables, then run:
 
 ```bash
 go test ./internal/storage -run TestS3ExternalEndpoint -count=1 -v
 ```
 
-It writes a small object under a random test prefix, checks streaming and
-seeking, then deletes it. Bucket versioning may retain the deleted version.
-Use a test bucket; without these settings the provider test is explicitly skipped.
+It writes, reads and deletes a small object under a random prefix. Use a test
+bucket; versioning may keep the deleted object.
 
 ## Running maintenance
 
-Run commands as the service's OS user, with the same `IMVAULT_*` settings as the
-service. The CLI does not automatically source `/etc/conf.d/imvault`. Run as
-root, `backup`, `migrate-storage`, `rebuild-thumbnails` and `refresh-metadata`
-switch to the account an installed systemd or OpenRC service names, exactly as
-`create-admin` does; with no such service they refuse to run, rather than leave
-files behind that the service cannot read.
-`migrate-storage` and `rebuild-thumbnails` require the server to be stopped.
-An instance lock rejects concurrent servers and offline maintenance; locks
-are released automatically if a process exits. `backup` can run alongside
-Imvault 0.13 or later: it takes a shared lifecycle lock and pins object deletion
-until the snapshot has been copied and verified. Older servers must be stopped.
-Avoid manual database writes or other writers to the bucket during maintenance.
+Run maintenance commands as the service account, with the service's
+`IMVAULT_*` settings. The CLI does not source `/etc/conf.d/imvault`. Run as root,
+`backup`, `migrate-storage`, `rebuild-thumbnails` and `refresh-metadata` switch
+to the account named by the installed systemd or OpenRC service, and refuse to
+run if there is none.
 
-For a default disk installation on Gentoo, where the package puts the binary in
-`/usr/bin` (a `make install` from source uses `/usr/local/bin`):
+Stop the server before `migrate-storage` or `rebuild-thumbnails`; a lock refuses
+to run them alongside it. `backup` can run while the server is up. Avoid manual
+database writes and other bucket writers during maintenance.
+
+On a Gentoo disk install (the package uses `/usr/bin`; `make install` uses
+`/usr/local/bin`):
 
 ```bash
 sudo rc-service imvault stop
@@ -108,65 +92,57 @@ sudo -u imvault env IMVAULT_DATA_DIR=/var/lib/imvault \
 sudo rc-service imvault start
 ```
 
-For customized or S3 deployments, pass or export the full service configuration
-as well. Choose `/usr/bin/imvault` for an ebuild or `PREFIX=/usr` install. Check
-the command's exit status before restarting after a failure.
+For S3 or customized installs, pass the full service configuration too. If the
+command fails, check its exit status before restarting.
 
 ## Moving a collection
 
-`imvault migrate-storage` reads the current `IMVAULT_*` backend and copies to a
-separate `IMVAULT_DEST_*` configuration. Every storage variable in the table has
-a destination equivalent, for example `IMVAULT_DEST_S3_BUCKET`. Destination
-credentials can differ from the source; otherwise the normal AWS credential
-chain applies. This supports disk to S3, S3 to disk, and S3 to S3.
+`imvault migrate-storage` copies from the current `IMVAULT_*` storage to an
+`IMVAULT_DEST_*` configuration. Each storage variable above has a destination
+twin, such as `IMVAULT_DEST_S3_BUCKET`, including its own credentials. Disk to
+S3, S3 to disk and S3 to S3 all work.
 
-With the server stopped and its environment loaded, for example:
+With the server stopped and its environment loaded:
 
 ```bash
 export IMVAULT_DEST_STORAGE="s3"
 export IMVAULT_DEST_S3_BUCKET="photos"
 export IMVAULT_DEST_S3_REGION="us-east-1"
 export IMVAULT_DEST_S3_PREFIX="imvault"
-# Configure destination endpoint and protected credentials as needed.
+# Add the destination endpoint and credentials as needed.
 imvault migrate-storage
 ```
 
-The command prints progress, reads back destination bytes, and verifies their
-SHA-256 hashes and sizes. It also checks originals against the database's content
-hashes. Rerun the same command after interruption: matching destination objects
-are verified and skipped. A conflicting destination object stops the command
-without overwriting it; select a fresh destination or investigate the conflict.
+The command prints progress, reads back every copied object and checks its
+SHA-256 and size against the database. If interrupted, run it again; matching
+objects are skipped. A conflicting object at the destination stops the run
+without being overwritten.
 
-Migration preserves object keys, file IDs, links, and account settings. It does
-not delete source objects or edit service configuration. After a successful
-run, change the service's `IMVAULT_*` storage settings to match the destination
-and restart. Keep the source and a backup until you have checked the new setup.
+File IDs, links and settings carry over. The source is left in place and the
+service configuration is unchanged. After a clean run, switch the service's
+storage settings to the destination and restart. Keep the source and a backup
+until you have checked the new setup.
 
 To copy back to disk, set `IMVAULT_DEST_STORAGE=disk` and
-`IMVAULT_DEST_OBJECTS_DIR` to a new object directory.
+`IMVAULT_DEST_OBJECTS_DIR` to a new directory.
 
 ## Rebuilding thumbnails and posters
 
-`imvault rebuild-thumbnails` rebuilds thumbnails and previews from unique
-originals. Add `--videos-only` to repair posters for clips uploaded before
-ffmpeg was installed. Both ffmpeg and ffprobe must be available for clips.
+`imvault rebuild-thumbnails` remakes thumbnails and previews from the
+originals. Add `--videos-only` to fix posters for clips uploaded before ffmpeg
+was installed; clips need both ffmpeg and ffprobe.
 
-Original bytes, descriptions, ownership, links, tags, and visibility are
-preserved. The command updates dimensions and duration measurements for clips,
-and publishes new rendition keys only after their bytes have been verified.
-Updated pages use versioned thumbnail URLs so browsers pick up repaired posters.
-Identical uploads share the rebuilt renditions. Previously accepted clips are
-not rejected because today's upload duration limit is lower.
+Originals, descriptions, tags, links and visibility are unchanged. Clip
+dimensions and durations are re-measured. Clips longer than today's duration
+limit are kept. Browsers pick up the new posters through versioned URLs.
 
-Failures leave the affected file's current rendition keys intact and return a
-nonzero status. Earlier successful items remain rebuilt, and rerunning is safe.
-Once a rebuilt rendition is published, the one it replaced is deleted, unless
-another record still names it. Content that no file refers to any more is left
-for the server's cleanup sweep and is not rebuilt.
+A failure leaves that file's current renditions in place and exits nonzero.
+Rerunning is safe. Replaced renditions are deleted unless another record still
+uses them.
 
 ## Backup and restore
 
-`imvault backup --output DIRECTORY` creates a self-contained directory:
+`imvault backup --output DIRECTORY` creates a new, self-contained directory:
 
 ```text
 snapshot/
@@ -176,48 +152,33 @@ snapshot/
   objects/
 ```
 
-The directory must not already exist. Run it with the Imvault version that
-last ran the database: `backup` never migrates, so that a backup taken before
-an upgrade is a copy of the database as it was, and it refuses a database that
-is older or newer than its own binary. See
+Run it with the Imvault version that last ran the database; see
 [going back to an older binary](operations.md#going-back-to-an-older-binary).
-The command takes a SQLite snapshot,
-copies every referenced original and rendition from the active disk or S3
-backend, and verifies hashes and sizes. It includes the active encryption key,
-including when supplied by `IMVAULT_SECRET_KEY`, and checks that it can decrypt
-stored two-factor secrets. A missing or damaged original prevents a successful
-backup. A missing thumbnail, preview or metadata-free copy is reported and
-skipped, since `rebuild-thumbnails` or the next request can recreate it; so are
-the objects of content no file refers to any more. `migrate-storage` treats
-them the same way.
+The command copies the database and every referenced original and rendition,
+checks hashes and sizes, and confirms the encryption key decrypts the stored
+two-factor secrets. That includes a key set through `IMVAULT_SECRET_KEY`. A
+missing or damaged original fails the backup. Missing thumbnails, previews and
+metadata-free copies are reported and skipped, since they can be rebuilt.
 
-The completed directory is published only after all checks pass. Its permissions
-are `0700`, with the database, key, and manifest `0600`. Keep the whole snapshot
-protected: it contains account credentials and originals with their metadata.
-Checksums detect corruption; they do not authenticate an untrusted backup.
-Service configuration and external credentials are not included; preserve those
-separately. The output needs space for all media, even with an S3 source.
+The directory appears only after every check passes, with mode `0700` and the
+database, key and manifest at `0600`. It holds credentials and originals with
+their metadata; protect it. Checksums catch corruption but do not prove a backup
+is trustworthy. Service configuration and external credentials are not
+included. The output needs room for all media, even when the source is S3.
 
-Restore to a **new** local data directory:
+Restore to a **new** local directory:
 
 ```bash
 imvault restore --input /backups/snapshot --output /var/lib/imvault-restored
 ```
 
-Restore verifies the database, foreign keys, object inventory, file checksums,
-and encryption key before publishing the result. It refuses a backup taken by
-a newer Imvault, whose database this binary could not run. It refuses to replace an
-existing directory. It works without the old S3 connection or service
-configuration, making it suitable for a restore drill on another machine.
+Restore checks the database, object inventory, checksums and encryption key
+before publishing the result. It refuses backups from a newer Imvault and will
+not replace an existing directory. It needs no S3 access or service
+configuration, so you can run restore drills on another machine.
 
-After checking the result, stop the service and configure it to use the restored
-directory with `IMVAULT_STORAGE=disk`. Set or clear overrides for `IMVAULT_DB`,
-`IMVAULT_OBJECTS_DIR`, `IMVAULT_SECRET_KEY_FILE`, and `IMVAULT_SECRET_KEY` so they
-refer to the restored database, objects, and key. Ensure the service user owns
-the restored directory. Start the service and verify sign-in and media access.
-Use `migrate-storage` afterward if the restored collection should live in S3.
-
-Keep a copy on another machine and periodically perform a restore drill. A live
-SQLite backup alone is consistent for the database, but independently copying
-media while deletions continue can leave it incomplete. The verified backup pins deletions for both halves together; see
-[SQLite's backup documentation](https://www.sqlite.org/backup.html).
+To switch over, stop the service and point it at the restored directory with
+`IMVAULT_STORAGE=disk`. Set or clear `IMVAULT_DB`, `IMVAULT_OBJECTS_DIR`,
+`IMVAULT_SECRET_KEY_FILE` and `IMVAULT_SECRET_KEY` to match. Make the service
+account the owner, start the service, and check sign-in and media. Run
+`migrate-storage` afterwards to move the collection back to S3.
