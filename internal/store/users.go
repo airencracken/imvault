@@ -6,7 +6,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/airencracken/comfylib/analytics"
 	"github.com/airencracken/comfylib/displaytime"
 	"strings"
 
@@ -370,9 +369,6 @@ func (s *Store) DeleteUser(ctx context.Context, userID int64) error {
 			return err
 		}
 		if err := displaytime.ForgetMember(ctx, tx, userID); err != nil {
-			return err
-		}
-		if err := analytics.ForgetMember(ctx, tx, analytics.MemberID(userID)); err != nil {
 			return err
 		}
 		if err := revokeOpenInvitesByCreator(ctx, tx, userID); err != nil {

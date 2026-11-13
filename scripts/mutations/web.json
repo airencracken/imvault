@@ -538,17 +538,25 @@
   {
     "name": "upgrades forget identifying analytics",
     "file": "internal/db/db.go",
-    "before": "_, err := tx.ExecContext(ctx, `DELETE FROM comfy_analytics_activity`)",
-    "after": "_, err := tx.ExecContext(ctx, `SELECT 1`)",
+    "before": "return analytics.RemoveDetail(ctx, tx)",
+    "after": "return nil",
     "package": "./internal/db",
     "run": "^TestForgetAnalyticsDeletesIdentifyingRows$"
   },
   {
-    "name": "file opens are not tracked per member",
+    "name": "requests reach the site health monitor",
     "file": "internal/web/server.go",
-    "before": "mux.HandleFunc(\"GET /f/{id}\", s.handleFilePage)",
-    "after": "mux.HandleFunc(\"GET /f/{id}\", func(w http.ResponseWriter, r *http.Request) { s.handleFilePage(w, r); _, _ = s.store.AnalyticsDB().ExecContext(r.Context(), `INSERT INTO comfy_analytics_activity(day,kind,member,item,count,last_at) VALUES(1,'image','1',?,1,1) ON CONFLICT DO NOTHING`, r.PathValue(\"id\")) })",
+    "before": "s.monitor.Middleware(mux)",
+    "after": "mux",
     "package": "./internal/web",
-    "run": "^TestSignInsAndOpensRecordNothingIdentifying$"
+    "run": "^TestSiteHealthCountsRoutesWithoutNamingPeopleOrFiles$"
+  },
+  {
+    "name": "failed sign-ins are counted",
+    "file": "internal/web/handlers_auth.go",
+    "before": "\t\ts.recordSecurity(r.Context(), analytics.RecordFailedSignIn)\n\t\tview.Error",
+    "after": "\t\tview.Error",
+    "package": "./internal/web",
+    "run": "^TestSecurityCountersRecordRejectedAttempts$"
   }
 ]

@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"github.com/airencracken/comfylib/analytics"
 	"io"
 	"net/http"
 	"strings"
@@ -567,6 +568,7 @@ func (s *Server) handleLoginTwoFactor(w http.ResponseWriter, r *http.Request) {
 
 	if err := s.checkSecondFactor(r.Context(), user, r.FormValue("code")); err != nil {
 		s.log.Warn("second factor rejected", "user", user.ID, "remote", r.RemoteAddr)
+		s.recordSecurity(r.Context(), analytics.RecordFailedSignIn)
 		renderErr(http.StatusUnauthorized, err.Error())
 		return
 	}

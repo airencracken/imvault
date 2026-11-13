@@ -14,14 +14,7 @@ import (
 
 // notFound renders the shared 404 page.
 func (s *Server) notFound(w http.ResponseWriter, r *http.Request, message string) {
-	if message == "" {
-		message = "That page could not be found."
-	}
-	s.renderPage(w, r, http.StatusNotFound, "notfound", errorView{
-		base:    s.base(r, "Not found"),
-		Code:    "404",
-		Message: message,
-	})
+	s.fail(w, r, http.StatusNotFound, message)
 }
 
 // handleGallery lists the signed-in user's own uploads.

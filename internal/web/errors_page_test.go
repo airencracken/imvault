@@ -4,6 +4,7 @@ package web
 
 import (
 	"bytes"
+	"github.com/airencracken/comfylib/problem"
 	"html"
 	"io"
 	"log/slog"
@@ -71,7 +72,7 @@ func TestBrowserFailuresUseTheStyledErrorPage(t *testing.T) {
 	if resp.StatusCode != http.StatusForbidden {
 		t.Fatalf("forged CSRF = %d", resp.StatusCode)
 	}
-	styledFailure(t, string(raw), "This form has expired. Go back, reload the page and try again.")
+	styledFailure(t, string(raw), problem.ExpiredMessage)
 	if strings.Contains(string(raw), "forged") || strings.Contains(string(raw), "CSRF token") {
 		t.Error("the CSRF refusal leaks the mechanism or echoes the token")
 	}

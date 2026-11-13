@@ -5,6 +5,8 @@ package web
 import (
 	"context"
 	"errors"
+	"github.com/airencracken/comfylib/analytics"
+	"github.com/airencracken/comfylib/password"
 	"net/http"
 	"net/url"
 	"strings"
@@ -58,7 +60,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	username := strings.TrimSpace(r.FormValue("username"))
-	password := r.FormValue("password")
+	pw := r.FormValue("password")
 	next := safeNext(r.FormValue("next"))
 
 	view := authView{
@@ -69,8 +71,16 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	// Deliberately vague error to avoid confirming which usernames exist.
 	fail := func() {
+		s.recordSecurity(r.Context(), analytics.RecordFailedSignIn)
 		view.Error = "Incorrect username or password."
 		s.renderPage(w, r, http.StatusUnauthorized, "login", view)
+	}
+
+	// A password past bcrypt's limit can never match; refuse it before
+	// hashing, the same way as a wrong one.
+	if !password.Fits(pw) {
+		fail()
+		return
 	}
 
 	user, err := s.store.UserByUsername(r.Context(), username)
@@ -82,7 +92,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(pw)); err != nil {
 		fail()
 		return
 	}
@@ -157,28 +167,32 @@ func (s *Server) admit(ctx context.Context, code string) admission {
 	// Every refusal reads the same. Telling a stranger whether a code is
 	// unknown, wrong, or spent would confirm which codes exist.
 	const unusable = "That invitation is not valid, or has already been used."
+	rejected := func() admission {
+		s.recordSecurity(ctx, analytics.RecordRejectedToken)
+		return admission{Refusal: unusable}
+	}
 
 	prefix, ok := invites.Split(code)
 	if !ok {
-		return admission{Refusal: unusable}
+		return rejected()
 	}
 	found, hash, err := s.store.InviteForRedemption(ctx, prefix)
 	if err != nil {
 		if !errors.Is(err, store.ErrNotFound) {
 			s.log.Error("admit: look up invitation", "error", err)
 		}
-		return admission{Refusal: unusable}
+		return rejected()
 	}
 	// Looking the row up by prefix narrows the search; it does not
 	// authenticate anything. Only a digest match does.
 	if !invites.Verify(code, hash) {
-		return admission{Refusal: unusable}
+		return rejected()
 	}
 	// A revoked, expired, or used-up code is refused here for a clear message;
 	// the redemption enforces the same conditions atomically, which is what
 	// stops two people consuming the last use at once.
 	if !found.Usable(time.Now()) {
-		return admission{Refusal: unusable}
+		return rejected()
 	}
 
 	return admission{Invite: found}
@@ -268,6 +282,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, store.ErrConflict):
 			renderErr(http.StatusConflict, "That username is already taken.")
 		case errors.Is(err, store.ErrInviteUnusable):
+			s.recordSecurity(r.Context(), analytics.RecordRejectedToken)
 			renderErr(http.StatusForbidden,
 				"That invitation is not valid, or has already been used.")
 		default:

@@ -313,17 +313,9 @@ func applyMigration(ctx context.Context, sqlDB *sql.DB, name string) error {
 // forgetAnalyticsMigration removes analytics that name members or files.
 const forgetAnalyticsMigration = "036_forget_identifying_analytics.sql"
 
-// forgetIdentifyingAnalytics deletes every stored activity row. Each one names
-// a member, and views also name a file, so none of them is a plain count.
+// forgetIdentifyingAnalytics drops the table of per-account sign-ins and
+// per-file views that Comfylib 0.6.0 kept. Comfylib's Initialize does the same
+// on every start; doing it here ties the deletion to this migration.
 func forgetIdentifyingAnalytics(ctx context.Context, tx *sql.Tx) error {
-	var tables int
-	if err := tx.QueryRowContext(ctx,
-		`SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'comfy_analytics_activity'`).Scan(&tables); err != nil {
-		return err
-	}
-	if tables == 0 {
-		return nil
-	}
-	_, err := tx.ExecContext(ctx, `DELETE FROM comfy_analytics_activity`)
-	return err
+	return analytics.RemoveDetail(ctx, tx)
 }

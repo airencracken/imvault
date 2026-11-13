@@ -8,34 +8,33 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/airencracken/comfylib/problem"
 )
 
-// fail renders the styled error page for a browser request. The message is one
-// plain sentence for the person who hit the problem; anything an operator
-// needs belongs in the log, written before this is called.
-func (s *Server) fail(w http.ResponseWriter, r *http.Request, status int, message string) {
-	if message == "" {
-		message = http.StatusText(status) + "."
+// problems writes Comfylib's plain-language error responses inside Imvault's
+// layout, or JSON for API clients.
+func (s *Server) problems() problem.Writer {
+	return problem.Writer{
+		Logger: s.log,
+		Layout: func(w http.ResponseWriter, r *http.Request, page problem.Page) error {
+			var buf strings.Builder
+			view := errorView{base: s.base(r, page.Title), Code: strconv.Itoa(page.Status), Message: page.Message}
+			if err := s.render.page(&buf, "notfound", view, preferredTimezone(r)); err != nil {
+				return err
+			}
+			_, err := w.Write([]byte(buf.String()))
+			return err
+		},
 	}
-	s.renderPage(w, r, status, "notfound", errorView{
-		base:    s.base(r, errorTitle(status)),
-		Code:    strconv.Itoa(status),
-		Message: message,
-	})
 }
 
-func errorTitle(status int) string {
-	switch {
-	case status == http.StatusNotFound:
-		return "Not found"
-	case status == http.StatusForbidden:
-		return "Not allowed"
-	case status == http.StatusTooManyRequests:
-		return "Slow down"
-	case status >= 500:
-		return "Something went wrong"
-	}
-	return "Couldn't do that"
+// fail renders the styled error page. The message is one plain sentence for
+// the person who hit the problem; anything an operator needs belongs in the
+// log, written before this is called. An empty message uses Comfylib's
+// default for the status.
+func (s *Server) fail(w http.ResponseWriter, r *http.Request, status int, message string) {
+	s.problems().Write(w, r, status, message, nil)
 }
 
 // sentence turns a lower-case validation message, shared with the JSON API,

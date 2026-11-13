@@ -5,6 +5,7 @@ package web
 import (
 	"encoding/json"
 	"errors"
+	"github.com/airencracken/comfylib/analytics"
 	"net/http"
 	"strings"
 	"time"
@@ -504,6 +505,7 @@ func (s *Server) handleOIDCCompleteSubmit(w http.ResponseWriter, r *http.Request
 		case errors.Is(err, store.ErrConflict):
 			renderErr(http.StatusConflict, "That username is already taken.")
 		case errors.Is(err, store.ErrInviteUnusable):
+			s.recordSecurity(r.Context(), analytics.RecordRejectedToken)
 			renderErr(http.StatusForbidden, "That invitation is not valid, or has already been used.")
 		default:
 			s.log.Error("oidc: create account", "error", err)

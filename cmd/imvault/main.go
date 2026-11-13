@@ -183,6 +183,9 @@ func run() (err error) {
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
 		return fmt.Errorf("graceful shutdown: %w", err)
 	}
+	if err := srv.FlushMetrics(shutdownCtx); err != nil {
+		logger.Warn("write site health counts", "error", err)
+	}
 	logger.Info("stopped")
 	return nil
 }

@@ -39,6 +39,8 @@ var staticFS embed.FS
 // Server holds the application dependencies and the routing table.
 type Server struct {
 	Backups *autobackup.Runner
+	// monitor counts requests per route for the site health dashboard.
+	monitor *analytics.Monitor
 
 	cfg     *config.Config
 	store   *store.Store
@@ -96,6 +98,7 @@ func New(cfg *config.Config, st *store.Store, objects storage.Backend, proc *med
 	s := &Server{
 		cfg:               cfg,
 		store:             st,
+		monitor:           analytics.NewMonitor(st.AnalyticsDB()),
 		objects:           objects,
 		media:             proc,
 		mail:              sender,
@@ -145,7 +148,7 @@ func New(cfg *config.Config, st *store.Store, objects storage.Backend, proc *med
 	if err = s.registerSharedSignIn(mux); err != nil {
 		return nil, err
 	}
-	s.handler = s.recoverMW(securityHeadersMW(s.logMW(s.sessionMW(s.apiAuthMW(s.requestLimitsMW(s.semicolonMW(s.csrfMW(analytics.Maintenance(s.store.AnalyticsDB(), mux)))))))))
+	s.handler = s.recoverMW(securityHeadersMW(s.logMW(s.sessionMW(s.apiAuthMW(s.requestLimitsMW(s.semicolonMW(s.csrfMW(analytics.Maintenance(s.store.AnalyticsDB(), s.monitor.Middleware(mux))))))))))
 	return s, nil
 }
 

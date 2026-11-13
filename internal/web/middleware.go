@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"crypto/subtle"
 	"errors"
+	"github.com/airencracken/comfylib/analytics"
 	"io"
 	"log/slog"
 	"mime"
@@ -177,7 +178,7 @@ func (s *Server) csrfMW(next http.Handler) http.Handler {
 			}
 			if subtle.ConstantTimeCompare([]byte(provided), []byte(token)) != 1 {
 				s.log.Warn("csrf rejection", "method", r.Method, "path", r.URL.Path)
-				s.fail(w, r, http.StatusForbidden, "This form has expired. Go back, reload the page and try again.")
+				s.problems().Expired(w, r)
 				return
 			}
 			if !s.parseCheckedMultipart(w, r) {
@@ -472,6 +473,7 @@ func (s *Server) rateLimitUploads(next http.HandlerFunc) http.HandlerFunc {
 			"remote", r.RemoteAddr,
 		)
 
+		s.recordSecurity(r.Context(), analytics.RecordRateLimited)
 		w.Header().Set("Retry-After", strconv.Itoa(seconds))
 		w.Header().Set("X-RateLimit-Limit", strconv.FormatFloat(s.cfg.UploadRatePerHour, 'f', -1, 64))
 
@@ -550,6 +552,7 @@ func (s *Server) rateLimitLogins(next http.HandlerFunc) http.HandlerFunc {
 			s.log.Warn("sign-in rate limited", "key", key, "retry_after_s", seconds, "remote", r.RemoteAddr)
 
 			w.Header().Set("Retry-After", strconv.Itoa(seconds))
+			s.recordSecurity(r.Context(), analytics.RecordRateLimited)
 			s.fail(w, r, http.StatusTooManyRequests, "Too many sign-in attempts. Please try again in "+strconv.Itoa(seconds)+" seconds.")
 			return
 		}

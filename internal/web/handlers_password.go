@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/airencracken/comfylib/analytics"
 	"net/http"
 	"strings"
 	"time"
@@ -211,6 +212,7 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 	user, err := s.store.ResetPassword(r.Context(), tokens.Hash(tokenValue), string(hash), time.Now())
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
+			s.recordSecurity(r.Context(), analytics.RecordRejectedToken)
 			renderErr(http.StatusBadRequest, "That reset link is invalid or has expired. Request a new one.")
 			return
 		}
@@ -307,6 +309,7 @@ func (s *Server) handleVerifyEmail(w http.ResponseWriter, r *http.Request) {
 		store.TokenEmailVerify, time.Now())
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
+			s.recordSecurity(r.Context(), analytics.RecordRejectedToken)
 			s.notFound(w, r, "That confirmation link is invalid or has expired.")
 			return
 		}
@@ -392,6 +395,7 @@ func (s *Server) resetTokenUser(w http.ResponseWriter, r *http.Request) (*models
 		store.TokenPasswordReset, time.Now())
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
+			s.recordSecurity(r.Context(), analytics.RecordRejectedToken)
 			s.renderPage(w, r, http.StatusBadRequest, "reset", resetView{
 				base:  s.base(r, "Reset link"),
 				Error: "That reset link is invalid or has expired. Request a new one.",
