@@ -6,6 +6,7 @@ package models
 
 import (
 	"fmt"
+	"github.com/airencracken/comfylib/ui"
 	"strconv"
 	"strings"
 	"time"
@@ -259,9 +260,9 @@ func (u *User) OverQuota() bool {
 // UsageLabel renders the account's usage for display.
 func (u *User) UsageLabel() string {
 	if u.Unlimited() {
-		return HumanSize(u.StorageUsed) + " of unlimited"
+		return ui.Size(u.StorageUsed) + " of unlimited"
 	}
-	return HumanSize(u.StorageUsed) + " of " + HumanSize(u.QuotaBytes)
+	return ui.Size(u.StorageUsed) + " of " + ui.Size(u.QuotaBytes)
 }
 
 // Kind classifies what an upload actually is.
@@ -382,9 +383,6 @@ func (f *File) DurationLabel() string {
 	return fmt.Sprintf("%d:%02d", total/60, total%60)
 }
 
-// HumanSize renders the file size for display.
-func (f *File) HumanSize() string { return HumanSize(f.Size) }
-
 // Dimensions renders "1920×1080", or "" when unknown.
 func (f *File) Dimensions() string {
 	if f.Width == 0 || f.Height == 0 {
@@ -413,6 +411,7 @@ const (
 	SettingHouseRules            = "house_rules"
 	SettingOwnerContact          = "owner_contact"
 	SettingShowVersion           = "show_version"
+	SettingPalette               = "palette"
 )
 
 // Branding is the public-facing identity resolved from database settings and
@@ -425,6 +424,9 @@ type Branding struct {
 	WelcomeText  string
 	HouseRules   string
 	OwnerContact string
+	// Palette is the site's colour palette name, or empty for Imvault's
+	// default. Members can still pick their own in the theme menu.
+	Palette string
 }
 
 // Settings is that policy, resolved: stored values where an administrator has
@@ -981,20 +983,6 @@ func Truncate(s string, max int) string {
 		count++
 	}
 	return s
-}
-
-// HumanSize renders a byte count in binary units.
-func HumanSize(n int64) string {
-	const unit = 1024
-	if n < unit {
-		return fmt.Sprintf("%d B", n)
-	}
-	div, exp := int64(unit), 0
-	for m := n / unit; m >= unit; m /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %ciB", float64(n)/float64(div), "KMGTPE"[exp])
 }
 
 // HumanTime renders a timestamp as a coarse relative age.

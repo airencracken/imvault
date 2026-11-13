@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"github.com/airencracken/comfylib/displaytime"
+	"github.com/airencracken/comfylib/ui"
 	"io"
 	"io/fs"
 	"net/http"
@@ -188,6 +189,7 @@ func (s *Server) base(r *http.Request, title string) base {
 		Notice:            notice,
 		Error:             problem,
 		CurrentPath:       r.URL.Path,
+		PaletteAttrs:      ui.PaletteAttrs(ui.SiteDefault(branding.Palette, ui.Slate)),
 		OIDCName:          s.oidc.Name(),
 	}
 

@@ -39,28 +39,37 @@ func TestEveryColourComesFromTheTokenBlock(t *testing.T) {
 	}
 }
 
-// The shared admin, invitation and metrics pages read --comfy-* tokens; they
-// must resolve to Imvault's own, with a selector that outranks the defaults in
-// components.css.
-func TestSharedComfyTokensMapToImvaultTokens(t *testing.T) {
+// Imvault's names read the shared --comfy-* tokens, so Comfylib's palettes
+// recolour Imvault's pages as well as the shared ones, and the layout carries
+// the site palette and the old theme storage key.
+func TestImvaultTokensReadTheSharedTokens(t *testing.T) {
 	css := appStylesheet(t)
-	block := regexp.MustCompile(`(?s)html\[data-comfy-app="imvault"\],\s*html\[data-comfy-app="imvault"\] \.comfy-admin-dashboard \{(.*?)\}`).FindStringSubmatch(css)
-	if block == nil {
-		t.Fatal("no --comfy-* mapping for the Imvault document and the admin dashboard")
-	}
 	for token, source := range map[string]string{
-		"--comfy-ink": "var(--text)", "--comfy-panel": "var(--bg-elev)", "--comfy-line": "var(--border)",
-		"--comfy-accent": "var(--accent)", "--comfy-admin-muted": "var(--muted)", "--comfy-radius": "var(--radius)",
+		"--bg": "var(--comfy-surface)", "--bg-elev": "var(--comfy-raised)", "--border": "var(--comfy-border)",
+		"--text": "var(--comfy-text)", "--muted": "var(--comfy-muted)", "--accent": "var(--comfy-accent)",
+		"--accent-fg": "var(--comfy-accent-text)", "--danger": "var(--comfy-danger)", "--radius": "var(--comfy-radius)",
 	} {
-		if !strings.Contains(block[1], token+": "+source+";") {
-			t.Errorf("%s does not map to %s", token, source)
+		if !strings.Contains(css, token+": "+source+";") {
+			t.Errorf("%s does not read %s", token, source)
+		}
+	}
+	for _, shared := range []string{"--comfy-surface:", "--comfy-raised:", "--comfy-text:", "--comfy-accent:", "--comfy-control-border:"} {
+		if !strings.Contains(css, shared) {
+			t.Errorf("no slate fallback for %s", shared)
+		}
+	}
+	for _, retired := range []string{"--comfy-ink", "--comfy-panel", "--comfy-line", ".theme-picker {"} {
+		if strings.Contains(css, retired) {
+			t.Errorf("app.css still defines %s", retired)
 		}
 	}
 	layout := readTemplate(t, "layout.html")
-	if !strings.Contains(layout, `data-comfy-app="imvault"`) {
-		t.Error("the layout no longer carries the attribute the mapping relies on")
+	for _, want := range []string{`data-theme-key="imvault-theme"`, "{{.PaletteAttrs}}", `<script src="/static/comfyware/theme.js"></script>`, "/static/comfyware/palettes.css"} {
+		if !strings.Contains(layout, want) {
+			t.Errorf("layout is missing %s", want)
+		}
 	}
-	if strings.Index(layout, "/static/css/app.css") > strings.Index(layout, "/static/comfyware/components.css") {
-		t.Log("app.css loads after components.css; the attribute selector still wins")
+	if strings.Index(layout, "/static/comfyware/palettes.css") < strings.Index(layout, "/static/css/app.css") {
+		t.Error("palettes.css must load after app.css")
 	}
 }

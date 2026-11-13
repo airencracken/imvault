@@ -1,5 +1,5 @@
 {{define "layout"}}<!doctype html>
-<html lang="en" data-comfy-app="imvault">
+<html lang="en" data-comfy-app="imvault" data-theme-key="imvault-theme" {{.PaletteAttrs}}>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -9,8 +9,9 @@
   {{if .FaviconURL}}<link rel="icon" type="image/png" href="{{.FaviconURL}}">
   {{else}}<link rel="icon" type="image/png" sizes="32x32" href="/static/img/favicon-32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/static/img/favicon-16.png">{{end}}
-  <script src="/static/js/theme.js"></script>
+  <script src="/static/comfyware/theme.js"></script>
   <link rel="stylesheet" href="/static/css/app.css">
+  <link rel="stylesheet" href="/static/comfyware/palettes.css">
   <link rel="stylesheet" href="/static/comfyware/accounts.css">
   <link rel="stylesheet" href="/static/comfyware/components.css">
   <script src="/static/js/htmx.min.js" defer></script>

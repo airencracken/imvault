@@ -15,7 +15,7 @@
 <p>Private destination: <code>{{.Backups.Directory}}</code>.</p>
 {{if .Backups.Running}}<p role="status" class="comfy-notice">A backup is running.</p>{{end}}
 {{if .Backups.LastSuccess.IsZero}}<p>No automatic backup has succeeded yet. The first attempt starts one minute after service startup.</p>{{else}}<p>Last successful backup: <time datetime="{{datetime .Backups.LastSuccess}}">{{date .Backups.LastSuccess}}</time>.</p>{{end}}
-{{if .Backups.LastError}}<p role="alert" class="comfy-notice comfy-notice-error">Last backup error: {{.Backups.LastError}}</p>{{end}}
+{{with .Backups.Summary}}<p role="alert" class="comfy-notice comfy-notice-error">{{.}}</p>{{end}}
 {{if not .Backups.NextAttempt.IsZero}}<p>Next attempt: <time datetime="{{datetime .Backups.NextAttempt}}">{{date .Backups.NextAttempt}}</time>.</p>{{end}}
 {{else}}<p>Automatic backups are disabled or no service worker is attached.</p>{{end}}
 <p>Copy completed backups to another machine. Local copies cannot recover from a lost disk. Schedule and caps are configured in the service environment and take effect after a restart.</p></section>
@@ -52,6 +52,13 @@
     <input type="checkbox" name="show_version" value="1" {{if .Branding.ShowVersion}}checked{{end}}>
     Show version in the footer
   </label>
+  <label>Colour palette
+    <select name="palette">
+      <option value="" {{if not .Branding.Palette}}selected{{end}}>Slate (default)</option>
+      {{range palettes}}{{if ne (print .) "slate"}}<option value="{{.}}" {{if eq (print .) $.Branding.Palette}}selected{{end}}>{{.Label}}</option>{{end}}{{end}}
+    </select>
+  </label>
+  <p class="muted">Members can still choose their own palette from the theme menu.</p>
   <label>Welcome heading
     <input name="welcome_title" maxlength="120" value="{{.Branding.WelcomeTitle}}">
   </label>

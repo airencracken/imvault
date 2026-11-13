@@ -1,46 +1,58 @@
-/* Imvault: the slate palette, light and dark.
+/* Imvault colours and type.
  *
- * Every colour in this file comes from the tokens in this block, so the block
- * can later be swapped for Comfylib's shared --comfy-* palette tokens. */
+ * Every colour in this file comes from the tokens in this block. Imvault's
+ * names point at the shared --comfy-* tokens, so a palette from Comfylib's
+ * palettes.css (slate by default, or sage) recolours every page. The values
+ * here are the slate fallback for when no palette is set. */
 
 :root {
   color-scheme: light dark;
 
-  /* Surfaces */
-  --bg: light-dark(#f3f5f9, #101216);
-  --bg-elev: light-dark(#ffffff, #171a21);
-  --bg-elev-2: light-dark(#e9eef5, #1e222b);
-  --bg-hover: light-dark(#dce4ef, #262b36);
-  --bg-media: light-dark(#e4e9f1, #0b0d11);
-  --bg-icon: light-dark(rgba(255, 255, 255, .95), rgba(12, 14, 18, .85));
+  /* Shared tokens: slate, used when no palette applies. */
+  --comfy-surface: light-dark(#f3f5f9, #101216);
+  --comfy-raised: light-dark(#ffffff, #171a21);
+  --comfy-border: light-dark(#ccd4e0, #2a2f3a);
+  --comfy-control-border: light-dark(#7c8799, #69728a);
+  --comfy-text: light-dark(#202b3d, #e6e9ef);
+  --comfy-muted: light-dark(#596579, #8b93a3);
+  --comfy-accent: light-dark(#245eb6, #6ea8fe);
+  --comfy-accent-text: light-dark(#ffffff, #0b1220);
+  --comfy-danger: light-dark(#a82c3b, #f2707a);
+  --comfy-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --comfy-radius: 10px;
 
-  /* Lines */
-  --border: light-dark(#ccd4e0, #2a2f3a);
-  --border-strong: light-dark(#8c9db5, #3d4553);
+  /* Imvault's names, read from the shared tokens. */
+  --bg: var(--comfy-surface);
+  --bg-elev: var(--comfy-raised);
+  --border: var(--comfy-border);
+  --text: var(--comfy-text);
+  --muted: var(--comfy-muted);
+  --accent: var(--comfy-accent);
+  --accent-fg: var(--comfy-accent-text);
+  --danger: var(--comfy-danger);
+  --radius: var(--comfy-radius);
 
-  /* Text */
-  --text: light-dark(#202b3d, #e6e9ef);
-  --muted: light-dark(#596579, #8b93a3);
+  /* Shades the shared set does not name, mixed from it for any palette. */
+  --bg-elev-2: color-mix(in srgb, var(--comfy-text) 7%, var(--comfy-raised));
+  --bg-hover: color-mix(in srgb, var(--comfy-text) 13%, var(--comfy-raised));
+  --bg-media: color-mix(in srgb, var(--comfy-text) 9%, var(--comfy-surface));
+  --bg-icon: color-mix(in srgb, var(--comfy-raised) 92%, transparent);
+  --border-strong: var(--comfy-control-border);
+  --accent-strong: color-mix(in srgb, var(--comfy-accent) 80%, var(--comfy-text));
+  --accent-soft: color-mix(in srgb, var(--comfy-accent) 10%, var(--comfy-raised));
+  --danger-line: color-mix(in srgb, var(--comfy-danger) 40%, var(--comfy-raised));
+  --danger-line-strong: var(--danger-line);
+  --danger-soft: color-mix(in srgb, var(--comfy-danger) 6%, var(--comfy-raised));
+  --danger-hover: color-mix(in srgb, var(--comfy-danger) 13%, var(--comfy-raised));
+  --danger-hover-strong: var(--danger-hover);
 
-  /* Accent: Imvault blue */
-  --accent: light-dark(#245eb6, #6ea8fe);
-  --accent-strong: light-dark(#184a96, #4d8ef7);
-  --accent-fg: light-dark(#ffffff, #0b1220);
-  --accent-soft: light-dark(#e8f0ff, #141a26);
-
-  /* Status */
-  --danger: light-dark(#a82c3b, #f2707a);
-  --danger-line: light-dark(#d5a4ab, #47282d);
-  --danger-line-strong: light-dark(#d5a4ab, #5a2b30);
-  --danger-soft: light-dark(#fff0f2, #241a1d);
-  --danger-hover: light-dark(#f8dfe4, #33222a);
-  --danger-hover-strong: light-dark(#f8dfe4, #47282d);
+  /* Status colours read on every palette. */
   --ok: light-dark(#216b45, #6ee7a8);
   --ok-line: light-dark(#90bca3, #23503a);
   --warn: light-dark(#80580c, #f5c168);
   --warn-line: light-dark(#d2bc8e, #4a3b1e);
 
-  /* Fixed colours that do not change with the theme */
+  /* Fixed colours that do not change with the theme or palette */
   --overlay: rgba(10, 12, 16, .68);
   --overlay-line: rgba(255, 255, 255, .18);
   --overlay-text: #fff;
@@ -50,24 +62,26 @@
   --shadow-near: light-dark(rgba(30, 45, 65, .07), rgba(0, 0, 0, .4));
   --shadow-far: light-dark(rgba(30, 45, 65, .06), rgba(0, 0, 0, .25));
 
-  --radius: 10px;
   --shadow: 0 1px 2px var(--shadow-near), 0 8px 24px var(--shadow-far);
   --maxw: 1180px;
 }
 
-/* The shared Comfylib pages (administration, invitations, metrics) read these.
- * The attribute selector outranks the :root defaults in components.css, which
- * loads after this file. */
-html[data-comfy-app="imvault"],
-html[data-comfy-app="imvault"] .comfy-admin-dashboard {
-  --comfy-ink: var(--text);
-  --comfy-panel: var(--bg-elev);
-  --comfy-line: var(--border);
-  --comfy-accent: var(--accent);
-  --comfy-admin-muted: var(--muted);
-  --comfy-radius: var(--radius);
+/* Slate keeps its exact Imvault shades. */
+:root:not([data-palette]),
+:root[data-palette="slate"] {
+  --bg-elev-2: light-dark(#e9eef5, #1e222b);
+  --bg-hover: light-dark(#dce4ef, #262b36);
+  --bg-media: light-dark(#e4e9f1, #0b0d11);
+  --bg-icon: light-dark(rgba(255, 255, 255, .95), rgba(12, 14, 18, .85));
+  --border-strong: light-dark(#8c9db5, #3d4553);
+  --accent-strong: light-dark(#184a96, #4d8ef7);
+  --accent-soft: light-dark(#e8f0ff, #141a26);
+  --danger-line: light-dark(#d5a4ab, #47282d);
+  --danger-line-strong: light-dark(#d5a4ab, #5a2b30);
+  --danger-soft: light-dark(#fff0f2, #241a1d);
+  --danger-hover: light-dark(#f8dfe4, #33222a);
+  --danger-hover-strong: light-dark(#f8dfe4, #47282d);
 }
-html[data-comfy-app="imvault"] .comfy-admin-dashboard { font: inherit; }
 
 * { box-sizing: border-box; }
 
@@ -78,7 +92,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font: 15px/1.55 var(--comfy-font);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -87,6 +101,7 @@ body {
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
+h1, h2 { font-family: var(--comfy-heading-font, var(--comfy-font)); font-weight: var(--comfy-heading-weight, 650); }
 h1 { font-size: 1.6rem; margin: 0 0 .25rem; }
 h2 { font-size: 1.05rem; margin: 0 0 .75rem; color: var(--text); }
 
@@ -121,9 +136,6 @@ h2 { font-size: 1.05rem; margin: 0 0 .75rem; color: var(--text); }
 .nav a.btn { color: var(--text); }
 .nav a.btn.primary { color: var(--accent-fg); }
 
-.theme-picker { display: flex; align-items: center; gap: .4rem; font-size: .82rem; }
-.theme-picker[hidden] { display: none; }
-.theme-picker select { width: auto; margin: 0; padding: .3rem .4rem; font-size: .82rem; }
 
 @media (max-width: 760px) {
   .topbar { flex-wrap: wrap; gap: .6rem; }

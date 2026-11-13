@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/airencracken/comfylib/ui"
 	"net/url"
 	"strconv"
 	"strings"
@@ -82,8 +83,8 @@ func (s *Store) LoadSettings(ctx context.Context, defaults models.Settings) (mod
 // LoadBranding resolves public-facing identity from stored overrides and the
 // supplied configuration defaults.
 func (s *Store) LoadBranding(ctx context.Context, defaults models.Branding) (models.Branding, map[string]bool, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT key, value FROM settings WHERE key IN (?, ?, ?, ?, ?, ?, ?)`,
-		models.SettingSiteName, models.SettingSourceURL, models.SettingWelcomeTitle, models.SettingWelcomeText, models.SettingHouseRules, models.SettingOwnerContact, models.SettingShowVersion)
+	rows, err := s.db.QueryContext(ctx, `SELECT key, value FROM settings WHERE key IN (?, ?, ?, ?, ?, ?, ?, ?)`,
+		models.SettingSiteName, models.SettingSourceURL, models.SettingWelcomeTitle, models.SettingWelcomeText, models.SettingHouseRules, models.SettingOwnerContact, models.SettingShowVersion, models.SettingPalette)
 	if err != nil {
 		return defaults, nil, fmt.Errorf("load branding: %w", err)
 	}
@@ -119,6 +120,11 @@ func (s *Store) LoadBranding(ctx context.Context, defaults models.Branding) (mod
 	}
 	if stored[models.SettingOwnerContact] {
 		resolved.OwnerContact = values[models.SettingOwnerContact]
+	}
+	// An unknown stored name falls back to the default rather than failing
+	// every page.
+	if palette, err := ui.ParsePalette(values[models.SettingPalette]); err == nil {
+		resolved.Palette = string(palette)
 	}
 	resolved.ShowVersion, err = showVersionSetting(values, defaults.ShowVersion)
 	if err != nil {
@@ -173,6 +179,7 @@ func (s *Store) saveSettings(ctx context.Context, settings models.Settings, bran
 			values[models.SettingHouseRules] = strings.TrimSpace(branding.HouseRules)
 			values[models.SettingOwnerContact] = strings.TrimSpace(branding.OwnerContact)
 			values[models.SettingShowVersion] = strconv.FormatBool(branding.ShowVersion)
+			values[models.SettingPalette] = branding.Palette
 		}
 		for key, value := range values {
 			_, err := tx.ExecContext(ctx, `
@@ -198,6 +205,11 @@ func ValidateBranding(branding models.Branding) error {
 	for _, check := range checks {
 		if err := validateBrandingText(check.name, check.value, check.max, check.multiline); err != nil {
 			return err
+		}
+	}
+	if branding.Palette != "" {
+		if _, err := ui.ParsePalette(branding.Palette); err != nil {
+			return errors.New("choose a palette from the list")
 		}
 	}
 	return validateBrandingSourceURL(branding.SourceURL)

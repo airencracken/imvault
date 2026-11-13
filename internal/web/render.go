@@ -9,6 +9,7 @@ import (
 	"github.com/airencracken/comfylib/admin"
 	"github.com/airencracken/comfylib/displaytime"
 	"github.com/airencracken/comfylib/suite"
+	"github.com/airencracken/comfylib/ui"
 	"html/template"
 	"io"
 	"io/fs"
@@ -148,16 +149,18 @@ func templateFuncs() template.FuncMap {
 			}
 			return out
 		},
-		"humanSize": models.HumanSize,
-		"humanTime": models.HumanTime,
-		"date":      displaytime.New("UTC").Stamp,
-		"slug":      ids.Slug,
-		"add":       func(a, b int) int { return a + b },
-		"sub":       func(a, b int) int { return a - b },
-		"div":       func(a, b int64) int64 { return a / b },
-		"hasTag":    hasTag,
-		"join":      strings.Join,
-		"lower":     strings.ToLower,
+		"humanSize":   ui.Size,
+		"themePicker": func() template.HTML { return ui.ThemePicker(true) },
+		"palettes":    ui.Palettes,
+		"humanTime":   models.HumanTime,
+		"date":        displaytime.New("UTC").Stamp,
+		"slug":        ids.Slug,
+		"add":         func(a, b int) int { return a + b },
+		"sub":         func(a, b int) int { return a - b },
+		"div":         func(a, b int64) int64 { return a / b },
+		"hasTag":      hasTag,
+		"join":        strings.Join,
+		"lower":       strings.ToLower,
 		"card": func(view fileCardsView, f *models.File) fileCard {
 			// A tile is removable if the whole grid is, or if this particular
 			// file belongs to the account being allowed to take its own back.

@@ -4,6 +4,7 @@ package web
 
 import (
 	"github.com/airencracken/comfylib/displaytime"
+	"html/template"
 	"imvault/internal/models"
 	"imvault/internal/store"
 )
@@ -27,6 +28,8 @@ type base struct {
 	Notice          string
 	Error           string
 	CurrentPath     string
+	// PaletteAttrs carries the site palette onto <html> for the shared theme.js.
+	PaletteAttrs template.HTMLAttr
 	// SourceURL is the upstream repository, offered in the footer.
 	SourceURL string
 	// VisibilityLevels is every level, for the forms that offer the choice.
@@ -159,8 +162,8 @@ type recentView struct {
 
 type uploadView struct {
 	base
-	MaxUploadMB     int64
-	MaxVideoMB      int64
+	MaxUpload       string
+	MaxVideo        string
 	MaxVideoSeconds int
 	VideoEnabled    bool
 	Albums          []*models.Album

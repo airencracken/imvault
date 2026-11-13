@@ -323,6 +323,7 @@ func (s *Server) handleAdminSaveSettings(w http.ResponseWriter, r *http.Request)
 			WelcomeText:  strings.TrimSpace(r.FormValue("welcome_text")),
 			HouseRules:   strings.TrimSpace(r.FormValue("house_rules")),
 			OwnerContact: strings.TrimSpace(r.FormValue("owner_contact")),
+			Palette:      strings.TrimSpace(r.FormValue("palette")),
 		}
 		if err := store.ValidateBranding(branding); err != nil {
 			s.redirectFlash(w, r, "/admin/settings", flashError, err.Error())
