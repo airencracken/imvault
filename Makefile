@@ -117,7 +117,7 @@ check-fmt: ## Verify Go formatting without changing files
 check-complexity: ## Keep production Go functions at cyclomatic complexity 15 or below
 	go run github.com/fzipp/gocyclo/cmd/gocyclo@v0.6.0 -over 15 -ignore '_test\.go$$' cmd internal contrib
 
-check: test-config test-design-mutations test-cli check-fmt vet test check-js test-js check-complexity release-check ## What CI should run
+check: test-config test-docs test-design-mutations test-cli check-fmt vet test check-js test-js check-complexity release-check ## What CI should run
 
 # --- installing on a server -------------------------------------------------
 
@@ -246,6 +246,10 @@ test-design-mutations: ## Verify invitation design regressions reject deliberate
 .PHONY: test-setup-mutations
 test-setup-mutations: ## Check atomic browser owner provisioning
 	$(MUTATE) scripts/mutations/setup.json
+
+.PHONY: test-docs
+test-docs: ## Check the README and release notes agree with VERSION
+	python3 scripts/comfy.py check-docs
 
 .PHONY: test-config
 test-config:
