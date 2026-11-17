@@ -7,7 +7,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-env = os.environ | {"GOWORK": "off", "COMFYWARE_APP_ROOT": str(ROOT)}
+env = os.environ | {"GOWORK": "off", "COMFYWARE_APP_ROOT": str(ROOT), "PYTHONDONTWRITEBYTECODE": "1"}
 resolved = subprocess.run(["go", "list", "-m", "-f", "{{.Dir}}", "github.com/airencracken/comfylib"],
                           cwd=ROOT, env=env, text=True, capture_output=True, check=True)
 entry = Path(resolved.stdout.strip()) / "tools/app.py"
