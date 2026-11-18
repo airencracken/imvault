@@ -201,9 +201,9 @@
   },
   {
     "name": "uploads join only contributable albums",
-    "file": "internal/web/handlers_upload.go",
-    "before": "\tif err != nil || !canContributeToAlbum(user, album) {",
-    "after": "\tif err != nil {",
+    "file": "internal/web/upload_batch.go",
+    "before": "album, err := s.contributableAlbum(ctx, user, ref)\n\tif err != nil {\n\t\treturn err\n\t}\n\t_, err = s.store.AddFilesToAlbum(ctx, user.ID, []string{fileID}, album.ID)\n\treturn err",
+    "after": "album, err := s.albumByRef(ctx, ref)\n\tif err != nil {\n\t\treturn err\n\t}\n\treturn s.store.AddFileToAlbum(ctx, album.ID, fileID)",
     "package": "./internal/web",
     "run": "^TestUploadingIntoAnAlbumFollowsTheAlbumRules$"
   },

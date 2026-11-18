@@ -1,4 +1,9 @@
 {{define "content"}}
+{{with .Gallery}}{{if .Back}}<nav class="gallery-navigation actions" aria-label="Gallery photos">
+  <a class="btn small" href="{{.Back}}">Back to gallery</a>
+  {{with .Previous}}<a class="btn small" href="{{.}}">Previous photo</a>{{end}}
+  {{with .Next}}<a class="btn small" href="{{.}}">Next photo</a>{{end}}
+</nav>{{end}}{{end}}
 <article class="detail">
   <div class="preview">
     {{if .File.IsVideo}}

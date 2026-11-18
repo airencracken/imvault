@@ -12,7 +12,6 @@ import (
 	"mime/multipart"
 	"net/http"
 	"path"
-	"strconv"
 	"strings"
 	"time"
 
@@ -49,6 +48,8 @@ func (s *Server) handleUploadPage(w http.ResponseWriter, r *http.Request) {
 func (s *Server) uploadPageView(r *http.Request, user *models.User) uploadView {
 	view := uploadView{
 		base:            s.base(r, "Upload"),
+		MaxBatchFiles:   maxFilesPerUpload,
+		BatchBytes:      max(s.fileLimit(user, media.FormatImage), s.fileLimit(user, media.FormatWebM)),
 		MaxUpload:       ui.Size(s.fileLimit(user, media.FormatImage)),
 		MaxVideo:        ui.Size(s.fileLimit(user, media.FormatWebM)),
 		MaxVideoSeconds: int(s.cfg.MaxVideoDuration.Seconds()),
@@ -142,39 +143,16 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !s.validSharingForm(w, r) {
+	if !s.validUploadForm(w, r) {
 		return
 	}
-	options := s.uploadOptions(r, user)
-	// The album arrives in the form body with everything else; reading it from
-	// the query string meant the uploader's album menu never did anything.
-	albumID, _ := strconv.ParseInt(strings.TrimSpace(r.FormValue("album_id")), 10, 64)
-	tags := r.FormValue("tags")
-
-	var (
-		created  []*models.File
-		failures []string
-	)
-
-	for _, header := range parts {
-		file, err := s.ingest(r.Context(), header, user, options)
-		if err != nil {
-			failures = append(failures, fmt.Sprintf("%s: %s", header.Filename, err))
-			continue
-		}
-		s.applyUploadTags(r.Context(), file, tags)
-		created = append(created, file)
-	}
-
-	// Attaching to an album is best-effort and only for signed-in owners.
-	if albumID > 0 && user != nil && len(created) > 0 {
-		s.attachUploadsToAlbum(r, user, albumID, created)
-	}
-
+	batch := s.uploadBatch(r, parts, user, strings.TrimSpace(r.FormValue("album_id")))
 	s.renderUploadResult(w, r, http.StatusOK, uploadResultView{
 		base:      s.base(r, "Upload"),
-		Grid:      s.grid(r, created, true, false, "", ""),
-		Errors:    failures,
+		Grid:      s.grid(r, batch.Files, true, false, "", ""),
+		Errors:    batch.Errors,
+		Warnings:  batch.Warnings,
+		Skipped:   batch.Skipped,
 		Anonymous: anonymous,
 	})
 }
@@ -192,40 +170,6 @@ func (s *Server) renderUploadResult(w http.ResponseWriter, r *http.Request, stat
 	s.renderPage(w, r, status, "upload", view)
 }
 
-// applyUploadTags attaches the tags supplied with an upload.
-//
-// This is the only way an anonymous upload can be tagged: there is no session
-// to come back and edit it with, so the names have to arrive with the bytes.
-// For a signed-in uploader the same field works, and lands in their own
-// namespace. A failure here never fails the upload, which has already
-// succeeded by this point.
-func (s *Server) applyUploadTags(ctx context.Context, file *models.File, raw string) {
-	for _, name := range strings.Split(raw, ",") {
-		name = strings.TrimSpace(name)
-		if name == "" {
-			continue
-		}
-		if _, err := s.store.AddTag(ctx, file.ID, tagOwner(file), name); err != nil {
-			s.log.Error("upload: add tag", "file", file.ID, "error", err)
-		}
-	}
-}
-
-// attachUploadsToAlbum links the new files into an album the uploader may
-// contribute to: their own, or a shared album they can see, by the same rule
-// the album page applies. The files are always the uploader's own.
-func (s *Server) attachUploadsToAlbum(r *http.Request, user *models.User, albumID int64, files []*models.File) {
-	album, err := s.store.AlbumByID(r.Context(), albumID)
-	if err != nil || !canContributeToAlbum(user, album) {
-		return
-	}
-	for _, f := range files {
-		if err := s.store.AddFileToAlbum(r.Context(), album.ID, f.ID); err != nil {
-			s.log.Error("upload: attach to album", "album", albumID, "file", f.ID, "error", err)
-		}
-	}
-}
-
 // ingest validates, stores and records a single upload, dispatching on the
 // classified media format.
 func (s *Server) ingest(ctx context.Context, header *multipart.FileHeader, user *models.User, options uploadOptions) (*models.File, error) {
@@ -239,42 +183,69 @@ func (s *Server) ingest(ctx context.Context, header *multipart.FileHeader, user 
 	if err != nil {
 		return nil, err
 	}
+	if format == media.FormatHEIF || format == media.FormatAVIF {
+		return nil, errors.New("HEIC, HEIF and AVIF images need to be converted to JPEG, PNG or WebP before uploading")
+	}
 
 	if limit := s.fileLimit(user, format); header.Size > limit {
 		return nil, fmt.Errorf("larger than the %s limit for %s",
 			ui.Size(limit), kindNoun(format))
 	}
 
-	// Read what the file says about itself, once, while the stream is at the
-	// start. It is stored rather than re-read later, which is what lets a file
-	// whose metadata is no longer served still describe itself to the people
-	// allowed to see it.
-	details := s.extractDetails(src)
+	sha, size, err := hashSource(src)
+	if err != nil {
+		return nil, err
+	}
+	unlock, err := s.content.acquire(ctx, sha)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
 
 	owner := userIDPtr(user)
+	if owner != nil && options.SkipDuplicates {
+		if err := s.checkUploadDuplicate(ctx, *owner, sha); err != nil {
+			return nil, err
+		}
+	}
+	if err := s.checkUploadQuota(ctx, owner, size); err != nil {
+		return nil, err
+	}
+
+	// Read metadata after the duplicate and quota checks. The helper rewinds
+	// for the decoder or for a content-addressed copy.
+	if _, err := src.Seek(0, io.SeekStart); err != nil {
+		return nil, errors.New("could not rewind the upload")
+	}
+	details := s.extractDetails(src)
 	expires := s.expiryFor(user)
 	now := time.Now().UTC()
+	if existing, ok := s.reusableUpload(ctx, sha); ok {
+		return s.recordReused(ctx, existing, header, owner, options, details, expires, now)
+	}
+	if format.IsVideo() {
+		return s.storeVideo(ctx, src, format, header, owner, options, details, expires, now, sha, size)
+	}
+	return s.storeStill(ctx, src, format, header, owner, options, details, expires, now, sha, size)
+}
 
-	// Cheap pre-flight: reject an upload that cannot possibly fit before
-	// decoding and writing anything.
+// checkUploadQuota rejects over-limit uploads before producing renditions.
+func (s *Server) checkUploadQuota(ctx context.Context, owner *int64, size int64) error {
+	limit := s.policy().MaxTotalBytes
 	if owner != nil {
-		if err := s.store.CheckQuota(ctx, *owner, header.Size, s.policy().MaxTotalBytes); err != nil {
-			return nil, quotaError(err, user)
+		if err := s.store.CheckQuota(ctx, *owner, size, limit); err != nil {
+			return quotaError(err, nil)
 		}
-	} else if limit := s.policy().MaxTotalBytes; limit > 0 {
+	} else if limit > 0 {
 		total, err := s.store.TotalStoredBytes(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("could not check storage usage")
+			return errors.New("could not check storage usage")
 		}
-		if total+header.Size > limit {
-			return nil, quotaError(store.ErrInstanceFull, nil)
+		if total+size > limit {
+			return quotaError(store.ErrInstanceFull, nil)
 		}
 	}
-
-	if format.IsVideo() {
-		return s.storeVideo(ctx, src, format, header, owner, options, details, expires, now)
-	}
-	return s.storeStill(ctx, src, format, header, owner, options, details, expires, now)
+	return nil
 }
 
 // quotaError turns a store quota failure into a message worth showing a user.
@@ -326,23 +297,9 @@ func (s *Server) storeStill(
 	details string,
 	expires *time.Time,
 	now time.Time,
+	sha string,
+	size int64,
 ) (*models.File, error) {
-	sha, size, err := hashSource(src)
-	if err != nil {
-		return nil, err
-	}
-	unlock, err := s.content.acquire(ctx, sha)
-	if err != nil {
-		return nil, err
-	}
-	defer unlock()
-
-	// Identical bytes are already stored: point at them rather than decoding,
-	// resizing, and writing a second copy.
-	if existing, ok := s.reusableUpload(ctx, sha); ok {
-		return s.recordReused(ctx, existing, header, owner, options, details, expires, now)
-	}
-
 	result, err := s.media.ProcessStill(src, format)
 	if err != nil {
 		return nil, err
@@ -438,21 +395,9 @@ func (s *Server) storeVideo(
 	details string,
 	expires *time.Time,
 	now time.Time,
+	sha string,
+	size int64,
 ) (*models.File, error) {
-	sha, size, err := hashSource(src)
-	if err != nil {
-		return nil, err
-	}
-	unlock, err := s.content.acquire(ctx, sha)
-	if err != nil {
-		return nil, err
-	}
-	defer unlock()
-
-	if existing, ok := s.reusableUpload(ctx, sha); ok {
-		return s.recordReused(ctx, existing, header, owner, options, details, expires, now)
-	}
-
 	// The original goes to its content-addressed key before probing, because
 	// ffmpeg needs a real file to seek within.
 	objectKey := s.contentKeys(sha, format.Ext(), "", "").object
@@ -656,9 +601,10 @@ func (s *Server) extractDetails(src io.ReadSeeker) string {
 // both, and two parallel parameters of different types is how a caller ends up
 // passing one where the other belongs.
 type uploadOptions struct {
-	Visibility   models.Visibility
-	ShowCamera   bool
-	ShowLocation bool
+	SkipDuplicates bool
+	Visibility     models.Visibility
+	ShowCamera     bool
+	ShowLocation   bool
 }
 
 // uploadVisibility resolves the level an upload should be stored at.
@@ -691,7 +637,7 @@ func (s *Server) uploadVisibility(r *http.Request, owner *models.User) models.Vi
 func (s *Server) uploadOptions(r *http.Request, owner *models.User) uploadOptions {
 	visibility := s.uploadVisibility(r, owner)
 	camera, location := uploadSharing(r, owner, visibility)
-	return uploadOptions{Visibility: visibility, ShowCamera: camera, ShowLocation: location}
+	return uploadOptions{Visibility: visibility, ShowCamera: camera, ShowLocation: location, SkipDuplicates: owner != nil && r.PostForm.Get("skip_duplicates") == "1"}
 }
 
 // uploadFailure reports a whole-request upload error.

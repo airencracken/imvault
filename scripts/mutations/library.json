@@ -126,5 +126,37 @@
     "after": "UPDATE files SET show_location = 0\nWHERE 0 AND EXISTS (",
     "package": "./internal/db",
     "run": "^TestSimpleSharingMigrationKeepsEffectiveVisibility$"
+  },
+  {
+    "name": "duplicate skipping is scoped to the uploader",
+    "file": "internal/store/files.go",
+    "before": "WHERE f.user_id=? AND f.sha256=? AND `+",
+    "after": "WHERE ?>0 AND f.sha256=? AND `+",
+    "package": "./internal/web",
+    "run": "^TestSkipDuplicateUploadsAreAccountScoped$"
+  },
+  {
+    "name": "successful uploads report failed organization",
+    "file": "internal/web/upload_batch.go",
+    "before": "result.Warnings = append(result.Warnings, uploadWarning{FileID: file.ID, Name: file.OriginalName, Message: message})",
+    "after": "_ = message",
+    "package": "./internal/web",
+    "run": "^TestUploadOrganizationReportsPartialSuccess$"
+  },
+  {
+    "name": "phone still brands use the image format guidance",
+    "file": "internal/media/format.go",
+    "before": "return classifyISOBaseMedia(head)",
+    "after": "return FormatMP4",
+    "package": "./internal/media",
+    "run": "^TestClassifyISOStillAndVideoBrands$"
+  },
+  {
+    "name": "gallery navigation retains the owner filter",
+    "file": "internal/web/gallery_navigation.go",
+    "before": "query.Get(\"from\") != \"gallery\" || user == nil || file.UserID == nil || *file.UserID != user.ID",
+    "after": "query.Get(\"from\") != \"gallery\" || user == nil || file.UserID == nil",
+    "package": "./internal/web",
+    "run": "^TestGalleryGroupsDescriptionsAndFilteredNeighbors$"
   }
 ]

@@ -145,3 +145,38 @@ export async function checkLibrary(page, base, photoID) {
     await fetch('/f/${photoID}/visibility',{method:'POST',body:form});
   `);
 }
+
+export async function checkUploadQueue(page, base) {
+  await page.goto(base + '/upload');
+  await page.evaluate(`
+    const fetch = window.fetch;
+    let requests = 0;
+    window.fetch = function (url, options) {
+      if (options.body instanceof FormData && ++requests === 2) {
+        return Promise.resolve(new Response('', {status: 429, headers: {'Retry-After': '1'}}));
+      }
+      return fetch(url, options);
+    };
+    const canvas = document.createElement('canvas');
+    canvas.width = 21;
+    canvas.height = 17;
+    const context = canvas.getContext('2d');
+    context.fillStyle = '#335577';
+    context.fillRect(0, 0, 21, 17);
+    const image = await new Promise(resolve => canvas.toBlob(resolve));
+    const files = new DataTransfer();
+    for (let i = 0; i < 21; i++) files.items.add(new File([image], 'queued-' + i + '.png', {type: 'image/png'}));
+    const form = document.getElementById('upload-form');
+    form.elements.files.files = files.files;
+    form.elements.skip_duplicates.checked = true;
+    form.requestSubmit();
+  `);
+  await page.waitFor(`document.getElementById('upload-batch-status')?.textContent.includes('Paused after 1 of 2 batches')`);
+  assert.equal(await page.evaluate(`return document.getElementById('file-input').files.length;`), 1);
+  await page.evaluate(`document.getElementById('upload-form').requestSubmit();`);
+  await page.waitFor(`document.getElementById('upload-batch-status')?.textContent.includes('1 uploaded, 20 already in your library, 0 failed.')`);
+  assert.deepEqual(await page.evaluate(`
+    return [...document.querySelectorAll('#results .upload-result')].map(result => Number(result.dataset.skipped));
+  `), [19, 1]);
+  assert.equal(await page.evaluate(`return document.getElementById('file-input').files.length;`), 0);
+}

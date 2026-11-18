@@ -179,6 +179,7 @@ func templateFuncs() template.FuncMap {
 				removeURL = strings.Replace(pattern, "%s", f.ID, 1)
 			}
 			return fileCard{
+				URL:           "/f/" + f.ID + view.DetailQuery,
 				ShowTaken:     view.ShowTaken,
 				SelectionForm: view.SelectionForm,
 				File:          f,

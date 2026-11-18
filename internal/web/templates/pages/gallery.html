@@ -6,7 +6,7 @@
 <form class="library-filters stack" method="get" action="/gallery" role="search">
   <div class="search-row">
     <label class="sr-only" for="gallery-search">Search your gallery</label>
-    <input id="gallery-search" type="search" name="q" value="{{.Query}}" placeholder="Search by name, tag or id" autocomplete="off">
+    <input id="gallery-search" type="search" name="q" value="{{.Query}}" placeholder="Search by name, description, tag or ID" autocomplete="off">
     <button class="btn small" type="submit">Search</button>
   </div>
   <details class="library-more"{{if or (eq .Dates.Sort "taken") .Dates.Year .Dates.Month}} open{{end}}>
@@ -57,6 +57,8 @@
 </details>
 {{end}}
 
-{{template "file_grid" .Grid}}
+{{if .Groups}}
+{{range .Groups}}<section class="gallery-group"><h2>{{.Title}}</h2>{{template "file_grid" .Grid}}</section>{{end}}
+{{else}}{{template "file_grid" .Grid}}{{end}}
 {{template "pagination" .Pagination}}
 {{end}}

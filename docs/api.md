@@ -39,6 +39,7 @@ Write endpoints accept JSON or ordinary form encoding.
 | `public` | The older boolean. `1` means `visibility=public`, `0` means `private` |
 | `album` | Album slug or id to add the uploads to |
 | `tags` | Comma-separated tag names to apply to the uploads |
+| `skip_duplicates` | Set to `1` to skip exact matches in your own active uploads |
 
 The file response carries a `details` object with whatever the file said about
 itself — `taken`, `camera`, `lens`, `exposure`, `aperture`, `iso`, `focal`,
@@ -55,6 +56,10 @@ Prefer `visibility` over the older `public` field.
 
 - Default: JSON with `files[]` (id, name, description, mime, kind, dimensions,
   tags, `page_url`, `raw_url`, `thumb_url`, `url`) and any per-file `errors[]`.
+  If organizing a saved file failed, `warnings[]` contains its `file_id`,
+  `name` and `message`. `skipped[]` lists the existing `file_id` and the
+  submitted `name` for each duplicate. A request that only skips files returns
+  HTTP 200 and an empty `files[]`.
 - `?format=text` or `Accept: text/plain`: one URL per line, for ShareX-style
   uploaders.
 

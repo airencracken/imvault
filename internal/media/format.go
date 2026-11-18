@@ -24,6 +24,10 @@ const (
 	FormatMP4 Format = "mp4"
 	// FormatMOV is a QuickTime container.
 	FormatMOV Format = "mov"
+	// FormatHEIF covers HEIC and other HEIF images.
+	FormatHEIF Format = "heif"
+	// FormatAVIF is an AV1 Still Image File Format image.
+	FormatAVIF Format = "avif"
 )
 
 // IsVideo reports whether the format is a video container.
@@ -85,10 +89,7 @@ func Classify(head []byte) Format {
 		return FormatWebM
 
 	case len(head) >= 12 && string(head[4:8]) == "ftyp":
-		if string(head[8:12]) == "qt  " {
-			return FormatMOV
-		}
-		return FormatMP4
+		return classifyISOBaseMedia(head)
 
 	case hasPrefix(head, []byte("GIF87a")), hasPrefix(head, []byte("GIF89a")):
 		return FormatGIF
@@ -101,6 +102,53 @@ func Classify(head []byte) Format {
 
 	default:
 		return FormatImage
+	}
+}
+
+func classifyISOBaseMedia(head []byte) Format {
+	size := uint64(binary.BigEndian.Uint32(head[:4]))
+	header := 8
+	if size == 1 && len(head) >= 20 {
+		size, header = binary.BigEndian.Uint64(head[8:16]), 16
+	}
+	if size == 0 {
+		size = uint64(len(head))
+	}
+	end := int(min(size, uint64(len(head))))
+	if end < header+4 {
+		return FormatMP4
+	}
+	major := string(head[header : header+4])
+	if major == "qt  " {
+		return FormatMOV
+	}
+	still := stillBrand(major)
+	if still == FormatAVIF {
+		return still
+	}
+	// Compatible brands follow the major brand and the minor version.
+	for offset := header + 8; offset+4 <= end; offset += 4 {
+		switch brand := stillBrand(string(head[offset : offset+4])); brand {
+		case FormatAVIF:
+			return brand
+		case FormatHEIF:
+			still = brand
+		}
+	}
+	if still != "" {
+		return still
+	}
+	return FormatMP4
+}
+
+func stillBrand(brand string) Format {
+	switch brand {
+	case "avif", "avis":
+		return FormatAVIF
+	case "heic", "heix", "heim", "heis", "hevc", "hevx", "hevm", "hevs", "mif1", "msf1", "mif2":
+		return FormatHEIF
+	default:
+		return ""
 	}
 }
 

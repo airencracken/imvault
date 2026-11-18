@@ -22,7 +22,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { checkThemes } from "./browser-themes.mjs";
 import { checkPhotoRotation } from "./browser-rotation.mjs";
-import { checkLibrary } from "./browser-library.mjs";
+import { checkLibrary, checkUploadQueue } from "./browser-library.mjs";
 import { checkVersionDisplay } from "./browser-version.mjs";
 import { checkAvatars } from "./browser-avatars.mjs";
 import { checkProfiles } from "./browser-profiles.mjs";
@@ -399,6 +399,8 @@ async function main() {
     record("photo rotation, reset and mobile controls work with and without JavaScript", true);
     await checkLibrary(page, base, fileID);
     record("gallery bulk actions, Trash, restoration and permanent deletion work on mobile and without JavaScript", true);
+    await checkUploadQueue(page, base);
+    record("the upload queue batches a large selection and skips exact duplicates", true);
     await page.goto(`${base}/f/${fileID}`);
 
     // --- rename through the ordinary HTML form ---

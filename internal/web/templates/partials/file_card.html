@@ -6,14 +6,14 @@
   </label>
   {{end}}
 
-  <a class="thumb" href="/f/{{.File.ID}}">
+  <a class="thumb" href="{{.URL}}">
     {{if .File.IsVideo}}<span class="play" aria-hidden="true">▶</span>{{end}}
     <img src="{{.File.ThumbURL}}" alt="{{.File.OriginalName}}" loading="lazy"
          {{if .File.IsAnimatedGIF}}data-anim="{{.File.PreviewURL}}" data-still="{{.File.ThumbURL}}"{{end}}>
   </a>
 
   <figcaption class="caption">
-    <a class="name" href="/f/{{.File.ID}}" title="{{.File.OriginalName}}">{{.File.OriginalName}}</a>
+    <a class="name" href="{{.URL}}" title="{{.File.OriginalName}}">{{.File.OriginalName}}</a>
     <div class="meta">
       <span>{{humanSize .File.Size}}</span>
       {{with .File.Dimensions}}<span>{{.}}</span>{{end}}

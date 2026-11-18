@@ -110,7 +110,7 @@
   // how many files were staged; when none qualify the current selection is left
   // alone rather than replaced with nothing.
   function stage(files) {
-    if (typeof DataTransfer === "undefined") return 0;
+    if (input.disabled || typeof DataTransfer === "undefined") return 0;
 
     var transfer = new DataTransfer();
     for (var i = 0; i < files.length; i++) {

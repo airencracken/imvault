@@ -112,8 +112,8 @@ Favorites are private to you. They point at the file, so they never change its
 visibility or expiry. A file you can no longer see drops off the list. Removing
 a favorite never deletes the upload.
 
-Gallery and Favorites search match file names, file IDs, and tag names or
-slugs.
+Gallery and Favorites search match file names, descriptions, file IDs,
+and tag names or slugs.
 
 ## Exporting an account
 

@@ -12,10 +12,11 @@
   </p>
 </header>
 
-<form id="upload-form" class="panel"
+<form id="upload-form" class="panel"{{if .IsAuthed}} data-batch-files="{{.MaxBatchFiles}}" data-batch-bytes="{{.BatchBytes}}"{{end}}
       method="post" action="/upload" enctype="multipart/form-data"
       hx-post="/upload" hx-encoding="multipart/form-data"
       hx-target="#results" hx-swap="innerHTML"
+      hx-sync="this:drop" hx-disabled-elt="find button[type=submit]"
       hx-indicator="#upload-progress">
   <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
 
@@ -75,11 +76,17 @@
     </label>
     {{end}}
 
+    {{if .IsAuthed}}
+    <label class="row"><input type="checkbox" name="skip_duplicates" value="1">
+      <span>Skip files already in your library</span>
+    </label>
+    {{end}}
     </details>
     <button class="btn primary" type="submit">Upload</button>
     <span id="upload-progress" class="htmx-indicator muted">Uploading…</span>
   </div>
 </form>
 
+<p id="upload-batch-status" role="status" hidden></p>
 <div id="results">{{with .Result}}{{template "upload_result" .}}{{end}}</div>
 {{end}}

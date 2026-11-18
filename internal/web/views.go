@@ -60,6 +60,7 @@ func (b base) CanModerate() bool { return b.User != nil && b.User.CanModerate() 
 
 // fileCard is the data for a single tile in a grid.
 type fileCard struct {
+	URL           string
 	ShowTaken     bool
 	SelectionForm string
 	File          *models.File
@@ -75,6 +76,7 @@ type fileCard struct {
 
 // fileCardsView backs the reusable grid fragment.
 type fileCardsView struct {
+	DetailQuery   string
 	ShowTaken     bool
 	SelectionForm string
 	base
@@ -149,6 +151,7 @@ type galleryView struct {
 	Years      []string
 	Albums     []*models.Album
 	Grid       fileCardsView
+	Groups     []galleryGroup
 	Query      string
 	Pagination paginationView
 }
@@ -162,6 +165,8 @@ type recentView struct {
 
 type uploadView struct {
 	base
+	MaxBatchFiles   int
+	BatchBytes      int64
 	MaxUpload       string
 	MaxVideo        string
 	MaxVideoSeconds int
@@ -297,6 +302,7 @@ type fileView struct {
 	base
 	Favorited    bool
 	File         *models.File
+	Gallery      galleryNavigation
 	Albums       []*models.Album
 	TagsFragment tagsFragmentView
 	// ReportForm is present when the viewer may report this, which is a
@@ -391,5 +397,7 @@ type uploadResultView struct {
 	base
 	Grid      fileCardsView
 	Errors    []string
+	Warnings  []uploadWarning
+	Skipped   []skippedUpload
 	Anonymous bool
 }

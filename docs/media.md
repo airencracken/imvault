@@ -15,6 +15,17 @@ Thumbnails fit within `IMVAULT_THUMB_MAX` (default 480px) and previews within
 `IMVAULT_PREVIEW_MAX` (default 1600px), measured on the longest edge. Smaller
 images keep their size.
 
+## Uploading a larger selection
+
+When signed in, you can select more than 20 files in a JavaScript-enabled
+browser. Imvault sends them in smaller batches and shows which files uploaded,
+which were skipped, and which failed. Without JavaScript, send up to 20 at a time.
+
+Under **Organize uploads**, choose **Skip files already in your library** to
+skip byte-for-byte matches among your own active uploads. Existing files keep
+their tags, albums and visibility. If tags or an album fail to apply to a new
+file, use the link in the result to organize the saved file from your gallery.
+
 ## What it accepts
 
 Imvault identifies each upload by its first bytes, not its filename:
@@ -25,6 +36,7 @@ Imvault identifies each upload by its first bytes, not its filename:
 | `animated` | GIF with more than one frame, or animated WebP | original, thumbnail | first frame; plays on hover | the animation |
 | `video` | WebM/Matroska, MP4, MOV | original, poster | poster with a play badge | `<video>` player |
 
+Convert HEIC, HEIF and AVIF images to JPEG, PNG or WebP before uploading.
 Phone photos are turned upright using their EXIF orientation. Renditions with
 any transparency are saved as PNG, opaque ones as JPEG. Animations and clips are
 served as uploaded, never re-encoded or transcoded.

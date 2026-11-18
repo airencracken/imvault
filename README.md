@@ -8,6 +8,8 @@ Photographs, screenshots, GIFs and short clips deserve a home that you run.
 Imvault is a small, self-hosted image host in the spirit of MLKSHK, Picsur,
 [Chibisafe](https://github.com/chibisafe/chibisafe) and
 [Imgur](https://imgur.com): part personal library, part clubhouse noticeboard.
+[Immich](https://immich.app/) is an inspiration for how Imvault organizes and
+browses a photo library.
 
 **Familyware, cozyware, friendware, software for your tribe.**
 
@@ -28,7 +30,7 @@ Public for an audience, members-only for your people, private for the
 
 *The local demo, stocked with sample media.*
 
-**Current release:** 0.26.2. See [what's new](docs/release-notes/0.26.2.md) and
+**Current release:** 0.27.0. See [what's new](docs/release-notes/0.27.0.md) and
 [all releases](docs/releases.md).
 
 ## Come on in

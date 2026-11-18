@@ -17,6 +17,7 @@
   <script src="/static/js/htmx.min.js" defer></script>
   <script src="/static/comfyware/timezone.js" defer></script>
   <script src="/static/js/app.js" defer></script>
+  {{if eq .CurrentPath "/upload"}}<script src="/static/js/upload-queue.js" defer></script>{{end}}
   <script src="/static/comfyware/suite.js"></script>
 </head>
 <body hx-headers='{"X-CSRF-Token":"{{.CSRFToken}}"}'>

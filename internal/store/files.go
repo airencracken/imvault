@@ -5,6 +5,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -232,10 +233,10 @@ func (q FileQuery) where() (string, []any) {
 	}
 	if term := strings.TrimSpace(q.Search); term != "" {
 		pattern := "%" + escapeLike(term) + "%"
-		clauses = append(clauses, `(f.original_name LIKE ? ESCAPE '\' OR f.id LIKE ? ESCAPE '\'
+		clauses = append(clauses, `(f.original_name LIKE ? ESCAPE '\' OR f.id LIKE ? ESCAPE '\' OR f.description LIKE ? ESCAPE '\'
 			OR EXISTS (SELECT 1 FROM file_tags ft JOIN tags t ON t.id = ft.tag_id
 				WHERE ft.file_id = f.id AND (t.name LIKE ? ESCAPE '\' OR t.slug LIKE ? ESCAPE '\')))`)
-		args = append(args, pattern, pattern, pattern, pattern)
+		args = append(args, pattern, pattern, pattern, pattern, pattern)
 	}
 
 	// Expiry and trash are checked independently of audience filters.
@@ -434,6 +435,17 @@ func (s *Store) ExpiredFiles(ctx context.Context, at time.Time, limit int) ([]*m
 func escapeLike(s string) string {
 	r := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 	return r.Replace(s)
+}
+
+// ActiveUploadByHash looks for an identical upload in the caller's library.
+func (s *Store) ActiveUploadByHash(ctx context.Context, owner int64, sha string) (string, error) {
+	var id string
+	err := s.db.QueryRowContext(ctx, `SELECT f.id FROM files f WHERE f.user_id=? AND f.sha256=? AND `+
+		expiryClause+` ORDER BY f.created_at DESC, f.id DESC LIMIT 1`, owner, sha, nowUnix()).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return id, err
 }
 
 // FileBySHA256 returns any file with the given content hash.

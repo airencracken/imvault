@@ -68,8 +68,10 @@ type apiTagJSON struct {
 
 // apiUploadResponse is returned by POST /api/v1/upload.
 type apiUploadResponse struct {
-	Files  []apiFileJSON `json:"files"`
-	Errors []string      `json:"errors,omitempty"`
+	Files    []apiFileJSON   `json:"files"`
+	Errors   []string        `json:"errors,omitempty"`
+	Warnings []uploadWarning `json:"warnings,omitempty"`
+	Skipped  []skippedUpload `json:"skipped,omitempty"`
 }
 
 func newAPIFile(r *http.Request, s *Server, f *models.File) apiFileJSON {
@@ -217,34 +219,17 @@ func (s *Server) apiUpload(w http.ResponseWriter, r *http.Request) {
 	// boolean, then the instance default. The default matters more than it
 	// looks: on an instance configured for members, a script that says nothing
 	// uploads for members rather than for the world.
-	if !s.validSharingForm(w, r) {
+	if !s.validUploadForm(w, r) {
 		return
 	}
-	options := s.uploadOptions(r, user)
-
-	var (
-		created  []apiFileJSON
-		failures []string
-	)
-
-	for _, header := range parts {
-		file, err := s.ingest(r.Context(), header, user, options)
-		if err != nil {
-			failures = append(failures, fmt.Sprintf("%s: %s", header.Filename, err))
-			continue
-		}
-
-		s.applyUploadTags(r.Context(), file, r.FormValue("tags"))
-
-		if albumRef := strings.TrimSpace(r.FormValue("album")); albumRef != "" {
-			s.apiAttachToAlbum(r, user, albumRef, file)
-		}
+	batch := s.uploadBatch(r, parts, user, strings.TrimSpace(r.FormValue("album")))
+	if len(batch.Files) == 0 && len(batch.Skipped) == 0 {
+		writeAPIError(w, http.StatusUnprocessableEntity, strings.Join(batch.Errors, "; "))
+		return
+	}
+	created := make([]apiFileJSON, 0, len(batch.Files))
+	for _, file := range batch.Files {
 		created = append(created, newAPIFile(r, s, file))
-	}
-
-	if len(created) == 0 {
-		writeAPIError(w, http.StatusUnprocessableEntity, strings.Join(failures, "; "))
-		return
 	}
 
 	noStore(w)
@@ -257,7 +242,11 @@ func (s *Server) apiUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, apiUploadResponse{Files: created, Errors: failures})
+	status := http.StatusCreated
+	if len(created) == 0 {
+		status = http.StatusOK
+	}
+	writeJSON(w, status, apiUploadResponse{Files: created, Errors: batch.Errors, Warnings: batch.Warnings, Skipped: batch.Skipped})
 }
 
 // uploadParts accepts the conventional multipart names used by upload clients.
@@ -268,22 +257,6 @@ func uploadParts(form *multipart.Form) []*multipart.FileHeader {
 		}
 	}
 	return nil
-}
-
-// apiAttachToAlbum links an upload to an album named by id or slug, when the
-// caller may contribute to it, exactly as the album page decides. Failures are
-// logged rather than failing the upload, which has already succeeded by this
-// point.
-func (s *Server) apiAttachToAlbum(r *http.Request, user *models.User, ref string, file *models.File) {
-	album, err := s.contributableAlbum(r.Context(), user, ref)
-	if err != nil {
-		s.log.Warn("api upload: album not usable", "album", ref, "user", user.ID)
-		return
-	}
-
-	if err := s.store.AddFileToAlbum(r.Context(), album.ID, file.ID); err != nil {
-		s.log.Error("api upload: attach to album", "album", album.ID, "file", file.ID, "error", err)
-	}
 }
 
 // apiFile returns metadata for one file the caller owns.

@@ -1,12 +1,25 @@
 {{define "upload_result"}}
+<div class="upload-result" data-saved="{{len .Grid.Files}}" data-skipped="{{len .Skipped}}" data-failed="{{len .Errors}}" data-warnings="{{len .Warnings}}">
 {{if .Errors}}
 <div class="flash err">
   <strong>Some files were not uploaded:</strong>
   <ul>{{range .Errors}}<li>{{.}}</li>{{end}}</ul>
 </div>
 {{end}}
+{{if .Warnings}}
+<div class="flash warn">
+  <strong>These files were saved and still need organizing.</strong>
+  <ul>{{range .Warnings}}<li>{{.Name}}. {{.Message}}{{if not $.Anonymous}} <a href="/gallery?q={{.FileID}}#file-{{.FileID}}">Organize this file</a>{{end}}</li>{{end}}</ul>
+</div>
+{{end}}
+{{if .Skipped}}
+<details><summary>{{len .Skipped}} already in your library</summary>
+  <ul>{{range .Skipped}}<li><a href="/f/{{.FileID}}">{{.Name}}</a></li>{{end}}</ul>
+</details>
+{{end}}
 {{if .Grid.Files}}
 {{if .Anonymous}}<p class="muted">Anonymous uploads are removed automatically when their retention window ends.</p>{{end}}
 {{template "file_grid" .Grid}}
 {{end}}
+</div>
 {{end}}

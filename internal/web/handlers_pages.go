@@ -53,6 +53,7 @@ func (s *Server) handleGallery(w http.ResponseWriter, r *http.Request) {
 	grid := s.grid(r, files, true, true, "", "You have not uploaded anything yet.")
 	grid.SelectionForm = "bulk-tags"
 	grid.ShowTaken = true
+	grid.DetailQuery = "?" + galleryQuery(query, dates, page, true).Encode()
 	years, err := s.store.CaptureYears(r.Context(), user.ID)
 	if err != nil {
 		s.fail(w, r, http.StatusInternalServerError, "Photo dates couldn't be loaded. Please try again.")
@@ -66,6 +67,7 @@ func (s *Server) handleGallery(w http.ResponseWriter, r *http.Request) {
 	s.renderPage(w, r, http.StatusOK, "gallery", galleryView{
 		base:       s.base(r, "Your gallery"),
 		Grid:       grid,
+		Groups:     groupGallery(grid, dates),
 		Query:      query,
 		Pagination: pg,
 		Dates:      dates,
@@ -135,6 +137,7 @@ func (s *Server) handleFilePage(w http.ResponseWriter, r *http.Request) {
 			CanEdit: canChangeFile(user, file),
 		},
 	}
+	view.Gallery = s.galleryNavigation(r, user, file)
 
 	if user != nil {
 		if file.UserID != nil {

@@ -731,3 +731,8 @@ code {
 .skip-link { position: absolute; left: .75rem; top: -3rem; z-index: 100; padding: .5rem .85rem; border-radius: var(--radius); background: var(--accent); color: var(--accent-fg); font-weight: 600; }
 .skip-link:focus { top: .75rem; }
 main:focus { outline: none; }
+
+.gallery-group + .gallery-group { margin-block-start: 1.75rem; }
+.gallery-group h2 { margin-block: 0 .65rem; font-size: 1.1rem; }
+.gallery-navigation { margin-block-end: 1rem; }
+#bulk-panel[hidden] { display: none; }

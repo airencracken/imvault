@@ -7,6 +7,11 @@ camera dates come first, newest at the top, then files without one. Pick a year,
 and a month if you like, or **Unknown date** to find undated files. Search works
 with these controls. **Date uploaded** is the default.
 
+Date-taken results are grouped by month, with an **Unknown date taken**
+section for the rest. Open a photo from **Your gallery** to browse with
+**Previous photo** and **Next photo**. **Back to gallery** returns to the
+same page and filters.
+
 Dates come from the camera's recorded local time. Imvault does not guess a
 timezone or fill in the upload date. Screenshots, animations and clips often have
 no capture date, and each gallery card shows which date it is using.
