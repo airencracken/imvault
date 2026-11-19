@@ -179,4 +179,29 @@ export async function checkUploadQueue(page, base) {
     return [...document.querySelectorAll('#results .upload-result')].map(result => Number(result.dataset.skipped));
   `), [19, 1]);
   assert.equal(await page.evaluate(`return document.getElementById('file-input').files.length;`), 0);
+  const links = '#results .upload-share-links';
+  await page.waitFor(`document.querySelector('${links} .comfy-copy')`);
+  const copied = await page.evaluate(`
+    const card = document.querySelector('${links}');
+    const values = [];
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: async value => values.push(value) }
+    });
+    card.querySelector('.comfy-copy').click();
+    const preview = card.querySelector('details');
+    preview.querySelector('summary').click();
+    preview.querySelector('.comfy-copy').click();
+    delete navigator.clipboard;
+    return { values, open: preview.open, audience: card.querySelector('.muted').textContent };
+  `);
+  assert.equal(copied.open, true);
+  assert.equal(copied.values.length, 2);
+  const [file, preview] = copied.values.map(value => new URL(value));
+  assert.equal(file.origin, base);
+  assert.match(file.pathname, /^\/f\/[^/]+$/);
+  assert.equal(preview.origin, base);
+  assert.equal(preview.pathname, file.pathname + '/preview');
+  assert.match(preview.searchParams.get('v'), /^[a-f0-9]{16}$/);
+  assert.match(copied.audience, /Who can open these links\?/);
 }

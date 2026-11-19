@@ -26,6 +26,7 @@
       {{if not .File.Visibility.IsPublic}}<span class="badge private">{{.File.Visibility.ShortLabel}}</span>{{end}}
       {{with .File.ExpiryLabel}}<span class="badge warn">{{.}}</span>{{end}}
     </div>
+    {{if .UploadOrigin}}{{template "upload-share-links" .}}{{end}}
   </figcaption>
 
   {{if .Removable}}

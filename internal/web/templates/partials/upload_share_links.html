@@ -1,0 +1,19 @@
+{{define "upload-share-links"}}
+<div class="upload-share-links">
+  <label for="upload-link-{{.File.ID}}">Page link</label>
+  <input id="upload-link-{{.File.ID}}" readonly value="{{.UploadOrigin}}{{.URL}}" data-comfy-copy data-select-on-focus aria-describedby="upload-audience-{{.File.ID}}">
+  <p class="muted" id="upload-audience-{{.File.ID}}">Who can open these links? {{.File.Visibility.Explain}}.</p>
+  <details>
+    {{if .File.IsVideo}}
+      <summary>Poster link</summary>
+      <input aria-label="Poster link for {{.File.OriginalName}}" readonly value="{{.UploadOrigin}}{{.File.ThumbURL}}" data-comfy-copy data-select-on-focus aria-describedby="upload-audience-{{.File.ID}}">
+    {{else if .File.IsAnimated}}
+      <summary>Thumbnail link</summary>
+      <input aria-label="Thumbnail link for {{.File.OriginalName}}" readonly value="{{.UploadOrigin}}{{.File.ThumbURL}}" data-comfy-copy data-select-on-focus aria-describedby="upload-audience-{{.File.ID}}">
+    {{else}}
+      <summary>Preview link</summary>
+      <input aria-label="Preview link for {{.File.OriginalName}}" readonly value="{{.UploadOrigin}}{{.File.PreviewURL}}" data-comfy-copy data-select-on-focus aria-describedby="upload-audience-{{.File.ID}}">
+    {{end}}
+  </details>
+</div>
+{{end}}

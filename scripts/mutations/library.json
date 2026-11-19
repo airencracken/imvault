@@ -1,5 +1,13 @@
 [
   {
+    "name": "uploaded files return copyable absolute links",
+    "file": "internal/web/handlers_upload.go",
+    "before": "grid.UploadOrigin = s.absoluteURL(r, \"\")",
+    "after": "grid.UploadOrigin = \"\"",
+    "package": "./internal/web",
+    "run": "^TestUploadCopyLinksRespectVisibility$"
+  },
+  {
     "name": "trash is hidden from ordinary file lookup",
     "file": "internal/store/files.go",
     "before": " WHERE f.id = ? AND f.trashed_at IS NULL`, id)",

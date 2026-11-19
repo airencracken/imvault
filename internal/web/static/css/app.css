@@ -736,3 +736,10 @@ main:focus { outline: none; }
 .gallery-group h2 { margin-block: 0 .65rem; font-size: 1.1rem; }
 .gallery-navigation { margin-block-end: 1rem; }
 #bulk-panel[hidden] { display: none; }
+
+.upload-share-links { display: grid; gap: .45rem; margin-top: .75rem; }
+.upload-share-links label { font-weight: 600; }
+.upload-share-links input { min-width: 0; width: 100%; }
+.upload-share-links p { margin: 0; overflow-wrap: anywhere; }
+.upload-share-links summary { cursor: pointer; }
+.upload-share-links details[open] > summary { margin-bottom: .45rem; }

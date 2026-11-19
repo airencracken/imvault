@@ -26,6 +26,11 @@ skip byte-for-byte matches among your own active uploads. Existing files keep
 their tags, albums and visibility. If tags or an album fail to apply to a new
 file, use the link in the result to organize the saved file from your gallery.
 
+Use **Copy link** on an upload result to share its file page. Open **Preview
+link** to copy a link to the image preview. Clips offer a **Poster link** and
+animations a **Thumbnail link**. The result shows who can open these links.
+Only public uploads can be opened by someone who is signed out.
+
 ## What it accepts
 
 Imvault identifies each upload by its first bytes, not its filename:

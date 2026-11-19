@@ -30,7 +30,7 @@ Public for an audience, members-only for your people, private for the
 
 *The local demo, stocked with sample media.*
 
-**Current release:** 0.27.0. See [what's new](docs/release-notes/0.27.0.md) and
+**Current release:** 0.28.0. See [what's new](docs/release-notes/0.28.0.md) and
 [all releases](docs/releases.md).
 
 ## Come on in

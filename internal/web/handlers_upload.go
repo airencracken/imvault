@@ -147,9 +147,11 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	batch := s.uploadBatch(r, parts, user, strings.TrimSpace(r.FormValue("album_id")))
+	grid := s.grid(r, batch.Files, true, false, "", "")
+	grid.UploadOrigin = s.absoluteURL(r, "")
 	s.renderUploadResult(w, r, http.StatusOK, uploadResultView{
 		base:      s.base(r, "Upload"),
-		Grid:      s.grid(r, batch.Files, true, false, "", ""),
+		Grid:      grid,
 		Errors:    batch.Errors,
 		Warnings:  batch.Warnings,
 		Skipped:   batch.Skipped,

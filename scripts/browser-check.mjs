@@ -400,7 +400,7 @@ async function main() {
     await checkLibrary(page, base, fileID);
     record("gallery bulk actions, Trash, restoration and permanent deletion work on mobile and without JavaScript", true);
     await checkUploadQueue(page, base);
-    record("the upload queue batches a large selection and skips exact duplicates", true);
+    record("the upload queue batches a large selection, skips duplicates, and copies links", true);
     await page.goto(`${base}/f/${fileID}`);
 
     // --- rename through the ordinary HTML form ---
