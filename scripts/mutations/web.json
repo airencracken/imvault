@@ -208,14 +208,6 @@
     "run": "^TestUploadingIntoAnAlbumFollowsTheAlbumRules$"
   },
   {
-    "name": "recovery codes discard biased bytes",
-    "file": "internal/web/handlers_twofactor.go",
-    "before": "\t\tif buf[0] >= limit {",
-    "after": "\t\tif buf[0] >= limit && limit == 0 {",
-    "package": "./internal/web",
-    "run": "^TestRecoveryCodesRejectBiasedBytes$"
-  },
-  {
     "name": "administrator limits cannot overflow",
     "file": "internal/web/handlers_admin.go",
     "before": "value < 0 || value > maxAdminMegabytes {",

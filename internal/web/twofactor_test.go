@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/airencracken/comfylib/totp"
 	"imvault/internal/config"
-	"imvault/internal/totp"
 )
 
 // totpCodeFor reads an account's secret the way the server would, and returns

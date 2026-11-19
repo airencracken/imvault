@@ -4,11 +4,8 @@ package web
 
 import (
 	"context"
-	"crypto/rand"
 	"errors"
-	"fmt"
 	"github.com/airencracken/comfylib/analytics"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -16,9 +13,9 @@ import (
 	tokens "github.com/airencracken/comfylib/token"
 	"rsc.io/qr"
 
+	"github.com/airencracken/comfylib/totp"
 	"imvault/internal/models"
 	"imvault/internal/store"
-	"imvault/internal/totp"
 )
 
 const (
@@ -28,10 +25,6 @@ const (
 	// pendingTTL is how long somebody has to produce a code, which is long
 	// enough to find a phone and short enough not to linger.
 	pendingTTL = 5 * time.Minute
-	// recoveryAlphabet omits the characters people misread: I, L, O, U, 0, 1.
-	recoveryAlphabet = "ABCDEFGHJKMNPQRSTVWXYZ23456789"
-	// recoveryCodeLength is the length of one code, before grouping.
-	recoveryCodeLength = 10
 )
 
 // --- the settings page ------------------------------------------------------
@@ -328,68 +321,22 @@ func (s *Server) renderTwoFactorPage(w http.ResponseWriter, r *http.Request, cod
 // issueRecoveryCodes generates, stores and returns a fresh set. The plaintext
 // is returned once and never stored.
 func (s *Server) issueRecoveryCodes(ctx context.Context, userID int64) ([]string, error) {
-	codes := make([]string, 0, store.RecoveryCodeCount)
-	hashes := make([]string, 0, store.RecoveryCodeCount)
+	codes := make([]string, 0, totp.RecoveryCodeCount)
+	hashes := make([]string, 0, totp.RecoveryCodeCount)
 
-	for i := 0; i < store.RecoveryCodeCount; i++ {
-		code, err := generateRecoveryCode()
+	for i := 0; i < totp.RecoveryCodeCount; i++ {
+		code, err := totp.GenerateRecoveryCode()
 		if err != nil {
 			return nil, err
 		}
 		codes = append(codes, code)
-		hashes = append(hashes, store.HashRecoveryCode(code))
+		hashes = append(hashes, totp.HashRecoveryCode(code))
 	}
 
 	if err := s.store.ReplaceRecoveryCodes(ctx, userID, hashes); err != nil {
 		return nil, err
 	}
 	return codes, nil
-}
-
-// generateRecoveryCode returns one grouped code, for example "K7QP2-MX4RT".
-//
-// Each character is drawn without bias: a random byte is only used when it
-// falls below the largest multiple of the alphabet's length, since mapping all
-// 256 values with a modulo would make the first few letters slightly likelier.
-func generateRecoveryCode() (string, error) {
-	return recoveryCodeFrom(rand.Reader)
-}
-
-// recoveryCodeFrom builds a code from a source of random bytes.
-func recoveryCodeFrom(source io.Reader) (string, error) {
-	limit := byte(256 - 256%len(recoveryAlphabet))
-	var b strings.Builder
-	buf := make([]byte, 1)
-	for written := 0; written < recoveryCodeLength; {
-		if _, err := io.ReadFull(source, buf); err != nil {
-			return "", fmt.Errorf("recovery code: %w", err)
-		}
-		if buf[0] >= limit {
-			continue
-		}
-		if written == recoveryCodeLength/2 {
-			b.WriteByte('-')
-		}
-		b.WriteByte(recoveryAlphabet[int(buf[0])%len(recoveryAlphabet)])
-		written++
-	}
-	return b.String(), nil
-}
-
-// looksLikeAuthenticatorCode reports whether the input has the shape of a
-// six-digit code. Anything else is treated as a recovery code, which is longer
-// and carries a separator, so the two can never be confused.
-func looksLikeAuthenticatorCode(code string) bool {
-	code = strings.TrimSpace(code)
-	if len(code) != totp.Digits {
-		return false
-	}
-	for _, r := range code {
-		if r < '0' || r > '9' {
-			return false
-		}
-	}
-	return true
 }
 
 // verifySensitiveAction re-checks the password and, when a second factor is on,
@@ -422,8 +369,8 @@ func (s *Server) verifySensitiveAction(w http.ResponseWriter, r *http.Request, u
 // checkSecondFactor accepts either a current authenticator code or an unused
 // recovery code.
 func (s *Server) checkSecondFactor(ctx context.Context, user *models.User, code string) error {
-	if !looksLikeAuthenticatorCode(code) {
-		used, err := s.store.ConsumeRecoveryCode(ctx, user.ID, store.HashRecoveryCode(code))
+	if !totp.IsCode(code) {
+		used, err := s.store.ConsumeRecoveryCode(ctx, user.ID, totp.HashRecoveryCode(code))
 		if err != nil {
 			return userError("That code could not be checked.")
 		}

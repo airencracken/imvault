@@ -4,18 +4,12 @@ package store
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"strings"
 
 	"imvault/internal/models"
 )
-
-// RecoveryCodeCount is how many codes are issued at a time.
-const RecoveryCodeCount = 10
 
 // BeginTOTP stores a secret without enabling it.
 //
@@ -159,23 +153,6 @@ func (s *Store) RecoveryCodesRemaining(ctx context.Context, userID int64) (int, 
 		return 0, fmt.Errorf("count recovery codes: %w", err)
 	}
 	return n, nil
-}
-
-// HashRecoveryCode returns the digest stored for a recovery code.
-//
-// A fast hash is right here, unlike for a password: the codes are long and
-// random, so there is nothing to guess, and lookup has to stay cheap.
-func HashRecoveryCode(code string) string {
-	sum := sha256.Sum256([]byte(NormaliseRecoveryCode(code)))
-	return hex.EncodeToString(sum[:])
-}
-
-// NormaliseRecoveryCode strips the grouping and case a person may type.
-func NormaliseRecoveryCode(code string) string {
-	code = strings.ToUpper(strings.TrimSpace(code))
-	code = strings.ReplaceAll(code, "-", "")
-	code = strings.ReplaceAll(code, " ", "")
-	return code
 }
 
 // AccountStatus is the summary the settings pages show.
