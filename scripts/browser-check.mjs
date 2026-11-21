@@ -649,7 +649,7 @@ async function main() {
 
     await switchBrowserUser(page, base, "bob", "/albums");
     await checkSharedAlbumCard(page, base);
-    record("shared album cards keep the album and contributor links independently clickable", true);
+    record("shared album borders contain the member name and badges while both links work", true);
     await switchBrowserUser(page, base, "boss", "/admin/users");
 
     // --- roles ---

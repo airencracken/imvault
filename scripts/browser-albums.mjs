@@ -63,13 +63,42 @@ export async function checkAlbumLayout(page, base, fileID) {
 
 export async function checkSharedAlbumCard(page, base) {
   const card = '.album-card:has(a[href="/a/browser-shared"])';
+  try {
+    for (const width of [320, 390, 768, 1280]) {
+      await page.send('Emulation.setDeviceMetricsOverride', {width, height: 900, deviceScaleFactor: 1, mobile: false});
+      const layout = await page.evaluate(`
+        const card = document.querySelector(${JSON.stringify(card)});
+        const title = card?.querySelector('.album-card-title');
+        const owner = card?.querySelector('.album-byline a');
+        const badges = card ? [...card.querySelectorAll('.badge')] : [];
+        if (!title || !owner || !badges.length) return {};
+
+        const box = card.getBoundingClientRect();
+        const ownerBox = owner.getBoundingClientRect();
+        const inside = [title, owner, ...badges].every(part => {
+          const bounds = part.getBoundingClientRect();
+          return bounds.width > 0 && bounds.height > 0 &&
+            bounds.left >= box.left && bounds.right <= box.right &&
+            bounds.top >= box.top && bounds.bottom <= box.bottom;
+        });
+        return {
+          inside,
+          ownerTarget: document.elementFromPoint(ownerBox.x + ownerBox.width / 2, ownerBox.y + ownerBox.height / 2) === owner,
+          albumTarget: document.elementFromPoint(box.right - 8, box.top + 8) === title,
+        };
+      `);
+      assert.equal(layout.inside, true, 'The shared album border should enclose the title, member name and badges at ' + width + 'px');
+      assert.equal(layout.ownerTarget, true, 'The member name should open its profile at ' + width + 'px');
+      assert.equal(layout.albumTarget, true, 'The empty space inside the card should open the album at ' + width + 'px');
+    }
+  } finally {
+    await page.send('Emulation.clearDeviceMetricsOverride');
+  }
+
   const profile = await page.evaluate(`
     const card = document.querySelector(${JSON.stringify(card)});
     const owner = card?.querySelector('.album-byline a');
     if (!owner || card.querySelectorAll('a').length !== 2 || document.querySelector('.new-album').open) return '';
-    const rect = owner.getBoundingClientRect();
-    const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
-    if (hit !== owner) return '';
     setTimeout(() => owner.click(), 0);
     return owner.pathname;
   `);
