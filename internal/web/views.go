@@ -343,8 +343,9 @@ type albumView struct {
 	Discussions                        []string
 	DiscussionEnabled, DiscussionOwner bool
 	base
-	Album *models.Album
-	Grid  fileCardsView
+	Album      *models.Album
+	Grid       fileCardsView
+	Pagination paginationView
 	// ReportForm is present when the viewer may report this album.
 	ReportForm *reportFormView
 	// IsOwner is the right to change or delete the album itself.

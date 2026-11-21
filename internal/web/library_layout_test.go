@@ -50,15 +50,15 @@ func TestAlbumsListComesBeforeTheNewAlbumForm(t *testing.T) {
 	owner := h.sessionFor(t, alice.ID)
 
 	_, empty := owner.get("/albums")
-	if !strings.Contains(empty, `<details class="panel stack new-album" open>`) {
+	if !strings.Contains(empty, `<details class="panel album-disclosure new-album" open>`) {
 		t.Error("with no albums the new album form should start open")
 	}
 	if resp, _ := owner.post("/albums", url.Values{"title": {"Trip"}, "visibility": {"members"}, "access": {"owner"}}); resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("create album = %d", resp.StatusCode)
 	}
 	_, page := owner.get("/albums")
-	list := strings.Index(page, "<h2>Your albums</h2>")
-	form := strings.Index(page, `<details class="panel stack new-album">`)
+	list := strings.Index(page, `<h2 id="your-albums">Your albums</h2>`)
+	form := strings.Index(page, `<details class="panel album-disclosure new-album">`)
 	if list < 0 || form < 0 || list > form {
 		t.Fatalf("Your albums (%d) does not come before a closed New album disclosure (%d)", list, form)
 	}

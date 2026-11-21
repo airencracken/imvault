@@ -1,70 +1,75 @@
 {{define "content"}}
-<header class="page-head">
+<div class="albums-page">
   <h1>Albums</h1>
-</header>
 
-<h2>Your albums</h2>
-{{if .Albums}}
-<div class="album-list">
-  {{range .Albums}}
-  <a class="album-card" href="/a/{{.Slug}}">
-    <strong>{{.Title}}</strong>
-    <span class="muted">{{.FileCount}} file{{if ne .FileCount 1}}s{{end}}</span>
-    {{if not .Visibility.IsPublic}}<span class="badge private">{{.Visibility.ShortLabel}}</span>{{end}}
-    {{if .Access.Shared}}<span class="badge">shared</span>{{end}}
-  </a>
+  {{if .Albums}}
+  <section aria-labelledby="your-albums">
+    <h2 id="your-albums">Your albums</h2>
+    <ul class="album-list">
+      {{range .Albums}}
+      <li class="album-card">
+        {{template "album-card-title" .}}
+        {{template "album-card-details" .}}
+      </li>
+      {{end}}
+    </ul>
+  </section>
   {{end}}
-</div>
-{{else}}
-<p class="empty">No albums yet. Start one below.</p>
-{{end}}
 
-<details class="panel stack new-album"{{if not .Albums}} open{{end}}>
-  <summary>New album</summary>
-  <form class="stack" method="post" action="/albums">
-    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-    <label>Title
-      <input name="title" maxlength="120" required autocomplete="off">
-    </label>
-    <label>Description <span class="muted">(optional)</span>
-      <input name="description" maxlength="500" autocomplete="off">
-    </label>
-    <label>Visible to
-      <select name="visibility">
-        {{$default := .DefaultVisibility}}
-        {{range .Levels}}
-        <option value="{{.}}" {{if eq . $default}}selected{{end}}>{{.Label}} — {{.Explain}}</option>
-        {{end}}
-      </select>
-    </label>
-    <label>Who can add files
-      <select name="access">
-        {{range .Access}}
-        <option value="{{.}}">{{.Label}} — {{.Explain}}</option>
-        {{end}}
-      </select>
-    </label>
-    <button class="btn primary" type="submit">Create album</button>
-  </form>
-</details>
-
-{{if .Shared}}
-<h2>Shared with everyone here</h2>
-<p class="muted">
-  Albums other people made that you can see. Where one is shared, you can add
-  your own photos and clips to it.
-</p>
-<div class="album-list">
-  {{range .Shared}}
-  <a class="album-card" href="/a/{{.Slug}}">
-    <strong>{{.Title}}</strong>
-    <span class="muted">
-      {{.FileCount}} file{{if ne .FileCount 1}}s{{end}} · by {{if .Username}}<a href="/members/{{.UserID}}">{{.Username}}</a>{{else}}unknown{{end}}
-    </span>
-    {{if not .Visibility.IsPublic}}<span class="badge private">{{.Visibility.ShortLabel}}</span>{{end}}
-    {{if .Access.Shared}}<span class="badge">shared</span>{{end}}
-  </a>
+  {{if .Shared}}
+  <section aria-labelledby="shared-albums">
+    <h2 id="shared-albums">Shared with everyone here</h2>
+    <ul class="album-list">
+      {{range .Shared}}
+      <li class="album-card">
+        {{template "album-card-title" .}}
+        {{if .Username}}<div class="muted album-byline">By <a href="/members/{{.UserID}}">{{.Username}}</a></div>{{end}}
+        {{template "album-card-details" .}}
+      </li>
+      {{end}}
+    </ul>
+  </section>
   {{end}}
+
+  <details class="panel album-disclosure new-album"{{if not (or .Albums .Shared)}} open{{end}}>
+    <summary>New album</summary>
+    <form class="stack" method="post" action="/albums">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <label>Title
+        <input name="title" maxlength="120" required autocomplete="off">
+      </label>
+      <label>Description <span class="muted">(optional)</span>
+        <textarea name="description" maxlength="500" rows="3"></textarea>
+      </label>
+      <label>Visible to
+        <select name="visibility">
+          {{$default := .DefaultVisibility}}
+          {{range .Levels}}
+          <option value="{{.}}" {{if eq . $default}}selected{{end}}>{{.Label}} — {{.Explain}}</option>
+          {{end}}
+        </select>
+      </label>
+      <label>Who can add files
+        <select name="access">
+          {{range .Access}}
+          <option value="{{.}}">{{.Label}} — {{.Explain}}</option>
+          {{end}}
+        </select>
+      </label>
+      <div><button class="btn primary" type="submit">Create album</button></div>
+    </form>
+  </details>
 </div>
 {{end}}
+
+{{define "album-card-title"}}
+<a class="album-card-title" href="/a/{{.Slug}}">{{.Title}}</a>
+{{end}}
+
+{{define "album-card-details"}}
+<div class="album-meta muted">
+  <span>{{.FileCount}} file{{if ne .FileCount 1}}s{{end}}</span>
+  {{if not .Visibility.IsPublic}}<span class="badge private">{{.Visibility.ShortLabel}}</span>{{end}}
+  {{if .Access.Shared}}<span class="badge">shared</span>{{end}}
+</div>
 {{end}}

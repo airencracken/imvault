@@ -12,8 +12,14 @@ import (
 	"imvault/internal/models"
 )
 
-const albumColumns = `a.id, a.user_id, a.title, a.slug, a.description, a.visibility, a.access, a.created_at,
-	COALESCE(u.username, ''), (SELECT COUNT(*) FROM album_files af JOIN files f ON f.id = af.file_id WHERE af.album_id = a.id AND f.trashed_at IS NULL)`
+const albumDetails = `a.id, a.user_id, a.title, a.slug, a.description, a.visibility, a.access, a.created_at, COALESCE(u.username, '')`
+const albumCount = `, (SELECT COUNT(*) FROM album_files af JOIN files f ON f.id = af.file_id WHERE af.album_id = a.id AND `
+const albumColumns = albumDetails + albumCount + `f.trashed_at IS NULL)`
+
+func visibleAlbumColumns(viewerID int64) (string, []any) {
+	visibility, args := visibilityClause("f", &viewerID)
+	return albumDetails + albumCount + visibility + " AND " + expiryClause + ")", append(args, nowUnix())
+}
 
 func scanAlbum(sc rowScanner) (*models.Album, error) {
 	var (
@@ -142,11 +148,22 @@ func (s *Store) AlbumBySlug(ctx context.Context, slug string) (*models.Album, er
 
 // AlbumsByUser lists an account's albums, newest first.
 func (s *Store) AlbumsByUser(ctx context.Context, userID int64) ([]*models.Album, error) {
+	return s.albumsByUser(ctx, userID, albumColumns, nil)
+}
+
+// AlbumsByUserWithVisibleCounts counts only the files that the owner can
+// currently see in each album.
+func (s *Store) AlbumsByUserWithVisibleCounts(ctx context.Context, userID int64) ([]*models.Album, error) {
+	columns, args := visibleAlbumColumns(userID)
+	return s.albumsByUser(ctx, userID, columns, args)
+}
+
+func (s *Store) albumsByUser(ctx context.Context, userID int64, columns string, args []any) ([]*models.Album, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT `+albumColumns+`
+		`SELECT `+columns+`
 		 FROM albums a LEFT JOIN users u ON u.id = a.user_id
 		 WHERE a.user_id = ?
-		 ORDER BY a.created_at DESC`, userID)
+		ORDER BY a.created_at DESC`, append(args, userID)...)
 	if err != nil {
 		return nil, fmt.Errorf("list albums: %w", err)
 	}
@@ -260,14 +277,15 @@ func (s *Store) AlbumsForFile(ctx context.Context, fileID string) ([]*models.Alb
 // somebody else's album would be to be handed its link, which is not a
 // collection a group can actually use.
 func (s *Store) AlbumsVisibleTo(ctx context.Context, viewerID int64) ([]*models.Album, error) {
+	columns, args := visibleAlbumColumns(viewerID)
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT `+albumColumns+`
+		`SELECT `+columns+`
 		 FROM albums a
 		 LEFT JOIN users u ON u.id = a.user_id
 		 WHERE a.user_id <> ?
 		   AND a.visibility IN ('public', 'members')
 		 ORDER BY a.created_at DESC, a.id DESC
-		 LIMIT 100`, viewerID)
+		LIMIT 100`, append(args, viewerID)...)
 	if err != nil {
 		return nil, fmt.Errorf("albums visible to: %w", err)
 	}

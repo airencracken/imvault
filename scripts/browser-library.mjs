@@ -38,7 +38,7 @@ async function checkBulkAlbumCreation(page, base, photoID, enabled) {
   assert.equal(await page.evaluate(`return new URL(location.href).searchParams.get('year');`), 'unknown');
   assert.equal(await page.evaluate(`return [...document.querySelectorAll('#bulk-album-select option')].filter(o => o.textContent === ${JSON.stringify(title)}).length;`), 1, 'New album appears in the picker');
   await page.goto(base + '/albums');
-  const path = await page.evaluate(`return [...document.querySelectorAll('.album-card')].find(a => a.querySelector('strong')?.textContent === ${JSON.stringify(title)})?.getAttribute('href');`);
+  const path = await page.evaluate(`return [...document.querySelectorAll('.album-card-title')].find(a => a.textContent === ${JSON.stringify(title)})?.getAttribute('href');`);
   assert.ok(path?.startsWith('/a/'), 'New album can be opened');
   await page.goto(base + path);
   assert.equal(await page.evaluate(`return !!document.getElementById('file-${photoID}');`), true, 'Selected photo is attached to the new album');

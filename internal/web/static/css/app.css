@@ -242,7 +242,7 @@ label.link { cursor: pointer; }
 label { display: block; color: var(--muted); font-size: .88rem; }
 label.row { display: flex; align-items: center; }
 
-input[type="text"], input[type="password"], input[type="email"], input:not([type]), select, textarea {
+input[type="text"], input[type="password"], input[type="email"], input[type="url"], input:not([type]), select, textarea {
   display: block; width: 100%;
   margin-top: .3rem;
   padding: .5rem .7rem;
@@ -463,39 +463,94 @@ fieldset.choices p.muted { margin: .4rem 0 0; font-size: .8rem; }
 
 /* ---------- albums ---------- */
 
-.album-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .9rem; margin-top: 1.5rem; }
+.album-page, .albums-page { display: grid; gap: 1.25rem; }
+.album-header { display: grid; gap: .45rem; overflow-wrap: anywhere; }
+.album-header h1, .albums-page h1 { margin: 0; }
+.album-back { justify-self: start; margin-block-end: .2rem; font-size: .88rem; }
+.album-description { max-width: 70ch; margin: 0; white-space: pre-wrap; }
+.album-meta {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: .3rem .9rem;
+  padding: 0; margin: 0; list-style: none; font-size: .86rem;
+}
+.album-list {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr));
+  gap: .8rem; padding: 0; margin: 0; list-style: none;
+}
 .album-card {
-  display: flex; flex-direction: column; gap: .3rem;
+  position: relative; min-width: 0; overflow-wrap: anywhere;
+  display: grid; align-content: start; gap: .35rem;
   padding: .9rem 1rem;
   background: var(--bg-elev);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  color: var(--text);
 }
-.album-card:hover { border-color: var(--border-strong); text-decoration: none; }
+.album-card:hover, .album-card:focus-within { border-color: var(--border-strong); }
+.album-card-title { justify-self: start; color: var(--text); font-weight: 650; }
+.album-card-title::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+.album-byline { font-size: .86rem; }
+.album-byline a { position: relative; }
 
-/* The owner's settings live behind a disclosure, so an album page opens on its
-   images rather than on a form. */
-details.album-settings { margin-top: 2rem; }
-details.album-settings > summary,
+.album-disclosure { min-width: 0; padding: .65rem .9rem; }
+.album-disclosure > summary { cursor: pointer; font-weight: 600; }
+.album-disclosure[open] > summary { margin-bottom: .85rem; }
+.album-disclosure select, .album-disclosure label { min-width: 0; }
+.album-disclosure textarea { resize: vertical; }
+.new-album { justify-self: start; }
+.new-album[open] { justify-self: stretch; max-width: 38rem; }
+.album-picker { justify-self: start; max-width: 100%; }
+.album-picker[open] { justify-self: stretch; }
+.album-picker p { margin: 0; }
+.album-picker > p { margin-bottom: .55rem; }
+.album-picks { max-height: 52vh; overflow: auto; padding: .25rem; }
+.album-picker .pick {
+  display: grid; place-items: center; width: 2.5rem; height: 2.5rem;
+  background: var(--bg-icon); border: 1px solid var(--border);
+  border-radius: 8px; cursor: pointer;
+}
+.album-picker .pick input { width: 1rem; height: 1rem; cursor: inherit; }
+.album-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem 1rem; }
+
+.album-media .grid, .album-picks .grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, clamp(7.75rem, 18vw, 15rem)), 1fr));
+  gap: .7rem;
+}
+.album-media .empty { margin: 0; }
+.album-media .meta { overflow-wrap: anywhere; }
+@media (hover: none), (pointer: coarse) {
+  .album-media .card-action { opacity: 1; }
+  .album-media .card-action .icon { width: 2.75rem; height: 2.75rem; }
+}
+
+.album-options {
+  display: grid; align-items: start;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr)); gap: .75rem;
+}
+.album-options .report-form { margin: 0; padding: .65rem .9rem; min-width: 0; }
+.album-options .report-form > summary { font: inherit; font-weight: 600; color: var(--text); }
+.album-discussion-links { list-style: none; margin: 0; padding: 0; }
+.album-discussion-links li {
+  display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .8rem;
+  border-bottom: 1px solid var(--border); padding: .35rem 0;
+}
+.album-discussion-links a {
+  flex: 1 1 12rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.album-delete { margin-top: 1rem; padding-top: .85rem; border-top: 1px solid var(--border); }
+
 details.file-edit > summary,
 details.bulk-panel > summary,
-details.new-album > summary,
 details.library-more > summary {
   cursor: pointer;
   color: var(--muted);
   font-size: .9rem;
   padding: .2rem 0;
 }
-details.album-settings[open] > summary,
 details.file-edit[open] > summary,
 details.bulk-panel[open] > summary,
-details.new-album[open] > summary,
 details.library-more[open] > summary { margin-bottom: .6rem; }
-details.file-edit > summary, details.bulk-panel > summary, details.new-album > summary { color: var(--text); font-weight: 600; }
+details.file-edit > summary, details.bulk-panel > summary { color: var(--text); font-weight: 600; }
 details.file-edit h2 { font-size: .95rem; margin: 0; }
 details.file-edit > * + * { margin-top: 1rem; }
-details.new-album { margin-top: 1.5rem; }
 
 /* One visible search row; sorting and dates wait behind a disclosure. */
 .library-filters { margin-bottom: 1.25rem; }

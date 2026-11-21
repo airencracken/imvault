@@ -166,6 +166,8 @@ type FileQuery struct {
 	VisibleTo *int64
 	// AlbumID restricts results to members of an album.
 	AlbumID *int64
+	// OutsideAlbumID excludes files already in an album before pagination.
+	OutsideAlbumID *int64
 	// TagID restricts results to files carrying a tag.
 	TagID *int64
 	// FavoritedBy restricts results to an account's private favorites. Combine
@@ -188,6 +190,10 @@ func (q FileQuery) relations() ([]string, []any) {
 	if q.AlbumID != nil {
 		clauses = append(clauses, `f.id IN (SELECT file_id FROM album_files WHERE album_id = ?)`)
 		args = append(args, *q.AlbumID)
+	}
+	if q.OutsideAlbumID != nil {
+		clauses = append(clauses, `f.id NOT IN (SELECT file_id FROM album_files WHERE album_id = ?)`)
+		args = append(args, *q.OutsideAlbumID)
 	}
 	if q.TagID != nil {
 		clauses = append(clauses, `f.id IN (SELECT file_id FROM file_tags WHERE tag_id = ?)`)

@@ -1,5 +1,29 @@
 [
   {
+    "name": "album pages skip files already shown on earlier pages",
+    "file": "internal/web/handlers_albums.go",
+    "before": "filter.Offset = (page - 1) * defaultPageSize",
+    "after": "filter.Offset = 0",
+    "package": "./internal/web",
+    "run": "^TestAlbumPagePaginatesVisibleFiles$"
+  },
+  {
+    "name": "album index counts reflect the viewer",
+    "file": "internal/store/albums.go",
+    "before": "albumDetails + albumCount + visibility +",
+    "after": "albumDetails + albumCount + \"(1 = 1 OR \" + visibility + \")\" +",
+    "package": "./internal/web",
+    "run": "^TestAlbumPagePaginatesVisibleFiles$"
+  },
+  {
+    "name": "the album picker excludes existing files before applying its limit",
+    "file": "internal/web/handlers_albums.go",
+    "before": "OutsideAlbumID: &albumID,",
+    "after": "",
+    "package": "./internal/web",
+    "run": "^TestAlbumPickerExcludesCurrentMembersBeforeLimiting$"
+  },
+  {
     "name": "uploaded files return copyable absolute links",
     "file": "internal/web/handlers_upload.go",
     "before": "grid.UploadOrigin = s.absoluteURL(r, \"\")",

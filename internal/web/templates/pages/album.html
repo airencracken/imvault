@@ -1,82 +1,126 @@
 {{define "content"}}
-<header class="page-head">
-  <div>
+<article class="album-page">
+  <header class="album-header">
+    {{if .User}}<a class="album-back" href="/albums">All albums</a>{{end}}
     <h1>{{.Album.Title}}</h1>
-    <p class="muted">
-      {{.Album.FileCount}} file{{if ne .Album.FileCount 1}}s{{end}}
-      · visible to {{.Album.Visibility.Label}}
-      · {{if .Album.Access.Shared}}anyone here can add their own{{else}}only its owner can add{{end}}
-      · by {{if .Album.Username}}<a href="/members/{{.Album.UserID}}">{{.Album.Username}}</a>{{else}}unknown{{end}}
-    </p>
-    {{with .Album.Description}}<p>{{.}}</p>{{end}}
+    {{with .Album.Description}}<p class="album-description">{{.}}</p>{{end}}
+    <ul class="album-meta muted">
+      <li>{{.Pagination.Total}} file{{if ne .Pagination.Total 1}}s{{end}}</li>
+      <li>Visible to {{.Album.Visibility.Label}}</li>
+      {{if .Album.Access.Shared}}<li>Members can add files</li>{{end}}
+      {{if .Album.Username}}<li>By <a href="/members/{{.Album.UserID}}">{{.Album.Username}}</a></li>{{end}}
+    </ul>
+  </header>
+
+  {{if .CanContribute}}
+  <details class="panel album-disclosure album-picker">
+    <summary>Add photos and clips</summary>
+    {{if .Available.Files}}
+    <form id="album-add" class="stack" method="post" action="/a/{{.Album.Slug}}/files"
+          hx-post="/a/{{.Album.Slug}}/files" hx-target="#album-add" hx-swap="outerHTML">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <p class="muted">Select files from your gallery to add to this album.</p>
+      <div class="album-picks">
+        {{template "file_grid" .Available}}
+      </div>
+      <div class="album-actions">
+        <button class="btn primary" type="submit">Add selected</button>
+        <a href="/gallery">Browse your full gallery</a>
+      </div>
+    </form>
+    {{else}}
+    <p class="muted">{{.Available.Empty}}</p>
+    <a href="/upload">Upload photos and clips</a>
+    {{end}}
+  </details>
+  {{end}}
+
+  <section class="album-media" aria-label="Album files">
+    {{template "file_grid" .Grid}}
+    {{template "pagination" .Pagination}}
+  </section>
+
+  {{if or .Discussions .DiscussionOwner .IsOwner .ReportForm (and .User .DiscussionEnabled)}}
+  <div class="album-options">
+    {{if or .Discussions .DiscussionOwner (and .User .DiscussionEnabled)}}
+    <details class="panel album-disclosure album-discussions">
+      <summary>Album discussions{{if .Discussions}} ({{len .Discussions}}){{end}}</summary>
+      <div class="stack">
+        {{if .Discussions}}
+        <ul class="album-discussion-links">
+          {{range .Discussions}}
+          <li>
+            <a href="{{.}}" title="{{.}}" hx-boost="false" rel="noreferrer">{{.}}</a>
+            {{if $.DiscussionOwner}}
+            <form method="post" action="/a/{{$.Album.Slug}}/discussion">
+              <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+              <input type="hidden" name="url" value="{{.}}">
+              <input type="hidden" name="remove" value="1">
+              <button class="btn small" type="submit">Remove link</button>
+            </form>
+            {{end}}
+          </li>
+          {{end}}
+        </ul>
+        {{end}}
+        {{if .DiscussionOwner}}
+        <form class="stack" method="post" action="/a/{{.Album.Slug}}/discussion">
+          <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+          <label>Existing discussion link
+            <input type="url" name="url" required maxlength="4096">
+          </label>
+          <div><button class="btn" type="submit">Link discussion</button></div>
+        </form>
+        {{end}}
+        {{if and .User .DiscussionEnabled}}
+        <form method="post" action="/a/{{.Album.Slug}}/share">
+          <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+          <button class="btn" type="submit">Prepare a Witmoot discussion</button>
+        </form>
+        {{end}}
+      </div>
+    </details>
+    {{end}}
+
+    {{if .IsOwner}}
+    <details class="panel album-disclosure album-settings">
+      <summary>Album settings</summary>
+      <form method="post" action="/a/{{.Album.Slug}}/settings" class="stack">
+        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+        <label>Title
+          <input name="title" value="{{.Album.Title}}" maxlength="120" required autocomplete="off">
+        </label>
+        <label>Description <span class="muted">(optional)</span>
+          <textarea name="description" maxlength="500" rows="3">{{.Album.Description}}</textarea>
+        </label>
+        <label>Visible to
+          <select name="visibility">
+            {{$current := .Album.Visibility}}
+            {{range .Levels}}
+            <option value="{{.}}" {{if eq . $current}}selected{{end}}>{{.Label}} — {{.Explain}}</option>
+            {{end}}
+          </select>
+        </label>
+        <label>Who can add files
+          <select name="access">
+            {{$currentAccess := .Album.Access}}
+            {{range .Access}}
+            <option value="{{.}}" {{if eq . $currentAccess}}selected{{end}}>{{.Label}} — {{.Explain}}</option>
+            {{end}}
+          </select>
+        </label>
+        <div><button class="btn primary" type="submit">Save album</button></div>
+      </form>
+      <form class="album-delete" method="post" action="/a/{{.Album.Slug}}/delete"
+            data-confirm="Delete this album?" data-confirm-detail="The files in it are kept." data-confirm-action="Delete album">
+        <button class="btn danger" type="submit">Delete album</button>
+        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      </form>
+    </details>
+    {{end}}
+
+    {{with .ReportForm}}{{template "report_form" .}}{{end}}
   </div>
-  {{if .IsOwner}}
-  <form method="post" action="/a/{{.Album.Slug}}/delete"
-        data-confirm="Delete this album?" data-confirm-detail="The files in it are kept." data-confirm-action="Delete album">
-    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-    <button class="btn danger" type="submit">Delete album</button>
-  </form>
   {{end}}
-</header>
-
-{{template "file_grid" .Grid}}
-<section class="panel"><h2>Album discussions</h2><p class="muted">The album stays here; a discussion keeps a link to it. Its contents can change.</p>{{range .Discussions}}<p><a href="{{.}}" hx-boost="false" rel="noreferrer">{{.}}</a></p>{{if $.DiscussionOwner}}<form method="post" action="/a/{{$.Album.Slug}}/discussion"><input type="hidden" name="csrf_token" value="{{$.CSRFToken}}"><input type="hidden" name="url" value="{{.}}"><input type="hidden" name="remove" value="1"><button type="submit">Remove link</button></form>{{end}}{{end}}{{if .DiscussionOwner}}<form method="post" action="/a/{{.Album.Slug}}/discussion"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><label>Existing discussion link<input type="url" name="url" required maxlength="4096"></label><button type="submit">Link discussion</button></form>{{end}}{{if and .User .DiscussionEnabled}}<form method="post" action="/a/{{.Album.Slug}}/share"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><button type="submit">Prepare a Witmoot discussion</button></form>{{end}}</section>
-
-{{with .ReportForm}}{{template "report_form" .}}{{end}}
-
-{{if .CanContribute}}
-<section class="section">
-  <h2>Add photos and clips</h2>
-  {{if .Available.Files}}
-  <form id="album-add" method="post" action="/a/{{.Album.Slug}}/files"
-        hx-post="/a/{{.Album.Slug}}/files" hx-target="#album-add" hx-swap="outerHTML">
-    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-    <p class="muted">
-      Tick the files to add, then save. Only your own files can be added.
-    </p>
-    {{template "file_grid" .Available}}
-    <button class="btn primary" type="submit">Add selected</button>
-  </form>
-  {{else}}
-  <p class="muted">Everything in your gallery is already in this album.</p>
-  {{end}}
-</section>
-{{end}}
-
-{{if .IsOwner}}
-<details class="panel stack album-settings">
-  <summary>Album settings</summary>
-  <form method="post" action="/a/{{.Album.Slug}}/settings" class="stack">
-    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-    <label>Title
-      <input name="title" value="{{.Album.Title}}" maxlength="120" required autocomplete="off">
-    </label>
-    <label>Description <span class="muted">(optional)</span>
-      <input name="description" value="{{.Album.Description}}" maxlength="500" autocomplete="off">
-    </label>
-    <label>Visible to
-      <select name="visibility">
-        {{$current := .Album.Visibility}}
-        {{range .Levels}}
-        <option value="{{.}}" {{if eq . $current}}selected{{end}}>{{.Label}} — {{.Explain}}</option>
-        {{end}}
-      </select>
-    </label>
-    <label>Who can add files
-      <select name="access">
-        {{$currentAccess := .Album.Access}}
-        {{range .Access}}
-        <option value="{{.}}" {{if eq . $currentAccess}}selected{{end}}>{{.Label}} — {{.Explain}}</option>
-        {{end}}
-      </select>
-    </label>
-    <p class="muted">
-      A shared album has to be visible to members. Contributors can add their own
-      photos and clips and take them back; only you can change the album itself, or remove
-      somebody else's file from it.
-    </p>
-    <button class="btn primary" type="submit">Save album</button>
-  </form>
-</details>
-{{end}}
+</article>
 {{end}}

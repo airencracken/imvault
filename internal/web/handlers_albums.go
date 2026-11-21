@@ -22,7 +22,7 @@ const albumFileLimit = 120
 func (s *Server) handleAlbumsPage(w http.ResponseWriter, r *http.Request) {
 	user := currentUser(r.Context())
 
-	albums, err := s.store.AlbumsByUser(r.Context(), user.ID)
+	albums, err := s.store.AlbumsByUserWithVisibleCounts(r.Context(), user.ID)
 	if err != nil {
 		s.log.Error("albums page: list", "error", err)
 		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
@@ -173,6 +173,16 @@ func (s *Server) handleAlbumPage(w http.ResponseWriter, r *http.Request) {
 		filter.PublicOnly = true
 	}
 
+	total, err := s.store.CountFiles(r.Context(), filter)
+	if err != nil {
+		s.log.Error("album page: count files", "error", err)
+		s.fail(w, r, http.StatusInternalServerError, "Something went wrong on our side. Please try again.")
+		return
+	}
+	page, pager := pagination(r, total)
+	filter.Limit = defaultPageSize
+	filter.Offset = (page - 1) * defaultPageSize
+
 	files, err := s.store.ListFiles(r.Context(), filter)
 	if err != nil {
 		s.log.Error("album page: list files", "error", err)
@@ -180,9 +190,9 @@ func (s *Server) handleAlbumPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	grid := s.grid(r, files, isOwner, false,
-		"/a/"+album.Slug+"/files/%s/delete", "This album is empty.")
-	if !isOwner && user != nil {
+	removePath := albumPagePath("/a/"+album.Slug+"/files/%s/delete", page)
+	grid := s.grid(r, files, isOwner, false, removePath, "No photos or clips to show.")
+	if !isOwner && canContribute {
 		// A contributor may take their own files out again, and only their own:
 		// removing somebody else's stays with the owner, which is where the
 		// moderation work will build on.
@@ -206,6 +216,7 @@ func (s *Server) handleAlbumPage(w http.ResponseWriter, r *http.Request) {
 		IsOwner:       isOwner,
 		CanContribute: canContribute,
 		Grid:          grid,
+		Pagination:    pager,
 		Levels:        models.VisibilityLevels(),
 		Access:        models.AlbumAccessLevels(),
 	}
@@ -223,39 +234,24 @@ func (s *Server) handleAlbumPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if canContribute {
-		available, err := s.albumCandidates(r, user, album.ID)
-		if err != nil {
-			s.log.Error("album page: candidates", "error", err)
-		}
-		view.Available = s.grid(r, available, false, true, "",
-			"Everything in your gallery is already in this album.")
+		view.Available = s.albumPicker(r, user.ID, album.ID)
 	}
 
 	s.renderPage(w, r, http.StatusOK, "album", view)
 }
 
-// albumCandidates lists the owner's files that are not yet in the album.
-func (s *Server) albumCandidates(r *http.Request, user *models.User, albumID int64) ([]*models.File, error) {
-	members, err := s.store.AlbumMembership(r.Context(), albumID)
-	if err != nil {
-		return nil, err
-	}
-
+func (s *Server) albumPicker(r *http.Request, userID, albumID int64) fileCardsView {
 	files, err := s.store.ListFiles(r.Context(), store.FileQuery{
-		OwnerID: &user.ID,
-		Limit:   albumFileLimit,
+		OwnerID:        &userID,
+		OutsideAlbumID: &albumID,
+		Limit:          albumFileLimit,
 	})
+	empty := "There are no photos or clips in your gallery to add."
 	if err != nil {
-		return nil, err
+		s.log.Error("album page: candidates", "error", err)
+		empty = "Your gallery couldn't be loaded. Try again in a moment."
 	}
-
-	out := files[:0]
-	for _, f := range files {
-		if !members[f.ID] {
-			out = append(out, f)
-		}
-	}
-	return out, nil
+	return s.grid(r, files, false, true, "", empty)
 }
 
 // handleAlbumDelete removes an album, leaving its files in place.
@@ -370,11 +366,19 @@ func (s *Server) handleAlbumRemoveFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	destination := albumPagePath("/a/"+album.Slug, queryInt(r, "page", 1))
 	if isHTMX(r) {
-		hxRedirect(w, "/a/"+album.Slug)
+		hxRedirect(w, destination)
 		return
 	}
-	s.redirectFlash(w, r, "/a/"+album.Slug, flashNotice, "Removed from album.")
+	s.redirectFlash(w, r, destination, flashNotice, "Removed from album.")
+}
+
+func albumPagePath(path string, page int) string {
+	if page > 1 {
+		return path + "?page=" + strconv.Itoa(page)
+	}
+	return path
 }
 
 // albumByRef resolves an album reference: a numeric id or a slug.

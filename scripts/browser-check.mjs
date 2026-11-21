@@ -23,6 +23,7 @@ import { pathToFileURL } from "node:url";
 import { checkThemes } from "./browser-themes.mjs";
 import { checkPhotoRotation } from "./browser-rotation.mjs";
 import { checkLibrary, checkUploadQueue } from "./browser-library.mjs";
+import { checkAlbumLayout, checkSharedAlbumCard } from "./browser-albums.mjs";
 import { checkVersionDisplay } from "./browser-version.mjs";
 import { checkAvatars } from "./browser-avatars.mjs";
 import { checkProfiles } from "./browser-profiles.mjs";
@@ -605,32 +606,25 @@ async function main() {
     record("the disclosure shows the album is shared", settings.shared === "members",
       `access select said "${settings.shared}"`);
 
-    // The add form offers the album's own images as candidates, and saving puts
-    // the ticked one in.
+    // The gallery picker starts closed and lets us add the checked file.
     const candidate = await page.evaluate(`
-      const form = document.getElementById("album-add");
-      if (!form) return "";
-      const box = form.querySelector('input[name="files"]');
-      return box ? box.value : "";
+      const picker = document.querySelector(".album-picker");
+      if (!picker || picker.open) return "";
+      picker.querySelector("summary").click();
+      return picker.querySelector('#album-add input[name="files"]')?.value || "";
     `);
     record("the add form offers the upload as a candidate", candidate === albumFile,
       `offered "${candidate}", expected "${albumFile}"`);
 
-    const added = await page.evaluate(`
+    await page.evaluate(`
       const form = document.getElementById("album-add");
-      const box = form.querySelector('input[name="files"]');
-      const token = document.querySelector('meta[name="csrf-token"]').content;
-      const body = new FormData();
-      body.append("csrf_token", token);
-      body.append("files", box.value);
-      const resp = await fetch("/a/browser-shared/files", { method: "POST", body });
-      return resp.ok;
+      form.querySelector('input[name="files"]').click();
+      form.requestSubmit();
     `);
-    record("adding the ticked image is accepted", added === true);
+    await page.waitFor(`document.querySelector(".album-media #file-${albumFile}")`);
 
-    await page.goto(`${base}/a/browser-shared`);
     const inAlbum = await page.evaluate(`
-      const grid = document.querySelector(".grid");
+      const grid = document.querySelector(".album-media .grid");
       const ids = grid ? [...grid.querySelectorAll(".card")].map((c) => c.id) : [];
       const form = document.getElementById("album-add");
       const stillOffered = form
@@ -643,13 +637,20 @@ async function main() {
     record("and is no longer offered as a candidate", inAlbum.stillOffered === false,
       JSON.stringify(inAlbum));
 
-    // The shared badge shows up in the album list.
+    await checkAlbumLayout(page, base, albumFile);
+    record("the album grid and management affordances fit desktop and touch widths", true);
+
     await page.goto(`${base}/albums`);
     record("a shared album is badged as shared", await page.evaluate(`
       const cards = [...document.querySelectorAll(".album-card")];
       const card = cards.find((c) => c.textContent.includes("Browser Shared"));
       return !!card && card.textContent.includes("shared");
     `));
+
+    await switchBrowserUser(page, base, "bob", "/albums");
+    await checkSharedAlbumCard(page, base);
+    record("shared album cards keep the album and contributor links independently clickable", true);
+    await switchBrowserUser(page, base, "boss", "/admin/users");
 
     // --- roles ---
     await page.goto(`${base}/admin/users`);
